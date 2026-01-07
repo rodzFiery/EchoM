@@ -85,7 +85,8 @@ class EngineControl(commands.Cog):
 
     @commands.command()
     async def fierystart(self, ctx):
-        import main
+        import sys
+        main = sys.modules['__main__']
         image_path = "LobbyTopRight.jpg"
         embed = discord.Embed(
             title=f"Fiery's Hangrygames Edition # {main.game_edition}", 
@@ -478,6 +479,7 @@ class IgnisEngine(commands.Cog):
                         fxp_log[winner['id']]["first_kill"] = 75
                         first_blood_recorded = True
                         
+                        import sys
                         main = sys.modules['__main__']
                         if main.nsfw_mode_active:
                             flash_msg = f"🔞 **FIRST BLOOD HANGRYGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
@@ -669,6 +671,7 @@ class IgnisEngine(commands.Cog):
                 self.active_battles.remove(channel.id)
 
 async def setup(bot):
+    import sys
     main = sys.modules['__main__']
     
     # Registrando IgnisEngine
