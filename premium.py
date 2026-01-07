@@ -143,6 +143,35 @@ class PremiumSystem(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
+    @commands.command(name="echoon")
+    @commands.has_permissions(administrator=True)
+    async def echo_on(self, ctx):
+        """ADDED: Force enables Gold Premium for ALL registered assets in this server."""
+        if ctx.guild.id != 1457658274496118785:
+            return await ctx.send("❌ This override protocol is restricted to the Home Dungeon.")
+        
+        p_date = datetime.now().isoformat()
+        with self.get_db_connection() as conn:
+            conn.execute("UPDATE users SET premium_type = 'Gold', premium_date = ?", (p_date,))
+            conn.commit()
+        
+        embed = self.fiery_embed("ECHO ON: GLOBAL DOMINANCE", "👑 **PROTOCOL ACTIVATED.** Every asset in the dungeon has been elevated to **Gold Premium Status**.\n\n*The Master grants unlimited access to all.*", color=0xFFD700)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="echooff")
+    @commands.has_permissions(administrator=True)
+    async def echo_off(self, ctx):
+        """ADDED: Revokes ALL premium statuses in this server."""
+        if ctx.guild.id != 1457658274496118785:
+            return await ctx.send("❌ This override protocol is restricted to the Home Dungeon.")
+        
+        with self.get_db_connection() as conn:
+            conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
+            conn.commit()
+        
+        embed = self.fiery_embed("ECHO OFF: GLOBAL RESET", "🌑 **PROTOCOL TERMINATED.** All elite privileges have been revoked. Every asset has returned to **Free Status**.\n\n*The favor of the Master has faded.*", color=0x808080)
+        await ctx.send(embed=embed)
+
     # --- DECORATOR/CHECK FOR PREMIUM COMMANDS ---
     @staticmethod
     def is_premium():
@@ -178,5 +207,7 @@ async def setup(bot):
         bot, 
         main.get_db_connection, 
         main.fiery_embed, 
+        main.update_user_stats_async
+    ))
         main.update_user_stats_async
     ))
