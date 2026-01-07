@@ -102,7 +102,7 @@ class EngineControl(commands.Cog):
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="lobby_thumb.jpg")
             embed.set_thumbnail(url="attachment://lobby_thumb.jpg")
-            embed.add_field(name="🧙‍♂️> 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
+            embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
             await ctx.send(file=file, embed=embed, view=view)
         else:
             embed.set_thumbnail(url="https://i.imgur.com/Gis6f9V.gif")
@@ -695,5 +695,6 @@ async def setup(bot):
         main.get_db_connection
     )
     await bot.add_cog(engine_control)
+
 
 
