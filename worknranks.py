@@ -20,8 +20,8 @@ RANKS = [
 
 # 🧬 EROTIC CLASSES DEFINITION (PRESERVED)
 CLASSES = {
-    "Dominant": {"bonus_flames": 1.20, "bonus_xp": 1.00, "desc": "20% more Flames from all rewards.", "icon": "⛓️"},
-    "Submissive": {"bonus_flames": 1.00, "bonus_xp": 1.25, "desc": "25% more Experience (XP/FXP).", "icon": "🫦"},
+    "Dominant": {"bonus_flames": 1.20, "bonus_xp": 1.00, "desc": "20% more Flames from all rewards.", "icon": "🔥"},
+    "Submissive": {"bonus_flames": 1.00, "bonus_xp": 1.25, "desc": "25% more Experience (XP/FXP).", "icon": "💦"},
     "Switch": {"bonus_flames": 1.15, "bonus_xp": 1.15, "desc": "15% more Flames and 15% more XP.", "icon": "🔄"},
     "Exhibitionist": {"bonus_flames": 1.40, "bonus_xp": 0.80, "desc": "40% more Flames, but 20% less XP.", "icon": "📸"}
 }
