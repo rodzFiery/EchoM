@@ -70,7 +70,7 @@ class LobbyView(discord.ui.View):
         
         self.stop()
         # Visual confirmation the game is launching
-        await interaction.channel.send("<:FIERY_fp_axdevilleft:1310628556983898142> **THE LIGHTS GO OUT... FIERY HANGRYGAMES EDITION HAS BEGUN!**")
+        await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
         
         # Explicitly passing the bot's loop to avoid task death
         asyncio.create_task(engine.start_battle(interaction.channel, self.participants, self.edition))
@@ -84,7 +84,7 @@ class EngineControl(commands.Cog):
         self.get_db_connection = get_db_connection
 
     @commands.command()
-    async def fierystart(self, ctx):
+    async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
         image_path = "LobbyTopRight.jpg"
@@ -205,9 +205,9 @@ class IgnisEngine(commands.Cog):
         while current_xp >= xp_needed and level < 100:
             current_xp -= xp_needed
             level += 1
-            if level <= 15: xp_needed = 2000
-            elif level <= 30: xp_needed = 4000
-            elif level <= 60: xp_needed = 6533
+            if level <= 15: xp_needed = 2500
+            elif level <= 30: xp_needed = 5000
+            elif level <= 60: xp_needed = 7500
             else: xp_needed = 5000
         return level
 
@@ -363,7 +363,7 @@ class IgnisEngine(commands.Cog):
                 
                 name = member.display_name
                 fighters.append({"id": p_id, "name": name, "avatar": member.display_avatar.url})
-                roster_list.append(f"<:FIERY_symkink_belt:1300924308876558386> **{name}**")
+                roster_list.append(f"· **{name}**")
                 
                 with self.get_db_connection() as conn:
                     conn.execute("UPDATE users SET games_played = games_played + 1 WHERE id = ?", (p_id,))
@@ -579,8 +579,8 @@ class IgnisEngine(commands.Cog):
                             f"⛓️ **Member:** {member.mention}\n"
                             f"🔞 **Dungeon Rank:** #{rank}\n"
                             f"📊 **Participation:** {log['participation']} Neural Pts\n"
-                            f"⚔️ **Match Executions:** {game_kills[p_id]} kills ({log['kills']} FXP)\n"
-                            f"🩸 **First Blood Bonus:** {log['first_kill']} FXP\n"
+                            f"⚔️ **Match Executions:** {game_kills[p_id]} kills ({log['kills']} XP)\n"
+                            f"🩸 **First Blood Bonus:** {log['first_kill']} XP\n"
                             f"🥇 **Placement Value:** {log['placement']} XP\n"
                             f"💦 **Neural Imprint (XP) Gained:** +{processed_data[p_id]}\n"
                         )
@@ -591,8 +591,8 @@ class IgnisEngine(commands.Cog):
                         new_totals = (
                             f"🔥 **Total Flames in Vault:** {m_stats['balance']:,}\n"
                             f"💀 **Total Lifetime Executions:** {m_stats['kills']}\n"
-                            f"💦 **Total Fiery Experience:** {m_stats['fiery_xp']:,}\n"
-                            f"🔝 **Fiery Level:** {m_stats['fiery_level']} ({self.ranks[m_stats['fiery_level']-1] if m_stats['fiery_level'] <= 100 else self.ranks[-1]})"
+                            f"💦 **Total Echo Experience:** {m_stats['fiery_xp']:,}\n"
+                            f"🔝 **Echo Level:** {m_stats['fiery_level']} ({self.ranks[m_stats['fiery_level']-1] if m_stats['fiery_level'] <= 100 else self.ranks[-1]})"
                         )
 
                         audit_emb.description = breakdown
@@ -606,21 +606,21 @@ class IgnisEngine(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
-            win_card = discord.Embed(title=f"👑 Fiery Hangrygames Winner 👑 # {edition}", color=0xFFD700)
+            win_card = discord.Embed(title=f"👑 Echo Hangrygames Winner 👑 # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
             b_xp_win = self.classes[f_u['class']]['bonus_xp'] if f_u['class'] in self.classes else 1.0
             total_fxp_win = processed_data[winner_final['id']]
             
-            breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} Pts\n"
-                            f"⚔️ **Kills:** {log_win['kills']} Pts\n"
-                            f"🩸 **First Kill:** {log_win['first_kill']} Pts\n"
-                            f"🥇 **Placement:** {log_win['placement']} Pts\n"
+            breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
+                            f"⚔️ **Kills:** {log_win['kills']} XP\n"
+                            f"🩸 **First Kill:** {log_win['first_kill']} XP\n"
+                            f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
             
-            win_card.add_field(name="💦 FIERY EXPERIENCE RECAP", value=breakdown_text, inline=True)
+            win_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=True)
             
             with self.get_db_connection() as conn:
                 w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u['wins'],)).fetchone()
@@ -665,7 +665,7 @@ class IgnisEngine(commands.Cog):
         except Exception as e:
             print(f"❌ CRITICAL ENGINE FAILURE: {e}")
             traceback.print_exc()
-            await channel.send("❌ A critical dungeon error occurred. Call Rodz.")
+            await channel.send("❌ A critical dungeon error occurred. Call Dev.rodz.")
         finally:
             if channel.id in self.active_battles:
                 self.active_battles.remove(channel.id)
@@ -695,4 +695,5 @@ async def setup(bot):
         main.get_db_connection
     )
     await bot.add_cog(engine_control)
+
 
