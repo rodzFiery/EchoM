@@ -146,10 +146,7 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="echoon")
     @commands.has_permissions(administrator=True)
     async def echo_on(self, ctx):
-        """ADDED: Force enables Gold Premium for ALL registered assets in this server."""
-        if ctx.guild.id != 1457658274496118785:
-            return await ctx.send(f"❌ This override protocol is restricted to the Home Dungeon. (Current ID: {ctx.guild.id})")
-        
+        """ADDED: Force enables Gold Premium for ALL registered assets in any server."""
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
             conn.execute("UPDATE users SET premium_type = 'Gold', premium_date = ?", (p_date,))
@@ -161,10 +158,7 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="echooff")
     @commands.has_permissions(administrator=True)
     async def echo_off(self, ctx):
-        """ADDED: Revokes ALL premium statuses in this server."""
-        if ctx.guild.id != 1457658274496118785:
-            return await ctx.send(f"❌ This override protocol is restricted to the Home Dungeon. (Current ID: {ctx.guild.id})")
-        
+        """ADDED: Revokes ALL premium statuses in any server."""
         with self.get_db_connection() as conn:
             conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
             conn.commit()
