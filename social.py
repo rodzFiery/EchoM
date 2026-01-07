@@ -182,8 +182,7 @@ async def handle_fiery_guide(ctx, fiery_embed):
         "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
         "📜 `!quests` — Progress on 40 active demands.\n"
         "👁️ `!gallery` — Server tension and champion metrics.\n"
-        "🔦 `!search` — Recover items during **BLACKOUT** events.\n"
-        "📟 `!ping` — Measure neural latency to the Red Room.")
+        "🔦 `!search` — Recover items during **BLACKOUT** events.\n")
 
     for e in [emb1, emb2, emb3, emb4, emb5]:
         if os.path.exists("LobbyTopRight.jpg"):
