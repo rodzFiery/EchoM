@@ -20,7 +20,7 @@ import asyncio
 import json
 import shutil
 import sys
-import quests
+# REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
 from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
@@ -114,8 +114,12 @@ def init_db():
             PRIMARY KEY (winner_id, loser_id)
         )""")
 
-        # Quest Table handled in quests.py
-        quests.init_quests_db(get_db_connection)
+        # Quest Table Re-Integrated into init_db
+        q_cols = ["user_id INTEGER PRIMARY KEY"]
+        for i in range(1, 21): q_cols.append(f"d{i} INTEGER DEFAULT 0")
+        for i in range(1, 21): q_cols.append(f"w{i} INTEGER DEFAULT 0")
+        q_cols.append("last_reset TEXT")
+        conn.execute(f"CREATE TABLE IF NOT EXISTS quests ({', '.join(q_cols)})")
 
         required_columns = [
             ("balance", "INTEGER DEFAULT 500"), ("xp", "INTEGER DEFAULT 0"),
@@ -134,7 +138,7 @@ def init_db():
             ("max_win_streak", "INTEGER DEFAULT 0"), ("current_kill_streak", "INTEGER DEFAULT 0"), 
             ("max_kill_streak", "INTEGER DEFAULT 0"), ("titles", "TEXT DEFAULT '[]'"),
             ("spouse", "INTEGER DEFAULT NULL"), ("marriage_date", "TEXT DEFAULT NULL"), # ADDED: Marriage Logic
-            ("last_casino_slots", "TEXT"), ("last_casino_blackjack", "TEXT"), ("last_casino_roulette", "TEXT"), ("last_casino_dice", "TEXT"), # ADDED: Casino Tracker Columns
+            ("last_daily_streak", "TEXT"), ("last_weekly_streak", "TEXT"), ("last_monthly_streak", "TEXT"),
             ("daily_streak", "INTEGER DEFAULT 0"), ("weekly_streak", "INTEGER DEFAULT 0"), ("monthly_streak", "INTEGER DEFAULT 0"), # ADDED: STREAK COLUMNS
             ("streak_alerts", "INTEGER DEFAULT 1") # ADDED: TOGGLE ALERT COLUMN
         ]
@@ -709,8 +713,6 @@ async def fiery(ctx):
         "❤️ `!ship` — Check compatibility with another soul (+69% bonus).\n"
         "🔭 `!matchmaking` — The Voyeur scans for high-tension pairs.\n\n"
         "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
-        "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
-        "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
         "📜 `!contract <user> <price>` — Offer a 24-hour collar of service.\n"
         "✅ `!accept` — Seal the bond. *Owners take 20% tax automatically.*")
 
@@ -722,8 +724,6 @@ async def fiery(ctx):
         "🃏 `!blackjack` — Duel the Dealer for the high ground.\n"
         "🎡 `!roulette` — The Wheel of Lust (Numbers pay x35).\n"
         "🎲 `!dice` — Guess the sum of the toss (Reward x8).\n\n"
-        "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
-        "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
         "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
         "📜 `!quests` — Progress on 40 active demands.\n"
         "👁️ `!gallery` — Server tension and champion metrics.\n"
