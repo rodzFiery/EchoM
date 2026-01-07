@@ -103,6 +103,7 @@ def update_user_stats(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0):
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
+@commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
 async def work(ctx): await worknranks.handle_work_command(ctx, bot, "work", (500, 750), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
 async def beg(ctx): await worknranks.handle_work_command(ctx, bot, "beg", (500, 1500), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
@@ -354,6 +355,13 @@ async def on_ready():
         print("✅ LOG: Ask System is ONLINE.")
     except Exception as e:
         print(f"Failed to load ask extension: {e}")
+
+    # --- ADDED: PREMIUM EXTENSION LOADING ---
+    try:
+        await bot.load_extension("premium")
+        print("✅ LOG: Premium System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load premium extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
@@ -387,5 +395,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
 
