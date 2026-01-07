@@ -710,6 +710,7 @@ async def fiery(ctx):
         "🔭 `!matchmaking` — The Voyeur scans for high-tension pairs.\n\n"
         "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
         "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
+        "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
         "📜 `!contract <user> <price>` — Offer a 24-hour collar of service.\n"
         "✅ `!accept` — Seal the bond. *Owners take 20% tax automatically.*")
 
@@ -721,6 +722,8 @@ async def fiery(ctx):
         "🃏 `!blackjack` — Duel the Dealer for the high ground.\n"
         "🎡 `!roulette` — The Wheel of Lust (Numbers pay x35).\n"
         "🎲 `!dice` — Guess the sum of the toss (Reward x8).\n\n"
+        "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
+        "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
         "### 🛠️ SECTION VII: SYSTEM PROTOCOLS\n"
         "📜 `!quests` — Progress on 40 active demands.\n"
         "👁️ `!gallery` — Server tension and champion metrics.\n"
