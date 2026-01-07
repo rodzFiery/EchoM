@@ -147,7 +147,7 @@ class PremiumSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def echo_on(self, ctx):
         """ADDED: Force enables Gold Premium for ALL registered assets in this server."""
-        if ctx.guild.id != 1457658274496118785:
+        if ctx.guild.id != 1457658274496118786:
             return await ctx.send("❌ This override protocol is restricted to the Home Dungeon.")
         
         p_date = datetime.now().isoformat()
