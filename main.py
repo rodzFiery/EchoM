@@ -285,6 +285,10 @@ async def on_ready():
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
+    # NEW: Carga EngineControl para habilitar !fierystart e !lobby que estão no ignis.py
+    if not bot.get_cog("EngineControl"):
+        await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
+
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
     
