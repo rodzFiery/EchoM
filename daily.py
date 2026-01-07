@@ -9,10 +9,9 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     db_col = f"last_{reward_type}"
     streak_col = f"{reward_type}_streak"
     
-    # Check if keys exist in the user record
-    user_keys = user.keys()
-    last_str = user[db_col] if db_col in user_keys else None
-    current_streak = user[streak_col] if streak_col in user_keys and user[streak_col] else 0
+    # FIX: Safe access to sqlite3.Row data
+    last_str = user[db_col] if db_col in user.keys() else None
+    current_streak = user[streak_col] if streak_col in user.keys() and user[streak_col] else 0
     
     last_time = datetime.fromisoformat(last_str) if last_str else now - (cooldown_delta + timedelta(seconds=1))
     
