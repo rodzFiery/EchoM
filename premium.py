@@ -14,7 +14,8 @@ PREMIUM_PLANS = {
 
 class PremiumShopView(discord.ui.View):
     def __init__(self, ctx, get_db_connection, fiery_embed, update_user_stats):
-        super().__init__(timeout=60)
+        # FIX: Changed timeout to None to keep the Premium Lobby persistent
+        super().__init__(timeout=None)
         self.ctx = ctx
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
@@ -36,7 +37,7 @@ class PremiumShopView(discord.ui.View):
             if user['premium_type'] == plan_name:
                 return await interaction.response.send_message(f"🫦 You already possess the {plan_name} collar.", ephemeral=True)
 
-            # Deduct flames and update premium
+            # Deduct flames and update premium status in the centralized DB
             conn.execute("UPDATE users SET balance = balance - ?, premium_type = ? WHERE id = ?", (plan['cost'], plan_name, u_id))
             conn.commit()
 
@@ -45,17 +46,18 @@ class PremiumShopView(discord.ui.View):
                                 f"💰 **Price Paid:** {plan['cost']:,} Flames\n"
                                 f"✨ **New Perks:** {plan['perks']}", color=plan['color'])
         
+        # ADDED: Send confirmation to the channel so everyone sees the new Elite asset
         await interaction.response.send_message(embed=embed)
 
-    @discord.ui.button(label="Bronze Plan", style=discord.ButtonStyle.secondary, emoji="🥉")
+    @discord.ui.button(label="Bronze Plan", style=discord.ButtonStyle.secondary, emoji="🥉", custom_id="buy_bronze")
     async def bronze_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "Bronze")
 
-    @discord.ui.button(label="Silver Plan", style=discord.ButtonStyle.primary, emoji="🥈")
+    @discord.ui.button(label="Silver Plan", style=discord.ButtonStyle.primary, emoji="🥈", custom_id="buy_silver")
     async def silver_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "Silver")
 
-    @discord.ui.button(label="Gold Plan", style=discord.ButtonStyle.success, emoji="🥇")
+    @discord.ui.button(label="Gold Plan", style=discord.ButtonStyle.success, emoji="🥇", custom_id="buy_gold")
     async def gold_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "Gold")
 
@@ -101,6 +103,7 @@ class PremiumSystem(commands.Cog):
     @staticmethod
     def is_premium():
         async def predicate(ctx):
+            # CONNECTED TO MAIN: Uses the main module to check user status
             main = sys.modules['__main__']
             user = main.get_user(ctx.author.id)
             if user and user['premium_type'] != 'Free':
@@ -112,9 +115,10 @@ class PremiumSystem(commands.Cog):
         return commands.check(predicate)
 
 async def setup(bot):
+    import sys
     main = sys.modules['__main__']
     
-    # Migração: Garante que a coluna existe
+    # Migração Silenciosa: Garante que a coluna existe no DB centralizado
     with main.get_db_connection() as conn:
         try:
             conn.execute("ALTER TABLE users ADD COLUMN premium_type TEXT DEFAULT 'Free'")
