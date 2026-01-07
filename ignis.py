@@ -10,17 +10,20 @@ except ImportError:
         pass 
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import random
-import asyncio
-import io
-import aiohttp
+import sqlite3
 import os
+import asyncio
 import json
 import traceback
-import sqlite3 # ADDED: Necessary for database handling
 import sys
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance
+import io
+import aiohttp
+
+# Importação do Lexicon para as frases de efeito
+from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
     def __init__(self, owner, edition):
@@ -71,6 +74,61 @@ class LobbyView(discord.ui.View):
         
         # Explicitly passing the bot's loop to avoid task death
         asyncio.create_task(engine.start_battle(interaction.channel, self.participants, self.edition))
+
+# --- NOVO: ENGINE CONTROL INTEGRADO ---
+class EngineControl(commands.Cog):
+    def __init__(self, bot, fiery_embed, save_game_config, get_db_connection):
+        self.bot = bot
+        self.fiery_embed = fiery_embed
+        self.save_game_config = save_game_config
+        self.get_db_connection = get_db_connection
+
+    @commands.command()
+    async def fierystart(self, ctx):
+        import main
+        image_path = "LobbyTopRight.jpg"
+        embed = discord.Embed(
+            title=f"Fiery's Hangrygames Edition # {main.game_edition}", 
+            description="The hellgates are about to open, little pets. Submit to the registration.", 
+            color=0xFF0000
+        )
+        
+        view = LobbyView(ctx.author, main.game_edition)
+        engine = self.bot.get_cog("IgnisEngine")
+        if engine: 
+            engine.current_lobby = view
+
+        if os.path.exists(image_path):
+            file = discord.File(image_path, filename="lobby_thumb.jpg")
+            embed.set_thumbnail(url="attachment://lobby_thumb.jpg")
+            embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
+            await ctx.send(file=file, embed=embed, view=view)
+        else:
+            embed.set_thumbnail(url="https://i.imgur.com/Gis6f9V.gif")
+            embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="\u200b", inline=False)
+            await ctx.send(embed=embed, view=view)
+        
+        main.game_edition += 1
+        self.save_game_config()
+
+    @commands.command()
+    async def lobby(self, ctx):
+        engine = self.bot.get_cog("IgnisEngine")
+        if not engine or not engine.current_lobby:
+            embed = self.fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        
+        participants = engine.current_lobby.participants
+        if not participants:
+            embed = self.fiery_embed("Lobby Status", "The room is empty. No one has offered their body yet.")
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        
+        mentions = [f"<@{p_id}>" for p_id in participants]
+        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{engine.current_lobby.edition}:\n\n" + "\n".join(mentions), color=0x00FF00)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
 
 class IgnisEngine(commands.Cog):
     def __init__(self, bot, update_user_stats, get_user, fiery_embed, get_db_connection, ranks, classes, audit_channel_id):
@@ -232,7 +290,6 @@ class IgnisEngine(commands.Cog):
             buf.seek(0)
             return buf
 
-    # ADDED: Internal Market Bonus Scanner to prevent circular imports
     async def get_market_bonuses(self, inventory):
         fb_prot = 0
         final_luck = 0
@@ -264,46 +321,38 @@ class IgnisEngine(commands.Cog):
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
-            # FIX: Ensuring bot is fully ready before battle logic begins
             await self.bot.wait_until_ready()
             
             fighters = []
             game_kills = {p_id: 0 for p_id in participants}
             roster_list = []
 
-            # --- PRE-GAME INVENTORY & RELATIONSHIP CHECK ---
             fb_protection = {} 
             final_luck = {} 
             relationship_luck = {}
             target_streaks = {}
 
             for p_id in participants:
-                # ADDED: Safety check for database existence before fetch
                 u_data = self.get_user(p_id) 
                 if not u_data: continue
 
                 inv = json.loads(u_data['titles']) if u_data['titles'] else []
-                
-                # Market Scan
                 prot, luck = await self.get_market_bonuses(inv)
                 fb_protection[p_id] = prot
                 final_luck[p_id] = luck
                 target_streaks[p_id] = u_data['current_win_streak']
 
-                # Relationship Luck Check - ADDED: Safety checks for table existence
                 relationship_luck[p_id] = 0
                 try:
                     with self.get_db_connection() as conn:
                         rel = conn.execute("SELECT shared_luck FROM relationships WHERE (user_one = ? OR user_two = ?)", (p_id, p_id)).fetchone()
                         if rel: relationship_luck[p_id] = rel['shared_luck']
-                except: pass # Table might not exist yet
+                except: pass
 
-                # ADDED: Connection timeout handling to prevent locked database errors
                 with self.get_db_connection() as conn:
                     conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (p_id,))
                     conn.commit()
 
-                # Robust member fetching
                 member = channel.guild.get_member(p_id)
                 if not member:
                     try: 
@@ -319,23 +368,19 @@ class IgnisEngine(commands.Cog):
                     conn.execute("UPDATE users SET games_played = games_played + 1 WHERE id = ?", (p_id,))
                     conn.commit()
 
-            # FIX: Changed condition to match list length correctly
             if len(fighters) < 2:
                 await channel.send("❌ Game cancelled: Not enough tributes found in the dungeon.")
                 if channel.id in self.active_battles:
                     self.active_battles.remove(channel.id)
                 return
 
-            # ADDED: Safety wrapper for roster embed call
             try:
-                # ADDED: Ensuring main.fiery_embed exists
                 roster_embed = self.fiery_embed(f"Tribute Roster - Edition #{edition}", "\n".join(roster_list))
                 await channel.send(embed=roster_embed)
             except:
                 await channel.send(f"**Tribute Roster - Edition #{edition}**\n" + "\n".join(roster_list))
 
             await asyncio.sleep(4)
-            # FIX: Using direct reference to FieryLexicon if imported globally
             try:
                 await channel.send(FieryLexicon.get_intro())
             except:
@@ -343,7 +388,6 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # PROTOCOL: THE RED ROOM CLIMAX (FINAL STAND)
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
                     climax_msg = f"⛓️ **THE FINAL STAND.** ⛓️\n\nOnly {t1['name']} and {t2['name']} remain. The dungeon falls silent as the Voyeurs lean in. One will stand, one will fall. The contract is about to be sealed..."
@@ -356,14 +400,12 @@ class IgnisEngine(commands.Cog):
                     else:
                         await channel.send(embed=climax_emb)
                     
-                    await asyncio.sleep(5) # The 5 second tension build
+                    await asyncio.sleep(5)
 
-                # LEGENDARY EVENT LOGIC
                 if random.random() < 0.035 and len(fighters) > 3:
                     kill_count = random.randint(2, min(5, len(fighters) - 1))
                     event_losers = []
                     for _ in range(kill_count):
-                        # --- ADDED: PROTECTION DODGE LOGIC ---
                         temp_index = random.randrange(len(fighters))
                         potential_loser = fighters[temp_index]
                         
@@ -392,14 +434,12 @@ class IgnisEngine(commands.Cog):
                     
                     if len(fighters) <= 1: break
 
-                # STANDARD COMBAT LOGIC
                 p1 = fighters.pop(random.randrange(len(fighters)))
                 p2 = fighters.pop(random.randrange(len(fighters)))
                 
                 is_final_fight = (len(fighters) == 0) 
                 p1_win_chance = 0.5
                 
-                # --- CALCULATE WIN PROBABILITY ---
                 if not first_blood_recorded:
                     p1_win_chance += (fb_protection.get(p1['id'], 0) - fb_protection.get(p2['id'], 0)) / 100
 
@@ -418,7 +458,6 @@ class IgnisEngine(commands.Cog):
                 await self.update_user_stats(winner['id'], kills=1, source="Combat")
                 await self.update_user_stats(loser['id'], deaths=1, source="Combat")
 
-                # --- BOUNTY PROTOCOL CHECK (2+ WIN STREAK) ---
                 if target_streaks.get(loser['id'], 0) >= 2:
                     files = []
                     bounty_emb = self.fiery_embed("🎯 BOUNTY COLLECTED 🎯", 
@@ -439,7 +478,6 @@ class IgnisEngine(commands.Cog):
                         fxp_log[winner['id']]["first_kill"] = 75
                         first_blood_recorded = True
                         
-                        import sys # ADDED: Crucial to detect nsfw mode
                         main = sys.modules['__main__']
                         if main.nsfw_mode_active:
                             flash_msg = f"🔞 **FIRST BLOOD HANGRYGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
@@ -477,13 +515,11 @@ class IgnisEngine(commands.Cog):
                 await channel.send(file=file, embed=emb)
                 await asyncio.sleep(5)
 
-            # FINAL WINNER LOGIC
             winner_final = fighters[0]
             self.last_winner_id = winner_final['id']
             fxp_log[winner_final['id']]["placement"] = 526 
             fxp_log[winner_final['id']]["final_rank"] = 1
             
-            # --- CALCULATE RANK XP GAINS FIRST ---
             processed_data = {}
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
@@ -501,7 +537,6 @@ class IgnisEngine(commands.Cog):
                     conn.commit()
                 processed_data[p_id] = final_fxp
 
-            # --- PROCESS WINNER REWARDS ---
             winner_user_db = self.get_user(winner_final['id'])
             winner_class_name = winner_user_db['class']
             flame_multiplier = self.classes[winner_class_name]['bonus_flames'] if winner_class_name in self.classes else 1.0
@@ -519,14 +554,12 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # --- NEW ADDED FEATURE: DETAILED RANKED AUDIT LOGS (1-5) ---
             if audit_channel:
-                # Sort participants by their rank (1 to N)
                 ranked_players = sorted(fxp_log.items(), key=lambda x: x[1]['final_rank'])
                 
                 for p_id, log in ranked_players:
                     rank = log['final_rank']
-                    if rank > 5: continue # Only log top 5
+                    if rank > 5: continue 
 
                     try:
                         m_stats = self.get_user(p_id)
@@ -540,7 +573,6 @@ class IgnisEngine(commands.Cog):
                             audit_file = discord.File("LobbyTopRight.jpg", filename="audit_logo.jpg")
                             audit_emb.set_thumbnail(url="attachment://audit_logo.jpg")
                         
-                        # Sexual themed detailed breakdown
                         breakdown = (
                             f"⛓️ **Member:** {member.mention}\n"
                             f"🔞 **Dungeon Rank:** #{rank}\n"
@@ -569,7 +601,6 @@ class IgnisEngine(commands.Cog):
                         else: await audit_channel.send(embed=audit_emb)
                     except: pass
 
-            # Standard Win Card for the channel
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
@@ -599,15 +630,12 @@ class IgnisEngine(commands.Cog):
                 g_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE games_played > ?", (f_u['games_played'],)).fetchone()
                 g_rank = g_rank_query['r'] if g_rank_query else "N/A"
                 
-                # --- UPDATE WIN STREAK LOGIC ---
                 conn.execute("UPDATE users SET current_win_streak = current_win_streak + 1 WHERE id = ?", (winner_final['id'],))
                 conn.execute("UPDATE users SET max_win_streak = MAX(max_win_streak, current_win_streak) WHERE id = ?", (winner_final['id'],))
                 conn.commit()
                 
-                # FETCH UPDATED STATS
                 updated_f_u = conn.execute("SELECT current_win_streak, max_win_streak, wins, games_played FROM users WHERE id = ?", (winner_final['id'],)).fetchone()
                 
-                # CUMULATIVE STATS FOR THE SUPREME VICTOR
                 total_arena_wins = updated_f_u['wins']
                 total_participations = updated_f_u['games_played']
                 current_streak = updated_f_u['current_win_streak']
@@ -617,7 +645,6 @@ class IgnisEngine(commands.Cog):
             rank_text = f"🏆 **Wins:** Rank #{w_rank}\n⚔️ **Kills:** Rank #{k_rank}\n🎮 **Games:** Rank #{g_rank}"
             win_card.add_field(name="📊 SERVER STATS", value=rank_text, inline=True)
             
-            # --- VICTOR'S CUMULATIVE LEGACY & STREAK PROTOCOL ---
             legacy_text = (f"👑 **Total Arena Wins:** {total_arena_wins}\n"
                            f"⛓️ **Total Participations:** {total_participations}\n"
                            f"🔥 **Lifetime Arena Flames:** {lifetime_flame_pool:,}F")
@@ -634,19 +661,18 @@ class IgnisEngine(commands.Cog):
             await channel.send(embed=win_card)
 
         except Exception as e:
-            # DEBUG: More detailed traceback to find the exact line causing the crash
             print(f"❌ CRITICAL ENGINE FAILURE: {e}")
             traceback.print_exc()
             await channel.send("❌ A critical dungeon error occurred. Call Rodz.")
         finally:
-            # ADDED: Ensure the arena is always unlocked even after a crash
             if channel.id in self.active_battles:
                 self.active_battles.remove(channel.id)
 
 async def setup(bot):
-    import sys
     main = sys.modules['__main__']
-    await bot.add_cog(IgnisEngine(
+    
+    # Registrando IgnisEngine
+    ignis_engine = IgnisEngine(
         bot, 
         main.update_user_stats_async, 
         main.get_user, 
@@ -655,4 +681,14 @@ async def setup(bot):
         main.RANKS, 
         main.CLASSES, 
         main.AUDIT_CHANNEL_ID
-    ))
+    )
+    await bot.add_cog(ignis_engine)
+    
+    # Registrando EngineControl
+    engine_control = EngineControl(
+        bot,
+        main.fiery_embed,
+        main.save_game_config,
+        main.get_db_connection
+    )
+    await bot.add_cog(engine_control)
