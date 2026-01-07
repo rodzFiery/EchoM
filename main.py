@@ -1,4 +1,4 @@
-# FIX: Python 3.13 compatibility shim for audioop
+ho# FIX: Python 3.13 compatibility shim for audioop
 try:
     import audioop
 except ImportError:
@@ -154,7 +154,7 @@ async def hall(ctx):
     await social_module.handle_hall_command(ctx, get_db_connection, fiery_embed)
 
 @bot.command()
-async def fiery(ctx):
+async def echo(ctx):
     await social_module.handle_fiery_guide(ctx, fiery_embed)
 
 # --- GLOBAL STREAK LEADERBOARD COMMAND START (MOVED TO social.py) ---
@@ -387,3 +387,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
