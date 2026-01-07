@@ -107,10 +107,15 @@ class PremiumSystem(commands.Cog):
         """ADDED: Admin command to check subscription details and days remaining."""
         target = member or ctx.author
         with self.get_db_connection() as conn:
-            u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
+            u = conn.execute("SELECT premium_type, premium_date, balance, class, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
         
         if not u or u['premium_type'] == 'Free':
-            return await ctx.send(f"⛓️ **{target.display_name}** has no active collar. (Free Status)")
+            embed = self.fiery_embed("Subscription Status Check", f"⛓️ **{target.display_name}** has no active collar.\n\n**Current Status:** Free Asset", color=0x808080)
+            if os.path.exists("LobbyTopRight.jpg"):
+                file = discord.File("LobbyTopRight.jpg", filename="status_logo.jpg")
+                embed.set_thumbnail(url="attachment://status_logo.jpg")
+                return await ctx.send(file=file, embed=embed)
+            return await ctx.send(embed=embed)
 
         # Calculate time remaining
         purchase_dt = datetime.fromisoformat(u['premium_date'])
@@ -118,13 +123,25 @@ class PremiumSystem(commands.Cog):
         remaining = expiry_dt - datetime.now()
         days_left = max(0, remaining.days)
 
-        embed = self.fiery_embed("Subscription Status Check", 
-                                f"📋 **Target:** {target.mention}\n"
-                                f"🎖️ **Plan:** {u['premium_type']}\n"
-                                f"📅 **Enrollment Date:** {purchase_dt.strftime('%Y-%m-%d')}\n"
-                                f"⏳ **Days Remaining:** {days_left} Days\n"
-                                f"🔞 **Status:** Under Active Contract", color=0xFFD700)
-        await ctx.send(embed=embed)
+        desc = (f"📋 **Target Identity:** {target.mention}\n"
+                f"🎖️ **Elite Plan:** {u['premium_type']}\n"
+                f"📅 **Enrolled On:** {purchase_dt.strftime('%Y-%m-%d')}\n"
+                f"⏳ **Time Remaining:** {days_left} Days\n\n"
+                f"**📊 ASSET METRICS:**\n"
+                f"🔥 **Vault Balance:** {u['balance']:,} Flames\n"
+                f"🧬 **Assigned Class:** {u['class']}\n"
+                f"🔝 **Dungeon Level:** {u['fiery_level']}\n\n"
+                f"🔞 **Status:** Under Active Premium Contract")
+
+        embed = self.fiery_embed("Premium Subscription Status", desc, color=0xFFD700)
+        embed.set_author(name="MASTER'S PRIVATE LEDGER", icon_url=target.display_avatar.url)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="status_logo.jpg")
+            embed.set_thumbnail(url="attachment://status_logo.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     # --- DECORATOR/CHECK FOR PREMIUM COMMANDS ---
     @staticmethod
