@@ -20,6 +20,8 @@ import asyncio
 import json
 import shutil
 import sys
+import quests
+import worknranks  # ADDED: Integrated separation
 from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
 from dotenv import load_dotenv
@@ -54,27 +56,9 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 game_edition = 1 
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
 
-# The 100-Tier Rank List
-RANKS = [
-    "Unmarked", "Dormant", "Aware", "Stirring", "Curious", "Drawn", "Attuned", "Noticed", "Touched", "Opened",
-    "Initiate", "Invited", "Observed", "Evaluated", "Selected", "Guided", "Oriented", "Accepted", "Entered", "Aligned",
-    "Receptive", "Willing", "Softened", "Inclined", "Leaning", "Yielding", "Responsive", "Compliant", "Ready", "Offered",
-    "Anchored", "Linked", "Tethered", "Bound", "Held", "Secured", "Settled", "Claimed", "Assigned", "Enclosed",
-    "Conditioned", "Trained", "Adjusted", "Corrected", "Regulated", "Disciplined", "Rewritten", "Imprinted", "Shaped", "Programmed",
-    "Restrained", "Directed", "Commanded", "Ordered", "Governed", "Managed", "Controlled", "Dominated", "Overruled", "Possessed",
-    "Loyal", "Faithful", "Dedicated", "Devoted", "Invested", "Subscribed", "Sworn", "Consecrated", "Bound by Oath", "Living Oath",
-    "Polished", "Refined", "Cultivated", "Perfected", "Harmonized", "Balanced", "Tempered", "Elevated", "Enhanced", "Idealized",
-    "Shadow Rank", "Inner Circle", "Black Seal", "Velvet Chain", "Silent Order", "Crowned", "Exalted", "Absolute Trust", "Total Grant", "Supreme Bond",
-    "Dark Ascendant", "Chosen Asset", "Perfect Control", "Living Property", "Total Surrender", "Velvet Sovereign", "Throne-Bound", "Eternal Possession", "Absolute Dominion", "Final Authority"
-]
-
-# 🧬 EROTIC CLASSES DEFINITION
-CLASSES = {
-    "Dominant": {"bonus_flames": 1.20, "bonus_xp": 1.00, "desc": "20% more Flames from all rewards.", "icon": "⛓️"},
-    "Submissive": {"bonus_flames": 1.00, "bonus_xp": 1.25, "desc": "25% more Experience (XP/FXP).", "icon": "🫦"},
-    "Switch": {"bonus_flames": 1.15, "bonus_xp": 1.15, "desc": "15% more Flames and 15% more XP.", "icon": "🔄"},
-    "Exhibitionist": {"bonus_flames": 1.40, "bonus_xp": 0.80, "desc": "40% more Flames, but 20% less XP.", "icon": "📸"}
-}
+# Ranks and Classes now sourced from worknranks.py
+RANKS = worknranks.RANKS
+CLASSES = worknranks.CLASSES
 
 # ===== 2. DATABASE SYSTEM =====
 def get_db_connection():
@@ -130,12 +114,8 @@ def init_db():
             PRIMARY KEY (winner_id, loser_id)
         )""")
 
-        # Quest Table (20 Daily, 20 Weekly)
-        q_cols = ["user_id INTEGER PRIMARY KEY"]
-        for i in range(1, 21): q_cols.append(f"d{i} INTEGER DEFAULT 0")
-        for i in range(1, 21): q_cols.append(f"w{i} INTEGER DEFAULT 0")
-        q_cols.append("last_reset TEXT")
-        conn.execute(f"CREATE TABLE IF NOT EXISTS quests ({', '.join(q_cols)})")
+        # Quest Table handled in quests.py
+        quests.init_quests_db(get_db_connection)
 
         required_columns = [
             ("balance", "INTEGER DEFAULT 500"), ("xp", "INTEGER DEFAULT 0"),
@@ -477,62 +457,20 @@ async def setclass(ctx, choice: str = None):
     await ctx.send(file=file, embed=embed)
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
-async def handle_work_command(ctx, cmd_name, reward_range):
-    # LEGENDARY BLACKOUT CHECK: Disable if lights are out
-    ext = bot.get_cog("FieryExtensions")
-    if ext and ext.is_blackout:
-        return await ctx.send("🌑 **THE LIGHTS ARE OUT.** The machines are dead. You cannot work in the dark. Use `!search`!")
-
-    user = get_user(ctx.author.id)
-    now = datetime.now(timezone.utc)
-    last_key = f"last_{cmd_name}"
-    
-    # FIX: Ensure dictionary key exists
-    last_time_str = user[last_key] if last_key in user.keys() else None
-    last = datetime.fromisoformat(last_time_str) if last_time_str else now - timedelta(hours=3)
-    
-    if now - last < timedelta(hours=3):
-        wait = timedelta(hours=3) - (now - last)
-        embed = fiery_embed("Exhaustion Protocol", f"❌ Your body is broken. You cannot perform **{cmd_name}** yet.\n\nRecovery time remaining: **{wait.seconds//3600}h {(wait.seconds//60)%60}m**.", color=0xFF0000)
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
-
-    base_reward = random.randint(reward_range[0], reward_range[1])
-    await update_user_stats_async(ctx.author.id, amount=base_reward, xp_gain=50, source=cmd_name.capitalize())
-    
-    with get_db_connection() as conn:
-        conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), ctx.author.id))
-        conn.commit()
-    
-    user_upd = get_user(ctx.author.id)
-    u_class = user_upd['class']
-    bonus = CLASSES[u_class]['bonus_flames'] if u_class in CLASSES else 1.0
-    h_mult = ext.heat_multiplier if ext else 1.0
-    global nsfw_mode_active
-    nsfw_mult = 2.0 if nsfw_mode_active else 1.0
-    
-    final_reward = int(base_reward * bonus * h_mult * nsfw_mult)
-    
-    msg = FieryLexicon.get_economy_msg(cmd_name, ctx.author.display_name, final_reward)
-    
-    embed = fiery_embed(cmd_name.upper(), f"{msg}\n\n⛓️ **Session Payout:** {final_reward}F\n🫦 **Total XP:** +50\n💳 **New Balance:** {user_upd['balance']}F", color=0xFF4500)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
-
 @bot.command()
-async def work(ctx): await handle_work_command(ctx, "work", (500, 750))
+async def work(ctx): await worknranks.handle_work_command(ctx, bot, "work", (500, 750), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def beg(ctx): await handle_work_command(ctx, "beg", (500, 1500))
+async def beg(ctx): await worknranks.handle_work_command(ctx, bot, "beg", (500, 1500), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def cumcleaner(ctx): await handle_work_command(ctx, "cumcleaner", (800, 1800))
+async def cumcleaner(ctx): await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 1800), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def pimp(ctx): await handle_work_command(ctx, "pimp", (800, 1600))
+async def pimp(ctx): await worknranks.handle_work_command(ctx, bot, "pimp", (800, 1600), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def experiment(ctx): await handle_work_command(ctx, "experiment", (500, 2000))
+async def experiment(ctx): await worknranks.handle_work_command(ctx, bot, "experiment", (500, 2000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def mystery(ctx): await handle_work_command(ctx, "mystery", (100, 3000))
+async def mystery(ctx): await worknranks.handle_work_command(ctx, bot, "mystery", (100, 3000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def flirt(ctx): await handle_work_command(ctx, "flirt", (700, 1800))
+async def flirt(ctx): await worknranks.handle_work_command(ctx, bot, "flirt", (700, 1800), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 # ===== 6. CORE PERIODIC REWARDS SYSTEM (STREAK UPGRADE) =====
 
@@ -770,6 +708,7 @@ async def fiery(ctx):
         "🏛️ `!hall` — The Museum of Tributes & All-Time records.\n"
         "❤️ `!ship` — Check compatibility with another soul (+69% bonus).\n"
         "🔭 `!matchmaking` — The Voyeur scans for high-tension pairs.\n\n"
+        "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
         "### 💍 SECTION V: CONTRACTS & OWNERSHIP\n"
         "📜 `!contract <user> <price>` — Offer a 24-hour collar of service.\n"
         "✅ `!accept` — Seal the bond. *Owners take 20% tax automatically.*")
