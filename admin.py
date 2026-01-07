@@ -32,7 +32,7 @@ class AdminSystem(commands.Cog):
         import main
         main.nsfw_mode_active = False
         self.save_game_config()
-        embed = self.fiery_embed("NSFW Mode Ended", "The exhibition has closed. Returning to standard Red Room protocols.")
+        embed = self.fiery_embed("NSFW Mode Ended", "The NSFW Hangrygames has closed. Returning to standard Red Room protocols.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
