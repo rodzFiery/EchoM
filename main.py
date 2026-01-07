@@ -1,4 +1,4 @@
-ho# FIX: Python 3.13 compatibility shim for audioop
+# FIX: Python 3.13 compatibility shim for audioop
 try:
     import audioop
 except ImportError:
@@ -387,4 +387,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
 
