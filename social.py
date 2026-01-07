@@ -146,7 +146,7 @@ async def handle_fiery_guide(ctx, fiery_embed):
         "🔥 `!echostart` — Open the pit for new registrations.\n"
         "⛓️ `!lobby` — View the souls currently awaiting their fate.\n"
         "🔞 `!fuck <user>` — Challenge an member to a private BDSM duel.\n"
-        "📣 `!@user` — (Winner) Force a **FLASH** decree on your victim.\n"
+        "📣 `!@user` — (Winner) Force a **FLASH** decree on your victim.\n")
 
     emb3 = fiery_embed("ECHO PROTOCOL: LABOR & TRIBUTES 💘", 
         "### 💰 SECTION III: HARVESTING FLAMES\n"
