@@ -25,7 +25,7 @@ import worknranks  # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
 import social as social_module # ADDED: Social commands module
 import prizes as prizes_module # ADDED: Prizes and Logic module
-import database as db_module # ADDED: Centralized Database logic
+import database as db_module # ADDED: Centralized Database logic synchronization
 from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
 from dotenv import load_dotenv
@@ -40,7 +40,7 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 AUDIT_CHANNEL_ID = 1438810509322223677 # Seu canal de auditoria
 STREAK_ALERTS_CHANNEL_ID = 1438810509322223677 # Red Room Channel for Pings
 
-# DATABASE PATH handled by db_module
+# DATABASE PATH handled by db_module for persistence
 DATABASE_PATH = db_module.DATABASE_PATH
 
 intents = discord.Intents.all()
@@ -59,16 +59,21 @@ CLASSES = worknranks.CLASSES
 
 # ===== 2. DATABASE SYSTEM REDIRECTS =====
 def get_db_connection():
+    # ADDED: Redirect to central db_module
     return db_module.get_db_connection()
 
+# NEW PERSISTENCE HELPERS (Synced with database.py)
 def save_game_config():
+    global game_edition, nsfw_mode_active
     db_module.save_game_config(game_edition, nsfw_mode_active)
 
 def load_game_config():
     global game_edition, nsfw_mode_active
+    # FIXED: Load via db_module
     game_edition, nsfw_mode_active = db_module.load_game_config()
 
 def init_db():
+    # FIXED: Initialize via db_module
     db_module.init_db()
 
 init_db()
@@ -132,6 +137,7 @@ def fiery_embed(title, description, color=0xFF4500):
     return embed
 
 def get_user(user_id):
+    # ADDED: Redirect to central db_module
     return db_module.get_user(user_id)
 
 # --- REDIRECTED TO prizes.py ---
