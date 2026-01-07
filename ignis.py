@@ -45,11 +45,11 @@ class LobbyView(discord.ui.View):
         try:
             embed = interaction.message.embeds[0]
             # Fixed: Ensuring the field name reflects the list length correctly
-            embed.set_field_at(0, name=f"<:FIERY_sym_dick:1314898974360076318> {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
+            embed.set_field_at(0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
             await interaction.response.edit_message(embed=embed, view=self)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
-            await interaction.response.send_message("The Master acknowledges your sacrifice, but the ledger glitched. You are joined!", ephemeral=True)
+            await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
 
     # ADDED: custom_id to make the interaction persistent
     @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="<:FIERY_heart_devilwhite:1314908504972070932>", custom_id="fiery_start_button")
@@ -89,7 +89,7 @@ class EngineControl(commands.Cog):
         main = sys.modules['__main__']
         image_path = "LobbyTopRight.jpg"
         embed = discord.Embed(
-            title=f"Fiery's Hangrygames Edition # {main.game_edition}", 
+            title=f"Echo's Hangrygames Edition # {main.game_edition}", 
             description="The hellgates are about to open, little pets. Submit to the registration.", 
             color=0xFF0000
         )
@@ -102,11 +102,11 @@ class EngineControl(commands.Cog):
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="lobby_thumb.jpg")
             embed.set_thumbnail(url="attachment://lobby_thumb.jpg")
-            embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
+            embed.add_field(name="🧙‍♂️> 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
             await ctx.send(file=file, embed=embed, view=view)
         else:
             embed.set_thumbnail(url="https://i.imgur.com/Gis6f9V.gif")
-            embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="\u200b", inline=False)
+            embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="\u200b", inline=False)
             await ctx.send(embed=embed, view=view)
         
         main.game_edition += 1
@@ -695,3 +695,4 @@ async def setup(bot):
         main.get_db_connection
     )
     await bot.add_cog(engine_control)
+
