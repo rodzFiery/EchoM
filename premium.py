@@ -148,7 +148,7 @@ class PremiumSystem(commands.Cog):
     async def echo_on(self, ctx):
         """ADDED: Force enables Gold Premium for ALL registered assets in this server."""
         if ctx.guild.id != 1457658274496118785:
-            return await ctx.send("❌ This override protocol is restricted to the Home Dungeon.")
+            return await ctx.send(f"❌ This override protocol is restricted to the Home Dungeon. (Current ID: {ctx.guild.id})")
         
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
@@ -163,7 +163,7 @@ class PremiumSystem(commands.Cog):
     async def echo_off(self, ctx):
         """ADDED: Revokes ALL premium statuses in this server."""
         if ctx.guild.id != 1457658274496118785:
-            return await ctx.send("❌ This override protocol is restricted to the Home Dungeon.")
+            return await ctx.send(f"❌ This override protocol is restricted to the Home Dungeon. (Current ID: {ctx.guild.id})")
         
         with self.get_db_connection() as conn:
             conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
