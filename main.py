@@ -99,49 +99,7 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
 def update_user_stats(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0):
     prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
 
-# ===== 4. CLASS DETAIL COMMANDS =====
-async def send_class_details(ctx, class_name):
-    data = CLASSES[class_name]
-    desc = (f"**{data['icon']} {class_name.upper()} CLASS DETAILS**\n\n"
-            f"🔥 **Flame Bonus:** +{int((data['bonus_flames']-1)*100)}%\n"
-            f"💦 **Experience Bonus:** +{int((data['bonus_xp']-1)*100)}%\n\n"
-            f"*\"{data['desc']}\"*\n\n"
-            f"Use `!setclass {class_name}` to claim this role.")
-    
-    embed = fiery_embed(f"{class_name} Class Profile", desc, color=0xFF0000)
-    
-    # ADDED STAT OVERVIEW TO CLASS DESC
-    u = get_user(ctx.author.id)
-    embed.add_field(name="⛓️ Current Standing", value=f"Balance: {u['balance']}F\nLevel: {u['level']}", inline=False)
-    
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
-
-@bot.command()
-async def dominant(ctx): await send_class_details(ctx, "Dominant")
-@bot.command()
-async def submissive(ctx): await send_class_details(ctx, "Submissive")
-@bot.command()
-async def switch(ctx): await send_class_details(ctx, "Switch")
-@bot.command()
-async def exhibitionist(ctx): await send_class_details(ctx, "Exhibitionist")
-
-@bot.command()
-async def setclass(ctx, choice: str = None):
-    if not choice or choice.capitalize() not in CLASSES:
-        options = "\n".join([f"**{k}**: {v['desc']}" for k,v in CLASSES.items()])
-        embed = fiery_embed("Dungeon Hierarchy", f"Choose your path, little asset:\n\n{options}\n\nType `!<classname>` for details.", color=0x800000)
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
-        
-    with get_db_connection() as conn:
-        conn.execute("UPDATE users SET class = ? WHERE id = ?", (choice.capitalize(), ctx.author.id))
-        conn.commit()
-    
-    u = get_user(ctx.author.id)
-    embed = fiery_embed("Class Claimed", f"✅ You are now bound to the **{choice.capitalize()}** path.\n\nYour submission level is currently **{u['level']}**.", color=0x00FF00)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+# ===== 4. CLASS DETAIL COMMANDS (MOVED TO classes.py) =====
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
@@ -387,6 +345,12 @@ async def on_ready():
             await bot.load_extension("admin")
             print("✅ LOG: Admin System is ONLINE.")
     except Exception as e: print(f"Admin fail: {e}")
+
+    try: 
+        if not bot.get_cog("ClassSystem"):
+            await bot.load_extension("classes")
+            print("✅ LOG: Class System is ONLINE.")
+    except Exception as e: print(f"Class System fail: {e}")
 
     try:
         if not bot.get_cog("FieryExtensions"):
