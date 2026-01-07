@@ -27,7 +27,7 @@ class FieryExtensions(commands.Cog):
         
         # Exhibition Tracker
         self.last_nsfw_winner = None
-        self.last_nsfw_recap = "No exhibitions yet."
+        self.last_nsfw_recap = "No Hangrygames yet."
         
         # Start background loops
         self.quest_reset_loop.start()
@@ -42,7 +42,7 @@ class FieryExtensions(commands.Cog):
     # ==========================================
 
     async def trigger_nsfw_start(self, ctx):
-        embed = self.fiery_embed("The Grand Exhibition", 
+        embed = self.fiery_embed("The Echo Hangrygames", 
             "🔞 **NSFW PROTOCOL: ACTIVATED.**\n\n"
             "• **MULTIPLIER:** All Flames and XP are now **DOUBLE**.\n"
             "• **HANGRYGAMES:** Winners may now `!flash` 3 victims.\n"
@@ -65,8 +65,8 @@ class FieryExtensions(commands.Cog):
             return await ctx.send("The lights are normal. This level of exposure is forbidden right now.")
             
         # --- VISUAL RECAP TEMPLATE ---
-        embed = discord.Embed(title="🔞 THE FIERY HANGRYGAMES RECAP 🔞", color=0xFF00FF)
-        embed.set_author(name=f"Lead Exhibitionist: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+        embed = discord.Embed(title="🔞 THE ECHO HANGRYGAMES RECAP 🔞", color=0xFF00FF)
+        embed.set_author(name=f"Lead Echo Hangrygames: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
         
         desc = (f"The Winner has opened the curtains. The following assets are currently on display for the Red Room's pleasure:\n\n"
                 f"📸 **STAGE 1:** {victim1.mention}\n└ *Status:* **FLASH BABY**\n\n"
@@ -261,8 +261,8 @@ class FieryExtensions(commands.Cog):
         roll = random.randint(1, 20)
         if roll == self.blackout_key_holder:
             self.is_blackout = False
-            await self.update_user_stats(ctx.author.id, amount=20000, source="Found Master Keys")
-            await ctx.send(embed=self.fiery_embed("KEY FOUND", f"🗝️ {ctx.author.mention} has found the Master's Keys in the dark! The lights flicker back on and they are rewarded with **20,000 Flames**!"))
+            await self.update_user_stats(ctx.author.id, amount=100000, source="Found Master Keys")
+            await ctx.send(embed=self.fiery_embed("KEY FOUND", f"🗝️ {ctx.author.mention} has found the Master's Keys in the dark! The lights flicker back on and they are rewarded with **100,000 Flames**!"))
             
             # --- AUDIT LOG FOR BLACKOUT RESOLUTION ---
             audit_chan = self.bot.get_channel(self.audit_channel_id)
