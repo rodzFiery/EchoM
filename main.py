@@ -205,48 +205,6 @@ async def favor(ctx):
 # NSFW, Backup, Reload e Grantbadge foram movidos para admin.py
 
 # ===== 9. SYSTEM INTEGRATION =====
-@bot.command()
-async def fierystart(ctx):
-    global game_edition
-    image_path = "LobbyTopRight.jpg"
-    embed = discord.Embed(title=f"Fiery's Hangrygames Edition # {game_edition}", 
-                          description="The hellgates are about to open, little pets. Submit to the registration.", color=0xFF0000)
-    
-    view = ignis.LobbyView(ctx.author, game_edition)
-    engine = bot.get_cog("IgnisEngine")
-    if engine: engine.current_lobby = view
-
-    if os.path.exists(image_path):
-        file = discord.File(image_path, filename="lobby_thumb.jpg")
-        embed.set_thumbnail(url="attachment://lobby_thumb.jpg")
-        embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
-        await ctx.send(file=file, embed=embed, view=view)
-    else:
-        embed.set_thumbnail(url="https://i.imgur.com/Gis6f9V.gif")
-        embed.add_field(name="<:FIERY_sym_dick:1314898974360076318> 0 Sinners Ready", value="\u200b", inline=False)
-        await ctx.send(embed=embed, view=view)
-    
-    game_edition += 1
-    save_game_config() # ADDED PERSISTENCE
-
-@bot.command()
-async def lobby(ctx):
-    engine = bot.get_cog("IgnisEngine")
-    if not engine or not engine.current_lobby:
-        embed = fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
-    
-    participants = engine.current_lobby.participants
-    if not participants:
-        embed = fiery_embed("Lobby Status", "The room is empty. No one has offered their body yet.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
-    
-    mentions = [f"<@{p_id}>" for p_id in participants]
-    embed = fiery_embed("Active Tributes", f"The following souls are bound for Edition #{engine.current_lobby.edition}:\n\n" + "\n".join(mentions), color=0x00FF00)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
 
 # EMERGENCY RAILWAY DEBUG COMMAND
 @bot.command()
