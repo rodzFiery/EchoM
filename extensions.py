@@ -119,6 +119,8 @@ class FieryExtensions(commands.Cog):
             f"**{member.mention}, type `!accept` to feel the click of the lock.**")
         
         await ctx.send(member.mention, embed=embed)
+        # Quests: Increment Offer a Collar (Daily d3)
+        await self.increment_quest(ctx.author.id, "d3")
 
     @commands.command(name="accept")
     async def accept(self, ctx):
@@ -149,6 +151,9 @@ class FieryExtensions(commands.Cog):
             f" f\"🔞 **THE LOCK CLICKS.** {ctx.author.mention} is now the legal property of {dom_user.mention} for the next 24 hours.\n\""
             f"The payment has been transferred to the new member.", color=0xFF0000))
 
+        # Quests: Increment Soul Collector (Weekly w4)
+        await self.increment_quest(ctx.author.id, "w4")
+
         # --- AUDIT LOG FOR CONTRACT SEALING ---
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
@@ -173,6 +178,12 @@ class FieryExtensions(commands.Cog):
     async def on_message(self, message):
         if message.author.bot: return
         
+        # Quests: Loud Toy (Daily d16) & Public Interest (Weekly w18)
+        await self.increment_quest(message.author.id, "d16")
+        if message.mentions:
+            for m in message.mentions:
+                await self.increment_quest(m.id, "w18")
+
         # Heat Logic: Random Silence/Degradation during Peak Heat
         if self.master_present and random.random() < 0.02: # 2% chance per msg
              await message.channel.send(f" f\"🤫 **SILENCE, {message.author.mention}!** You speak without permission while the Master is on the floor. Use `!beg` to apologize.\"")
@@ -230,6 +241,9 @@ class FieryExtensions(commands.Cog):
         self.master_present = True
         self.heat_multiplier = 2.0
         
+        # Quests: Heat Chaser (Weekly w19) - Increment for all active? Or triggerer?
+        # Here we increment heat for the system state.
+        
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
             msg = "🌋 **PROTOCOL: PEAK HEAT.** The Master has entered the floor! The Red Lights are on.\n🔥 **ALL REWARDS X2 | ALL XP X3** for 60 minutes!"
@@ -264,6 +278,9 @@ class FieryExtensions(commands.Cog):
             await self.update_user_stats(ctx.author.id, amount=100000, source="Found Master Keys")
             await ctx.send(embed=self.fiery_embed("KEY FOUND", f"🗝️ {ctx.author.mention} has found the Master's Keys in the dark! The lights flicker back on and they are rewarded with **100,000 Flames**!"))
             
+            # Quests: Legendary Presence (Weekly w20)
+            await self.increment_quest(ctx.author.id, "w20")
+
             # --- AUDIT LOG FOR BLACKOUT RESOLUTION ---
             audit_chan = self.bot.get_channel(self.audit_channel_id)
             if audit_chan:
@@ -453,6 +470,44 @@ class FieryExtensions(commands.Cog):
     @random_interjection_loop.before_loop
     async def before_loops(self):
         await self.bot.wait_until_ready()
+
+    # ==========================================
+    # 🛠️ QUEST TRACKING LOGIC (ADDED FIX)
+    # ==========================================
+
+    async def increment_quest(self, user_id, quest_key, amount=1):
+        """Helper to increment specific quest values in DB."""
+        with self.get_db_connection() as conn:
+            conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (user_id,))
+            conn.execute(f"UPDATE quests SET {quest_key} = {quest_key} + ? WHERE user_id = ?", (amount, user_id))
+            conn.commit()
+
+    @commands.Cog.listener()
+    async def on_command_completion(self, ctx):
+        """Global listener to track command-based quests."""
+        user_id = ctx.author.id
+        cmd = ctx.command.name
+        
+        # General active asset tracking
+        await self.increment_quest(user_id, "d12") # Daily d12: 10 commands total
+        await self.increment_quest(user_id, "w6")  # Weekly w6: 50 commands used
+
+        # Specific Command Mapping
+        mapping = {
+            "beg": ["d4", "w15"],
+            "work": ["d5", "w5"],
+            "experiment": ["d7", "w11"],
+            "cumcleaner": ["d8", "w12"],
+            "pimp": ["d9", "w13"],
+            "mystery": ["d10", "w14"],
+            "flirt": ["d11", "w10"],
+            "me": ["d17"],
+            "daily": ["d18", "w16"]
+        }
+        
+        if cmd in mapping:
+            for key in mapping[cmd]:
+                await self.increment_quest(user_id, key)
 
 async def setup(bot):
     import sys
