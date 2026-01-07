@@ -58,6 +58,6 @@ def fiery_embed(bot, nsfw_mode_active, title, description, color=0xFF4500):
     if os.path.exists("LobbyTopRight.jpg"):
         embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
         
-    embed.set_footer(text="🔞 ECHO HANGRYGAMES EDITION 🔞")
+    embed.set_footer(text="🔞 ECHO GAMES EDITION 🔞")
     embed.timestamp = datetime.now(timezone.utc)
     return embed
