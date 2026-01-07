@@ -22,7 +22,7 @@ import shutil
 import sys
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
-import daily # ADDED: New separation for periodic rewards
+import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
 from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
 from dotenv import load_dotenv
@@ -481,15 +481,15 @@ async def flirt(ctx): await worknranks.handle_work_command(ctx, bot, "flirt", (7
 
 @bot.command()
 async def daily(ctx):
-    await daily.handle_periodic_reward(ctx, "daily", 400, 800, 150, timedelta(days=1), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "daily", 400, 800, 150, timedelta(days=1), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def weekly(ctx):
-    await daily.handle_periodic_reward(ctx, "weekly", 2500, 5000, 1000, timedelta(days=7), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "weekly", 2500, 5000, 1000, timedelta(days=7), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def monthly(ctx):
-    await daily.handle_periodic_reward(ctx, "monthly", 12000, 20000, 5000, timedelta(days=30), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "monthly", 12000, 20000, 5000, timedelta(days=30), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def balance(ctx, member: discord.Member = None):
