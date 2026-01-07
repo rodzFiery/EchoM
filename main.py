@@ -243,100 +243,8 @@ async def favor(ctx):
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
-# ===== NSFW Special Commands =====
-@bot.command()
-@commands.is_owner()
-async def nsfwtime(ctx):
-    global nsfw_mode_active
-    nsfw_mode_active = True
-    save_game_config() # ADDED PERSISTENCE
-    ext = bot.get_cog("FieryExtensions")
-    if ext: await ext.trigger_nsfw_start(ctx)
-
-@bot.command()
-@commands.is_owner()
-async def nomorensfw(ctx):
-    global nsfw_mode_active
-    nsfw_mode_active = False
-    save_game_config() # ADDED PERSISTENCE
-    embed = fiery_embed("NSFW Mode Ended", "The exhibition has closed. Returning to standard Red Room protocols.")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
-
-@bot.command()
-@commands.is_owner()
-async def grantbadge(ctx, member: discord.Member, badge: str):
-    u = get_user(member.id)
-    try: titles = json.loads(u['titles'])
-    except: titles = []
-    
-    if badge not in titles:
-        titles.append(badge)
-        with get_db_connection() as conn:
-            conn.execute("UPDATE users SET titles = ? WHERE id = ?", (json.dumps(titles), member.id))
-            conn.commit()
-        embed = fiery_embed("Badge Granted", f"✅ Granted badge **{badge}** to {member.display_name}")
-    else:
-        embed = fiery_embed("Badge Conflict", "User already has this badge.")
-    
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
-
-# ===== 8. MAINTENANCE & AUDIT =====
-@bot.command()
-@commands.is_owner()
-async def backup(ctx):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"{DATABASE_PATH}.backup_{timestamp}"
-    try:
-        shutil.copy2(DATABASE_PATH, backup_name)
-        embed = fiery_embed("Database Backup", f"✅ Saved in persistence volume as `{backup_name}`")
-    except Exception as e:
-        embed = fiery_embed("Backup Failure", f"❌ **ERROR:** {e}")
-    
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
-
-@bot.command()
-@commands.is_owner()
-async def reload(ctx, cog_name: str):
-    try:
-        import importlib
-        if cog_name.lower() == "achievements":
-            await bot.reload_extension("achievements")
-        elif cog_name.lower() == "ignis":
-            await bot.remove_cog("IgnisEngine")
-            importlib.reload(ignis)
-            await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
-        elif cog_name.lower() == "lexicon":
-            await bot.remove_cog("Lexicon")
-            import lexicon
-            importlib.reload(lexicon)
-        elif cog_name.lower() == "extensions":
-            await bot.reload_extension("extensions")
-        elif cog_name.lower() == "ship":
-            await bot.reload_extension("ship")
-        elif cog_name.lower() == "shop":
-            await bot.reload_extension("shop")
-        elif cog_name.lower() == "collect":
-            await bot.reload_extension("collect")
-        elif cog_name.lower() == "fight":
-            await bot.reload_extension("fight")
-        elif cog_name.lower() == "casino":
-            await bot.reload_extension("casino")
-        elif cog_name.lower() == "ask":
-            await bot.reload_extension("ask")
-        else:
-            embed = fiery_embed("Reload Error", f"❌ Cog `{cog_name}` not found.")
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        
-        embed = fiery_embed("Reload Success", f"🔥 **{cog_name.upper()}** reloaded!")
-    except Exception as e:
-        embed = fiery_embed("Reload Failure", f"❌ **ERROR:** {e}")
-    
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+# ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
+# NSFW, Backup, Reload e Grantbadge foram movidos para admin.py
 
 # ===== 9. SYSTEM INTEGRATION =====
 @bot.command()
@@ -472,6 +380,13 @@ async def on_ready():
         streak_guardian.start()
     
     bot.add_view(ignis.LobbyView(None, None))
+
+    # CARREGAMENTO AUTOMÁTICO DO ADMIN E EXTENSÕES
+    try: 
+        if not bot.get_cog("AdminSystem"):
+            await bot.load_extension("admin")
+            print("✅ LOG: Admin System is ONLINE.")
+    except Exception as e: print(f"Admin fail: {e}")
 
     try:
         if not bot.get_cog("FieryExtensions"):
