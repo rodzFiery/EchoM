@@ -24,6 +24,8 @@ class PremiumShopView(discord.ui.View):
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
         u_id = interaction.user.id
+        # ADDED: Record current date for subscription tracking
+        purchase_date = datetime.now().isoformat()
         
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT balance, premium_type FROM users WHERE id = ?", (u_id,)).fetchone()
@@ -37,8 +39,8 @@ class PremiumShopView(discord.ui.View):
             if user['premium_type'] == plan_name:
                 return await interaction.response.send_message(f"🫦 You already possess the {plan_name} collar.", ephemeral=True)
 
-            # Deduct flames and update premium status in the centralized DB
-            conn.execute("UPDATE users SET balance = balance - ?, premium_type = ? WHERE id = ?", (plan['cost'], plan_name, u_id))
+            # Deduct flames and update premium status + date in the centralized DB
+            conn.execute("UPDATE users SET balance = balance - ?, premium_type = ?, premium_date = ? WHERE id = ?", (plan['cost'], plan_name, purchase_date, u_id))
             conn.commit()
 
         embed = self.fiery_embed("PREMIUM UPGRADE SEALED", 
@@ -99,6 +101,31 @@ class PremiumSystem(commands.Cog):
         embed = self.fiery_embed("Premium Population Recap", desc, color=0x00FFFF)
         await ctx.send(embed=embed)
 
+    @commands.command(name="premiumstatus")
+    @commands.has_permissions(administrator=True)
+    async def premium_status(self, ctx, member: discord.Member = None):
+        """ADDED: Admin command to check subscription details and days remaining."""
+        target = member or ctx.author
+        with self.get_db_connection() as conn:
+            u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        if not u or u['premium_type'] == 'Free':
+            return await ctx.send(f"⛓️ **{target.display_name}** has no active collar. (Free Status)")
+
+        # Calculate time remaining
+        purchase_dt = datetime.fromisoformat(u['premium_date'])
+        expiry_dt = purchase_dt + timedelta(days=30)
+        remaining = expiry_dt - datetime.now()
+        days_left = max(0, remaining.days)
+
+        embed = self.fiery_embed("Subscription Status Check", 
+                                f"📋 **Target:** {target.mention}\n"
+                                f"🎖️ **Plan:** {u['premium_type']}\n"
+                                f"📅 **Enrollment Date:** {purchase_dt.strftime('%Y-%m-%d')}\n"
+                                f"⏳ **Days Remaining:** {days_left} Days\n"
+                                f"🔞 **Status:** Under Active Contract", color=0xFFD700)
+        await ctx.send(embed=embed)
+
     # --- DECORATOR/CHECK FOR PREMIUM COMMANDS ---
     @staticmethod
     def is_premium():
@@ -118,12 +145,17 @@ async def setup(bot):
     import sys
     main = sys.modules['__main__']
     
-    # Migração Silenciosa: Garante que a coluna existe no DB centralizado
+    # Migração Silenciosa: Garante que as colunas existem no DB centralizado
     with main.get_db_connection() as conn:
         try:
             conn.execute("ALTER TABLE users ADD COLUMN premium_type TEXT DEFAULT 'Free'")
         except:
             pass # Coluna já existe
+        try:
+            # ADDED: premium_date column for tracking
+            conn.execute("ALTER TABLE users ADD COLUMN premium_date TEXT")
+        except:
+            pass
             
     await bot.add_cog(PremiumSystem(
         bot, 
