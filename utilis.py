@@ -13,7 +13,7 @@ async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
         # --- NEW EROTIC AUDIT STYLE ---
         embed = discord.Embed(
             title="🕵️ THE MASTER'S LEDGER: TRANSACTION RECORDED", 
-            description=f"A new vibration in the pit. Asset {user.mention} has processed a transaction.",
+            description=f"A new reaction in the pit. Asset {user.mention} has processed a transaction.",
             color=0x8B0000, 
             timestamp=datetime.now(timezone.utc)
         )
