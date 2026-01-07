@@ -235,8 +235,7 @@ def get_user(user_id):
             return get_user(user_id)
         return user
 
-# --- MOVED TO prizes.py: calculate_item_bonuses ---
-
+# --- REDIRECTED TO prizes.py ---
 async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0, source="System"):
     await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, get_user, bot, get_db_connection, CLASSES, nsfw_mode_active, send_audit_log)
 
