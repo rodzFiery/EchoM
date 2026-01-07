@@ -37,7 +37,7 @@ class Achievements(commands.Cog):
             u = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         
         if not u: 
-            return "First Steps..."
+            return "No achievements yet.."
 
         # Define high-tier milestone sets
         # UPDATED: Now using the universal Fiery Scale for all primary milestones
@@ -70,9 +70,9 @@ class Achievements(commands.Cog):
 
         # 6. ADDED: First Blood (Death) Milestone
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
-        if fbd: lines.append(f"⚰️ Victim Soul: {fbd}")
+        if fbd: lines.append(f"⚰️ First death: {fbd}")
 
-        return "\n".join(lines) if lines else "First Steps..."
+        return "\n".join(lines) if lines else "No achievements yet.."
 
     # --- NEW FEATURE: REAL-TIME AUDIT LOGGING ---
     async def check_and_log_achievements(self, user_id, category, current_value):
@@ -107,7 +107,7 @@ class Achievements(commands.Cog):
                 if category == "Kill Streak":
                     special_note = "A killing spree has ignited. The blood is practically boiling."
                 elif category == "First Deaths":
-                    special_note = "An asset has been sacrificed first too many times. A true glutton for punishment."
+                    special_note = "An member has been sacrificed first too many times. A true glutton for punishment."
                 else:
                     special_note = "The Master has noted your growing submission to the arena."
 
@@ -179,4 +179,5 @@ class Achievements(commands.Cog):
 async def setup(bot):
     main_module = sys.modules['__main__']
     await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
+
 
