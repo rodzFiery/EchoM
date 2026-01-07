@@ -41,16 +41,16 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
     else:
         embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="❤> Class", value=f"**{u['class']}**", inline=False)
+    embed.add_field(name="❤ Class", value=f"**{u['class']}**", inline=False)
     embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
     embed.add_field(name=":handbag: Wallet", value=f"**Flames:** {u['balance']}\n**Global Level:** {u['level']} ({u['xp']} XP)", inline=True)
     embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']}", inline=True)
     
-    combat = (f"🏆 **Echo Hangrygames Wins:** {u['wins']} (Rank #{wins_rank})\n"
-              f"⚔️ **Echo Hangrygames Kills:** {u['kills']} (Rank #{kills_rank})\n"
+    combat = (f"🏆 **Wins:** {u['wins']} (Rank #{wins_rank})\n"
+              f"⚔️ **Kills:** {u['kills']} (Rank #{kills_rank})\n"
               f"🫦 **Duel Wins:** {u['duel_wins']} (Rank #{duel_rank})\n"
-              f"💀 **Echo Hangrygames Deaths:** {u['deaths']}\n"
-              f"🎮 **Echo Hangrygames Games Played:** {u['games_played']}")
+              f"💀 **Deaths:** {u['deaths']}\n"
+              f"🎮 **Games Played:** {u['games_played']}")
     embed.add_field(name="⚔️ Echo Hangrygames & Duels", value=combat, inline=False)
     
     if victims:
