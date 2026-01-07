@@ -27,9 +27,13 @@ CLASSES = {
 }
 
 async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
+    """
+    Sincronizado com o main.py:
+    Processa a lógica de economia preservando multiplicadores e cooldowns.
+    """
     # LEGENDARY BLACKOUT CHECK: Disable if lights are out
     ext = bot.get_cog("FieryExtensions")
-    if ext and ext.is_blackout:
+    if ext and hasattr(ext, 'is_blackout') and ext.is_blackout:
         return await ctx.send("🌑 **THE LIGHTS ARE OUT.** The machines are dead. You cannot work in the dark. Use `!search`!")
 
     user = get_user(ctx.author.id)
@@ -42,27 +46,44 @@ async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update
     
     if now - last < timedelta(hours=3):
         wait = timedelta(hours=3) - (now - last)
-        embed = fiery_embed("Exhaustion Protocol", f"❌ Your body is broken. You cannot perform **{cmd_name}** yet.\n\nRecovery time remaining: **{wait.seconds//3600}h {(wait.seconds//60)%60}m**.", color=0xFF0000)
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        hours, remainder = divmod(int(wait.total_seconds()), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        embed = fiery_embed("Exhaustion Protocol", f"❌ Your body is broken. You cannot perform **{cmd_name}** yet.\n\nRecovery time remaining: **{hours}h {minutes}m**.", color=0xFF0000)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        return await ctx.send(embed=embed)
 
     base_reward = random.randint(reward_range[0], reward_range[1])
+    
+    # Chama o atualizador assíncrono do main.py para lidar com XP e Quests
     await update_user_stats_async(ctx.author.id, amount=base_reward, xp_gain=50, source=cmd_name.capitalize())
     
+    # Atualiza o timestamp do cooldown
     with get_db_connection() as conn:
         conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), ctx.author.id))
         conn.commit()
     
+    # Recarrega stats para mostrar o saldo atualizado no embed
     user_upd = get_user(ctx.author.id)
     u_class = user_upd['class']
+    
+    # Cálculo de bônus para exibição visual no embed
     bonus = CLASSES[u_class]['bonus_flames'] if u_class in CLASSES else 1.0
-    h_mult = ext.heat_multiplier if ext else 1.0
+    h_mult = ext.heat_multiplier if ext and hasattr(ext, 'heat_multiplier') else 1.0
     nsfw_mult = 2.0 if nsfw_mode_active else 1.0
     
     final_reward = int(base_reward * bonus * h_mult * nsfw_mult)
     
+    # Obtém a mensagem temática do Lexicon
     msg = FieryLexicon.get_economy_msg(cmd_name, ctx.author.display_name, final_reward)
     
-    embed = fiery_embed(cmd_name.upper(), f"{msg}\n\n⛓️ **Session Payout:** {final_reward}F\n🫦 **Total XP:** +50\n💳 **New Balance:** {user_upd['balance']}F", color=0xFF4500)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    embed = fiery_embed(cmd_name.upper(), f"{msg}\n\n⛓️ **Session Payout:** {final_reward}F\n🫦 **Total XP:** +50\n💳 **New Balance:** {user_upd['balance']:,}F", color=0xFF4500)
+    
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
