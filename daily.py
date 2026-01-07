@@ -8,8 +8,11 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     now = datetime.now(timezone.utc)
     db_col = f"last_{reward_type}"
     streak_col = f"{reward_type}_streak"
-    last_str = user[db_col]
-    current_streak = user[streak_col] if user[streak_col] else 0
+    
+    # Check if keys exist in the user record
+    user_keys = user.keys()
+    last_str = user[db_col] if db_col in user_keys else None
+    current_streak = user[streak_col] if streak_col in user_keys and user[streak_col] else 0
     
     last_time = datetime.fromisoformat(last_str) if last_str else now - (cooldown_delta + timedelta(seconds=1))
     
