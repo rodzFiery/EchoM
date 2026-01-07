@@ -26,6 +26,7 @@ import daily as daily_module # FIXED: Import with alias to prevent conflict with
 import social as social_module # ADDED: Social commands module
 import prizes as prizes_module # ADDED: Prizes and Logic module
 import database as db_module # ADDED: Centralized Database logic synchronization
+import utilis # ADDED: Centralized Utils synchronization
 from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
 from dotenv import load_dotenv
@@ -78,63 +79,14 @@ def init_db():
 
 init_db()
 
-# ===== 3. CORE HELPERS & AUDIT =====
+# ===== 3. CORE HELPERS & AUDIT REDIRECTS =====
 async def send_audit_log(user_id, amount, source, xp=0):
-    channel = bot.get_channel(AUDIT_CHANNEL_ID)
-    if not channel: return
-    try:
-        user = await bot.fetch_user(user_id)
-        # --- NEW EROTIC AUDIT STYLE ---
-        embed = discord.Embed(
-            title="🕵️ THE MASTER'S LEDGER: TRANSACTION RECORDED", 
-            description=f"A new vibration in the pit. Asset {user.mention} has processed a transaction.",
-            color=0x8B0000, 
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        image_path = "LobbyTopRight.jpg"
-        if os.path.exists(image_path):
-            file = discord.File(image_path, filename="ledger_logo.jpg")
-            embed.set_thumbnail(url="attachment://ledger_logo.jpg")
-        else:
-            embed.set_thumbnail(url=user.display_avatar.url)
-            file = None
-            
-        embed.add_field(name="🫦 Ident: Asset", value=user.mention, inline=True)
-        embed.add_field(name="⛓️ Source: Protocol", value=f"**{source}**", inline=True)
-        
-        # Details with Emojis
-        val_flames = f"🔥 **+{amount}** Flames added to vault." if amount >= 0 else f"📉 **{amount}** Flames extracted."
-        embed.add_field(name="💰 Currency Flow", value=val_flames, inline=False)
-        
-        if xp > 0:
-            embed.add_field(name="💦 Neural Imprint (XP)", value=f"**+{xp}** experience units synchronized.", inline=False)
-        
-        embed.set_footer(text="🔞 THE RED ROOM RECORDS EVERYTHING 🔞")
-        
-        if file:
-            await channel.send(file=file, embed=embed)
-        else:
-            await channel.send(embed=embed)
-    except Exception as e: 
-        print(f"Audit Log Error: {e}")
+    # REDIRECTED TO utilis.py body logic
+    await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp)
 
 def fiery_embed(title, description, color=0xFF4500):
-    # DYNAMIC COLOR: During Master Presence or NSFW Mode, all embeds turn Blood Red
-    global nsfw_mode_active
-    ext = bot.get_cog("FieryExtensions")
-    if (ext and ext.master_present) or nsfw_mode_active:
-        color = 0x8B0000 
-    
-    embed = discord.Embed(title=f"🔥 {title.upper()} 🔥", description=description, color=color)
-    
-    # FIXED: Mandatory Image Integration on ALL embeds
-    if os.path.exists("LobbyTopRight.jpg"):
-        embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-        
-    embed.set_footer(text="🔞 FIERY HANGRYGAMES EDITION 🔞")
-    embed.timestamp = datetime.now(timezone.utc)
-    return embed
+    # REDIRECTED TO utilis.py body logic
+    return utilis.fiery_embed(bot, nsfw_mode_active, title, description, color)
 
 def get_user(user_id):
     # ADDED: Redirect to central db_module
