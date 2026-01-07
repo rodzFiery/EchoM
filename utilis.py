@@ -52,12 +52,12 @@ def fiery_embed(bot, nsfw_mode_active, title, description, color=0xFF4500):
     if (ext and ext.master_present) or nsfw_mode_active:
         color = 0x8B0000 
     
-    embed = discord.Embed(title=f"🔥 {title.upper()} 🔥", description=description, color=color)
+    embed = discord.Embed(title=f" {title.upper()} ", description=description, color=color)
     
     # FIXED: Mandatory Image Integration on ALL embeds
     if os.path.exists("LobbyTopRight.jpg"):
         embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
         
-    embed.set_footer(text="🔞 FIERY HANGRYGAMES EDITION 🔞")
+    embed.set_footer(text="🔞 ECHO HANGRYGAMES EDITION 🔞")
     embed.timestamp = datetime.now(timezone.utc)
     return embed
