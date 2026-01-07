@@ -339,7 +339,7 @@ async def on_ready():
     
     bot.add_view(ignis.LobbyView(None, None))
 
-    # CARREGAMENTO AUTOMÁTICO DO ADMIN E EXTENSÕES
+    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
