@@ -33,7 +33,7 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
 
     badge_display = " ".join(titles) if titles else "No badges yet."
 
-    embed = discord.Embed(title=f"<:FIERY_heart_devilred:1329474462365777920> {member.display_name}'s Dossier", color=0xFF0000)
+    embed = discord.Embed(title=f"😻 {member.display_name}'s Dossier", color=0xFF0000)
     
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -41,17 +41,17 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
     else:
         embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="<:FIERY_ad_colours:1331585411637706833> Class", value=f"**{u['class']}**", inline=False)
-    embed.add_field(name="<:FIERY_fp_engarde:1357452255447613651> Badges & Titles", value=badge_display, inline=False)
+    embed.add_field(name="❤> Class", value=f"**{u['class']}**", inline=False)
+    embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
     embed.add_field(name=":handbag: Wallet", value=f"**Flames:** {u['balance']}\n**Global Level:** {u['level']} ({u['xp']} XP)", inline=True)
-    embed.add_field(name="🔥 Fiery Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']}", inline=True)
+    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']}", inline=True)
     
-    combat = (f"🏆 **Arena Wins:** {u['wins']} (Rank #{wins_rank})\n"
-              f"⚔️ **Arena Kills:** {u['kills']} (Rank #{kills_rank})\n"
+    combat = (f"🏆 **Echo Hangrygames Wins:** {u['wins']} (Rank #{wins_rank})\n"
+              f"⚔️ **Echo Hangrygames Kills:** {u['kills']} (Rank #{kills_rank})\n"
               f"🫦 **Duel Wins:** {u['duel_wins']} (Rank #{duel_rank})\n"
-              f"💀 **Arena Deaths:** {u['deaths']}\n"
-              f"🎮 **Games Played:** {u['games_played']}")
-    embed.add_field(name="⚔️ Fiery Hangrygames & Duels", value=combat, inline=False)
+              f"💀 **Echo Hangrygames Deaths:** {u['deaths']}\n"
+              f"🎮 **Echo Hangrygames Games Played:** {u['games_played']}")
+    embed.add_field(name="⚔️ Echo Hangrygames & Duels", value=combat, inline=False)
     
     if victims:
         v_lines = []
@@ -59,9 +59,9 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
             v_member = ctx.guild.get_member(v['loser_id'])
             v_name = v_member.display_name if v_member else f"Unknown ({v['loser_id']})"
             v_lines.append(f"• **{v_name}**: {v['win_count']} times")
-        embed.add_field(name="⛓️ Top 5 Victims (Private Sessions)", value="\n".join(v_lines), inline=False)
+        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="\n".join(v_lines), inline=False)
     else:
-        embed.add_field(name="⛓️ Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
+        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
 
     owner_text = "Free Soul"
     if u['spouse']:
@@ -110,14 +110,14 @@ async def handle_hall_command(ctx, get_db_connection, fiery_embed):
         bloodiest = conn.execute("SELECT id, first_bloods FROM users ORDER BY first_bloods DESC LIMIT 1").fetchone()
 
     desc = "### 🏛️ THE HALL OF TRIBUTES\n"
-    desc += f"⚔️ **All-Time Arena Wins:** {stats['total_wins'] or 0}\n"
+    desc += f"⚔️ **All-Time Echo Hangrygames Wins:** {stats['total_wins'] or 0}\n"
     desc += f"💀 **All-Time Executions:** {stats['total_kills'] or 0}\n"
     desc += f"⚰️ **Total Tributes Fallen:** {stats['total_deaths'] or 0}\n\n"
     
     if most_wealthy:
         desc += f"💰 **Richest Sinner:** <@{most_wealthy['id']}> ({most_wealthy['balance']:,} Flames)\n"
     if bloodiest:
-        desc += f"🩸 **Most Humiliated (FB):** <@{bloodiest['id']}> ({bloodiest['first_bloods']} times)\n"
+        desc += f"🩸 **Most First bloods:** <@{bloodiest['id']}> ({bloodiest['first_bloods']} times)\n"
 
     embed = fiery_embed("LEGACY MUSEUM", desc, color=0xFFD700)
     if os.path.exists("LobbyTopRight.jpg"):
@@ -127,7 +127,7 @@ async def handle_hall_command(ctx, get_db_connection, fiery_embed):
         await ctx.send(embed=embed)
 
 async def handle_fiery_guide(ctx, fiery_embed):
-    emb1 = fiery_embed("FIERY PROTOCOL: THE SLAVE HIERARCHY 🧬", 
+    emb1 = fiery_embed("ECHO PROTOCOL: THE SLAVE HIERARCHY 💫", 
         "### 🧬 SECTION I: IDENTITY & ROLES\n"
         "*Choose your path or remain a nameless tribute in the pits.*\n\n"
         "🫦 `!setclass` — Claim your erotic path and bonuses.\n"
@@ -136,33 +136,31 @@ async def handle_fiery_guide(ctx, fiery_embed):
         "📊 `!ranking` — The hierarchy of elite sinners.\n\n"
         "**Available Roles:**\n"
         "⛓️ **Dominant:** +20% Flames. Dictate the flow.\n"
-        "🫦 **Submissive:** +25% XP/FXP. Absorb the discipline.\n"
-        "🔄 **Switch:** +15% Flames/XP. Versatile pleasure.\n"
+        "🫦 **Submissive:** +25% XP. Absorb the discipline.\n"
+        "🔄 **Switch:** +14% Flames/XP. Versatile pleasure.\n"
         "📸 **Exhibitionist:** +40% Flames, -20% XP. Pure display.")
 
-    emb2 = fiery_embed("FIERY PROTOCOL: THE ARENA & PRIVATE PLEASURES ⚔️", 
+    emb2 = fiery_embed("ECHO PROTOCOL: THE ARENA & PRIVATE PLEASURES ⚔️", 
         "### ⚔️ SECTION II: COMBAT & SUBMISSION\n"
         "*Procedural 1v1 slaughter or intimate private rivalry.*\n\n"
-        "🔥 `!fierystart` — Open the pit for new registrations.\n"
+        "🔥 `!echostart` — Open the pit for new registrations.\n"
         "⛓️ `!lobby` — View the souls currently awaiting their fate.\n"
-        "🔞 `!fuck <user>` — Challenge an asset to a private BDSM duel.\n"
+        "🔞 `!fuck <user>` — Challenge an member to a private BDSM duel.\n"
         "📣 `!@user` — (Winner) Force a **FLASH** decree on your victim.\n"
-        "📸 `!flash` — Review the gallery of recent public humiliations.\n"
-        "🆘 `!reset_arena` — Admin override for locked cages.")
 
-    emb3 = fiery_embed("FIERY PROTOCOL: LABOR & TRIBUTES ⛓️", 
+    emb3 = fiery_embed("ECHO PROTOCOL: LABOR & TRIBUTES 💘", 
         "### 💰 SECTION III: HARVESTING FLAMES\n"
         "*The Red Room runs on effort and obedience. 3h cooldowns apply.*\n\n"
         "👢 `!work` — Polish boots and serve the elite. (500-750F)\n"
         "🛐 `!beg` — Grovel at the feet of power. (500-1500F)\n"
-        "🫦 `!flirt` — Seduce the lounge patrons. (700-1800F)\n"
+        "💘 `!flirt` — Seduce the lounge patrons. (700-1800F)\n"
         "🧴 `!cumcleaner` — Sanitize the aftermath. (800-1800F)\n"
         "🧪 `!experiment` — Volunteer for sensory trials. (500-2000F)\n"
         "🎭 `!pimp` — Manage assets and contracts. (800-1600F)\n"
         "🎲 `!mystery` — High-risk sensory gamble. (100-3000F)\n\n"
         "**Recurrent Rewards:** `!daily`, `!weekly`, `!monthly` claims.")
 
-    emb4 = fiery_embed("FIERY PROTOCOL: THE VAULT & BONDS 💍", 
+    emb4 = fiery_embed("ECHO PROTOCOL: THE VAULT & BONDS 💍", 
         "### 🛒 SECTION IV: THE BLACK MARKET\n"
         "*Prestige assets, soul-binding items, and legacy artifacts.*\n\n"
         "🏰 `!shop` — Browse the boutique (Houses, Pets, Rings, Toys).\n"
@@ -174,7 +172,7 @@ async def handle_fiery_guide(ctx, fiery_embed):
         "📜 `!contract <user> <price>` — Offer a 24-hour collar of service.\n"
         "✅ `!accept` — Seal the bond. *Owners take 20% tax automatically.*")
 
-    emb5 = fiery_embed("FIERY PROTOCOL: THE MASTER'S LEDGER 🎰", 
+    emb5 = fiery_embed("ECHO PROTOCOL: THE MASTER'S LEDGER 🎰", 
         "### 🎰 SECTION VI: CASINO & GAMBLING\n"
         "*High-stakes protocols for those who risk it all.*\n\n"
         "🍒 `!slots` — Triple Pleasure Slots (Jackpot x50).\n"
@@ -221,7 +219,7 @@ async def handle_streaks_command(ctx, get_db_connection, get_user, fiery_embed):
 
     u = get_user(ctx.author.id)
     footer_text = f"Your Discipline: D:{u['daily_streak']} | W:{u['weekly_streak']} | M:{u['monthly_streak']}"
-    embed.set_footer(text=footer_text + " | 🔞 FIERY HANGRYGAMES EDITION 🔞")
+    embed.set_footer(text=footer_text + " | 🔞 ECHO GAMES EDITION 🔞")
 
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
