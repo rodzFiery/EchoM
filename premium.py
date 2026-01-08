@@ -103,36 +103,36 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
         """Opens the Premium Subscription Lobby with 20 Bundles."""
-        desc = "```ascii\n"
-        desc += "╔════════════════════════════════════════════════════════╗\n"
-        desc += "║            THE MASTER'S LEGENDARY LEDGER               ║\n"
-        desc += "╠════════════════════════════════════════════════════════╣\n"
-        desc += "║  STATUS   │ 30D    │ 60D    │ 90D    │ 180D   │ BUNDLE ║\n"
-        desc += "╟───────────┼────────┼────────┼────────┼────────┼────────╢\n"
-        desc += "║ STARTER   │ 65k    │ 130k   │ 190k   │ 350k   │ [CORE] ║\n"
-        desc += "║ COMBAT    │ 50k    │ 100k   │ 150k   │ 290k   │ [WAR ] ║\n"
-        desc += "║ SURVIVAL  │ 40k    │ 80k    │ 120k   │ 240k   │ [ECHO] ║\n"
-        desc += "║ WEALTH    │ 35k    │ 70k    │ 100k   │ 180k   │ [ECON] ║\n"
-        desc += "║ MEGA CORE │ 85k    │ 170k   │ 250k   │ 470k   │ [UTIL] ║\n"
-        desc += "║ ULTIMATE  │ 105k   │ 210k   │ 310k   │ 590k   │ [ELIT] ║\n"
-        desc += "║ FULL      │ 195k   │ 390k   │ 585k   │ 990k   │ [ALL ] ║\n"
-        desc += "╚════════════════════════════════════════════════════════╝```\n"
-
-        desc += "🔥 **LEGENDARY BUNDLES UNLEASHED**\n"
-        desc += "• `14. COMPLETE BATTLE` ─── *The absolute peak of warfare.*\n"
-        desc += "  └ [120k / 240k / 355k / 620k]\n"
-        desc += "• `18. ARENA COMBO` ─── *Master of all combat and classes.*\n"
-        desc += "  └ [115k / 230k / 330k / 640k]\n\n"
-
-        desc += "🛒 **THE A LA CARTE CHAMBER (INDIVIDUAL ITEMS)**\n"
-        desc += "```\n"
-        desc += "🧬 Classes: 20k  │ 🔞 Echo HG: 40k │ ⚔️ Arena: 10k\n"
-        desc += "💰 Economy: 35k  │ 🎰 Casino: 25k  │ 🛠️ Utility: 20k\n"
-        desc += "💌 Ask-DM: 15k   │ 💍 Ship: 10k    │ 🛒 Shop: 10k\n"
-        desc += "```\n"
-        desc += "*Every upgrade clicks a new collar into place. Choose wisely.*"
+        desc = "👑 **THE ELITE SUBSCRIPTION PROGRAM** 👑\n"
+        desc += "*Ascend beyond the commoners and claim your dominance in the dungeon.*\n\n"
         
-        embed = self.fiery_embed("Master's Premium Boutique", desc)
+        desc += "✨ **FEATURED BUNDLES** (30D Pricing)\n"
+        desc += "🥇 **THE FULL EVERYTHING PACK** ── `195k`\n"
+        desc += "└ *The ultimate key. Total access. No restrictions.*\n\n"
+        
+        desc += "🥈 **COMPLETE BATTLE SYSTEM** ── `120k`\n"
+        desc += "└ *Echo + Arena + Casino + Econ + Shop. For the true warrior.*\n\n"
+        
+        desc += "🥉 **ULTIMATE GAME PACK** ── `105k`\n"
+        desc += "└ *Classes + Economy + Shop + Echo. The professional’s choice.*\n\n"
+
+        desc += "📈 **LONG-TERM VALUE TABLE**\n"
+        desc += "```\n"
+        desc += "PLAN        │ 60D   │ 90D   │ 180D  │ SAVINGS\n"
+        desc += "────────────┼───────┼───────┼───────┼────────\n"
+        desc += "STARTER     │ 130k  │ 190k  │ 350k  │ [MAX]  \n"
+        desc += "COMBAT      │ 100k  │ 150k  │ 290k  │ [HIGH] \n"
+        desc += "ECHO        │ 80k   │ 120k  │ 240k  │ [MED]  \n"
+        desc += "FULL        │ 390k  │ 585k  │ 990k  │ [ULTI] \n"
+        desc += "```\n"
+
+        desc += "💎 **A LA CARTE MENU** (Custom Upgrades)\n"
+        desc += "🧬 `Classes: 20k` │ 🔞 `Echo HG: 40k` │ ⚔️ `Arena: 10k` \n"
+        desc += "💰 `Economy: 35k` │ 🎰 `Casino: 25k`  │ 🛠️ `Utility: 20k` \n"
+        
+        desc += "\n*Your submission is an investment. Upgrade today.*"
+        
+        embed = self.fiery_embed("PREMIUM ELITE LOUNGE", desc)
         view = PremiumShopView(ctx, self.get_db_connection, self.fiery_embed, self.update_user_stats)
         
         if os.path.exists("LobbyTopRight.jpg"):
