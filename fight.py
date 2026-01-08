@@ -180,12 +180,12 @@ class FightSystem(commands.Cog):
                     p2_data = io.BytesIO(await r2.read())
             bg_path = "1v1Background.jpg"
             bg = Image.open(bg_path).convert("RGBA").resize((1000, 500)) if os.path.exists(bg_path) else Image.new("RGBA", (1000, 500), (40, 0, 0, 255))
-            av1 = Image.open(p1_data).convert("RGBA").resize((250, 250))
-            av2 = Image.open(p2_data).convert("RGBA").resize((250, 250))
+            av1 = Image.open(p1_data).convert("RGBA").resize((350, 350))
+            av2 = Image.open(p2_data).convert("RGBA").resize((350, 350))
             av1 = ImageOps.expand(av1, border=10, fill=(255, 69, 0))
             av2 = ImageOps.expand(av2, border=10, fill=(128, 0, 128))
-            bg.paste(av1, (100, 125), av1)
-            bg.paste(av2, (650, 125), av2)
+            bg.paste(av1, (50, 75), av1)
+            bg.paste(av2, (600, 75), av2)
             overlay = Image.new("RGBA", bg.size, (139, 0, 0, 40))
             bg = Image.alpha_composite(bg, overlay)
             buf = io.BytesIO()
@@ -368,9 +368,9 @@ class FightSystem(commands.Cog):
             audit_emb.add_field(name="💰 Harvest", value="+2,500 Flames", inline=True)
 
             audit_emb.description = (
-                f" f\"🔞 **VOYEUR NOTE:** {winner.display_name} has successfully broken {loser.display_name}'s resistance. \" "
-                f" f\"The session concluded with {winner.display_name} maintaining absolute control. \" "
-                f" f\"New Lifetime Wins for dominant: `{u_upd['duel_wins']}`.\""
+                f"🔞 **VOYEUR NOTE:** {winner.display_name} has successfully broken {loser.display_name}'s resistance. "
+                f"The session concluded with {winner.display_name} maintaining absolute control. "
+                f"New Lifetime Wins for dominant: `{u_upd['duel_wins']}`."
             )
             
             await audit_channel.send(embed=audit_emb)
