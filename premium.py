@@ -187,6 +187,27 @@ class PremiumSystem(commands.Cog):
             
         await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} foi elevado para **{plan_name}**.", color=0x00FF00))
 
+    @commands.command(name="testpay")
+    @commands.has_permissions(administrator=True)
+    async def test_payment(self, ctx, member: discord.Member, plan_number: int):
+        """SIMULAÇÃO: Dispara a lógica do webhook localmente para teste."""
+        plan_list = list(PREMIUM_PLANS.keys())
+        if plan_number < 1 or plan_number > len(plan_list):
+            return await ctx.send("❌ Plano inválido.")
+        plan_name = plan_list[plan_number - 1]
+        
+        import requests
+        payload = {
+            'payment_status': 'Completed',
+            'custom': f"{member.id}|{plan_name}|30"
+        }
+        try:
+            # Envia para o próprio endpoint Flask do bot
+            requests.post(f"{WEBHOOK_URL}", data=payload)
+            await ctx.send(f"🧪 **Simulação enviada.** Verifique o console ou use `!premiumstatus @user`.")
+        except Exception as e:
+            await ctx.send(f"❌ Erro na simulação: {e}")
+
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
         with self.get_db_connection() as conn:
