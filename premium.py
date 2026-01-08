@@ -8,9 +8,9 @@ from datetime import datetime, timedelta
 
 # --- CONFIGURAÇÃO PAYPAL (INTEGRAÇÃO WEBHOOK AUTOMÁTICA) ---
 # Utilizando variáveis de ambiente (Railway) ou valores padrão
-PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL", "seu-email@paypal.com")
+PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
 # URL do seu Webhook Handler (onde o bot processará o sinal do PayPal)
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://seu-app.railway.app/paypal_webhook")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CURRENCY = "USD"
 
 # --- PRE-CONFIGURED PLANS (20 BUNDLES + 9 A LA CARTE - TOTAL 29 PLANS) ---
