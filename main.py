@@ -101,7 +101,7 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
     await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, get_user, bot, get_db_connection, CLASSES, nsfw_mode_active, send_audit_log)
 
 def update_user_stats(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0):
-    p prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
+    prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
 
 # --- AUTOMATIC PAYMENT WEBHOOK (PAYPAL IPN) ---
 app = Flask(__name__)
@@ -424,3 +424,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
