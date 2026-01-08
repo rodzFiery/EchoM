@@ -199,29 +199,26 @@ class PremiumSystem(commands.Cog):
         plan_name = plan_list[plan_number - 1]
         import requests
 
-        # Tenta construir a URL se ela não terminar com /webhook
-        base_url = WEBHOOK_URL
-        if base_url and not base_url.endswith('/webhook'):
-            base_url = base_url.rstrip('/') + '/webhook'
-
+        # Tenta a rota de loopback local para evitar problemas de rede no container
+        base_url = "http://127.0.0.1:5000/webhook" # Porta padrão Flask
+        
         def send_simulated_post():
             payload = {
                 'payment_status': 'Completed',
                 'custom': f"{member.id}|{plan_name}|30"
             }
-            # Timeout curto para evitar que o bot fique esperando eternamente
             return requests.post(base_url, data=payload, timeout=5)
 
         try:
-            await ctx.send(f"⏳ Tentando disparar webhook para: `{base_url}`...")
+            await ctx.send(f"⏳ Simulando ativação para: `{plan_name}`...")
             response = await asyncio.to_thread(send_simulated_post)
             
             if response.status_code == 200:
-                await ctx.send(f"✅ **Resposta do Servidor: OK (200).**\nPremium `{plan_name}` deve ter sido ativado para {member.mention}.")
+                await ctx.send(f"✅ **Simulação Concluída.**\nO Premium `{plan_name}` deve estar ativo para {member.mention}.")
             else:
-                await ctx.send(f"⚠️ **Erro no Servidor ({response.status_code}).** Verifique os logs do Railway.")
+                await ctx.send(f"⚠️ **Erro no Servidor Interno ({response.status_code}).**")
         except Exception as e:
-            await ctx.send(f"❌ **Falha Crítica:** {e}\n\n*Certifique-se que WEBHOOK_URL no Railway está correta (ex: https://seu-app.up.railway.app/webhook)*")
+            await ctx.send(f"❌ **Falha Crítica no Teste:** {e}")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
@@ -282,5 +279,7 @@ async def setup(bot):
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_type TEXT DEFAULT 'Free'")
         except: pass 
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_date TEXT")
+        except: pass
+    await bot.add_cog(PremiumSystem(bot, main.get_db_connection, main.fiery_embed, main.update_user_stats_async))
         except: pass
     await bot.add_cog(PremiumSystem(bot, main.get_db_connection, main.fiery_embed, main.update_user_stats_async))
