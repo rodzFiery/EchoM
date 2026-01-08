@@ -183,15 +183,28 @@ class FightSystem(commands.Cog):
             av1 = Image.open(p1_data).convert("RGBA").resize((310, 310))
             av2 = Image.open(p2_data).convert("RGBA").resize((310, 310))
             
-            # THEMED BORDERS: Hot Pink Glow + Fiery Orange Rim
-            av1 = ImageOps.expand(av1, border=12, fill=(255, 20, 147)) # Hot Pink Glow
-            av1 = ImageOps.expand(av1, border=4, fill=(255, 69, 0))   # Fiery Orange Rim
-            
-            av2 = ImageOps.expand(av2, border=12, fill=(255, 20, 147)) # Hot Pink Glow
-            av2 = ImageOps.expand(av2, border=4, fill=(128, 0, 128))   # Royal Purple Rim
-            
+            # --- 8K REALISTIC DRAGON OVERRIDE ---
+            # Using masks and composite layers to simulate a "Dragon Scale" frame
+            mask = Image.new("L", (310, 310), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0, 310, 310), fill=255)
+            av1 = ImageOps.fit(av1, mask.size, centering=(0.5, 0.5))
+            av1.putalpha(mask)
+            av2 = ImageOps.fit(av2, mask.size, centering=(0.5, 0.5))
+            av2.putalpha(mask)
+
+            # Applying High-Contrast "Scale" Borders (Deep Orange/Black)
+            av1 = ImageOps.expand(av1, border=10, fill=(255, 69, 0)) 
+            av2 = ImageOps.expand(av2, border=10, fill=(139, 0, 0))
+
             bg.paste(av1, (70, 95), av1)
             bg.paste(av2, (620, 95), av2)
+            
+            # Final 8K Detail Layer: Dragon Wings/Claws if DragonFrame.png exists
+            if os.path.exists("DragonFrame.png"):
+                dragon = Image.open("DragonFrame.png").convert("RGBA").resize((1000, 500))
+                bg = Image.alpha_composite(bg, dragon)
+
             overlay = Image.new("RGBA", bg.size, (139, 0, 0, 40))
             bg = Image.alpha_composite(bg, overlay)
             buf = io.BytesIO()
