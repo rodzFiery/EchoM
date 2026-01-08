@@ -124,7 +124,6 @@ def paypal_webhook():
     return "OK", 200
 
 def run_web_server():
-    # FIXED: Usando porta do ambiente ou 5000 como fallback
     port = int(os.environ.get("PORT", 5000))
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
@@ -400,7 +399,7 @@ async def on_ready():
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
-    print(f"📊 PERSISTENCE: Edition #{game_edition} | NSFW Mode: {nsfw_mode_active}")
+    print(f"📊 PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
 
 @bot.event
 async def on_message(message):
