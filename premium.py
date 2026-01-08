@@ -183,7 +183,14 @@ class PremiumSystem(commands.Cog):
         with self.get_db_connection() as conn:
             # ACCUMULATION LOGIC: Fetch current plans and append the new one
             current = conn.execute("SELECT premium_type FROM users WHERE id = ?", (member.id,)).fetchone()
-            new_val = plan_name if not current or current['premium_type'] in ['Free', ''] else f"{current['premium_type']}, {plan_name}"
+            if not current or current['premium_type'] in ['Free', '', None]:
+                new_val = plan_name
+            else:
+                existing_plans = [p.strip() for p in current['premium_type'].split(',')]
+                if plan_name not in existing_plans:
+                    existing_plans.append(plan_name)
+                new_val = ", ".join(existing_plans)
+            
             conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, member.id))
             conn.commit()
             
