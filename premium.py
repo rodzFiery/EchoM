@@ -199,26 +199,23 @@ class PremiumSystem(commands.Cog):
         plan_name = plan_list[plan_number - 1]
         import requests
 
-        # Tenta a rota de loopback local para evitar problemas de rede no container
-        base_url = "http://127.0.0.1:5000/webhook" # Porta padrão Flask
+        # Tenta a porta dinâmica do Railway ou 5000/8080
+        flask_port = os.environ.get("PORT", "5000")
+        base_url = f"http://127.0.0.1:{flask_port}/webhook"
         
         def send_simulated_post():
-            payload = {
-                'payment_status': 'Completed',
-                'custom': f"{member.id}|{plan_name}|30"
-            }
+            payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
             return requests.post(base_url, data=payload, timeout=5)
 
         try:
-            await ctx.send(f"⏳ Simulando ativação para: `{plan_name}`...")
+            await ctx.send(f"⏳ Tentando rota interna: `{base_url}`...")
             response = await asyncio.to_thread(send_simulated_post)
-            
             if response.status_code == 200:
-                await ctx.send(f"✅ **Simulação Concluída.**\nO Premium `{plan_name}` deve estar ativo para {member.mention}.")
+                await ctx.send(f"✅ **OK (200).** Plano `{plan_name}` ativado para {member.mention}.")
             else:
-                await ctx.send(f"⚠️ **Erro no Servidor Interno ({response.status_code}).**")
+                await ctx.send(f"⚠️ Erro {response.status_code}. Verifique se o Flask está na porta {flask_port}.")
         except Exception as e:
-            await ctx.send(f"❌ **Falha Crítica no Teste:** {e}")
+            await ctx.send(f"❌ Falha: {e}")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
@@ -279,7 +276,5 @@ async def setup(bot):
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_type TEXT DEFAULT 'Free'")
         except: pass 
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_date TEXT")
-        except: pass
-    await bot.add_cog(PremiumSystem(bot, main.get_db_connection, main.fiery_embed, main.update_user_stats_async))
         except: pass
     await bot.add_cog(PremiumSystem(bot, main.get_db_connection, main.fiery_embed, main.update_user_stats_async))
