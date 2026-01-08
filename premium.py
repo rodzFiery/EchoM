@@ -57,38 +57,39 @@ class PremiumShopView(discord.ui.View):
 
     def create_embed(self):
         current_keys = self.pages[self.page]
-        desc = "👑 **THE ELITE SUBSCRIPTION PROGRAM** 👑\n"
-        desc += "*Navegue pelas páginas para ver todos os 25+ planos disponíveis.*\n\n"
+        desc = "【 ELITE ASSET ACQUISITION 】\n"
+        desc += "──────────────────────────────\n"
+        desc += "*Navegue pelo catálogo oficial da Red Room. Preços em USD.* \n\n"
         
         for key in current_keys:
             plan = PREMIUM_PLANS[key]
-            # Calculating multipliers line by line for legendary marketing detail
+            # Market Strategy: Detailed durations with clean dividers
             p30, p60, p90, p180 = plan['cost'], plan['cost']*2, plan['cost']*2.9, plan['cost']*5.1
             
-            desc += f"**{key}**\n"
-            desc += f"└ 🟢 **30d:** `${p30}` | 🔵 **60d:** `${p60}`\n"
-            desc += f"└ 🟡 **90d:** `${round(p90, 1)}` | 🔴 **180d:** `${round(p180, 1)}`\n"
-            desc += f"└ *Perks: {plan['perks']}*\n\n"
+            desc += f"**{key.upper()}**\n"
+            desc += f"` 30D: ${p30:,.2f} │ 60D: ${p60:,.2f} `\n"
+            desc += f"` 90D: ${p90:,.1f}  │ 180D: ${p180:,.1f} `\n"
+            desc += f"└ *{plan['perks']}*\n\n"
             
-        embed = self.fiery_embed(f"Master's Private Ledger - Page {self.page + 1}/{len(self.pages)}", desc)
-        embed.set_footer(text="Prices in USD ($) | Every upgrade clicks a new collar into place.")
+        embed = self.fiery_embed(f"PREMIUM CATALOGUE │ PAGE {self.page + 1} OF {len(self.pages)}", desc)
+        embed.set_footer(text="SECURE TRANSACTION │ THE MASTER'S PRIVATE LEDGER")
         return embed
 
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary, emoji="⬅️")
+    @discord.ui.button(label="PREVIOUS", style=discord.ButtonStyle.secondary, emoji="⬅️")
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page > 0:
             self.page -= 1
             await interaction.response.edit_message(embed=self.create_embed())
         else:
-            await interaction.response.send_message("You are already on the first page.", ephemeral=True)
+            await interaction.response.send_message("First page reached.", ephemeral=True)
 
-    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary, emoji="➡️")
+    @discord.ui.button(label="NEXT", style=discord.ButtonStyle.secondary, emoji="➡️")
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < len(self.pages) - 1:
             self.page += 1
             await interaction.response.edit_message(embed=self.create_embed())
         else:
-            await interaction.response.send_message("You are already on the last page.", ephemeral=True)
+            await interaction.response.send_message("Last page reached.", ephemeral=True)
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
@@ -100,7 +101,7 @@ class PremiumShopView(discord.ui.View):
             user = conn.execute("SELECT premium_type FROM users WHERE id = ?", (u_id,)).fetchone()
             
             if not user:
-                return await interaction.response.send_message("You are not registered in the pit yet.", ephemeral=True)
+                return await interaction.response.send_message("Access Denied: Registration not found.", ephemeral=True)
             
             # Note: As prices are now in USD, this logic sets status for Admin verification or External processing
             conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, purchase_date, u_id))
@@ -113,15 +114,15 @@ class PremiumShopView(discord.ui.View):
         # ADDED: Send confirmation to the channel so everyone sees the new Elite asset
         await interaction.response.send_message(embed=embed)
 
-    @discord.ui.button(label="Buy Full Everything", style=discord.ButtonStyle.success, emoji="👑")
+    @discord.ui.button(label="BUY FULL STATUS", style=discord.ButtonStyle.success, emoji="👑")
     async def full_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "20. Full Premium Everything")
 
-    @discord.ui.button(label="Combat Pack", style=discord.ButtonStyle.primary, emoji="⚔️")
+    @discord.ui.button(label="COMBAT PACK", style=discord.ButtonStyle.primary, emoji="⚔️")
     async def combat_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "2. Combat Pack")
 
-    @discord.ui.button(label="Starter Core", style=discord.ButtonStyle.secondary, emoji="📦")
+    @discord.ui.button(label="STARTER CORE", style=discord.ButtonStyle.secondary, emoji="📦")
     async def starter_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "1. Starter Core Pack")
 
@@ -151,12 +152,12 @@ class PremiumSystem(commands.Cog):
         with self.get_db_connection() as conn:
             stats = conn.execute("SELECT premium_type, COUNT(*) as count FROM users GROUP BY premium_type").fetchall()
         
-        desc = "📊 **DUNGEON SUBSCRIPTION LEDGER**\n\n"
+        desc = "📊 **ASSET DISTRIBUTION LOG**\n\n"
         for row in stats:
             p_type = row['premium_type'] or "Free"
-            desc += f"• **{p_type}:** {row['count']} Assets\n"
+            desc += f"• **{p_type}:** {row['count']} Units\n"
         
-        embed = self.fiery_embed("Premium Population Recap", desc, color=0x00FFFF)
+        embed = self.fiery_embed("PREMIUM POPULATION RECAP", desc, color=0x00FFFF)
         await ctx.send(embed=embed)
 
     @commands.command(name="premiumstatus")
@@ -168,7 +169,7 @@ class PremiumSystem(commands.Cog):
             u = conn.execute("SELECT premium_type, premium_date, balance, class, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
         
         if not u or u['premium_type'] == 'Free':
-            embed = self.fiery_embed("Subscription Status Check", f"⛓️ **{target.display_name}** has no active collar.\n\n**Current Status:** Free Asset", color=0x808080)
+            embed = self.fiery_embed("SUBSCRIPTION STATUS", f"⛓️ **{target.display_name}** has no active collar.\n\n**Current Status:** Free Asset", color=0x808080)
             if os.path.exists("LobbyTopRight.jpg"):
                 file = discord.File("LobbyTopRight.jpg", filename="status_logo.jpg")
                 embed.set_thumbnail(url="attachment://status_logo.jpg")
@@ -190,7 +191,7 @@ class PremiumSystem(commands.Cog):
                 f"🔝 **Dungeon Level:** {u['fiery_level']}\n\n"
                 f"🔞 **Status:** Under Active Premium Contract")
 
-        embed = self.fiery_embed("Premium Subscription Status", desc, color=0xFFD700)
+        embed = self.fiery_embed("PREMIUM SUBSCRIPTION STATUS", desc, color=0xFFD700)
         embed.set_author(name="MASTER'S PRIVATE LEDGER", icon_url=target.display_avatar.url)
         
         if os.path.exists("LobbyTopRight.jpg"):
