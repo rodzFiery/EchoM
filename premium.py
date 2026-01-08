@@ -5,6 +5,7 @@ import os
 import sys
 import urllib.parse  # ADDED: Para gerar links de pagamento seguros
 from datetime import datetime, timedelta
+import asyncio
 
 # --- CONFIGURAÇÃO PAYPAL (INTEGRAÇÃO WEBHOOK AUTOMÁTICA) ---
 # Utilizando variáveis de ambiente (Railway) ou valores padrão
@@ -190,23 +191,32 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="testpay")
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx, member: discord.Member, plan_number: int):
-        """SIMULAÇÃO: Dispara a lógica do webhook localmente para teste."""
+        """Simula o sinal do Webhook enviando um POST para si mesmo."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
             return await ctx.send("❌ Plano inválido.")
-        plan_name = plan_list[plan_number - 1]
         
+        plan_name = plan_list[plan_number - 1]
         import requests
-        payload = {
-            'payment_status': 'Completed',
-            'custom': f"{member.id}|{plan_name}|30"
-        }
+
+        def send_simulated_post():
+            payload = {
+                'payment_status': 'Completed',
+                'custom': f"{member.id}|{plan_name}|30"
+            }
+            # Remove o /webhook final para garantir que a URL base esteja correta se necessário
+            target_url = f"{WEBHOOK_URL}"
+            return requests.post(target_url, data=payload)
+
         try:
-            # Envia para o próprio endpoint Flask do bot
-            requests.post(f"{WEBHOOK_URL}", data=payload)
-            await ctx.send(f"🧪 **Simulação enviada.** Verifique o console ou use `!premiumstatus @user`.")
+            # Executa a requisição síncrona em uma thread para não travar o bot
+            response = await asyncio.to_thread(send_simulated_post)
+            if response.status_code == 200:
+                await ctx.send(f"🧪 **Simulação enviada com sucesso!** Verifique se o premium foi ativado para {member.mention}.")
+            else:
+                await ctx.send(f"⚠️ Servidor respondeu com erro {response.status_code}. Verifique sua WEBHOOK_URL.")
         except Exception as e:
-            await ctx.send(f"❌ Erro na simulação: {e}")
+            await ctx.send(f"❌ Erro ao enviar simulação: {e}")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
