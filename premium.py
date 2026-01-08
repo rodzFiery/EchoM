@@ -6,6 +6,7 @@ import sys
 import urllib.parse  # ADDED: To generate secure payment links
 from datetime import datetime, timedelta
 import asyncio
+import aiohttp # ADDED: For more stable asynchronous requests
 
 # --- PAYPAL CONFIGURATION (AUTOMATIC WEBHOOK INTEGRATION) ---
 # Using environment variables (Railway) or default values
@@ -64,12 +65,10 @@ class PremiumShopView(discord.ui.View):
         return [keys[i:i + 3] for i in range(0, len(keys), 3)]
 
     def update_buttons(self):
-        # Clears old purchase buttons, keeping only navigation ones
         self.clear_items()
         self.add_item(self.prev_page)
         self.add_item(self.next_page)
         
-        # Adds purchase buttons for plans on the current page
         current_keys = self.pages[self.page]
         for key in current_keys:
             button = discord.ui.Button(
@@ -127,7 +126,6 @@ class PremiumShopView(discord.ui.View):
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
-        # PAYPAL AUTOMATION LOGIC: Injects metadata for the Webhook to process
         custom_data = f"{interaction.user.id}|{plan_name}|30"
         query = {
             "business": PAYPAL_EMAIL,
@@ -160,7 +158,6 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
-        """Opens the Premium Subscription Lobby."""
         view = PremiumShopView(ctx, self.get_db_connection, self.fiery_embed, self.update_user_stats)
         embed = view.create_embed()
         
@@ -174,7 +171,6 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="activate")
     @commands.has_permissions(administrator=True)
     async def activate_premium(self, ctx, member: discord.Member, plan_number: int):
-        """Manually activate premium after payment verification."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
             return await ctx.send("❌ Invalid plan.")
@@ -191,31 +187,32 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="testpay")
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx, member: discord.Member, plan_number: int):
-        """Simulates Webhook signal by sending a POST directly to the Flask endpoint."""
+        """CRITICAL FIX: Uses multi-path connection for Railway stability."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Invalid plan.")
+            return await ctx.send("❌ Invalid plan index (1-29).")
         
         plan_name = plan_list[plan_number - 1]
-        import requests
-
-        # Attempts dynamic Railway port or 8080
-        flask_port = os.environ.get("PORT", "8080")
-        target_url = WEBHOOK_URL if WEBHOOK_URL else f"http://127.0.0.1:{flask_port}/webhook"
+        payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
         
-        def send_simulated_post():
-            payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
-            return requests.post(target_url, data=payload, timeout=5)
+        # We try different ways to reach the webhook
+        port = os.environ.get("PORT", "8080")
+        urls = [
+            f"http://127.0.0.1:{port}/webhook", # Local loopback
+            WEBHOOK_URL                         # Public Domain
+        ]
 
-        try:
-            await ctx.send(f"⏳ Attempting simulation for: `{target_url}`...")
-            response = await asyncio.to_thread(send_simulated_post)
-            if response.status_code == 200:
-                await ctx.send(f"✅ **Server Response: OK (200).**\nPremium `{plan_name}` should be active for {member.mention}.")
-            else:
-                await ctx.send(f"⚠️ Error {response.status_code}. Check variables on Railway.")
-        except Exception as e:
-            await ctx.send(f"❌ Connection Failure: {e}")
+        async with aiohttp.ClientSession() as session:
+            for url in urls:
+                if not url: continue
+                try:
+                    async with session.post(url, data=payload, timeout=5) as resp:
+                        if resp.status == 200:
+                            return await ctx.send(f"✅ **Success via {url}!**\n{member.mention} is now Premium: **{plan_name}**.")
+                except Exception:
+                    continue
+        
+        await ctx.send("❌ **Test Failed.** Webhook unreachable. Ensure Flask is running in main.py.")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
@@ -232,13 +229,10 @@ class PremiumSystem(commands.Cog):
     async def premium_status(self, ctx, member: discord.Member = None):
         target = member or ctx.author
         with self.get_db_connection() as conn:
-            u = conn.execute("SELECT premium_type, premium_date, balance, class, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
+            u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
         if not u or u['premium_type'] == 'Free':
             return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is Standard.", color=0x808080))
-        purchase_dt = datetime.fromisoformat(u['premium_date'])
-        expiry_dt = purchase_dt + timedelta(days=30)
-        remaining = expiry_dt - datetime.now()
-        desc = (f"📋 **Plan:** {u['premium_type']}\n⏳ **Remaining:** {max(0, remaining.days)} Days")
+        desc = (f"📋 **Plan:** {u['premium_type']}\n📅 **Active Since:** {u['premium_date']}")
         await ctx.send(embed=self.fiery_embed("PRIVATE ASSET OVERVIEW", desc, color=0xFFD700))
 
     @commands.command(name="echoon")
@@ -263,9 +257,9 @@ class PremiumSystem(commands.Cog):
         async def predicate(ctx):
             main = sys.modules['__main__']
             user = main.get_user(ctx.author.id)
-            if user and user['premium_type'] != 'Free':
+            if user and user.get('premium_type') and user['premium_type'] != 'Free':
                 return True
-            await ctx.send(embed=main.fiery_embed("ACCESS DENIED", "❌ Premium Collar required."))
+            await ctx.send(embed=main.fiery_embed("ACCESS DENIED", "❌ Premium Access Required."))
             return False
         return commands.check(predicate)
 
