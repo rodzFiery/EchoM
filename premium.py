@@ -56,10 +56,33 @@ class PremiumShopView(discord.ui.View):
         self.update_user_stats = update_user_stats
         self.page = 0
         self.pages = self.chunk_plans()
+        self.update_buttons()
 
     def chunk_plans(self):
         keys = list(PREMIUM_PLANS.keys())
         return [keys[i:i + 3] for i in range(0, len(keys), 3)]
+
+    def update_buttons(self):
+        # Limpa botões de compra antigos, mantendo apenas os de navegação
+        self.clear_items()
+        self.add_item(self.prev_page)
+        self.add_item(self.next_page)
+        
+        # Adiciona botões de compra para os planos na página atual
+        current_keys = self.pages[self.page]
+        for key in current_keys:
+            button = discord.ui.Button(
+                label=f"COMPRAR {key[:15]}...", 
+                style=discord.ButtonStyle.success,
+                custom_id=f"buy_{key}"
+            )
+            button.callback = self.make_callback(key)
+            self.add_item(button)
+
+    def make_callback(self, plan_name):
+        async def callback(interaction: discord.Interaction):
+            await self.process_purchase(interaction, plan_name)
+        return callback
 
     def create_embed(self):
         current_keys = self.pages[self.page]
@@ -83,26 +106,27 @@ class PremiumShopView(discord.ui.View):
         embed.set_author(name="THE MASTER'S EXECUTIVE BOUTIQUE", icon_url=self.ctx.author.display_avatar.url)
         return embed
 
-    @discord.ui.button(label="PREVIOUS PAGE", style=discord.ButtonStyle.secondary, emoji="◀️")
+    @discord.ui.button(label="PREVIOUS PAGE", style=discord.ButtonStyle.secondary, emoji="◀️", row=4)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page > 0:
             self.page -= 1
-            await interaction.response.edit_message(embed=self.create_embed())
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
             await interaction.response.send_message("❌ Primeira página alcançada.", ephemeral=True)
 
-    @discord.ui.button(label="NEXT PAGE", style=discord.ButtonStyle.secondary, emoji="▶️")
+    @discord.ui.button(label="NEXT PAGE", style=discord.ButtonStyle.secondary, emoji="▶️", row=4)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < len(self.pages) - 1:
             self.page += 1
-            await interaction.response.edit_message(embed=self.create_embed())
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
             await interaction.response.send_message("❌ Última página alcançada.", ephemeral=True)
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
         # PAYPAL AUTOMATION LOGIC: Injeta metadados para o Webhook processar
-        # custom_data envia ID do Usuário e Nome do Plano de volta para seu servidor
         custom_data = f"{interaction.user.id}|{plan_name}|30"
         query = {
             "business": PAYPAL_EMAIL,
@@ -111,7 +135,7 @@ class PremiumShopView(discord.ui.View):
             "currency_code": CURRENCY,
             "item_name": f"Elite Premium: {plan_name}",
             "custom": custom_data,
-            "notify_url": WEBHOOK_URL, # O PayPal enviará o sinal de sucesso aqui
+            "notify_url": WEBHOOK_URL, 
             "no_shipping": "1",
             "return": "https://discord.com"
         }
