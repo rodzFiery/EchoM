@@ -124,11 +124,17 @@ def paypal_webhook():
     return "OK", 200
 
 def run_web_server():
+    # FIXED: Usando porta do ambiente ou 5000 como fallback
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    try:
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    except Exception as e:
+        print(f"⚠️ Web Server bypass: {e}")
 
-# Inicia o servidor em segundo plano
-threading.Thread(target=run_web_server, daemon=True).start()
+# Inicia o servidor em segundo plano de forma segura
+if not any(t.name == "WebServer" for t in threading.enumerate()):
+    web_thread = threading.Thread(target=run_web_server, name="WebServer", daemon=True)
+    web_thread.start()
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
@@ -424,4 +430,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
