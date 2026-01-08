@@ -512,6 +512,25 @@ class FieryExtensions(commands.Cog):
                         f"✨ **Experience:** {xp:,} XP", color=0x00FF00)
                     await audit_chan.send(embed=emb)
 
+                # --- DAILY COMPLETIONIST BONUS (100,000 FLAMES) ---
+                if not is_weekly:
+                    q_data = conn.execute("SELECT * FROM quests WHERE user_id = ?", (user_id,)).fetchone()
+                    daily_all_done = True
+                    for i in range(1, 21):
+                        d_key = f"d{i}"
+                        if q_data[d_key] < goals[d_key]:
+                            daily_all_done = False
+                            break
+                    
+                    if daily_all_done:
+                        bonus = 100000
+                        await self.update_user_stats(user_id, amount=bonus, source="DAILY COMPLETIONIST BONUS")
+                        if audit_chan:
+                            bonus_emb = self.fiery_embed("🏆 THE ULTIMATE SUBMISSION", 
+                                f"🔞 {user_mention} has completed **EVERY SINGLE DAILY DEMAND**!\n\n"
+                                f"🔥 **ULTRA BONUS:** {bonus:,} Flames injected into vault.", color=0xFFD700)
+                            await audit_chan.send(embed=bonus_emb)
+
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
         """Global listener to track command-based quests."""
