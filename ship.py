@@ -132,26 +132,29 @@ class FieryShip(commands.Cog):
                     p2_data = io.BytesIO(await r2.read())
 
             # --- RESETTING LAYOUT ---
-            # CLEAN CANVAS: Deep Dark Background
             canvas_width = 1200
             canvas_height = 700
-            canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
+            
+            # Use shipbg.jpg as background
+            if os.path.exists("shipbg.jpg"):
+                canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+            else:
+                canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
+                
             draw = ImageDraw.Draw(canvas)
 
-            # BIGGER SQUARE AVATARS: Set to 400px (Removed Ellipse Masks)
+            # BIGGER SQUARE AVATARS: Set to 400px
             av_size = 400
             av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
             av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
 
             def apply_erotic_frame_square(avatar, color, pulse_intensity=3):
-                # No circle mask applied here to keep images SQUARE
                 glow_size = av_size + 80
                 glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
                 draw_g = ImageDraw.Draw(glow)
                 glow_range = 20 + pulse_intensity 
                 for i in range(glow_range, 0, -1):
                     alpha = int(220 * (1 - i/glow_range))
-                    # Draw a square frame instead of an ellipse
                     draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
                 glow.paste(avatar, (40, 40), avatar)
                 return glow
@@ -170,25 +173,21 @@ class FieryShip(commands.Cog):
             canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
 
             # --- THE CENTRAL RULER (DOMINANT FEATURE) ---
-            # LARGER COLUMN: coordinates (Middle)
             col_x, col_y, col_w, col_h = (canvas_width // 2) - 60, 120, 120, 480
             light_green = (50, 255, 50) # High-Visibility Vibrant Green
             
-            # Ruler Frame (Dark Background with White Border)
-            draw.rectangle([col_x, col_y, col_x + col_w, col_y + col_h], fill=(20, 20, 20), outline=(255, 255, 255), width=5)
+            draw.rectangle([col_x, col_y, col_x + col_w, col_y + col_h], fill=(20, 20, 20, 200), outline=(255, 255, 255), width=5)
             
-            # Ruler Filling (Vibrant Green)
             fill_height = (percent / 100) * col_h
             if percent > 0:
                 draw.rectangle([col_x + 8, (col_y + col_h) - fill_height, col_x + col_w - 8, col_y + col_h - 8], fill=light_green)
 
-            # MASSIVE PERCENTAGE TEXT (Extremely Visible)
+            # MASSIVE PERCENTAGE TEXT
             score_text = f"{percent}%"
-            # Centered at the top of the expanded column
             draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
 
             # Bottom Progress Bar
-            draw.rectangle([100, 640, 1100, 680], fill=(15, 0, 5), outline=frame_color, width=4)
+            draw.rectangle([100, 640, 1100, 680], fill=(15, 0, 5, 200), outline=frame_color, width=4)
             bar_width = (percent / 100) * 1000
             if percent > 60:
                 draw.text(((canvas_width // 2) - 15, 620), "🫦", fill=(255, 255, 255))
@@ -214,7 +213,6 @@ class FieryShip(commands.Cog):
             av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
             av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
             
-            # Keeping Union images square as well
             draw = ImageDraw.Draw(canvas)
             if "Anniversary" in bond_type:
                 for _ in range(30):
