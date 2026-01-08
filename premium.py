@@ -170,6 +170,7 @@ class PremiumSystem(commands.Cog):
             await ctx.send(embed=embed, view=view)
 
     @commands.command(name="activate")
+    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can override
     @commands.has_permissions(administrator=True)
     async def activate_premium(self, ctx, member: discord.Member, plan_number: int):
         """Manually activate premium after payment verification."""
@@ -197,6 +198,7 @@ class PremiumSystem(commands.Cog):
         await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} has been elevated to **{plan_name}**.", color=0x00FF00))
 
     @commands.command(name="testpay")
+    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can test payment
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx, member: discord.Member, plan_number: int):
         """CRITICAL FIX: Uses multi-path connection for Railway stability."""
@@ -273,6 +275,7 @@ class PremiumSystem(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
+    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can activate global override
     @commands.has_permissions(administrator=True)
     async def echo_on(self, ctx):
         p_date = datetime.now().isoformat()
@@ -282,6 +285,7 @@ class PremiumSystem(commands.Cog):
         await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", "👑 ALL ASSETS ELEVATED.", color=0xFFD700))
 
     @commands.command(name="echooff")
+    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can reset system
     @commands.has_permissions(administrator=True)
     async def echo_off(self, ctx):
         with self.get_db_connection() as conn:
