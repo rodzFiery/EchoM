@@ -53,43 +53,51 @@ class PremiumShopView(discord.ui.View):
 
     def chunk_plans(self):
         keys = list(PREMIUM_PLANS.keys())
-        return [keys[i:i + 6] for i in range(0, len(keys), 6)]
+        return [keys[i:i + 4] for i in range(0, len(keys), 4)]
 
     def create_embed(self):
         current_keys = self.pages[self.page]
-        desc = "【 ELITE ASSET ACQUISITION 】\n"
-        desc += "──────────────────────────────\n"
-        desc += "*Navegue pelo catálogo oficial da Red Room. Preços em USD.* \n\n"
+        
+        # --- LEGENDARY ASCII HEADER ---
+        desc = "```py\n"
+        desc += "╔══════════════════════════════════════════════════════╗\n"
+        desc += "║    ♦  RED ROOM  │  PREMIUM ASSET ACQUISITION  ♦    ║\n"
+        desc += "╚══════════════════════════════════════════════════════╝\n```\n"
+        
+        desc += "✨ **CATÁLOGO DE ELITE │ SELEÇÃO EXCLUSIVA**\n"
+        desc += "*Invista na sua supremacia. Preços ajustados em USD ($).*\n\n"
         
         for key in current_keys:
             plan = PREMIUM_PLANS[key]
-            # Market Strategy: Detailed durations with clean dividers
-            p30, p60, p90, p180 = plan['cost'], plan['cost']*2, plan['cost']*2.9, plan['cost']*5.1
+            # Advanced Pricing Table for each item
+            p30, p60, p90, p180 = plan['cost'], plan['cost']*2, plan['cost']*2.8, plan['cost']*5.0
             
-            desc += f"**{key.upper()}**\n"
-            desc += f"` 30D: ${p30:,.2f} │ 60D: ${p60:,.2f} `\n"
-            desc += f"` 90D: ${p90:,.1f}  │ 180D: ${p180:,.1f} `\n"
-            desc += f"└ *{plan['perks']}*\n\n"
+            desc += f"🔱 **{key.upper()}**\n"
+            desc += f"```yaml\n"
+            desc += f" 30D: ${p30:,.2f}  │  60D: ${p60:,.2f}\n"
+            desc += f" 90D: ${p90:,.1f}   │ 180D: ${p180:,.1f} (SALE)\n"
+            desc += f"```\n"
+            desc += f"└ 🚀 **PERKS:** *{plan['perks']}*\n\n"
             
-        embed = self.fiery_embed(f"PREMIUM CATALOGUE │ PAGE {self.page + 1} OF {len(self.pages)}", desc)
-        embed.set_footer(text="SECURE TRANSACTION │ THE MASTER'S PRIVATE LEDGER")
+        embed = self.fiery_embed(f"LOBBY DE ASSINATURAS │ PÁGINA {self.page + 1} / {len(self.pages)}", desc)
+        embed.set_footer(text="SISTEMA DE PAGAMENTO CRIPTOGRAFADO │ PROTOCOLO ECHO V4")
         return embed
 
-    @discord.ui.button(label="PREVIOUS", style=discord.ButtonStyle.secondary, emoji="⬅️")
+    @discord.ui.button(label="PREVIOUS", style=discord.ButtonStyle.secondary, emoji="⏮️")
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page > 0:
             self.page -= 1
             await interaction.response.edit_message(embed=self.create_embed())
         else:
-            await interaction.response.send_message("First page reached.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Você já está na primeira página.", ephemeral=True)
 
-    @discord.ui.button(label="NEXT", style=discord.ButtonStyle.secondary, emoji="➡️")
+    @discord.ui.button(label="NEXT", style=discord.ButtonStyle.secondary, emoji="⏭️")
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < len(self.pages) - 1:
             self.page += 1
             await interaction.response.edit_message(embed=self.create_embed())
         else:
-            await interaction.response.send_message("Last page reached.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Você já está na última página.", ephemeral=True)
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
@@ -101,7 +109,7 @@ class PremiumShopView(discord.ui.View):
             user = conn.execute("SELECT premium_type FROM users WHERE id = ?", (u_id,)).fetchone()
             
             if not user:
-                return await interaction.response.send_message("Access Denied: Registration not found.", ephemeral=True)
+                return await interaction.response.send_message("❌ ERRO: Identidade não encontrada no Ledger.", ephemeral=True)
             
             # Note: As prices are now in USD, this logic sets status for Admin verification or External processing
             conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, purchase_date, u_id))
@@ -114,17 +122,13 @@ class PremiumShopView(discord.ui.View):
         # ADDED: Send confirmation to the channel so everyone sees the new Elite asset
         await interaction.response.send_message(embed=embed)
 
-    @discord.ui.button(label="BUY FULL STATUS", style=discord.ButtonStyle.success, emoji="👑")
+    @discord.ui.button(label="FULL EVERYTHING", style=discord.ButtonStyle.success, emoji="👑")
     async def full_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "20. Full Premium Everything")
 
-    @discord.ui.button(label="COMBAT PACK", style=discord.ButtonStyle.primary, emoji="⚔️")
+    @discord.ui.button(label="COMBAT PACK", style=discord.ButtonStyle.danger, emoji="⚔️")
     async def combat_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_purchase(interaction, "2. Combat Pack")
-
-    @discord.ui.button(label="STARTER CORE", style=discord.ButtonStyle.secondary, emoji="📦")
-    async def starter_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_purchase(interaction, "1. Starter Core Pack")
 
 class PremiumSystem(commands.Cog):
     def __init__(self, bot, get_db_connection, fiery_embed, update_user_stats):
@@ -152,12 +156,12 @@ class PremiumSystem(commands.Cog):
         with self.get_db_connection() as conn:
             stats = conn.execute("SELECT premium_type, COUNT(*) as count FROM users GROUP BY premium_type").fetchall()
         
-        desc = "📊 **ASSET DISTRIBUTION LOG**\n\n"
+        desc = "📊 **ANÁLISE DE MERCADO │ ATIVOS PREMIUM**\n\n"
         for row in stats:
             p_type = row['premium_type'] or "Free"
-            desc += f"• **{p_type}:** {row['count']} Units\n"
+            desc += f"• **{p_type}:** {row['count']} Unidades\n"
         
-        embed = self.fiery_embed("PREMIUM POPULATION RECAP", desc, color=0x00FFFF)
+        embed = self.fiery_embed("RECAPITULAÇÃO DE POPULAÇÃO PREMIUM", desc, color=0x00FFFF)
         await ctx.send(embed=embed)
 
     @commands.command(name="premiumstatus")
@@ -169,7 +173,7 @@ class PremiumSystem(commands.Cog):
             u = conn.execute("SELECT premium_type, premium_date, balance, class, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
         
         if not u or u['premium_type'] == 'Free':
-            embed = self.fiery_embed("SUBSCRIPTION STATUS", f"⛓️ **{target.display_name}** has no active collar.\n\n**Current Status:** Free Asset", color=0x808080)
+            embed = self.fiery_embed("IDENTIDADE VOYEUR", f"⛓️ **{target.display_name}** não possui coleira ativa.\n\n**Status:** Ativo Gratuito", color=0x808080)
             if os.path.exists("LobbyTopRight.jpg"):
                 file = discord.File("LobbyTopRight.jpg", filename="status_logo.jpg")
                 embed.set_thumbnail(url="attachment://status_logo.jpg")
@@ -181,18 +185,18 @@ class PremiumSystem(commands.Cog):
         remaining = expiry_dt - datetime.now()
         days_left = max(0, remaining.days)
 
-        desc = (f"📋 **Target Identity:** {target.mention}\n"
-                f"🎖️ **Elite Plan:** {u['premium_type']}\n"
-                f"📅 **Enrolled On:** {purchase_dt.strftime('%Y-%m-%d')}\n"
-                f"⏳ **Time Remaining:** {days_left} Days\n\n"
-                f"**📊 ASSET METRICS:**\n"
-                f"🔥 **Vault Balance:** {u['balance']:,} Flames\n"
-                f"🧬 **Assigned Class:** {u['class']}\n"
-                f"🔝 **Dungeon Level:** {u['fiery_level']}\n\n"
-                f"🔞 **Status:** Under Active Premium Contract")
+        desc = (f"📋 **Alvo:** {target.mention}\n"
+                f"🎖️ **Plano de Elite:** {u['premium_type']}\n"
+                f"📅 **Iniciado em:** {purchase_dt.strftime('%d/%m/%Y')}\n"
+                f"⏳ **Tempo Restante:** {days_left} Dias\n\n"
+                f"**📊 MÉTRICAS DO ATIVO:**\n"
+                f"🔥 **Balanço Vault:** {u['balance']:,} Flames\n"
+                f"🧬 **Classe:** {u['class']}\n"
+                f"🔝 **Nível Masmorra:** {u['fiery_level']}\n\n"
+                f"🔞 **Status:** Contrato Premium Ativo")
 
-        embed = self.fiery_embed("PREMIUM SUBSCRIPTION STATUS", desc, color=0xFFD700)
-        embed.set_author(name="MASTER'S PRIVATE LEDGER", icon_url=target.display_avatar.url)
+        embed = self.fiery_embed("REGISTRO PRIVADO DO MESTRE", desc, color=0xFFD700)
+        embed.set_author(name="LEDGER DE SEGURANÇA", icon_url=target.display_avatar.url)
         
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="status_logo.jpg")
@@ -210,7 +214,7 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = '20. Full Premium Everything', premium_date = ?", (p_date,))
             conn.commit()
         
-        embed = self.fiery_embed("ECHO ON: GLOBAL DOMINANCE", "👑 **PROTOCOL ACTIVATED.** Every asset in the dungeon has been elevated to **FULL EVERYTHING Status**.\n\n*The Master grants unlimited access to all.*", color=0xFFD700)
+        embed = self.fiery_embed("ECHO ON: DOMINAÇÃO GLOBAL", "👑 **PROTOCOLO ATIVADO.** Todos os ativos foram elevados ao status **FULL PREMIUM**.\n\n*O Mestre garante acesso total.*", color=0xFFD700)
         await ctx.send(embed=embed)
 
     @commands.command(name="echooff")
@@ -221,7 +225,7 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
             conn.commit()
         
-        embed = self.fiery_embed("ECHO OFF: GLOBAL RESET", "🌑 **PROTOCOL TERMINATED.** All elite privileges have been revoked. Every asset has returned to **Free Status**.\n\n*The favor of the Master has faded.*", color=0x808080)
+        embed = self.fiery_embed("ECHO OFF: RESET GLOBAL", "🌑 **PROTOCOLO TERMINADO.** Privilégios revogados. Todos retornaram ao **Status Gratuito**.\n\n*O favor do Mestre desapareceu.*", color=0x808080)
         await ctx.send(embed=embed)
 
     # --- DECORATOR/CHECK FOR PREMIUM COMMANDS ---
@@ -233,7 +237,7 @@ class PremiumSystem(commands.Cog):
             if user and user['premium_type'] != 'Free':
                 return True
             
-            embed = main.fiery_embed("Restricted Access", "❌ This command is restricted to **Premium Assets**. Use `!premium` to upgrade.")
+            embed = main.fiery_embed("Acesso Restrito", "❌ Este comando requer uma **Coleira Premium**. Use `!premium` para evoluir.")
             await ctx.send(embed=embed)
             return False
         return commands.check(predicate)
