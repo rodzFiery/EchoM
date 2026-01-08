@@ -119,21 +119,29 @@ def paypal_webhook():
                     conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, p_date, int(user_id)))
                     conn.commit()
                 print(f"✅ [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
+                
+                # ADICIONADO: Notificação em tempo real para o usuário no Discord
+                user = bot.get_user(int(user_id))
+                if user:
+                    # Usamos a loop do bot para enviar a mensagem a partir da thread do Flask
+                    bot.loop.create_task(user.send(embed=fiery_embed("👑 PREMIUM ACTIVATED", 
+                        f"Greetings, {user.mention}. Your payment for **{plan_name}** was processed.\n"
+                        f"All elite privileges have been granted to your account.", color=0xFFD700)))
             except Exception as e:
                 print(f"❌ [ERRO] Webhook falhou: {e}")
     return "OK", 200
 
 def run_web_server():
-    port = int(os.environ.get("PORT", 5000))
+    # O Railway usa a porta 8080 por padrão para Networking Público
+    port = int(os.environ.get("PORT", 8080))
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except Exception as e:
-        print(f"⚠️ Web Server bypass: {e}")
+        print(f"⚠️ Web Server bypass (Address in use): {e}")
 
-# Inicia o servidor em segundo plano de forma segura
-if not any(t.name == "WebServer" for t in threading.enumerate()):
-    web_thread = threading.Thread(target=run_web_server, name="WebServer", daemon=True)
-    web_thread.start()
+# Inicia o servidor em segundo plano apenas se não estiver rodando
+if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+    threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
