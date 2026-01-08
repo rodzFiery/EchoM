@@ -126,14 +126,6 @@ class PremiumShopView(discord.ui.View):
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.ui.button(label="BUY FULL ACCESS", style=discord.ButtonStyle.success, emoji="👑")
-    async def full_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_purchase(interaction, "20. Full Premium Everything")
-
-    @discord.ui.button(label="COMBAT PACK", style=discord.ButtonStyle.danger, emoji="⚔️")
-    async def combat_buy(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_purchase(interaction, "2. Combat Pack")
-
 class PremiumSystem(commands.Cog):
     def __init__(self, bot, get_db_connection, fiery_embed, update_user_stats):
         self.bot = bot
