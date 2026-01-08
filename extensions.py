@@ -476,11 +476,41 @@ class FieryExtensions(commands.Cog):
     # ==========================================
 
     async def increment_quest(self, user_id, quest_key, amount=1):
-        """Helper to increment specific quest values in DB."""
+        """Helper to increment specific quest values in DB and deliver prizes."""
+        # QUEST GOAL MAPPING
+        goals = {
+            "d1": 1, "d2": 3, "d3": 1, "d4": 5, "d5": 5, "d6": 1, "d7": 2, "d8": 3, "d9": 2, "d10": 2,
+            "d11": 5, "d12": 10, "d13": 1, "d14": 2, "d15": 1000, "d16": 10, "d17": 1, "d18": 1, "d19": 1, "d20": 1,
+            "w1": 5, "w2": 25, "w3": 3, "w4": 3, "w5": 30, "w6": 50, "w7": 10000, "w8": 10, "w9": 5, "w10": 20,
+            "w11": 10, "w12": 15, "w13": 10, "w14": 10, "w15": 20, "w16": 7, "w17": 1, "w18": 50, "w19": 5, "w20": 1
+        }
+        
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (user_id,))
-            conn.execute(f"UPDATE quests SET {quest_key} = {quest_key} + ? WHERE user_id = ?", (amount, user_id))
+            current = conn.execute(f"SELECT {quest_key} FROM quests WHERE user_id = ?", (user_id,)).fetchone()[0]
+            
+            new_val = current + amount
+            conn.execute(f"UPDATE quests SET {quest_key} = ? WHERE user_id = ?", (new_val, user_id))
             conn.commit()
+
+            # PRIZE DELIVERY LOGIC
+            goal = goals.get(quest_key, 999999)
+            if current < goal and new_val >= goal:
+                is_weekly = quest_key.startswith('w')
+                flames = 2000 if is_weekly else 250
+                xp = 1000 if is_weekly else 100
+                
+                await self.update_user_stats(user_id, amount=flames, xp_gain=xp, source=f"Quest Completion ({quest_key})")
+                
+                audit_chan = self.bot.get_channel(self.audit_channel_id)
+                if audit_chan:
+                    user_mention = f"<@{user_id}>"
+                    type_label = "WEEKLY ORDEAL" if is_weekly else "DAILY DEGRADATION"
+                    emb = self.fiery_embed(f"📜 QUEST COMPLETED: {type_label}", 
+                        f"🫦 {user_mention} has satisfied a demand of the Ledger!\n\n"
+                        f"💰 **Reward:** {flames:,} Flames\n"
+                        f"✨ **Experience:** {xp:,} XP", color=0x00FF00)
+                    await audit_chan.send(embed=emb)
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
