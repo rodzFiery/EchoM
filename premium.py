@@ -226,15 +226,44 @@ class PremiumSystem(commands.Cog):
         await ctx.send(embed=self.fiery_embed("GLOBAL ASSET RECAP", desc, color=0x00FFFF))
 
     @commands.command(name="premiumstatus")
-    @commands.has_permissions(administrator=True)
     async def premium_status(self, ctx, member: discord.Member = None):
+        """Displays a themed, comprehensive overview of the user's acquired assets."""
         target = member or ctx.author
         with self.get_db_connection() as conn:
-            u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
-        if not u or u['premium_type'] == 'Free':
-            return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is Standard.", color=0x808080))
-        desc = (f"📋 **Bundles:** {u['premium_type']}\n📅 **Last Purchase:** {u['premium_date']}")
-        await ctx.send(embed=self.fiery_embed("PRIVATE ASSET OVERVIEW", desc, color=0xFFD700))
+            u = conn.execute("SELECT premium_type, premium_date, balance, xp, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        if not u or u['premium_type'] in ['Free', '', None]:
+            return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is currently restricted to **Standard Access**.", color=0x808080))
+        
+        bundles = [b.strip() for b in u['premium_type'].split(',')]
+        
+        desc = f"### 💎 ELITE ACCOUNT OVERVIEW: {target.display_name.upper()} 💎\n"
+        desc += f"*Verification confirmed. Accessing secure vault data...*\n\n"
+        
+        desc += "📊 **GLOBAL STANDING**\n"
+        desc += f"```ml\nLevel: {u['fiery_level']} | XP: {u['xp']:,} | Capital: {u['balance']:,} Flames\n```\n"
+        
+        desc += "📂 **ACQUIRED BUNDLES & PRIVILEGES**\n"
+        for bundle in bundles:
+            plan_info = PREMIUM_PLANS.get(bundle)
+            if plan_info:
+                desc += f"➤ **{bundle.upper()}**\n"
+                desc += f"└─ `PERKS:` *{plan_info['perks']}*\n"
+            else:
+                desc += f"➤ **{bundle.upper()}**\n└─ `PERKS:` *Custom Administrative Override*\n"
+        
+        desc += f"\n⏳ **LATEST SYNCHRONIZATION:**\n`{u['premium_date']}`\n"
+        desc += "\n*Protocol V4 is active. All premium logic is synchronized.*"
+
+        embed = self.fiery_embed("PRIVATE ASSET OVERVIEW", desc, color=0xFFD700)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="status_header.jpg")
+            embed.set_image(url="attachment://status_header.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
     @commands.has_permissions(administrator=True)
