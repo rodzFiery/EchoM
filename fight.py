@@ -182,8 +182,14 @@ class FightSystem(commands.Cog):
             bg = Image.open(bg_path).convert("RGBA").resize((1000, 500)) if os.path.exists(bg_path) else Image.new("RGBA", (1000, 500), (40, 0, 0, 255))
             av1 = Image.open(p1_data).convert("RGBA").resize((310, 310))
             av2 = Image.open(p2_data).convert("RGBA").resize((310, 310))
-            av1 = ImageOps.expand(av1, border=10, fill=(255, 69, 0))
-            av2 = ImageOps.expand(av2, border=10, fill=(128, 0, 128))
+            
+            # THEMED BORDERS: Hot Pink Glow + Fiery Orange Rim
+            av1 = ImageOps.expand(av1, border=12, fill=(255, 20, 147)) # Hot Pink Glow
+            av1 = ImageOps.expand(av1, border=4, fill=(255, 69, 0))   # Fiery Orange Rim
+            
+            av2 = ImageOps.expand(av2, border=12, fill=(255, 20, 147)) # Hot Pink Glow
+            av2 = ImageOps.expand(av2, border=4, fill=(128, 0, 128))   # Royal Purple Rim
+            
             bg.paste(av1, (70, 95), av1)
             bg.paste(av2, (620, 95), av2)
             overlay = Image.new("RGBA", bg.size, (139, 0, 0, 40))
