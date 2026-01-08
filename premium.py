@@ -3,14 +3,14 @@ from discord.ext import commands
 import sqlite3
 import os
 import sys
-import urllib.parse  # ADDED: Para gerar links de pagamento seguros
+import urllib.parse  # ADDED: To generate secure payment links
 from datetime import datetime, timedelta
 import asyncio
 
-# --- CONFIGURAÇÃO PAYPAL (INTEGRAÇÃO WEBHOOK AUTOMÁTICA) ---
-# Utilizando variáveis de ambiente (Railway) ou valores padrão
+# --- PAYPAL CONFIGURATION (AUTOMATIC WEBHOOK INTEGRATION) ---
+# Using environment variables (Railway) or default values
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
-# URL do seu Webhook Handler (onde o bot processará o sinal do PayPal)
+# Your Webhook Handler URL (where the bot will process the PayPal signal)
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CURRENCY = "USD"
 
@@ -64,16 +64,16 @@ class PremiumShopView(discord.ui.View):
         return [keys[i:i + 3] for i in range(0, len(keys), 3)]
 
     def update_buttons(self):
-        # Limpa botões de compra antigos, mantendo apenas os de navegação
+        # Clears old purchase buttons, keeping only navigation ones
         self.clear_items()
         self.add_item(self.prev_page)
         self.add_item(self.next_page)
         
-        # Adiciona botões de compra para os planos na página atual
+        # Adds purchase buttons for plans on the current page
         current_keys = self.pages[self.page]
         for key in current_keys:
             button = discord.ui.Button(
-                label=f"COMPRAR {key[:15]}...", 
+                label=f"BUY {key[:15]}...", 
                 style=discord.ButtonStyle.success,
                 custom_id=f"buy_{key}"
             )
@@ -88,7 +88,7 @@ class PremiumShopView(discord.ui.View):
     def create_embed(self):
         current_keys = self.pages[self.page]
         desc = "### 🛡️  ELITE ASSET ACQUISITION GATEWAY  🛡️\n"
-        desc += "*Selecione seu nível de acesso. Ativação automática via Protocolo V4.*\n\n"
+        desc += "*Select your access level. Automatic activation via Protocol V4.*\n\n"
         
         for key in current_keys:
             plan = PREMIUM_PLANS[key]
@@ -99,11 +99,11 @@ class PremiumShopView(discord.ui.View):
             desc += f" [ 30D ] : ${p30:,.2f} USD\n"
             desc += f" [ 60D ] : ${p60:,.2f} USD\n"
             desc += f" [ 90D ] : ${p90:,.2f} USD (HOT)\n"
-            desc += f" [180D ] : ${p180:,.2f} USD (SAVINGS)\n"
+            desc += f" [ 180D] : ${p180:,.2f} USD (SAVINGS)\n"
             desc += f"```\n"
             desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n\n"
             
-        embed = self.fiery_embed(f"CATÁLOGO PREMIUM │ PÁGINA {self.page + 1}/{len(self.pages)}", desc)
+        embed = self.fiery_embed(f"PREMIUM CATALOG │ PAGE {self.page + 1}/{len(self.pages)}", desc)
         embed.set_author(name="THE MASTER'S EXECUTIVE BOUTIQUE", icon_url=self.ctx.author.display_avatar.url)
         return embed
 
@@ -114,7 +114,7 @@ class PremiumShopView(discord.ui.View):
             self.update_buttons()
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
-            await interaction.response.send_message("❌ Primeira página alcançada.", ephemeral=True)
+            await interaction.response.send_message("❌ First page reached.", ephemeral=True)
 
     @discord.ui.button(label="NEXT PAGE", style=discord.ButtonStyle.secondary, emoji="▶️", row=4)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -123,11 +123,11 @@ class PremiumShopView(discord.ui.View):
             self.update_buttons()
             await interaction.response.edit_message(embed=self.create_embed(), view=self)
         else:
-            await interaction.response.send_message("❌ Última página alcançada.", ephemeral=True)
+            await interaction.response.send_message("❌ Last page reached.", ephemeral=True)
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
-        # PAYPAL AUTOMATION LOGIC: Injeta metadados para o Webhook processar
+        # PAYPAL AUTOMATION LOGIC: Injects metadata for the Webhook to process
         custom_data = f"{interaction.user.id}|{plan_name}|30"
         query = {
             "business": PAYPAL_EMAIL,
@@ -143,11 +143,11 @@ class PremiumShopView(discord.ui.View):
         paypal_url = f"https://www.paypal.com/cgi-bin/webscr?{urllib.parse.urlencode(query)}"
 
         embed = self.fiery_embed("INVOICE GENERATED │ SECURE CHECKOUT", 
-                                f"🔞 **Ativo:** {interaction.user.mention}\n"
-                                f"💎 **Plano:** `{plan_name}`\n"
+                                f"🔞 **User:** {interaction.user.mention}\n"
+                                f"💎 **Plan:** `{plan_name}`\n"
                                 f"💵 **Total:** `${plan['cost']} USD`\n\n"
-                                f"✅ [CLIQUE AQUI PARA FINALIZAR NO PAYPAL]({paypal_url})\n\n"
-                                f"⏳ *O sistema detectará o pagamento e liberará seu acesso na hora.*")
+                                f"✅ [CLICK HERE TO FINALIZE ON PAYPAL]({paypal_url})\n\n"
+                                f"⏳ *The system will detect payment and unlock your access immediately.*")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -177,7 +177,7 @@ class PremiumSystem(commands.Cog):
         """Manually activate premium after payment verification."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Plano inválido.")
+            return await ctx.send("❌ Invalid plan.")
             
         plan_name = plan_list[plan_number - 1]
         p_date = datetime.now().isoformat()
@@ -186,36 +186,36 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, p_date, member.id))
             conn.commit()
             
-        await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} foi elevado para **{plan_name}**.", color=0x00FF00))
+        await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} has been elevated to **{plan_name}**.", color=0x00FF00))
 
     @commands.command(name="testpay")
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx, member: discord.Member, plan_number: int):
-        """Simula o sinal do Webhook enviando um POST direto para o endpoint Flask."""
+        """Simulates Webhook signal by sending a POST directly to the Flask endpoint."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Plano inválido.")
+            return await ctx.send("❌ Invalid plan.")
         
         plan_name = plan_list[plan_number - 1]
         import requests
 
-        # Tenta a porta dinâmica do Railway ou 5000/8080
-        flask_port = os.environ.get("PORT", "5000")
-        base_url = f"http://127.0.0.1:{flask_port}/webhook"
+        # Attempts dynamic Railway port or 8080
+        flask_port = os.environ.get("PORT", "8080")
+        target_url = WEBHOOK_URL if WEBHOOK_URL else f"http://127.0.0.1:{flask_port}/webhook"
         
         def send_simulated_post():
             payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
-            return requests.post(base_url, data=payload, timeout=5)
+            return requests.post(target_url, data=payload, timeout=5)
 
         try:
-            await ctx.send(f"⏳ Tentando rota interna: `{base_url}`...")
+            await ctx.send(f"⏳ Attempting simulation for: `{target_url}`...")
             response = await asyncio.to_thread(send_simulated_post)
             if response.status_code == 200:
-                await ctx.send(f"✅ **OK (200).** Plano `{plan_name}` ativado para {member.mention}.")
+                await ctx.send(f"✅ **Server Response: OK (200).**\nPremium `{plan_name}` should be active for {member.mention}.")
             else:
-                await ctx.send(f"⚠️ Erro {response.status_code}. Verifique se o Flask está na porta {flask_port}.")
+                await ctx.send(f"⚠️ Error {response.status_code}. Check variables on Railway.")
         except Exception as e:
-            await ctx.send(f"❌ Falha: {e}")
+            await ctx.send(f"❌ Connection Failure: {e}")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
