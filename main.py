@@ -116,7 +116,17 @@ def paypal_webhook():
                 user_id, plan_name, days = custom.split('|')
                 p_date = datetime.now().isoformat()
                 with get_db_connection() as conn:
-                    conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, p_date, int(user_id)))
+                    # FIX: LOGIC TO ACCUMULATE BUNDLES RATHER THAN OVERWRITE
+                    current = conn.execute("SELECT premium_type FROM users WHERE id = ?", (int(user_id),)).fetchone()
+                    if not current or current['premium_type'] in ['Free', '', None]:
+                        new_val = plan_name
+                    else:
+                        existing = [p.strip() for p in current['premium_type'].split(',')]
+                        if plan_name not in existing:
+                            existing.append(plan_name)
+                        new_val = ", ".join(existing)
+
+                    conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, int(user_id)))
                     conn.commit()
                 print(f"✅ [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
                 
