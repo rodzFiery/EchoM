@@ -42,6 +42,7 @@ sys.dont_write_bytecode = True
 load_dotenv()
 # Railway will pull the DISCORD_TOKEN from the Variables tab automatically
 TOKEN = os.getenv("DISCORD_TOKEN")
+TOPGG_TOKEN = os.getenv("TOPGG_TOKEN") # ADDED: For Top.gg API Authorization
 AUDIT_CHANNEL_ID = 1438810509322223677 # Seu canal de auditoria
 STREAK_ALERTS_CHANNEL_ID = 1438810509322223677 # Red Room Channel for Pings
 
@@ -152,6 +153,37 @@ def run_web_server():
 # Inicia o servidor em segundo plano apenas se não estiver rodando
 if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
     threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
+
+# --- TOP.GG STATS POSTER PROTOCOL ---
+@tasks.loop(minutes=30)
+async def topgg_poster():
+    """Automatically posts server count to Top.gg every 30 minutes."""
+    if not TOPGG_TOKEN:
+        return
+
+    url = f"https://top.gg/api/bots/{bot.user.id}/stats"
+    headers = {"Authorization": TOPGG_TOKEN}
+    payload = {"server_count": len(bot.guilds)}
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    print(f"📊 [TOP.GG] Stats synchronized: {len(bot.guilds)} servers.")
+                else:
+                    print(f"⚠️ [TOP.GG] Update failed: {resp.status}")
+        except Exception as e:
+            print(f"❌ [TOP.GG] Connection error: {e}")
+
+@bot.event
+async def on_guild_join(guild):
+    """Trigger update when bot joins a new server."""
+    await topgg_poster()
+
+@bot.event
+async def on_guild_remove(guild):
+    """Trigger update when bot leaves a server."""
+    await topgg_poster()
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
@@ -350,6 +382,10 @@ async def on_ready():
     # Start the Guardian Task
     if not streak_guardian.is_running():
         streak_guardian.start()
+
+    # Start the Top.gg Poster Task
+    if not topgg_poster.is_running():
+        topgg_poster.start()
     
     bot.add_view(ignis.LobbyView(None, None))
 
