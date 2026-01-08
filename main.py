@@ -31,6 +31,10 @@ from datetime import datetime, timedelta, timezone
 from lexicon import FieryLexicon
 from dotenv import load_dotenv
 
+# --- ADDED: WEBHOOK SERVER IMPORTS ---
+from flask import Flask, request
+import threading
+
 # Impede a criação de pastas __pycache__ para facilitar edições constantes
 sys.dont_write_bytecode = True
 
@@ -97,9 +101,34 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
     await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, get_user, bot, get_db_connection, CLASSES, nsfw_mode_active, send_audit_log)
 
 def update_user_stats(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0):
-    prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
+    p prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
 
-# ===== 4. CLASS DETAIL COMMANDS (MOVED TO classes.py) =====
+# --- AUTOMATIC PAYMENT WEBHOOK (PAYPAL IPN) ---
+app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def paypal_webhook():
+    data = request.form.to_dict()
+    if data.get('payment_status') == 'Completed':
+        custom = data.get('custom')
+        if custom:
+            try:
+                user_id, plan_name, days = custom.split('|')
+                p_date = datetime.now().isoformat()
+                with get_db_connection() as conn:
+                    conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, p_date, int(user_id)))
+                    conn.commit()
+                print(f"✅ [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
+            except Exception as e:
+                print(f"❌ [ERRO] Webhook falhou: {e}")
+    return "OK", 200
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
+
+# Inicia o servidor em segundo plano
+threading.Thread(target=run_web_server, daemon=True).start()
 
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
@@ -395,4 +424,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
