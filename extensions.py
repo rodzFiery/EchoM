@@ -423,6 +423,23 @@ class FieryExtensions(commands.Cog):
             await ctx.send(file=file, embed=embed)
         else: await ctx.send(embed=embed)
 
+    @commands.command(name="questboard")
+    async def quest_leaderboard(self, ctx):
+        """Displays the Monthly Quest Leaderboard (Top 10)."""
+        with self.get_db_connection() as conn:
+            # ADDED: Logic to sum all daily and weekly completions per user
+            query = "SELECT user_id, (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") as total FROM quests WHERE user_id != 0 ORDER BY total DESC LIMIT 10"
+            top_ten = conn.execute(query).fetchall()
+
+        desc = "🏆 **MONTHLY SUBMISSION RANKINGS** 🏆\n*Assets with the most Ordeals satisfied this month.*\n\n"
+        for i, row in enumerate(top_ten, 1):
+            member = ctx.guild.get_member(row['user_id'])
+            name = member.display_name if member else f"Asset {row['user_id']}"
+            desc += f"{i}. **{name}**: {row['total']} Demands Met\n"
+        
+        embed = self.fiery_embed("Ledger Leaderboard", desc, color=0xFFD700)
+        await ctx.send(embed=embed)
+
     # ==========================================
     # 🕒 BACKGROUND LOOPS (RESETS & INTERJECTIONS)
     # ==========================================
@@ -437,6 +454,30 @@ class FieryExtensions(commands.Cog):
                 conn.commit()
                 return
             last_reset = datetime.fromisoformat(last_reset_row['last_reset'])
+
+            # --- MONTHLY RESET & PAYOUT (1st of the month) ---
+            if now.month != last_reset.month:
+                # ADDED: Payout logic for Top 10 before reset
+                query = "SELECT user_id FROM quests WHERE user_id != 0 ORDER BY (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") DESC LIMIT 10"
+                winners = conn.execute(query).fetchall()
+                
+                # Distribution logic: 250k down to 50k
+                prizes = [250000, 220000, 200000, 180000, 150000, 120000, 100000, 80000, 60000, 50000]
+                
+                audit_chan = self.bot.get_channel(self.audit_channel_id)
+                recap = "🎊 **MONTHLY LEDGER PAYOUT!** 🎊\n\n"
+                
+                for idx, row in enumerate(winners):
+                    prize = prizes[idx]
+                    await self.update_user_stats(row['user_id'], amount=prize, source="Monthly Quest Leaderboard")
+                    recap += f"Place #{idx+1}: <@{row['user_id']}> won {prize:,} Flames!\n"
+                
+                if audit_chan:
+                    await audit_chan.send(embed=self.fiery_embed("Monthly Payout Recap", recap, color=0xFFD700))
+                
+                # Wipe all stats for the new month
+                conn.execute("UPDATE quests SET " + ", ".join([f"d{i}=0" for i in range(1, 21)]) + ", " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
+
             if now.date() > last_reset.date():
                 conn.execute("UPDATE quests SET " + ", ".join([f"d{i}=0" for i in range(1, 21)]))
                 conn.execute("UPDATE quests SET last_reset = ? WHERE user_id = 0", (now.isoformat(),))
