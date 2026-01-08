@@ -158,6 +158,7 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
+        """Opens the Premium Subscription Lobby."""
         view = PremiumShopView(ctx, self.get_db_connection, self.fiery_embed, self.update_user_stats)
         embed = view.create_embed()
         
@@ -171,6 +172,7 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="activate")
     @commands.has_permissions(administrator=True)
     async def activate_premium(self, ctx, member: discord.Member, plan_number: int):
+        """Manually activate premium after payment verification."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
             return await ctx.send("❌ Invalid plan.")
@@ -179,7 +181,10 @@ class PremiumSystem(commands.Cog):
         p_date = datetime.now().isoformat()
         
         with self.get_db_connection() as conn:
-            conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (plan_name, p_date, member.id))
+            # ACCUMULATION LOGIC: Fetch current plans and append the new one
+            current = conn.execute("SELECT premium_type FROM users WHERE id = ?", (member.id,)).fetchone()
+            new_val = plan_name if not current or current['premium_type'] in ['Free', ''] else f"{current['premium_type']}, {plan_name}"
+            conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, member.id))
             conn.commit()
             
         await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} has been elevated to **{plan_name}**.", color=0x00FF00))
@@ -195,12 +200,8 @@ class PremiumSystem(commands.Cog):
         plan_name = plan_list[plan_number - 1]
         payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
         
-        # We try different ways to reach the webhook
         port = os.environ.get("PORT", "8080")
-        urls = [
-            f"http://127.0.0.1:{port}/webhook", # Local loopback
-            WEBHOOK_URL                         # Public Domain
-        ]
+        urls = [f"http://127.0.0.1:{port}/webhook", WEBHOOK_URL]
 
         async with aiohttp.ClientSession() as session:
             for url in urls:
@@ -208,7 +209,7 @@ class PremiumSystem(commands.Cog):
                 try:
                     async with session.post(url, data=payload, timeout=5) as resp:
                         if resp.status == 200:
-                            return await ctx.send(f"✅ **Success via {url}!**\n{member.mention} is now Premium: **{plan_name}**.")
+                            return await ctx.send(f"✅ **Success via {url}!**\n{member.mention} added: **{plan_name}**.")
                 except Exception:
                     continue
         
@@ -232,7 +233,7 @@ class PremiumSystem(commands.Cog):
             u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
         if not u or u['premium_type'] == 'Free':
             return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is Standard.", color=0x808080))
-        desc = (f"📋 **Plan:** {u['premium_type']}\n📅 **Active Since:** {u['premium_date']}")
+        desc = (f"📋 **Bundles:** {u['premium_type']}\n📅 **Last Purchase:** {u['premium_date']}")
         await ctx.send(embed=self.fiery_embed("PRIVATE ASSET OVERVIEW", desc, color=0xFFD700))
 
     @commands.command(name="echoon")
@@ -257,7 +258,7 @@ class PremiumSystem(commands.Cog):
         async def predicate(ctx):
             main = sys.modules['__main__']
             user = main.get_user(ctx.author.id)
-            if user and user.get('premium_type') and user['premium_type'] != 'Free':
+            if user and user.get('premium_type') and user['premium_type'] not in ['Free', '']:
                 return True
             await ctx.send(embed=main.fiery_embed("ACCESS DENIED", "❌ Premium Access Required."))
             return False
