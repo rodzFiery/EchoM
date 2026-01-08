@@ -103,33 +103,32 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
         """Opens the Premium Subscription Lobby with 20 Bundles."""
-        desc = "🔞 **THE ELITE LOUNGE: BUNDLES** 🔞\n\n"
+        desc = "🔞 **THE ELITE LOUNGE: PREMIUM MASTER MENU** 🔞\n"
+        desc += "──────────────────────────────\n"
+        desc += "🔥 **PREMIUM BUNDLES (ALL-INCLUSIVE)**\n"
+        desc += "*Prices scaled for: 30d / 60d / 90d / 180d*\n\n"
         
-        bundles = [
-            "1. Starter Core: Classes + Economy + Shop",
-            "2. Combat Pack: Echo + 1v1 Arena",
-            "3. Echo Survival: Echo HangryGames",
-            "4. Work & Wealth: Economy",
-            "5. Mega Core: Classes + Econ + Shop + Utility",
-            "6. All-Combat: Echo + Arena + Casino",
-            "7. Ultimate Game: Classes + Econ + Shop + Echo",
-            "8. Economy Expansion: Economy + Shop",
-            "9. Social Interaction: Ship + Ask-to-DM",
-            "10. Casino Pack: Casino",
-            "11. Exploration Pack: Utility + Economy",
-            "12. Advanced Arena: Echo + Arena + Classes",
-            "13. Guild Builder: Economy + Shop + Ship",
-            "14. Complete Battle: Echo + Arena + Casino + Econ + Shop",
-            "15. Merchant Pack: Shop + Econ + Utility",
-            "16. Creators & Classes: Classes + Econ + Shop + Ask-to-DM",
-            "17. Echo + Utility Boost: Echo + Utility",
-            "18. Arena + Classes Combo: Echo + Arena + Classes + Econ + Shop",
-            "19. Minimal Starter Pack: Economy + Utility",
-            "20. Full Premium Everything Pack: ALL SYSTEMS"
-        ]
+        # Bundle Visual List
+        desc += "1️⃣ **Starter Core:** 65k / 130k / 190k / 350k\n└ Classes + Economy + Shop\n\n"
+        desc += "2️⃣ **Combat Pack:** 50k / 100k / 150k / 290k\n└ Echo HG + 1v1 Arena\n\n"
+        desc += "3️⃣ **Echo Survival:** 40k / 80k / 120k / 240k\n└ Echo HangryGames Only\n\n"
+        desc += "4️⃣ **Work & Wealth:** 35k / 70k / 100k / 180k\n└ Economy System Focused\n\n"
+        desc += "5️⃣ **Mega Core Bundle:** 85k / 170k / 250k / 470k\n└ Starter + Utility System\n\n"
+        desc += "6️⃣ **All-Combat Bundle:** 75k / 150k / 225k / 390k\n└ Echo HG + Arena + Casino\n\n"
+        desc += "1️⃣4️⃣ **Complete Battle:** 120k / 240k / 355k / 620k\n└ Echo + Arena + Casino + Econ + Shop\n\n"
+        desc += "2️⃣0️⃣ **FULL ACCESS PACK:** 195k / 390k / 585k / 990k\n└ **EVERYTHING UNLOCKED**\n\n"
         
-        desc += "\n".join(bundles)
-        desc += "\n\n🛒 **A LA CARTE ITEMS AVAILABLE**\nUse buttons below to select."
+        desc += "🛒 **INDIVIDUAL A LA CARTE ITEMS**\n"
+        desc += "──────────────────────────────\n"
+        desc += "🧬 **Classes:** 20k | 40k | 60k | 120k\n"
+        desc += "🔞 **Echo HG:** 40k | 80k | 120k | 240k\n"
+        desc += "⚔️ **1v1 Arena:** 10k | 20k | 30k | 50k\n"
+        desc += "💰 **Economy:** 35k | 70k | 100k | 180k\n"
+        desc += "🎰 **Casino:** 25k | 50k | 75k | 100k\n"
+        desc += "🛠️ **Utility:** 20k | 40k | 60k | 120k\n"
+        desc += "💌 **Ask-to-DM:** 15k | 30k | 45k | 80k\n"
+        
+        desc += "\n*Select a package below to collar your profile.*"
         
         embed = self.fiery_embed("Master's Premium Boutique", desc)
         view = PremiumShopView(ctx, self.get_db_connection, self.fiery_embed, self.update_user_stats)
