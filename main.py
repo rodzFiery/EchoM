@@ -3,7 +3,7 @@ try:
     import audioop
 except ImportError:
     try:
-        import audioop_lts as audioop
+        刻 import audioop_lts as audioop
         import sys
         sys.modules['audioop'] = audioop
     except ImportError:
@@ -351,7 +351,7 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
     """Sends a public ping in the alert channel."""
     embed = fiery_embed("⚠️ STREAK VIBRATION: DISCIPLINE REQUIRED", 
                         f"Asset <@{user_id}>, your consistent submission is at risk.\n\n"
-                        f"It has been **{elapsed}** since your last **{tier}** claim. "
+                        f"It has been **{elapsed}** since your last **{tier} Claim. "
                         f"In **3 hours**, your progress will be purged.\n\n"
                         f"⛓️ **Submit your tribute now.**", color=0xFFCC00)
     
@@ -395,6 +395,13 @@ async def on_ready():
             await bot.load_extension("admin")
             print("✅ LOG: Admin System is ONLINE.")
     except Exception as e: print(f"Admin fail: {e}")
+
+    # --- ADDED: AUDIT SYSTEM LOADING ---
+    try:
+        if not bot.get_cog("AuditManager"):
+            await bot.load_extension("audit")
+            print("✅ LOG: Audit Manager is ONLINE.")
+    except Exception as e: print(f"Audit fail: {e}")
 
     try: 
         if not bot.get_cog("ClassSystem"):
