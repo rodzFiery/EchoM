@@ -20,6 +20,7 @@ import asyncio
 import json
 import shutil
 import sys
+import aiohttp
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
@@ -35,7 +36,7 @@ from dotenv import load_dotenv
 from flask import Flask, request
 import threading
 
-# Impede a criacao de pastas __pycache__ para facilitar edicoes constantes
+# Impede a criação de pastas __pycache__ para facilitar edições constantes
 sys.dont_write_bytecode = True
 
 # ===== 1. INITIAL CONFIGURATION =====
@@ -165,7 +166,6 @@ async def topgg_poster():
     headers = {"Authorization": TOPGG_TOKEN}
     payload = {"server_count": len(bot.guilds)}
 
-    import aiohttp
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(url, json=payload, headers=headers) as resp:
