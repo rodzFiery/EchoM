@@ -472,6 +472,13 @@ async def on_ready():
             print("✅ LOG: Audit Manager is ONLINE.")
     except Exception as e:
         print(f"Audit extension fail: {e}")
+
+    # --- ADDED: THREAD SYSTEM LOADING ---
+    try:
+        await bot.load_extension("thread")
+        print("✅ LOG: Thread System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load thread extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
