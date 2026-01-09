@@ -20,8 +20,11 @@ class AdminSystem(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def nsfwtime(self, ctx):
-        import main # Import local para acessar a flag global
-        main.nsfw_mode_active = True
+        # FIXED: Removed 'import main' to prevent circular import crash
+        # Accessible via the bot instance directly to change the global state
+        import sys
+        main_module = sys.modules['__main__']
+        main_module.nsfw_mode_active = True
         self.save_game_config()
         ext = self.bot.get_cog("FieryExtensions")
         if ext: await ext.trigger_nsfw_start(ctx)
@@ -29,8 +32,10 @@ class AdminSystem(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def nomorensfw(self, ctx):
-        import main
-        main.nsfw_mode_active = False
+        # FIXED: Removed 'import main' to prevent circular import crash
+        import sys
+        main_module = sys.modules['__main__']
+        main_module.nsfw_mode_active = False
         self.save_game_config()
         embed = self.fiery_embed("NSFW Mode Ended", "The NSFW Hangrygames has closed. Returning to standard Red Room protocols.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -81,7 +86,11 @@ class AdminSystem(commands.Cog):
                 await self.bot.remove_cog("IgnisEngine")
                 importlib.reload(ignis)
                 # Recarregamento complexo preservando referências
-                from main import RANKS, CLASSES, AUDIT_CHANNEL_ID
+                import sys
+                main_module = sys.modules['__main__']
+                RANKS = main_module.RANKS
+                CLASSES = main_module.CLASSES
+                AUDIT_CHANNEL_ID = main_module.AUDIT_CHANNEL_ID
                 await self.bot.add_cog(ignis.IgnisEngine(self.bot, self.update_user_stats_async, self.get_user, self.fiery_embed, self.get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
             elif cog_name.lower() in ["extensions", "ship", "shop", "collect", "fight", "casino", "ask"]:
                 await self.bot.reload_extension(cog_name.lower())
@@ -95,5 +104,12 @@ class AdminSystem(commands.Cog):
             await ctx.send(f"❌ **ERROR:** {e}")
 
 async def setup(bot):
-    from main import DATABASE_PATH, fiery_embed, save_game_config, get_user, get_db_connection, update_user_stats_async
+    import sys
+    main_module = sys.modules['__main__']
+    DATABASE_PATH = main_module.DATABASE_PATH
+    fiery_embed = main_module.fiery_embed
+    save_game_config = main_module.save_game_config
+    get_user = main_module.get_user
+    get_db_connection = main_module.get_db_connection
+    update_user_stats_async = main_module.update_user_stats_async
     await bot.add_cog(AdminSystem(bot, DATABASE_PATH, fiery_embed, save_game_config, get_user, get_db_connection, update_user_stats_async))
