@@ -20,6 +20,7 @@ import asyncio
 import json
 import shutil
 import sys
+import aiohttp # ADDED: Required for topgg_poster to function
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
@@ -134,10 +135,10 @@ def paypal_webhook():
                 # ADICIONADO: Notificação em tempo real para o usuário no Discord
                 user = bot.get_user(int(user_id))
                 if user:
-                    # Usamos a loop do bot para enviar a mensagem a partir da thread do Flask
-                    bot.loop.create_task(user.send(embed=fiery_embed("👑 PREMIUM ACTIVATED", 
+                    # FIXED: Use threadsafe call to prevent crash between Flask and Discord Bot
+                    bot.loop.call_soon_threadsafe(lambda: bot.loop.create_task(user.send(embed=fiery_embed("👑 PREMIUM ACTIVATED", 
                         f"Greetings, {user.mention}. Your payment for **{plan_name}** was processed.\n"
-                        f"All elite privileges have been granted to your account.", color=0xFFD700)))
+                        f"All elite privileges have been granted to your account.", color=0xFFD700))))
             except Exception as e:
                 print(f"❌ [ERRO] Webhook falhou: {e}")
     return "OK", 200
