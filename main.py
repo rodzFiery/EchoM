@@ -1,4 +1,3 @@
-this is my main.py:
 # FIX: Python 3.13 compatibility shim for audioop
 try:
     import audioop
