@@ -87,7 +87,7 @@ init_db()
 
 # ===== 3. CORE HELPERS & AUDIT REDIRECTS =====
 async def send_audit_log(user_id, amount, source, xp=0):
-    # REDIRECTED TO utilis.py body logic
+    # FIXED: Now pulls from the global AUDIT_CHANNEL_ID that audit.py updates live
     await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp)
 
 def fiery_embed(title, description, color=0xFF4500):
