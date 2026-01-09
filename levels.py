@@ -164,6 +164,7 @@ class TextLevelSystem(commands.Cog):
 
         curr, prev = await asyncio.to_thread(update_reaction_data)
         
+        # Determine the user object for the achievement ping
         guild = self.bot.get_guild(payload.guild_id)
         if guild:
             member = payload.member or guild.get_member(payload.user_id)
@@ -178,6 +179,7 @@ class TextLevelSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         user_id = message.author.id
 
+        # --- ACHIEVEMENT TRACKING (Messages) ---
         def update_msg_count():
             with main_mod.get_db_connection() as conn:
                 try: conn.execute("ALTER TABLE users ADD COLUMN total_messages INTEGER DEFAULT 0")
@@ -192,15 +194,17 @@ class TextLevelSystem(commands.Cog):
         curr_msg, prev_msg = await asyncio.to_thread(update_msg_count)
         await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
 
+        # Cooldown check for XP (Independent from Achievement counter)
         bucket = self._cooldown.get_bucket(message)
         retry_after = bucket.update_rate_limit()
         if retry_after:
             return
 
-        xp_gain = random.randint(15, 25)
+        xp_gain = random.randint(15, 25) # Random XP per message
 
         def update_level_data():
             with main_mod.get_db_connection() as conn:
+                # Ensure columns exist
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_xp INTEGER DEFAULT 0")
                 except: pass
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_level INTEGER DEFAULT 0")
@@ -227,12 +231,14 @@ class TextLevelSystem(commands.Cog):
         new_lvl, new_xp, did_level_up = await asyncio.to_thread(update_level_data)
 
         if did_level_up:
+            # Handle Auto-Role logic
             if str(new_lvl) in self.level_roles:
                 role_id = self.level_roles[str(new_lvl)]
                 role = message.guild.get_role(role_id)
                 if role:
                     try: 
                         await message.author.add_roles(role, reason=f"Neural Level {new_lvl} reached.")
+                        # --- AUDIT REPORT FOR ROLE CONQUEST ---
                         audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
                         audit_channel = self.bot.get_channel(audit_id)
                         if audit_channel:
@@ -242,6 +248,7 @@ class TextLevelSystem(commands.Cog):
                                 f"**Privilege Granted:** {role.mention}", color=0x2ECC71)
                             await audit_channel.send(embed=audit_emb)
 
+                        # --- SPECIAL CERTIFICATE FOR ROLE UNLOCK ---
                         if self.level_channel_id:
                             lvl_channel = self.bot.get_channel(self.level_channel_id)
                             if lvl_channel:
@@ -284,6 +291,7 @@ class TextLevelSystem(commands.Cog):
         xp = user.get('text_xp', 0)
         needed = self.get_xp_needed(lvl)
         
+        # Progress bar
         bar_len = 10
         filled = int((xp / max(1, needed)) * bar_len)
         bar = "🟦" * filled + "⬛" * (bar_len - filled)
