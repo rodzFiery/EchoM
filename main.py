@@ -150,10 +150,6 @@ def run_web_server():
     except Exception as e:
         print(f"WARN Web Server bypass (Address in use): {e}")
 
-# Inicia o servidor em segundo plano apenas se nao estiver rodando
-if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
-    threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
-
 # --- TOP.GG STATS POSTER PROTOCOL ---
 @tasks.loop(minutes=30)
 async def topgg_poster():
@@ -454,6 +450,10 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"FIRE LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
     print(f"PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
+
+    # --- START WEB SERVER AFTER BOT IS READY ---
+    if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+        threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
 @bot.event
 async def on_message(message):
