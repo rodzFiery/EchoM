@@ -35,7 +35,7 @@ from dotenv import load_dotenv
 from flask import Flask, request
 import threading
 
-# Impede a criação de pastas __pycache__ para facilitar edições constantes
+# Impede a criacao de pastas __pycache__ para facilitar edicoes constantes
 sys.dont_write_bytecode = True
 
 # ===== 1. INITIAL CONFIGURATION =====
@@ -129,28 +129,28 @@ def paypal_webhook():
 
                     conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, int(user_id)))
                     conn.commit()
-                print(f"🔥 [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
+                print(f"FIRE [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
                 
-                # ADICIONADO: Notificação em tempo real para o usuário no Discord
+                # ADICIONADO: Notificacao em tempo real para o usuario no Discord
                 user = bot.get_user(int(user_id))
                 if user:
                     # Usamos a loop do bot para enviar a mensagem a partir da thread do Flask
-                    bot.loop.create_task(user.send(embed=fiery_embed("👑 PREMIUM ACTIVATED", 
+                    bot.loop.create_task(user.send(embed=fiery_embed("PREMIUM ACTIVATED", 
                         f"Greetings, {user.mention}. Your payment for **{plan_name}** was processed.\n"
                         f"All elite privileges have been granted to your account.", color=0xFFD700)))
             except Exception as e:
-                print(f"❌ [ERRO] Webhook falhou: {e}")
+                print(f"ERROR [ERRO] Webhook falhou: {e}")
     return "OK", 200
 
 def run_web_server():
-    # O Railway usa a porta 8080 por padrão para Networking Público
+    # O Railway usa a porta 8080 por padrao para Networking Publico
     port = int(os.environ.get("PORT", 8080))
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except Exception as e:
-        print(f"⚠️ Web Server bypass (Address in use): {e}")
+        print(f"WARN Web Server bypass (Address in use): {e}")
 
-# Inicia o servidor em segundo plano apenas se não estiver rodando
+# Inicia o servidor em segundo plano apenas se nao estiver rodando
 if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
     threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
@@ -169,11 +169,11 @@ async def topgg_poster():
         try:
             async with session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 200:
-                    print(f"📊 [TOP.GG] Stats synchronized: {len(bot.guilds)} servers.")
+                    print(f"LOG [TOP.GG] Stats synchronized: {len(bot.guilds)} servers.")
                 else:
-                    print(f"⚠️ [TOP.GG] Update failed: {resp.status}")
+                    print(f"WARN [TOP.GG] Update failed: {resp.status}")
         except Exception as e:
-            print(f"❌ [TOP.GG] Connection error: {e}")
+            print(f"ERROR [TOP.GG] Connection error: {e}")
 
 @bot.event
 async def on_guild_join(guild):
@@ -220,7 +220,7 @@ async def monthly(ctx):
 async def balance(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
-    embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {u['class']}")
+    embed = fiery_embed(f"{target.display_name}'s Vault", f"**Current Balance:** {u['balance']} Flames\n**Class:** {u['class']}")
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
@@ -248,14 +248,14 @@ async def streaks(ctx):
     await social_module.handle_streaks_command(ctx, get_db_connection, get_user, fiery_embed)
 # --- GLOBAL STREAK LEADERBOARD COMMAND END ---
 
-# ===== 🛒 BLACK MARKET & LEGACY MUSEUM ADDITIONS =====
+# ===== BLACK MARKET & LEGACY MUSEUM ADDITIONS =====
 
 @bot.command()
 async def buytitle(ctx, *, title_choice: str = None):
     """Market purchase command for prestige titles."""
     shop = bot.get_cog("ShopSystem")
     if not shop:
-        embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
+        embed = fiery_embed("Market Error", "ERROR The Black Market is currently closed.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         return await ctx.send(file=file, embed=embed)
     pass
@@ -268,12 +268,12 @@ async def favor(ctx):
     ext = bot.get_cog("FieryExtensions")
     
     if user['balance'] < cost:
-        embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
+        embed = fiery_embed("Favor Rejected", f"ERROR Master's Favor is expensive. You need {cost:,} Flames.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         return await ctx.send(file=file, embed=embed)
     
     if not ext:
-        embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
+        embed = fiery_embed("System Offline", "ERROR The Master is currently unavailable.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         return await ctx.send(file=file, embed=embed)
 
@@ -282,7 +282,7 @@ async def favor(ctx):
         conn.commit()
     
     await ext.activate_peak_heat(ctx)
-    embed = fiery_embed("MASTER'S FAVOR", f"🔥 <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
+    embed = fiery_embed("MASTER'S FAVOR", f"FIRE <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
@@ -293,7 +293,7 @@ async def favor(ctx):
 # EMERGENCY RAILWAY DEBUG COMMAND
 @bot.command()
 async def ping(ctx):
-    embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
+    embed = fiery_embed("Neural Sync", f"Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
@@ -349,11 +349,11 @@ async def streak_guardian():
 
 async def send_streak_ping(channel, user_id, tier, elapsed):
     """Sends a public ping in the alert channel."""
-    embed = fiery_embed("⚠️ STREAK VIBRATION: DISCIPLINE REQUIRED", 
+    embed = fiery_embed("STREAK VIBRATION: DISCIPLINE REQUIRED", 
                         f"Asset <@{user_id}>, your consistent submission is at risk.\n\n"
                         f"It has been **{elapsed}** since your last **{tier}** claim. "
                         f"In **3 hours**, your progress will be purged.\n\n"
-                        f"⛓️ **Submit your tribute now.**", color=0xFFCC00)
+                        f"**Submit your tribute now.**", color=0xFFCC00)
     
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="alert.jpg")
@@ -370,7 +370,7 @@ async def on_ready():
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
-    # NEW: Carga EngineControl para habilitar !fierystart e !lobby que estão no ignis.py
+    # NEW: Carga EngineControl para habilitar !fierystart e !lobby que estao no ignis.py
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
@@ -389,17 +389,17 @@ async def on_ready():
     
     bot.add_view(ignis.LobbyView(None, None))
 
-    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # CARREGAMENTO AUTOMATICO DO ADMIN, CLASSES E EXTENSOES
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
-            print("🔥 LOG: Admin System is ONLINE.")
+            print("FIRE LOG: Admin System is ONLINE.")
     except Exception as e: print(f"Admin fail: {e}")
 
     try: 
         if not bot.get_cog("ClassSystem"):
             await bot.load_extension("classes")
-            print("🔥 LOG: Class System is ONLINE.")
+            print("FIRE LOG: Class System is ONLINE.")
     except Exception as e: print(f"Class System fail: {e}")
 
     try:
@@ -426,34 +426,34 @@ async def on_ready():
 
     try:
         await bot.load_extension("fight")
-        print("🔥 LOG: Fight System is ONLINE.")
+        print("FIRE LOG: Fight System is ONLINE.")
     except Exception as e:
         print(f"Failed to load fight extension: {e}")
 
     # --- ADDED: CASINO EXTENSION LOADING ---
     try:
         await bot.load_extension("casino")
-        print("🔥 LOG: Casino System is ONLINE.")
+        print("FIRE LOG: Casino System is ONLINE.")
     except Exception as e:
         print(f"Failed to load casino extension: {e}")
     
     # --- ADDED: ASK EXTENSION LOADING ---
     try:
         await bot.load_extension("ask")
-        print("🔥 LOG: Ask System is ONLINE.")
+        print("FIRE LOG: Ask System is ONLINE.")
     except Exception as e:
         print(f"Failed to load ask extension: {e}")
 
     # --- ADDED: PREMIUM EXTENSION LOADING ---
     try:
         await bot.load_extension("premium")
-        print("🔥 LOG: Premium System is ONLINE.")
+        print("FIRE LOG: Premium System is ONLINE.")
     except Exception as e:
         print(f"Failed to load premium extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
-    print(f"🔥 LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
-    print(f"📊 PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
+    print(f"FIRE LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
+    print(f"PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
 
 @bot.event
 async def on_message(message):
