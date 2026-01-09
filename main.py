@@ -7,7 +7,7 @@ except ImportError:
         import sys
         sys.modules['audioop'] = audioop
     except ImportError:
-        pass 
+        pass
 
 import discord
 from discord.ext import commands, tasks
@@ -21,7 +21,7 @@ import json
 import shutil
 import sys
 # REMOVED: import quests (Fixed ModuleNotFoundError)
-import worknranks  # ADDED: Integrated separation
+import worknranks # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
 import social as social_module # ADDED: Social commands module
 import prizes as prizes_module # ADDED: Prizes and Logic module
@@ -51,12 +51,12 @@ DATABASE_PATH = db_module.DATABASE_PATH
 
 intents = discord.Intents.all()
 # Explicitly forcing Message Content intent in code for Railway stability
-intents.message_content = True 
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # These will be updated from the database in on_ready
-game_edition = 1 
+game_edition = 1
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
 
 # Ranks and Classes now sourced from worknranks.py
