@@ -140,7 +140,8 @@ class IgnisEngine(commands.Cog):
         self.get_db_connection = get_db_connection
         self.ranks = ranks
         self.classes = classes
-        self.audit_channel_id = audit_channel_id
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", audit_channel_id)
         self.active_battles = set()
         self.current_lobby = None
         
@@ -319,6 +320,7 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
+        # FIXED: Pulling dynamically from self to ensure !audit changes work instantly
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
@@ -556,6 +558,10 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
+            # RE-SYNC: Ensure we have the absolute latest audit channel
+            self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
+            audit_channel = self.bot.get_channel(self.audit_channel_id)
+
             if audit_channel:
                 ranked_players = sorted(fxp_log.items(), key=lambda x: x[1]['final_rank'])
                 
@@ -695,6 +701,3 @@ async def setup(bot):
         main.get_db_connection
     )
     await bot.add_cog(engine_control)
-
-
-
