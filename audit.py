@@ -27,7 +27,6 @@ class AuditManager(commands.Cog):
         self.active_audit_channels = [c.id for c in channels]
         
         # Access the FieryShip cog to update its internal ID
-        # UPDATED: Matches the class name 'FieryShip' from your ship.py
         ship_cog = self.bot.get_cog("FieryShip")
         
         if ship_cog:
