@@ -172,6 +172,29 @@ class FieryShip(commands.Cog):
             canvas.paste(av1_framed, (20, 150), av1_framed)
             canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
             
+            # --- NEW: MYSTIC VOLCANIC COLUMN (Obsidian/Black, Red, Yellow) ---
+            pillar_w, pillar_h = 100, 480
+            pillar_x = (canvas_width // 2) - (pillar_w // 2)
+            pillar_y = 120
+            
+            # Base Obsidian Column
+            draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 5, 240), outline=(50, 0, 0), width=4)
+            
+            # Volcanic Fill Logic
+            fill_pixels = int((percent / 100) * pillar_h)
+            if fill_pixels > 0:
+                for i in range(fill_pixels):
+                    # Gradient shift from Red to Yellow as it fills
+                    ratio = i / pillar_h
+                    r = 255
+                    g = int(255 * ratio) # Becomes more yellow at higher %
+                    b = 0
+                    current_y = (pillar_y + pillar_h) - i
+                    draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
+                
+                # Top Magma Glow (Bright Yellow Cap)
+                draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
+
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
             buf.seek(0)
