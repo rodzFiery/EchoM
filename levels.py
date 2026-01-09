@@ -6,6 +6,49 @@ import json
 import random
 import asyncio
 
+class RankTopView(discord.ui.View):
+    def __init__(self, ctx, data, main_mod):
+        super().__init__(timeout=60)
+        self.ctx = ctx
+        self.data = data
+        self.main_mod = main_mod
+        self.page = 0
+        self.per_page = 20
+
+    def create_embed(self):
+        start = self.page * self.per_page
+        end = start + self.per_page
+        current_page_data = self.data[start:end]
+        
+        desc = "### 🏆 NEURAL TEXTING LEADERBOARD\n"
+        desc += "*The most active frequencies in the Red Room.*\n\n"
+        
+        for i, row in enumerate(current_page_data, start=start+1):
+            user_id, lvl, xp = row
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"`#{i}`"
+            desc += f"{medal} <@{user_id}> — **Level {lvl}** (*{xp:,} XP*)\n"
+            
+        total_pages = (len(self.data) - 1) // self.per_page + 1
+        embed = self.main_mod.fiery_embed("GLOBAL RANKINGS", desc)
+        embed.set_footer(text=f"Page {self.page + 1} of {total_pages} | Total Assets: {len(self.data)}")
+        return embed
+
+    @discord.ui.button(label="PREVIOUS", style=discord.ButtonStyle.secondary, emoji="⬅️")
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the initiator can navigate.", ephemeral=True)
+        if self.page > 0:
+            self.page -= 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+    @discord.ui.button(label="NEXT", style=discord.ButtonStyle.secondary, emoji="➡️")
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.ctx.author.id:
+            return await interaction.response.send_message("Only the initiator can navigate.", ephemeral=True)
+        if (self.page + 1) * self.per_page < len(self.data):
+            self.page += 1
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
 class TextLevelSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -159,6 +202,22 @@ class TextLevelSystem(commands.Cog):
                                     f"**Progress:** [{bar}]")
         
         await ctx.send(embed=embed)
+
+    @commands.command(name="ranktop")
+    async def ranktop(self, ctx):
+        """Displays the top texting levels with pagination."""
+        main_mod = sys.modules['__main__']
+        
+        def fetch_top():
+            with main_mod.get_db_connection() as conn:
+                return conn.execute("SELECT id, text_level, text_xp FROM users WHERE text_level > 0 OR text_xp > 0 ORDER BY text_level DESC, text_xp DESC").fetchall()
+
+        data = await asyncio.to_thread(fetch_top)
+        if not data:
+            return await ctx.send("The ledger is empty. No frequencies detected yet.")
+
+        view = RankTopView(ctx, data, main_mod)
+        await ctx.send(embed=view.create_embed(), view=view)
 
 async def setup(bot):
     await bot.add_cog(TextLevelSystem(bot))
