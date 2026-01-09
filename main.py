@@ -396,13 +396,6 @@ async def on_ready():
             print("✅ LOG: Admin System is ONLINE.")
     except Exception as e: print(f"Admin fail: {e}")
 
-    # --- ADDED: AUDIT SYSTEM LOADING ---
-    try:
-        if not bot.get_cog("AuditManager"):
-            await bot.load_extension("audit")
-            print("✅ LOG: Audit Manager is ONLINE.")
-    except Exception as e: print(f"Audit fail: {e}")
-
     try: 
         if not bot.get_cog("ClassSystem"):
             await bot.load_extension("classes")
