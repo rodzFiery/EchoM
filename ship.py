@@ -182,9 +182,12 @@ class FieryShip(commands.Cog):
             if percent > 0:
                 draw.rectangle([col_x + 8, (col_y + col_h) - fill_height, col_x + col_w - 8, col_y + col_h - 8], fill=light_green)
 
-            # MASSIVE PERCENTAGE TEXT
+            # MASSIVE PERCENTAGE TEXT (NOW CENTERED IN THE COLUMN)
             score_text = f"{percent}%"
-            draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
+            # Calculate coordinates to center text inside the ruler column vertically
+            text_x = (canvas_width // 2) - 85
+            text_y = col_y + (col_h // 2) - 50 
+            draw.text((text_x, text_y), score_text, fill=(255, 255, 255), stroke_width=12, stroke_fill=(0,0,0))
 
             # --- REMOVED: Bottom Progress Bar Section ---
             
@@ -360,7 +363,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Possession", style=discord.ButtonStyle.success, emoji="🫦")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(embed=emb, view=view)
+        await ctx.send(emb, view=view)
 
     @commands.command(name="divorce")
     async def divorce(self, ctx):
@@ -424,7 +427,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(embed=emb, view=view)
+        await ctx.send(emb, view=view)
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
