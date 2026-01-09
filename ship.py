@@ -195,6 +195,12 @@ class FieryShip(commands.Cog):
                 # Top Magma Glow (Bright Yellow Cap)
                 draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
 
+            # --- ADDED: BIG CENTRAL PERCENTAGE TEXT ---
+            percentage_str = f"{percent}%"
+            # Using a large font size relative to column; placement is middle center
+            # Note: Stroke width used for readability
+            draw.text((canvas_width // 2 - 65, canvas_height // 2 - 50), percentage_str, fill=(255, 255, 255), stroke_width=8, stroke_fill=(0, 0, 0))
+
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
             buf.seek(0)
@@ -431,7 +437,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(embed=emb, view=view)
+        await ctx.send(emb, view=view)
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
