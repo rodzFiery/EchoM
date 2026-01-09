@@ -116,7 +116,7 @@ class FieryShip(commands.Cog):
                 "They are the heartbeat of the dungeon now.",
                 "Total, unconditional surrender of two souls to one another.",
                 "A love written in blood and sealed with a kiss.",
-                "They have survived the pit and found heaven in the dark.",
+                "They have survived the pit and find heaven in the dark.",
                 "The chains have turned to gold. A perfect 100.",
                 "There are no more users, only {u1} and {u2} One."
             ]
@@ -272,7 +272,7 @@ class FieryShip(commands.Cog):
                 is_anni = True
 
         # --- ENHANCED EMBED VISUALS ---
-        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} 🫦 {user2.mention}")
+        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}")
         
         if is_anni:
             embed.title = "🔞 HOT PINK ANNIVERSARY 🔞"
@@ -288,7 +288,7 @@ class FieryShip(commands.Cog):
         # Create a text-based progress bar for the description
         bar_len = 10
         filled = int(percent / bar_len)
-        bar = "🔥" * filled + "🖤" * (bar_len - filled)
+        bar = "❤️‍🔥" * filled + "⛓️" * (bar_len - filled)
         
         embed.description = (
             f"**SYNC STATUS:** `{percent}%` [{bar}]\n"
