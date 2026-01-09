@@ -8,8 +8,8 @@ class Achievements(commands.Cog):
         self.bot = bot
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
-        # FIXED: Explicitly defined for the audit log integration
-        self.AUDIT_CHANNEL_ID = 1438810509322223677
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
 
     def generate_fiery_scale(self):
         """ADDED: Generates the specialized Master's Scale for all achievements."""
@@ -97,7 +97,7 @@ class Achievements(commands.Cog):
         
         if category in tier_map and current_value in tier_map[category]:
             main_module = sys.modules['__main__']
-            # ADDED: Direct ID fetch for the requested audit log
+            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             
             if audit_channel:
