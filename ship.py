@@ -122,7 +122,8 @@ class FieryShip(commands.Cog):
                 "There are no more users, only {u1} and {u2} One."
             ]
         }
-        self.AUDIT_CHANNEL_ID = 1438810509322223677
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
 
     async def create_ship_image(self, u1_url, u2_url, percent):
         """Generates visual match with SQUARE avatars and high-visibility central volcanic column."""
@@ -294,6 +295,7 @@ class FieryShip(commands.Cog):
             await ctx.send(embed=embed)
 
         if percent in [0, 69, 100]:
+            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             if audit_channel:
                 log_embed = main_mod.fiery_embed("🕵️ VOYEUR AUDIT REPORT", f"A peak frequency has been detected in {ctx.channel.mention}.")
@@ -357,6 +359,7 @@ class FieryShip(commands.Cog):
             
             await interaction.response.send_message(files=files_to_send, embed=win_emb)
             
+            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             if audit_channel:
                 log_emb = main_mod.fiery_embed("💍 VOYEUR UNION AUDIT", f"A permanent synchronization has been achieved.")
@@ -395,6 +398,7 @@ class FieryShip(commands.Cog):
         else:
              await ctx.send(embed=embed)
         
+        # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
         audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if audit_channel:
             log_emb = main_mod.fiery_embed("💔 VOYEUR SEVERANCE AUDIT", f"A synchronization has been shattered.")
@@ -424,6 +428,7 @@ class FieryShip(commands.Cog):
             else:
                  await interaction.response.send_message(file=file, embed=win_emb)
             
+            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             if audit_channel:
                 log_emb = main_mod.fiery_embed("🤝 VOYEUR ALLIANCE AUDIT", f"A new blood-bond has been formed.")
