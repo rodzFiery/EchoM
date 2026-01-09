@@ -88,6 +88,37 @@ class TextLevelSystem(commands.Cog):
         """Formula: Level 1 needs 100 XP, increasing by 50 per level."""
         return 100 + (level * 50)
 
+    async def check_achievement(self, user, current_count, previous_count, category):
+        """Logic for 500-step milestones up to 500,000 with Profile Data."""
+        if current_count > previous_count and current_count % 500 == 0 and current_count <= 500000:
+            main_mod = sys.modules['__main__']
+            channel = self.bot.get_channel(self.level_channel_id) if self.level_channel_id else None
+            
+            # PULLING DATA FROM main.py get_user
+            u_data = await asyncio.to_thread(main_mod.get_user, user.id)
+            
+            title = "📜 NEURAL CERTIFICATE OF RECOGNITION"
+            desc = (f"### 🎖️ MILESTONE ACHIEVED: {category.upper()}\n"
+                    f"Asset {user.mention}, your consistency has been noted by the Echo.\n\n"
+                    f"**Total {category}:** `{current_count:,}`\n"
+                    f"**Status:** `Verified & Archived`\n\n")
+            
+            desc += "⚙️ **SUBSYSTEM SNAPSHOT:**\n"
+            desc += f"└─ `Neural Level:` **{u_data['fiery_level']}**\n"
+            desc += f"└─ `Total XP:` **{u_data['xp']:,}**\n"
+            desc += f"└─ `Capital:` **{u_data['balance']:,} Flames**\n"
+            desc += f"└─ `Current Class:` **{u_data['class']}**\n"
+            desc += f"└─ `Premium Tier:` **{u_data['premium_type'] or 'Standard'}**\n\n"
+            desc += f"*The Red Room appreciates your high-frequency interaction.*"
+            
+            embed = main_mod.fiery_embed(title, desc, color=0xFFD700)
+            if os.path.exists("LobbyTopRight.jpg"):
+                file = discord.File("LobbyTopRight.jpg", filename="cert.jpg")
+                embed.set_thumbnail(url="attachment://cert.jpg")
+                if channel: await channel.send(content=user.mention, file=file, embed=embed)
+            else:
+                if channel: await channel.send(content=user.mention, embed=embed)
+
     @commands.command(name="setlevelchannel")
     @commands.has_permissions(administrator=True)
     async def set_level_channel(self, ctx, channel: discord.TextChannel = None):
@@ -114,18 +145,61 @@ class TextLevelSystem(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload):
+        """Track reactions for achievements."""
+        if payload.member and payload.member.bot: return
+        main_mod = sys.modules['__main__']
+        
+        def update_reaction_data():
+            with main_mod.get_db_connection() as conn:
+                try: conn.execute("ALTER TABLE users ADD COLUMN total_reactions INTEGER DEFAULT 0")
+                except: pass
+                
+                user = conn.execute("SELECT total_reactions FROM users WHERE id = ?", (payload.user_id,)).fetchone()
+                prev = user['total_reactions'] if user else 0
+                curr = prev + 1
+                conn.execute("UPDATE users SET total_reactions = ? WHERE id = ?", (curr, payload.user_id))
+                conn.commit()
+                return curr, prev
+
+        curr, prev = await asyncio.to_thread(update_reaction_data)
+        
+        # Determine the user object for the achievement ping
+        guild = self.bot.get_guild(payload.guild_id)
+        if guild:
+            member = payload.member or guild.get_member(payload.user_id)
+            if member:
+                await self.check_achievement(member, curr, prev, "Reactions Given")
+
+    @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
 
-        # Cooldown check to prevent XP farming
+        main_mod = sys.modules['__main__']
+        user_id = message.author.id
+
+        # --- ACHIEVEMENT TRACKING (Messages) ---
+        def update_msg_count():
+            with main_mod.get_db_connection() as conn:
+                try: conn.execute("ALTER TABLE users ADD COLUMN total_messages INTEGER DEFAULT 0")
+                except: pass
+                user = conn.execute("SELECT total_messages FROM users WHERE id = ?", (user_id,)).fetchone()
+                prev = user['total_messages'] if user else 0
+                curr = prev + 1
+                conn.execute("UPDATE users SET total_messages = ? WHERE id = ?", (curr, user_id))
+                conn.commit()
+                return curr, prev
+        
+        curr_msg, prev_msg = await asyncio.to_thread(update_msg_count)
+        await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
+
+        # Cooldown check for XP (Independent from Achievement counter)
         bucket = self._cooldown.get_bucket(message)
         retry_after = bucket.update_rate_limit()
         if retry_after:
             return
 
-        main_mod = sys.modules['__main__']
-        user_id = message.author.id
         xp_gain = random.randint(15, 25) # Random XP per message
 
         def update_level_data():
