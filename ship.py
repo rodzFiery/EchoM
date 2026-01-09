@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
-import randomimport discord
+import random
+import discord
 from discord.ext import commands
 import random
 import io
