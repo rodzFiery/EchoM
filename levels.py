@@ -164,7 +164,6 @@ class TextLevelSystem(commands.Cog):
 
         curr, prev = await asyncio.to_thread(update_reaction_data)
         
-        # Determine the user object for the achievement ping
         guild = self.bot.get_guild(payload.guild_id)
         if guild:
             member = payload.member or guild.get_member(payload.user_id)
@@ -179,7 +178,6 @@ class TextLevelSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         user_id = message.author.id
 
-        # --- ACHIEVEMENT TRACKING (Messages) ---
         def update_msg_count():
             with main_mod.get_db_connection() as conn:
                 try: conn.execute("ALTER TABLE users ADD COLUMN total_messages INTEGER DEFAULT 0")
@@ -194,17 +192,15 @@ class TextLevelSystem(commands.Cog):
         curr_msg, prev_msg = await asyncio.to_thread(update_msg_count)
         await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
 
-        # Cooldown check for XP (Independent from Achievement counter)
         bucket = self._cooldown.get_bucket(message)
         retry_after = bucket.update_rate_limit()
         if retry_after:
             return
 
-        xp_gain = random.randint(15, 25) # Random XP per message
+        xp_gain = random.randint(15, 25)
 
         def update_level_data():
             with main_mod.get_db_connection() as conn:
-                # Ensure columns exist
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_xp INTEGER DEFAULT 0")
                 except: pass
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_level INTEGER DEFAULT 0")
@@ -231,14 +227,12 @@ class TextLevelSystem(commands.Cog):
         new_lvl, new_xp, did_level_up = await asyncio.to_thread(update_level_data)
 
         if did_level_up:
-            # Handle Auto-Role logic
             if str(new_lvl) in self.level_roles:
                 role_id = self.level_roles[str(new_lvl)]
                 role = message.guild.get_role(role_id)
                 if role:
                     try: 
                         await message.author.add_roles(role, reason=f"Neural Level {new_lvl} reached.")
-                        # --- ADDED: AUDIT REPORT FOR ROLE CONQUEST ---
                         audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
                         audit_channel = self.bot.get_channel(audit_id)
                         if audit_channel:
@@ -248,7 +242,6 @@ class TextLevelSystem(commands.Cog):
                                 f"**Privilege Granted:** {role.mention}", color=0x2ECC71)
                             await audit_channel.send(embed=audit_emb)
 
-                        # --- ADDED: SPECIAL CERTIFICATE FOR ROLE UNLOCK ---
                         if self.level_channel_id:
                             lvl_channel = self.bot.get_channel(self.level_channel_id)
                             if lvl_channel:
@@ -291,7 +284,6 @@ class TextLevelSystem(commands.Cog):
         xp = user.get('text_xp', 0)
         needed = self.get_xp_needed(lvl)
         
-        # Progress bar
         bar_len = 10
         filled = int((xp / max(1, needed)) * bar_len)
         bar = "🟦" * filled + "⬛" * (bar_len - filled)
@@ -302,6 +294,65 @@ class TextLevelSystem(commands.Cog):
                                     f"**Progress:** [{bar}]")
         
         await ctx.send(embed=embed)
+
+    @commands.command(name="mylevel")
+    async def mylevel(self, ctx, member: discord.Member = None):
+        """ULTIMATE NEURAL DIAGNOSTIC: Detailed Level, Stats, and Milestones."""
+        target = member or ctx.author
+        main_mod = sys.modules['__main__']
+        
+        with main_mod.get_db_connection() as conn:
+            u = conn.execute("SELECT text_level, text_xp, total_messages, total_reactions FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        if not u:
+            return await ctx.send(embed=main_mod.fiery_embed("❌ ERROR", "Asset data not found in the neural archives."))
+
+        lvl = u['text_level'] or 0
+        xp = u['text_xp'] or 0
+        msgs = u['total_messages'] or 0
+        reacts = u['total_reactions'] or 0
+        needed = self.get_xp_needed(lvl)
+        
+        # Determine Next Role
+        next_role_info = "None Available"
+        sorted_lvls = sorted([int(k) for k in self.level_roles.keys()])
+        for l in sorted_lvls:
+            if l > lvl:
+                role = ctx.guild.get_role(self.level_roles[str(l)])
+                next_role_info = f"{role.mention if role else 'Unknown'} at **Level {l}**"
+                break
+
+        # Progress UI
+        percent = int((xp / max(1, needed)) * 100)
+        bar_len = 15
+        filled = int((xp / max(1, needed)) * bar_len)
+        bar = "🟦" * filled + "⬛" * (bar_len - filled)
+
+        desc = f"### 🧩 NEURAL DIAGNOSTIC: {target.display_name.upper()}\n"
+        desc += "*Analyzing frequency resonance across all global sectors...*\n\n"
+        
+        desc += "📉 **LEVEL PROGRESSION**\n"
+        desc += f"```ml\nLevel: {lvl} | Progress: {percent}% \n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}\n```\n"
+        
+        desc += "📂 **FREQUENCY ARCHIVE**\n"
+        desc += f"➤ **Total Messages:** `{msgs:,}`\n"
+        desc += f"➤ **Total Reactions:** `{reacts:,}`\n"
+        desc += f"➤ **Global Sync Status:** `Verified`\n\n"
+        
+        desc += "🛡️ **PRIVILEGE QUEUE**\n"
+        desc += f"➤ **Next Unlock:** {next_role_info}\n\n"
+        
+        desc += "*Your existence is recorded. The Echo remembers everything.*"
+
+        embed = main_mod.fiery_embed("ECHO LEVEL PROFILE", desc, color=0x00FFFF)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="diagnostic.jpg")
+            embed.set_image(url="attachment://diagnostic.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="ranktop")
     async def ranktop(self, ctx):
