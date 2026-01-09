@@ -50,27 +50,27 @@ class Achievements(commands.Cog):
         # 1. First Blood Milestone (Killer)
         # ADDED: dict access safety (u['key'] or 0)
         fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
-        if fb: lines.append(f"🩸 First Blood pro: {fb}")
+        if fb: lines.append(f"Blood pro: {fb}")
         
         # 2. Total Wins Milestone
         wins = self.get_tier(u['wins'] if 'wins' in u.keys() else 0, t_master_scale)
-        if wins: lines.append(f"🏆 Wins: {wins}")
+        if wins: lines.append(f"Wins: {wins}")
         
         # 3. Total Kills Milestone
         kills = self.get_tier(u['kills'] if 'kills' in u.keys() else 0, t_high)
-        if kills: lines.append(f"⚔️ Kills: {kills}")
+        if kills: lines.append(f"Kills: {kills}")
         
         # 4. Max Win Streak Milestone
         streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in u.keys() else 0, t_streaks)
-        if streak: lines.append(f"🔥 Streak: {streak}x")
+        if streak: lines.append(f"Streak: {streak}x")
         
         # 5. Max Kill Streak Milestone (Killing Spree)
         ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
-        if ks: lines.append(f"💀 Kill Spree: {ks}x")
+        if ks: lines.append(f"Kill Spree: {ks}x")
 
         # 6. ADDED: First Blood (Death) Milestone
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
-        if fbd: lines.append(f"⚰️ First death: {fbd}")
+        if fbd: lines.append(f"First death: {fbd}")
 
         return "\n".join(lines) if lines else "No achievements yet.."
 
@@ -105,25 +105,24 @@ class Achievements(commands.Cog):
                 
                 # Dynamic wording based on category
                 if category == "Kill Streak":
-                    special_note = "A killing spree has ignited. The blood is practically boiling."
+                    special_note = "A killing spree has ignited."
                 elif category == "First Deaths":
-                    special_note = "An member has been sacrificed first too many times. A true glutton for punishment."
+                    special_note = "An member has been sacrificed too many times."
                 else:
-                    special_note = "The Master has noted your growing submission to the arena."
+                    special_note = "The Master has noted your growing submission."
 
-                embed = self.fiery_embed("📜 MASTER'S LEDGER: MILESTONE REACHED", 
-                    f"🫦 {user.mention} has deepened their descent. A new seal has been broken in the Achievement Room.\n\n"
-                    f"🏅 **Achievement Category:** {category}\n"
-                    f"📈 **Milestone Reached:** Level {current_value}\n"
-                    f"⛓️ **Status:** Permanent Record Updated\n\n"
-                    f"*'{special_note}'*", color=0xFFD700)
+                embed = self.fiery_embed("MASTER LEDGER: MILESTONE REACHED", 
+                    f"{user.mention} has deepened their descent.\n\n"
+                    f"Category: {category}\n"
+                    f"Milestone: Level {current_value}\n\n"
+                    f"'{special_note}'", color=0xFFD700)
                 
                 if os.path.exists("LobbyTopRight.jpg"):
                     file = discord.File("LobbyTopRight.jpg", filename="milestone.jpg")
                     embed.set_thumbnail(url="attachment://milestone.jpg")
-                    await audit_channel.send(content=f"👑 **Achievement Protocol Activated:** {user.mention}", file=file, embed=embed)
+                    await audit_channel.send(content=f"Achievement Protocol: {user.mention}", file=file, embed=embed)
                 else:
-                    await audit_channel.send(content=f"👑 **Achievement Protocol Activated:** {user.mention}", embed=embed)
+                    await audit_channel.send(content=f"Achievement Protocol: {user.mention}", embed=embed)
 
     @commands.command(name="achievements")
     async def view_achievements(self, ctx, member: discord.Member = None):
@@ -144,40 +143,38 @@ class Achievements(commands.Cog):
         
         # 1. First Blood Tracking (Killer)
         fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
-        if fb: ach_msg.append(f"🩸 **First Bloods (Killer):** {fb}")
+        if fb: ach_msg.append(f"First Bloods (Killer): {fb}")
         
         # 2. Participation Tracking
         gp = self.get_tier(u['games_played'] if 'games_played' in u.keys() else 0, t_master_scale)
-        if gp: ach_msg.append(f"🎮 **Participations:** {gp}")
+        if gp: ach_msg.append(f"Participations: {gp}")
         
         # 3. Win Tracking
         wins = self.get_tier(u['wins'] if 'wins' in u.keys() else 0, t_master_scale)
-        if wins: ach_msg.append(f"🏆 **Total Wins:** {wins}")
+        if wins: ach_msg.append(f"Total Wins: {wins}")
         
         # 4. Kill Tracking
         kills = self.get_tier(u['kills'] if 'kills' in u.keys() else 0, t_high)
-        if kills: ach_msg.append(f"⚔️ **Total Kills:** {kills}")
+        if kills: ach_msg.append(f"Total Kills: {kills}")
         
         # 5. First Blood (Death) Tracking
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
-        if fbd: ach_msg.append(f"⚰️ **First Blood (Victim):** {fbd}")
+        if fbd: ach_msg.append(f"First Blood (Victim): {fbd}")
         
         # 6. Straight Kills Achievement (Killing Spree)
         ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
-        if ks >= 3: ach_msg.append(f"💀 **Killing Spree (Straight Kills):** {ks}x")
+        if ks >= 3: ach_msg.append(f"Killing Spree: {ks}x")
         
         # Placement Tracking (Top 2-5)
         top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
         top = self.get_tier(top_total, t_high)
-        if top: ach_msg.append(f"🥈 **Finalist (Top 2-5):** {top}")
+        if top: ach_msg.append(f"Finalist: {top}")
 
-        embed = self.fiery_embed(f"{member.name}'s Achievement Room", 
-                                  "\n".join(ach_msg) if ach_msg else "No milestones reached yet. The arena awaits.")
+        embed = self.fiery_embed(f"{member.name} Achievement Room", 
+                                  "\n".join(ach_msg) if ach_msg else "No milestones reached yet.")
         embed.set_thumbnail(url=member.display_avatar.url)
         await ctx.send(embed=embed)
 
 async def setup(bot):
     main_module = sys.modules['__main__']
     await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
-
-
