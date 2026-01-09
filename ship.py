@@ -124,7 +124,7 @@ class FieryShip(commands.Cog):
         self.AUDIT_CHANNEL_ID = 1438810509322223677
 
     async def create_ship_image(self, u1_url, u2_url, percent):
-        """Generates visual match with SQUARE avatars and high-visibility central green ruler."""
+        """Generates visual match with SQUARE avatars and high-visibility central volcanic column."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(u1_url) as r1, session.get(u2_url) as r2:
@@ -195,11 +195,9 @@ class FieryShip(commands.Cog):
                 # Top Magma Glow (Bright Yellow Cap)
                 draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
 
-            # --- ADDED: BIG CENTRAL PERCENTAGE TEXT ---
-            percentage_str = f"{percent}%"
-            # Using a large font size relative to column; placement is middle center
-            # Note: Stroke width used for readability
-            draw.text((canvas_width // 2 - 65, canvas_height // 2 - 50), percentage_str, fill=(255, 255, 255), stroke_width=8, stroke_fill=(0, 0, 0))
+            # --- BIG % TEXT IN MIDDLE ---
+            percent_text = f"{percent}%"
+            draw.text((pillar_x - 30, 20), percent_text, fill=(255, 255, 255), stroke_width=6, stroke_fill=(0,0,0))
 
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
@@ -273,7 +271,8 @@ class FieryShip(commands.Cog):
             if m_date.day == now_dt.day and m_date.month != now_dt.month:
                 is_anni = True
 
-        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} & {user2.mention}")
+        # --- ENHANCED EMBED VISUALS ---
+        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} 🫦 {user2.mention}")
         
         if is_anni:
             embed.title = "🔞 HOT PINK ANNIVERSARY 🔞"
@@ -286,7 +285,19 @@ class FieryShip(commands.Cog):
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
             result_msg += "\n\n💰 **EXHIBITION REWARD:** The dungeon provides **2,500 Flames** for the show!"
 
-        embed.add_field(name=f"📊 Compatibility: {percent}%", value=f"*{result_msg}*", inline=False)
+        # Create a text-based progress bar for the description
+        bar_len = 10
+        filled = int(percent / bar_len)
+        bar = "🔥" * filled + "🖤" * (bar_len - filled)
+        
+        embed.description = (
+            f"**SYNC STATUS:** `{percent}%` [{bar}]\n"
+            f"**RESONANCE TIER:** `{tier.upper()}`\n\n"
+            f"💬 *\"{result_msg}\"*"
+        )
+
+        embed.add_field(name="⛓️ Connection Stats", value=f"• Sync: `{percent}%`\n• Tier: `{tier}`\n• Date: `{today}`", inline=True)
+        embed.add_field(name="🔥 Potential", value=f"• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`\n• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
         if img_buf:
@@ -437,7 +448,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(emb, view=view)
+        await ctx.send(embed=emb, view=view)
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
