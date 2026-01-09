@@ -129,7 +129,7 @@ def paypal_webhook():
 
                     conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, int(user_id)))
                     conn.commit()
-                print(f"✅ [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
+                print(f"🔥 [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
                 
                 # ADICIONADO: Notificação em tempo real para o usuário no Discord
                 user = bot.get_user(int(user_id))
@@ -393,13 +393,13 @@ async def on_ready():
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
-            print("✅ LOG: Admin System is ONLINE.")
+            print("🔥 LOG: Admin System is ONLINE.")
     except Exception as e: print(f"Admin fail: {e}")
 
     try: 
         if not bot.get_cog("ClassSystem"):
             await bot.load_extension("classes")
-            print("✅ LOG: Class System is ONLINE.")
+            print("🔥 LOG: Class System is ONLINE.")
     except Exception as e: print(f"Class System fail: {e}")
 
     try:
@@ -426,33 +426,33 @@ async def on_ready():
 
     try:
         await bot.load_extension("fight")
-        print("✅ LOG: Fight System is ONLINE.")
+        print("🔥 LOG: Fight System is ONLINE.")
     except Exception as e:
         print(f"Failed to load fight extension: {e}")
 
     # --- ADDED: CASINO EXTENSION LOADING ---
     try:
         await bot.load_extension("casino")
-        print("✅ LOG: Casino System is ONLINE.")
+        print("🔥 LOG: Casino System is ONLINE.")
     except Exception as e:
         print(f"Failed to load casino extension: {e}")
     
     # --- ADDED: ASK EXTENSION LOADING ---
     try:
         await bot.load_extension("ask")
-        print("✅ LOG: Ask System is ONLINE.")
+        print("🔥 LOG: Ask System is ONLINE.")
     except Exception as e:
         print(f"Failed to load ask extension: {e}")
 
     # --- ADDED: PREMIUM EXTENSION LOADING ---
     try:
         await bot.load_extension("premium")
-        print("✅ LOG: Premium System is ONLINE.")
+        print("🔥 LOG: Premium System is ONLINE.")
     except Exception as e:
         print(f"Failed to load premium extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
-    print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
+    print(f"🔥 LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
     print(f"📊 PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
 
 @bot.event
