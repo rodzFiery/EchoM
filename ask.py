@@ -26,7 +26,13 @@ class DungeonAsk(commands.Cog):
             def process():
                 canvas_width = 1200
                 canvas_height = 600
-                canvas = Image.new("RGBA", (canvas_width, canvas_height), (15, 0, 8, 255))
+                
+                # ADDED: Background image integration with fallback
+                if os.path.exists("askdm.jpg"):
+                    canvas = Image.open("askdm.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                else:
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (15, 0, 8, 255))
+                
                 draw = ImageDraw.Draw(canvas)
 
                 av_size = 350
