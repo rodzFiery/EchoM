@@ -1,6 +1,7 @@
 import discord
 import random
 import os
+import sys # ADDED: Required for main module attribute access
 from datetime import datetime, timedelta, timezone
 
 async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, cooldown_delta, get_user, update_user_stats_async, fiery_embed, get_db_connection):
@@ -8,6 +9,10 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     now = datetime.now(timezone.utc)
     db_col = f"last_{reward_type}"
     streak_col = f"{reward_type}_streak"
+    
+    # FIXED: Pulling dynamically from main module to support the !audit system
+    # This ensures that when update_user_stats_async is called, the correct ID is ready
+    main_mod = sys.modules['__main__']
     
     # FIX: Safe access to sqlite3.Row data
     last_str = user[db_col] if db_col in user.keys() else None
@@ -43,6 +48,7 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     streaked_reward = int(base_reward * streak_bonus)
     
     # Using the async updater to handle multipliers and audit logs
+    # This automatically uses the live main_mod.AUDIT_CHANNEL_ID via the internal redirect
     await update_user_stats_async(ctx.author.id, amount=streaked_reward, xp_gain=xp_amt, source=f"{reward_type.capitalize()} Streak")
     
     with get_db_connection() as conn:
