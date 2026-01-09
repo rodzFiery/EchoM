@@ -4,7 +4,7 @@ import sqlite3
 import os
 import sys
 import urllib.parse  # ADDED: To generate secure payment links
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 import aiohttp # ADDED: For more stable asynchronous requests
 
@@ -124,6 +124,24 @@ class PremiumShopView(discord.ui.View):
         else:
             await interaction.response.send_message("❌ Last page reached.", ephemeral=True)
 
+    async def send_audit_report(self, interaction, plan_name, cost, action="INVOICE GENERATED"):
+        """Sync with audit.py system to log market activity."""
+        main_mod = sys.modules['__main__']
+        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
+        channel = interaction.client.get_channel(audit_id)
+        if channel:
+            audit_emb = self.fiery_embed("🛒 MARKET TRANSACTION LOG", 
+                f"**Action:** `{action}`\n"
+                f"**Asset:** {interaction.user.mention}\n"
+                f"**Plan:** `{plan_name}`\n"
+                f"**Value:** `${cost} USD`", color=0xF1C40F)
+            if os.path.exists("LobbyTopRight.jpg"):
+                file = discord.File("LobbyTopRight.jpg", filename="audit_premium.jpg")
+                audit_emb.set_thumbnail(url="attachment://audit_premium.jpg")
+                await channel.send(file=file, embed=audit_emb)
+            else:
+                await channel.send(embed=audit_emb)
+
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
         custom_data = f"{interaction.user.id}|{plan_name}|30"
@@ -148,6 +166,8 @@ class PremiumShopView(discord.ui.View):
                                 f"⏳ *The system will detect payment and unlock your access immediately.*")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
+        # Log to Audit Channel
+        await self.send_audit_report(interaction, plan_name, plan['cost'])
 
 class PremiumSystem(commands.Cog):
     def __init__(self, bot, get_db_connection, fiery_embed, update_user_stats):
@@ -155,6 +175,20 @@ class PremiumSystem(commands.Cog):
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
         self.update_user_stats = update_user_stats
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
+
+    async def log_admin_action(self, member, plan_name, action):
+        """Helper to log manual overrides to audit channel."""
+        main_mod = sys.modules['__main__']
+        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", self.AUDIT_CHANNEL_ID)
+        channel = self.bot.get_channel(audit_id)
+        if channel:
+            embed = self.fiery_embed("⚖️ ADMINISTRATIVE PREMIUM OVERRIDE", 
+                f"**Action:** `{action}`\n"
+                f"**Target:** {member.mention}\n"
+                f"**Plan Details:** `{plan_name}`", color=0xE74C3C)
+            await channel.send(embed=embed)
 
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
@@ -196,6 +230,7 @@ class PremiumSystem(commands.Cog):
             conn.commit()
             
         await ctx.send(embed=self.fiery_embed("PREMIUM ACTIVATED", f"✅ {member.mention} has been elevated to **{plan_name}**.", color=0x00FF00))
+        await self.log_admin_action(member, plan_name, "MANUAL ACTIVATION")
 
     @commands.command(name="testpay")
     @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can test payment
@@ -283,6 +318,7 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = '20. Full Premium Everything', premium_date = ?", (p_date,))
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", "👑 ALL ASSETS ELEVATED.", color=0xFFD700))
+        await self.log_admin_action(ctx.guild.me, "All Users", "GLOBAL PREMIUM OVERRIDE (ON)")
 
     @commands.command(name="echooff")
     @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can reset system
@@ -292,6 +328,7 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", "🌑 ALL UNITS RESET.", color=0x808080))
+        await self.log_admin_action(ctx.guild.me, "All Users", "GLOBAL SYSTEM PURGE (OFF)")
 
     @staticmethod
     def is_premium():
