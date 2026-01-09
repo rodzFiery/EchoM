@@ -6,13 +6,9 @@ import sys
 import asyncio
 from datetime import datetime, timedelta, timezone, time
 
-# Database path matching your shop.py logic
-if os.path.exists("/app/data"):
-    DATABASE_PATH = "/app/data/economy.db"
-else:
-    if not os.path.exists("data"):
-        os.makedirs("data")
-    DATABASE_PATH = "data/economy.db"
+# FIXED: Synchronizing with main.py centralized db_module logic
+import database as db_module
+DATABASE_PATH = db_module.DATABASE_PATH
 
 # Configuration
 AUDIT_CHANNEL_ID = 1438810509322223677
@@ -28,7 +24,6 @@ SELFIE_CHANNELS = {
     1431243433032290395: (2500, 5000),
     1300382520960880712: (2500, 5000),
     1300382788058484747: (2500, 5000),
-    1300382687286263891: (2500, 5000),
     1300382687286263891: (2500, 5000),
     1300382880341692468: (2500, 5000),
     1433609343562944564: (1000, 1500),
@@ -49,9 +44,8 @@ class Collect(commands.Cog):
         self.vibration_report_task.start()
 
     def get_db_connection(self):
-        conn = sqlite3.connect(self.db_path, timeout=30.0)
-        conn.row_factory = sqlite3.Row
-        return conn
+        # FIXED: Using centralized db_module connection to ensure stability
+        return db_module.get_db_connection()
 
     async def send_immediate_audit(self, user_id, xp, flames, source_desc, channel_name=None):
         """ADDED: Sends an immediate erotic log to the audit channel for every action."""
