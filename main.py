@@ -1,3 +1,4 @@
+
 # FIX: Python 3.13 compatibility shim for audioop
 try:
     import audioop
@@ -20,7 +21,7 @@ import asyncio
 import json
 import shutil
 import sys
-import aiohttp # ADDED: Required for topgg_poster task
+import aiohttp # ADDED: Required for topgg_poster to prevent NameError
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
@@ -364,16 +365,19 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
 async def on_ready():
     print("--- STARTING SYSTEM INITIALIZATION ---")
     
-    if not bot.get_cog("IgnisEngine"):
-        await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
-    
-    # NEW: Carga EngineControl para habilitar !fierystart e !lobby que estao no ignis.py
-    if not bot.get_cog("EngineControl"):
-        await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
+    # Wrap critical Cog additions in try/except to prevent on_ready hang
+    try:
+        if not bot.get_cog("IgnisEngine"):
+            await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
+        
+        if not bot.get_cog("EngineControl"):
+            await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
-    if not bot.get_cog("Achievements"):
-        await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
-    
+        if not bot.get_cog("Achievements"):
+            await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
+    except Exception as e:
+        print(f"CRITICAL: Failed to load core Cogs: {e}")
+
     load_game_config()
     
     # Start the Guardian Task
@@ -386,67 +390,17 @@ async def on_ready():
     
     bot.add_view(ignis.LobbyView(None, None))
 
-    # CARREGAMENTO AUTOMATICO DO ADMIN, CLASSES E EXTENSOES
-    try: 
-        if not bot.get_cog("AdminSystem"):
-            await bot.load_extension("admin")
-            print("FIRE LOG: Admin System is ONLINE.")
-    except Exception as e: print(f"Admin fail: {e}")
-
-    try: 
-        if not bot.get_cog("ClassSystem"):
-            await bot.load_extension("classes")
-            print("FIRE LOG: Class System is ONLINE.")
-    except Exception as e: print(f"Class System fail: {e}")
-
-    try:
-        if not bot.get_cog("FieryExtensions"):
-            await bot.load_extension("extensions")
-    except Exception as e:
-        print(f"Failed to load extensions: {e}")
-
-    try:
-        if not bot.get_cog("FieryShip"):
-            await bot.load_extension("ship")
-    except Exception as e:
-        print(f"Failed to load ship extension: {e}")
-
-    try:
-        await bot.load_extension("shop")
-    except Exception as e:
-        print(f"Failed to load shop extension: {e}")
-
-    try:
-        await bot.load_extension("collect")
-    except Exception as e:
-        print(f"Failed to load collect extension: {e}")
-
-    try:
-        await bot.load_extension("fight")
-        print("FIRE LOG: Fight System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load fight extension: {e}")
-
-    # --- ADDED: CASINO EXTENSION LOADING ---
-    try:
-        await bot.load_extension("casino")
-        print("FIRE LOG: Casino System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load casino extension: {e}")
-    
-    # --- ADDED: ASK EXTENSION LOADING ---
-    try:
-        await bot.load_extension("ask")
-        print("FIRE LOG: Ask System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load ask extension: {e}")
-
-    # --- ADDED: PREMIUM EXTENSION LOADING ---
-    try:
-        await bot.load_extension("premium")
-        print("FIRE LOG: Premium System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load premium extension: {e}")
+    # CARREGAMENTO AUTOMATICO DE EXTENSOES
+    extensions = ["admin", "classes", "extensions", "ship", "shop", "collect", "fight", "casino", "ask", "premium"]
+    for ext in extensions:
+        try:
+            # We don't check get_cog here because load_extension handles it
+            await bot.load_extension(ext)
+            print(f"FIRE LOG: {ext.capitalize()} System is ONLINE.")
+        except commands.ExtensionAlreadyLoaded:
+            pass
+        except Exception as e:
+            print(f"FAILED to load {ext}: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"FIRE LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
@@ -461,12 +415,10 @@ async def on_message(message):
     if message.author.bot: 
         return
     
-    # CRITICAL ADDITION: High Priority processing for Railway latency
     ctx = await bot.get_context(message)
     if ctx.valid:
         await bot.invoke(ctx)
     else:
-        # Standard fallback for non-command messages
         await bot.process_commands(message)
 
 async def main():
