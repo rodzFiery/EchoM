@@ -6,6 +6,7 @@ import aiohttp
 import sys
 import json
 import os
+import asyncio # ADDED: Required for thread-safe processing
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
@@ -17,38 +18,42 @@ class DungeonAsk(commands.Cog):
     async def create_ask_lobby(self, u1_url, u2_url, title="DM REQUEST"):
         """Generates visual for the request using square avatars and fiery theme."""
         try:
-            canvas_width = 1200
-            canvas_height = 600
-            canvas = Image.new("RGBA", (canvas_width, canvas_height), (15, 0, 8, 255))
-            draw = ImageDraw.Draw(canvas)
-
             async with aiohttp.ClientSession() as session:
                 async with session.get(u1_url) as r1, session.get(u2_url) as r2:
                     p1_data = io.BytesIO(await r1.read())
                     p2_data = io.BytesIO(await r2.read())
 
-            av_size = 350
-            av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
-            av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
+            def process():
+                canvas_width = 1200
+                canvas_height = 600
+                canvas = Image.new("RGBA", (canvas_width, canvas_height), (15, 0, 8, 255))
+                draw = ImageDraw.Draw(canvas)
 
-            def draw_glow(draw_obj, pos, size, color):
-                for i in range(15, 0, -1):
-                    alpha = int(255 * (1 - i/15))
-                    draw_obj.rectangle([pos[0]-i, pos[1]-i, pos[0]+size+i, pos[1]+size+i], outline=(*color, alpha), width=2)
+                av_size = 350
+                av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
+                av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
 
-            draw_glow(draw, (100, 120), av_size, (255, 20, 147)) 
-            draw_glow(draw, (750, 120), av_size, (255, 0, 0))   
+                def draw_glow(draw_obj, pos, size, color):
+                    for i in range(15, 0, -1):
+                        alpha = int(255 * (1 - i/15))
+                        draw_obj.rectangle([pos[0]-i, pos[1]-i, pos[0]+size+i, pos[1]+size+i], outline=(*color, alpha), width=2)
 
-            canvas.paste(av1, (100, 120), av1)
-            canvas.paste(av2, (750, 120), av2)
+                draw_glow(draw, (100, 120), av_size, (255, 20, 147)) 
+                draw_glow(draw, (750, 120), av_size, (255, 0, 0))   
 
-            draw.text((500, 50), title, fill=(255, 255, 255), stroke_width=5, stroke_fill=(0,0,0))
-            draw.text((550, 250), "VS", fill=(255, 0, 0), stroke_width=8, stroke_fill=(0,0,0))
+                canvas.paste(av1, (100, 120), av1)
+                canvas.paste(av2, (750, 120), av2)
 
-            buf = io.BytesIO()
-            canvas.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
+                draw.text((500, 50), title, fill=(255, 255, 255), stroke_width=5, stroke_fill=(0,0,0))
+                # REMOVED: VS Text drawing logic
+
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+            
+            # FIXED: Heavy Pillow processing moved to background thread
+            return await asyncio.to_thread(process)
         except Exception as e:
             print(f"Ask Visual Error: {e}")
             return None
@@ -61,8 +66,8 @@ class DungeonAsk(commands.Cog):
 
         main_mod = sys.modules['__main__']
         
-        # Phase 1: Initial Selection Card
-        img = await self.create_ask_lobby(ctx.author.display_avatar.url, member.display_avatar.url, "INTERACTION PENDING")
+        # Phase 1: Initial Selection Card (Title parameter removed as requested)
+        img = await self.create_ask_lobby(ctx.author.display_avatar.url, member.display_avatar.url, "")
         file = discord.File(img, filename="ask.png")
         
         embed = main_mod.fiery_embed("🔞 ASK TO DM ALERT 🔞", 
@@ -97,10 +102,9 @@ class DungeonAsk(commands.Cog):
                 async def select_callback(sel_interaction: discord.Interaction):
                     if sel_interaction.user.id != self.requester.id: return
                     
-                    u_data = main_mod.get_user(self.requester.id)
+                    u_data = await asyncio.to_thread(main_mod.get_user, self.requester.id)
                     lvl = (u_data['balance'] // 5000) + 1
                     
-                    # Intent formatting: Bold and focused
                     intent_display = " | ".join([f"**{val}**" for val in select.values])
                     
                     stats_str = (
@@ -109,7 +113,6 @@ class DungeonAsk(commands.Cog):
                         f"🔗 **Bound:** {'Yes' if u_data['spouse'] else 'No'}"
                     )
 
-                    # THE FINAL REQUEST CARD: "Ask to DM" Theme
                     final_embed = main_mod.fiery_embed("📩 INCOMING DM CONTRACT 📩", 
                         f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
                         f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
@@ -117,9 +120,8 @@ class DungeonAsk(commands.Cog):
                         f"**Do you accept these terms, or shall the request burn in the furnace?**")
                     
                     final_embed.set_thumbnail(url=self.requester.display_avatar.url)
-                    final_embed.color = 0x00BFFF # Deep Sky Blue for DM theme
+                    final_embed.color = 0x00BFFF 
 
-                    # RECIPIENT INTERACTION VIEW
                     class RecipientView(discord.ui.View):
                         def __init__(self, req, tar):
                             super().__init__(timeout=300)
