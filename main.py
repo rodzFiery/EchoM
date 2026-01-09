@@ -1,14 +1,4 @@
 # FIX: Python 3.13 compatibility shim for audioop
-try:
-    import audioop
-except ImportError:
-    try:
-        import audioop_lts as audioop
-        import sys
-        sys.modules['audioop'] = audioop
-    except ImportError:
-        pass 
-
 import discord
 from discord.ext import commands, tasks
 import random
@@ -483,3 +473,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
