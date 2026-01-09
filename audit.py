@@ -52,7 +52,7 @@ class AuditManager(commands.Cog):
             await channels[0].send(embed=log_emb)
             
         else:
-            await ctx.send("❌ **SYSTEM ERROR:** The `FieryShip` module was not detected. Ensure it is loaded first.")
+            await ctx.send("❌ **SYSTEM ERROR:** The `EchoShip` module was not detected. Ensure it is loaded first.")
 
     @set_audit_channels.error
     async def audit_error(self, ctx, error):
