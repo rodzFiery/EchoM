@@ -236,7 +236,33 @@ class TextLevelSystem(commands.Cog):
                 role_id = self.level_roles[str(new_lvl)]
                 role = message.guild.get_role(role_id)
                 if role:
-                    try: await message.author.add_roles(role, reason=f"Neural Level {new_lvl} reached.")
+                    try: 
+                        await message.author.add_roles(role, reason=f"Neural Level {new_lvl} reached.")
+                        # --- ADDED: AUDIT REPORT FOR ROLE CONQUEST ---
+                        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
+                        audit_channel = self.bot.get_channel(audit_id)
+                        if audit_channel:
+                            audit_emb = main_mod.fiery_embed("⚖️ ROLE CONQUEST LOG", 
+                                f"**Asset:** {message.author.mention}\n"
+                                f"**Conquest:** Neural Level `{new_lvl}`\n"
+                                f"**Privilege Granted:** {role.mention}", color=0x2ECC71)
+                            await audit_channel.send(embed=audit_emb)
+
+                        # --- ADDED: SPECIAL CERTIFICATE FOR ROLE UNLOCK ---
+                        if self.level_channel_id:
+                            lvl_channel = self.bot.get_channel(self.level_channel_id)
+                            if lvl_channel:
+                                u_data = await asyncio.to_thread(main_mod.get_user, message.author.id)
+                                cert_desc = (f"### 👑 ELITE CONQUEST: LEVEL {new_lvl}\n"
+                                             f"Asset {message.author.mention}, you have unlocked a new tier of authority.\n\n"
+                                             f"**New Role:** {role.mention}\n\n"
+                                             f"⚙️ **PROFILE DATA:**\n"
+                                             f"└─ `XP:` **{u_data['xp']:,}**\n"
+                                             f"└─ `Capital:` **{u_data['balance']:,} Flames**\n"
+                                             f"└─ `Class:` **{u_data['class']}**\n\n"
+                                             f"*Your frequency is dominant.*")
+                                cert_emb = main_mod.fiery_embed("📜 NEURAL CERTIFICATE OF AUTHORITY", cert_desc, color=0x9B59B6)
+                                await lvl_channel.send(embed=cert_emb)
                     except: pass
 
             if self.level_channel_id:
