@@ -479,6 +479,13 @@ async def on_ready():
         print("✅ LOG: Thread System is ONLINE.")
     except Exception as e:
         print(f"Failed to load thread extension: {e}")
+
+    # --- ADDED: TEXT LEVEL SYSTEM LOADING ---
+    try:
+        await bot.load_extension("levels")
+        print("✅ LOG: Text Level System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load levels extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
