@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone, time
 import database as db_module
 DATABASE_PATH = db_module.DATABASE_PATH
 
-# Configuration
-AUDIT_CHANNEL_ID = 1438810509322223677
+# Configuration (This acts as the default if not changed by !audit)
+DEFAULT_AUDIT_CHANNEL_ID = 1438810509322223677
 
 # Channel Mapping: ChannelID -> (XP, Flames)
 SELFIE_CHANNELS = {
@@ -34,26 +34,24 @@ class Collect(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = DATABASE_PATH
-        # NEW STRUCTURE: Tracking detailed counts for exhibition and reactions
-        # ADDED: Expanded log to track Fights, HG (kills/fb/plays/placements), Badges, and Ships
-        self.hourly_log = {} # Stores {user_id: {'xp': 0, 'flames': 0, 'pics': {}, 'reactions': 0, 'fights': 0, 'hg_kills': 0, 'hg_first_bloods': 0, 'hg_plays': 0, 'hg_top1': 0, 'hg_top2': 0, 'hg_top3': 0, 'hg_top4': 0, 'hg_top5': 0, 'badges': [], 'ships': []}}
-        # ADDED: Buffer for grouping reactions every 3 hours to prevent spam
-        self.reaction_buffer = {} # {user_id: count}
+        # ADDED: This variable is what !audit will target and update
+        self.AUDIT_CHANNEL_ID = DEFAULT_AUDIT_CHANNEL_ID 
+        
+        self.hourly_log = {} 
+        self.reaction_buffer = {} 
         self.audit_task.start()
-        # ADDED: 3-hour vibration report task
         self.vibration_report_task.start()
 
     def get_db_connection(self):
-        # FIXED: Using centralized db_module connection to ensure stability
         return db_module.get_db_connection()
 
     async def send_immediate_audit(self, user_id, xp, flames, source_desc, channel_name=None):
         """ADDED: Sends an immediate erotic log to the audit channel for every action."""
-        # FIX: Ensure we attempt to fetch the channel if not in cache
-        audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+        # FIXED: Pulling dynamically from self so !audit changes work instantly
+        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if not audit_channel:
             try:
-                audit_channel = await self.bot.fetch_channel(AUDIT_CHANNEL_ID)
+                audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
             except:
                 return
         
@@ -80,7 +78,6 @@ class Collect(commands.Cog):
         
         embed.set_footer(text="🔞 THE MASTER'S EYES ARE EVERYWHERE 🔞")
         
-        # ADDED: Sexualized Voyeur Note
         embed.add_field(name="📝 VOYEUR NOTE", value=f"Asset {user.display_name} has yielded to the exhibition protocol. Their submission is being monetized.", inline=False)
         
         if os.path.exists(image_path):
@@ -89,16 +86,13 @@ class Collect(commands.Cog):
             await audit_channel.send(embed=embed)
 
     def update_user_stats(self, user_id, xp, flames, channel_id=None, is_reaction=False, is_fight=False, hg_kill=0, hg_fb=False, hg_play=False, hg_rank=0, badge=None, ship_partner=None):
-        """Adds rewards to the database and logs for the daily audit."""
         with self.get_db_connection() as conn:
-            # Note: Assuming 'xp' and 'balance' (flames) columns exist in your users table
             conn.execute(
                 "UPDATE users SET xp = xp + ?, balance = balance + ? WHERE id = ?",
                 (xp, flames, user_id)
             )
             conn.commit()
         
-        # Track for the fancy audit report
         if user_id not in self.hourly_log:
             self.hourly_log[user_id] = {'xp': 0, 'flames': 0, 'pics': {}, 'reactions': 0, 'fights': 0, 'hg_kills': 0, 'hg_first_bloods': 0, 'hg_plays': 0, 'hg_top1': 0, 'hg_top2': 0, 'hg_top3': 0, 'hg_top4': 0, 'hg_top5': 0, 'badges': [], 'ships': []}
         
@@ -107,16 +101,13 @@ class Collect(commands.Cog):
         
         if is_reaction:
             self.hourly_log[user_id]['reactions'] += 1
-            # MODIFIED: Instead of immediate audit, we now buffer reactions for 3h
             self.reaction_buffer[user_id] = self.reaction_buffer.get(user_id, 0) + 1
         
-        # ADDED: Stats for Games and Ships
         if is_fight: self.hourly_log[user_id]['fights'] += 1
         if hg_kill > 0: self.hourly_log[user_id]['hg_kills'] += hg_kill
         if hg_fb: self.hourly_log[user_id]['hg_first_bloods'] += 1
         if hg_play: self.hourly_log[user_id]['hg_plays'] += 1
         
-        # ADDED: HG Placement Tracking
         if hg_rank == 1: self.hourly_log[user_id]['hg_top1'] += 1
         elif hg_rank == 2: self.hourly_log[user_id]['hg_top2'] += 1
         elif hg_rank == 3: self.hourly_log[user_id]['hg_top3'] += 1
@@ -131,7 +122,6 @@ class Collect(commands.Cog):
                 self.hourly_log[user_id]['pics'][channel_id] = 0
             self.hourly_log[user_id]['pics'][channel_id] += 1
             
-            # Trigger immediate audit for post
             chan = self.bot.get_channel(channel_id)
             c_name = chan.name if chan else str(channel_id)
             asyncio.create_task(self.send_immediate_audit(user_id, xp, flames, "Exhibition (Capture)", c_name))
@@ -140,8 +130,6 @@ class Collect(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-
-        # Check if channel is in our rewards list and message HAS an image/file
         if message.channel.id in SELFIE_CHANNELS:
             if message.attachments:
                 xp, flames = SELFIE_CHANNELS[message.channel.id]
@@ -151,22 +139,19 @@ class Collect(commands.Cog):
     async def on_raw_reaction_add(self, payload):
         if payload.user_id == self.bot.user.id:
             return
-        
-        # Every reaction gives 25 XP and 25 Flames
         self.update_user_stats(payload.user_id, 25, 25, is_reaction=True)
 
-    # MODIFIED: Logic fix for the daily task to ensure it triggers correctly at 9 PM Lisbon (21:00)
     @tasks.loop(time=[time(hour=21, minute=0, second=0)])
     async def audit_task(self):
         """Sends a massive erotic daily summary every day at 9 PM Lisbon Time."""
         if not self.hourly_log:
             return
 
-        # FIX: Robust channel fetching for tasks
-        audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+        # FIXED: Pulling dynamically from self for !audit support
+        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if not audit_channel:
             try:
-                audit_channel = await self.bot.fetch_channel(AUDIT_CHANNEL_ID)
+                audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
             except:
                 return
 
@@ -176,7 +161,7 @@ class Collect(commands.Cog):
         embed = discord.Embed(
             title="🌅 THE MASTER'S DAILY CLIMAX: 09:00 PM 🌅",
             description="The sun sets over the dungeon. The daily ledger is finalized. Every groan, every fight, and every display of skin has been calculated.",
-            color=0x8b0000, # Blood Red
+            color=0x8b0000, 
             timestamp=datetime.now(timezone.utc)
         )
 
@@ -184,14 +169,12 @@ class Collect(commands.Cog):
             file = discord.File(image_path, filename="harvest.jpg")
             embed.set_thumbnail(url="attachment://harvest.jpg")
 
-        # Compile individual reports and pings
         ping_list = []
         for user_id, stats in self.hourly_log.items():
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
             user_mention = user.mention if user else f"Subject {user_id}"
             ping_list.append(user_mention)
             
-            # --- DETAILED CALCULATION BREAKDOWN ---
             calc_details = []
             if stats.get('reactions', 0) > 0:
                 calc_details.append(f"🫦 **Reactions:** `{stats['reactions']}` × (25F / 25XP) = **{stats['reactions']*25:,}**")
@@ -206,8 +189,6 @@ class Collect(commands.Cog):
                     calc_details.append(f"📸 **#{chan_name}:** `{count}` posts × ({flame_rate}F / {xp_rate}XP) = **{total_f:,}F / {total_x:,}XP**")
 
             calculation_resume = "\n".join(calc_details) if calc_details else "_No passive extraction detected._"
-
-            # --- DETAILED GAME RESUME ---
             game_report = ""
             if stats.get('fights', 0) > 0:
                 game_report += f"\n⚔️ **1v1 Fights Initiated:** {stats['fights']}"
@@ -226,7 +207,6 @@ class Collect(commands.Cog):
                     game_report += f" | 🩸 **FB:** {stats['hg_first_bloods']}"
                 game_report += f"\n🏆 **Placements:** {placement_str}"
             
-            # --- SHIPS & BADGES ---
             status_report = ""
             if stats.get('ships'):
                 status_report += f"\n💖 **High-Lust Ships (75%+):** {', '.join(stats['ships'])}"
@@ -251,7 +231,6 @@ class Collect(commands.Cog):
         else:
             await audit_channel.send(content=content, embed=embed)
         
-        # SCHEDULED RESET: Clear logs after the 9 PM report
         self.hourly_log.clear()
 
     @commands.command()
@@ -261,11 +240,12 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return await ctx.send("The sensors are clear. No new activity to report in the ledger.")
         
-        await ctx.send("Master detected. Generating immediate synchronization report (Daily data will remain)...")
+        await ctx.send("Master detected. Generating immediate synchronization report...")
         
-        audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+        # FIXED: Pulling dynamically from self for !audit support
+        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if not audit_channel:
-            try: audit_channel = await self.bot.fetch_channel(AUDIT_CHANNEL_ID)
+            try: audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
             except: return
 
         image_path = "LobbyTopRight.jpg"
@@ -338,10 +318,13 @@ class Collect(commands.Cog):
         """Groups all reaction activity from the last 3 hours into one erotic audit log."""
         if not self.reaction_buffer:
             return
-        audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+        
+        # FIXED: Pulling dynamically from self for !audit support
+        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if not audit_channel:
-            try: audit_channel = await self.bot.fetch_channel(AUDIT_CHANNEL_ID)
+            try: audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
             except: return
+        
         embed = discord.Embed(
             title="🕵️ VOYEUR FEED: MASS VIBRATION REPORT",
             description="The internal sensors have reached capacity. Reaction display report follows.",
