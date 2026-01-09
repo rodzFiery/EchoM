@@ -6,8 +6,8 @@ import aiohttp
 import sys
 import json
 import os
-from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from datetime import datetime, timezone
 
 class FieryShip(commands.Cog):
     def __init__(self, bot):
@@ -182,15 +182,22 @@ class FieryShip(commands.Cog):
             if percent > 0:
                 draw.rectangle([col_x + 8, (col_y + col_h) - fill_height, col_x + col_w - 8, col_y + col_h - 8], fill=light_green)
 
-            # MASSIVE PERCENTAGE TEXT
-            score_text = f"{percent}%"
-            draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
+            # --- WORKAROUND: SECOND LOBBY IN MIDDLE CENTER ---
+            # Creates a central box to frame the % specifically
+            mid_lobby_w, mid_lobby_h = 100, 80
+            mid_lobby_x = (canvas_width // 2) - (mid_lobby_w // 2)
+            mid_lobby_y = col_y + (col_h // 2) - (mid_lobby_h // 2)
+            
+            # Drawing the secondary inner lobby
+            draw.rectangle([mid_lobby_x, mid_lobby_y, mid_lobby_x + mid_lobby_w, mid_lobby_y + mid_lobby_h], fill=(0, 0, 0, 230), outline=(255, 255, 255), width=3)
 
-            # ADDED: CENTERED BOLD PERCENTAGE IN THE MIDDLE OF THE RULER
-            # Using basic draw.text with large stroke to simulate "BIG BOLD" without external font files
-            center_x = (canvas_width // 2) - 65
-            center_y = col_y + (col_h // 2) - 40
-            draw.text((center_x, center_y), score_text, fill=(255, 255, 255), stroke_width=12, stroke_fill=(0,0,0))
+            # MASSIVE BOLD PERCENTAGE TEXT IN SECOND LOBBY
+            score_text = f"{percent}%"
+            # Centering text within the inner lobby
+            draw.text((mid_lobby_x + 15, mid_lobby_y + 20), score_text, fill=(255, 255, 255), stroke_width=4, stroke_fill=(0,0,0))
+
+            # TOP PERCENTAGE TEXT (Original position preserved)
+            draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
 
             # --- REMOVED: Bottom Progress Bar Section ---
             
@@ -576,7 +583,7 @@ class FieryShip(commands.Cog):
                 res_emb.set_thumbnail(url="attachment://LobbyTopRight.jpg")
                 await ctx.send(file=file, embed=res_emb)
             else:
-                await ctx.send(embed=res_emb)
+                await ctx.send(res_emb)
             
         except:
             await ctx.send(f"🥀 {partner.mention} was too shy for the stage. The trial is cancelled.")
