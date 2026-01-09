@@ -119,6 +119,27 @@ class TextLevelSystem(commands.Cog):
             else:
                 if channel: await channel.send(content=user.mention, embed=embed)
 
+    @commands.command(name="leveloff")
+    async def level_off(self, ctx):
+        """Toggles your participation in the Text Level System."""
+        main_mod = sys.modules['__main__']
+        user_id = ctx.author.id
+        
+        def toggle_status():
+            with main_mod.get_db_connection() as conn:
+                try: conn.execute("ALTER TABLE users ADD COLUMN level_status INTEGER DEFAULT 1")
+                except: pass
+                current = conn.execute("SELECT level_status FROM users WHERE id = ?", (user_id,)).fetchone()
+                new_status = 0 if current and current['level_status'] == 1 else 1
+                conn.execute("UPDATE users SET level_status = ? WHERE id = ?", (new_status, user_id))
+                conn.commit()
+                return new_status
+
+        status = await asyncio.to_thread(toggle_status)
+        text = "DISABLED. Your frequency is now hidden from the Echo." if status == 0 else "ENABLED. Your frequency is now being tracked."
+        color = 0xFF0000 if status == 0 else 0x00FF00
+        await ctx.send(embed=main_mod.fiery_embed("📡 LEVEL PROTOCOL", f"{ctx.author.mention}, Level Tracking is now **{text}**", color=color))
+
     @commands.command(name="setlevelchannel")
     @commands.has_permissions(administrator=True)
     async def set_level_channel(self, ctx, channel: discord.TextChannel = None):
@@ -154,8 +175,12 @@ class TextLevelSystem(commands.Cog):
             with main_mod.get_db_connection() as conn:
                 try: conn.execute("ALTER TABLE users ADD COLUMN total_reactions INTEGER DEFAULT 0")
                 except: pass
+                try: conn.execute("ALTER TABLE users ADD COLUMN level_status INTEGER DEFAULT 1")
+                except: pass
                 
-                user = conn.execute("SELECT total_reactions FROM users WHERE id = ?", (payload.user_id,)).fetchone()
+                user = conn.execute("SELECT total_reactions, level_status FROM users WHERE id = ?", (payload.user_id,)).fetchone()
+                if user and user['level_status'] == 0: return None, None # Opted out
+                
                 prev = user['total_reactions'] if user else 0
                 curr = prev + 1
                 conn.execute("UPDATE users SET total_reactions = ? WHERE id = ?", (curr, payload.user_id))
@@ -163,8 +188,8 @@ class TextLevelSystem(commands.Cog):
                 return curr, prev
 
         curr, prev = await asyncio.to_thread(update_reaction_data)
+        if curr is None: return
         
-        # Determine the user object for the achievement ping
         guild = self.bot.get_guild(payload.guild_id)
         if guild:
             member = payload.member or guild.get_member(payload.user_id)
@@ -184,7 +209,11 @@ class TextLevelSystem(commands.Cog):
             with main_mod.get_db_connection() as conn:
                 try: conn.execute("ALTER TABLE users ADD COLUMN total_messages INTEGER DEFAULT 0")
                 except: pass
-                user = conn.execute("SELECT total_messages FROM users WHERE id = ?", (user_id,)).fetchone()
+                try: conn.execute("ALTER TABLE users ADD COLUMN level_status INTEGER DEFAULT 1")
+                except: pass
+                user = conn.execute("SELECT total_messages, level_status FROM users WHERE id = ?", (user_id,)).fetchone()
+                if user and user['level_status'] == 0: return None, None # Opted out
+                
                 prev = user['total_messages'] if user else 0
                 curr = prev + 1
                 conn.execute("UPDATE users SET total_messages = ? WHERE id = ?", (curr, user_id))
@@ -192,7 +221,8 @@ class TextLevelSystem(commands.Cog):
                 return curr, prev
         
         curr_msg, prev_msg = await asyncio.to_thread(update_msg_count)
-        await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
+        if curr_msg is not None:
+            await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
 
         # Cooldown check for XP (Independent from Achievement counter)
         bucket = self._cooldown.get_bucket(message)
@@ -200,18 +230,17 @@ class TextLevelSystem(commands.Cog):
         if retry_after:
             return
 
-        xp_gain = random.randint(15, 25) # Random XP per message
+        xp_gain = random.randint(15, 25)
 
         def update_level_data():
             with main_mod.get_db_connection() as conn:
-                # Ensure columns exist
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_xp INTEGER DEFAULT 0")
                 except: pass
                 try: conn.execute("ALTER TABLE users ADD COLUMN text_level INTEGER DEFAULT 0")
                 except: pass
 
-                user = conn.execute("SELECT text_xp, text_level FROM users WHERE id = ?", (user_id,)).fetchone()
-                if not user: return None, None, False
+                user = conn.execute("SELECT text_xp, text_level, level_status FROM users WHERE id = ?", (user_id,)).fetchone()
+                if not user or user['level_status'] == 0: return None, None, False
 
                 current_xp = user['text_xp'] + xp_gain
                 current_lvl = user['text_level']
@@ -229,16 +258,15 @@ class TextLevelSystem(commands.Cog):
                 return current_lvl, current_xp, leveled_up
 
         new_lvl, new_xp, did_level_up = await asyncio.to_thread(update_level_data)
+        if new_lvl is None: return
 
         if did_level_up:
-            # Handle Auto-Role logic
             if str(new_lvl) in self.level_roles:
                 role_id = self.level_roles[str(new_lvl)]
                 role = message.guild.get_role(role_id)
                 if role:
                     try: 
                         await message.author.add_roles(role, reason=f"Neural Level {new_lvl} reached.")
-                        # --- AUDIT REPORT FOR ROLE CONQUEST ---
                         audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
                         audit_channel = self.bot.get_channel(audit_id)
                         if audit_channel:
@@ -248,7 +276,6 @@ class TextLevelSystem(commands.Cog):
                                 f"**Privilege Granted:** {role.mention}", color=0x2ECC71)
                             await audit_channel.send(embed=audit_emb)
 
-                        # --- SPECIAL CERTIFICATE FOR ROLE UNLOCK ---
                         if self.level_channel_id:
                             lvl_channel = self.bot.get_channel(self.level_channel_id)
                             if lvl_channel:
@@ -291,7 +318,6 @@ class TextLevelSystem(commands.Cog):
         xp = user.get('text_xp', 0)
         needed = self.get_xp_needed(lvl)
         
-        # Progress bar
         bar_len = 10
         filled = int((xp / max(1, needed)) * bar_len)
         bar = "🟦" * filled + "⬛" * (bar_len - filled)
@@ -310,7 +336,7 @@ class TextLevelSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         
         with main_mod.get_db_connection() as conn:
-            u = conn.execute("SELECT text_level, text_xp, total_messages, total_reactions FROM users WHERE id = ?", (target.id,)).fetchone()
+            u = conn.execute("SELECT text_level, text_xp, total_messages, total_reactions, level_status FROM users WHERE id = ?", (target.id,)).fetchone()
         
         if not u:
             return await ctx.send(embed=main_mod.fiery_embed("❌ ERROR", "Asset data not found in the neural archives."))
@@ -319,9 +345,9 @@ class TextLevelSystem(commands.Cog):
         xp = u['text_xp'] or 0
         msgs = u['total_messages'] or 0
         reacts = u['total_reactions'] or 0
+        status = u['level_status']
         needed = self.get_xp_needed(lvl)
         
-        # Determine Next Role
         next_role_info = "None Available"
         sorted_lvls = sorted([int(k) for k in self.level_roles.keys()])
         for l in sorted_lvls:
@@ -330,14 +356,13 @@ class TextLevelSystem(commands.Cog):
                 next_role_info = f"{role.mention if role else 'Unknown'} at **Level {l}**"
                 break
 
-        # Progress UI
         percent = int((xp / max(1, needed)) * 100)
         bar_len = 15
         filled = int((xp / max(1, needed)) * bar_len)
         bar = "🟦" * filled + "⬛" * (bar_len - filled)
 
         desc = f"### 🧩 NEURAL DIAGNOSTIC: {target.display_name.upper()}\n"
-        desc += "*Analyzing frequency resonance across all global sectors...*\n\n"
+        desc += f"*Tracking Status: {'🟢 ACTIVE' if status == 1 else '🔴 DISABLED'}*\n\n"
         
         desc += "📉 **LEVEL PROGRESSION**\n"
         desc += f"```ml\nLevel: {lvl} | Progress: {percent}% \n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}\n```\n"
@@ -369,11 +394,11 @@ class TextLevelSystem(commands.Cog):
         
         def fetch_top():
             with main_mod.get_db_connection() as conn:
-                return conn.execute("SELECT id, text_level, text_xp FROM users WHERE text_level > 0 OR text_xp > 0 ORDER BY text_level DESC, text_xp DESC").fetchall()
+                return conn.execute("SELECT id, text_level, text_xp FROM users WHERE level_status = 1 AND (text_level > 0 OR text_xp > 0) ORDER BY text_level DESC, text_xp DESC").fetchall()
 
         data = await asyncio.to_thread(fetch_top)
         if not data:
-            return await ctx.send("The ledger is empty. No frequencies detected yet.")
+            return await ctx.send("The ledger is empty or all assets have hidden their frequencies.")
 
         view = RankTopView(ctx, data, main_mod)
         await ctx.send(embed=view.create_embed(), view=view)
