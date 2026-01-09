@@ -1,9 +1,6 @@
 import discord
 from discord.ext import commands
 import random
-import discord
-from discord.ext import commands
-import random
 import io
 import aiohttp
 import sys
@@ -174,35 +171,6 @@ class FieryShip(commands.Cog):
             # Paste SQUARE Avatars on the sides
             canvas.paste(av1_framed, (20, 150), av1_framed)
             canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
-
-            # --- THE CENTRAL RULER (DOMINANT FEATURE) ---
-            col_x, col_y, col_w, col_h = (canvas_width // 2) - 60, 120, 120, 480
-            light_green = (50, 255, 50) # High-Visibility Vibrant Green
-            
-            draw.rectangle([col_x, col_y, col_x + col_w, col_y + col_h], fill=(20, 20, 20, 200), outline=(255, 255, 255), width=5)
-            
-            fill_height = (percent / 100) * col_h
-            if percent > 0:
-                draw.rectangle([col_x + 8, (col_y + col_h) - fill_height, col_x + col_w - 8, col_y + col_h - 8], fill=light_green)
-
-            # --- WORKAROUND: SECOND LOBBY IN MIDDLE CENTER ---
-            # Creates a central box to frame the % specifically
-            mid_lobby_w, mid_lobby_h = 100, 80
-            mid_lobby_x = (canvas_width // 2) - (mid_lobby_w // 2)
-            mid_lobby_y = col_y + (col_h // 2) - (mid_lobby_h // 2)
-            
-            # Drawing the secondary inner lobby
-            draw.rectangle([mid_lobby_x, mid_lobby_y, mid_lobby_x + mid_lobby_w, mid_lobby_y + mid_lobby_h], fill=(0, 0, 0, 230), outline=(255, 255, 255), width=3)
-
-            # MASSIVE BOLD PERCENTAGE TEXT IN SECOND LOBBY
-            score_text = f"{percent}%"
-            # Centering text within the inner lobby
-            draw.text((mid_lobby_x + 15, mid_lobby_y + 20), score_text, fill=(255, 255, 255), stroke_width=4, stroke_fill=(0,0,0))
-
-            # TOP PERCENTAGE TEXT (Original position preserved)
-            draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
-
-            # --- REMOVED: Bottom Progress Bar Section ---
             
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
