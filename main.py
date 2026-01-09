@@ -148,7 +148,7 @@ def run_web_server():
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except Exception as e:
-        print(f"Web Server bypass (Address in use): {e}")
+        print(f"Web Server bypass: {e}")
 
 # Inicia o servidor em segundo plano apenas se nao estiver rodando
 if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
@@ -390,7 +390,7 @@ async def on_ready():
     
     bot.add_view(ignis.LobbyView(None, None))
 
-    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # CARREGAMENTO AUTOMATICO DO ADMIN, CLASSES E EXTENSOES
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
