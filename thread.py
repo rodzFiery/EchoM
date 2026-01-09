@@ -37,18 +37,17 @@ class AutoThread(commands.Cog):
     @commands.command(name="thread")
     @commands.has_permissions(administrator=True)
     async def toggle_thread(self, ctx, channel: discord.TextChannel = None):
-        """Admin command to enable/disable auto-threading on a specific channel."""
+        """Admin command to enable auto-threading on a specific channel."""
         target_channel = channel or ctx.channel
         main_mod = sys.modules['__main__']
 
         if target_channel.id in self.active_channels:
-            self.active_channels.remove(target_channel.id)
-            action = "DISABLED"
-            color = 0xFF0000
-        else:
-            self.active_channels.add(target_channel.id)
-            action = "ENABLED"
-            color = 0x00FF00
+            embed = main_mod.fiery_embed("🧵 THREAD PROTOCOL", f"Auto-Thread is already **ACTIVE** for {target_channel.mention}. Use `!threadoff` to disable it.", color=0xFFFF00)
+            return await ctx.send(embed=embed)
+        
+        self.active_channels.add(target_channel.id)
+        action = "ENABLED"
+        color = 0x00FF00
 
         self.save_threads_config()
         
@@ -58,6 +57,24 @@ class AutoThread(commands.Cog):
                                     color=color)
         
         await ctx.send(embed=embed)
+
+    @commands.command(name="threadoff")
+    @commands.has_permissions(administrator=True)
+    async def thread_off(self, ctx, channel: discord.TextChannel = None):
+        """Admin command to disable auto-threading on a specific channel."""
+        target_channel = channel or ctx.channel
+        main_mod = sys.modules['__main__']
+
+        if target_channel.id in self.active_channels:
+            self.active_channels.remove(target_channel.id)
+            self.save_threads_config()
+            
+            embed = main_mod.fiery_embed("🧵 THREAD PROTOCOL DEACTIVATED", 
+                                        f"Auto-Thread functionality has been **DISABLED** for {target_channel.mention}.", 
+                                        color=0xFF0000)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(embed=main_mod.fiery_embed("🧵 THREAD PROTOCOL", f"Auto-Thread was not active in {target_channel.mention}.", color=0xFF0000))
 
     @commands.Cog.listener()
     async def on_message(self, message):
