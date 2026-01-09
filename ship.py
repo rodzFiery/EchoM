@@ -124,7 +124,7 @@ class FieryShip(commands.Cog):
         self.AUDIT_CHANNEL_ID = 1438810509322223677
 
     async def create_ship_image(self, u1_url, u2_url, percent):
-        """Generates visual match with SQUARE avatars and high-visibility central green ruler (Borders Removed)."""
+        """Generates visual match with SQUARE avatars and high-visibility central green ruler."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(u1_url) as r1, session.get(u2_url) as r2:
@@ -155,8 +155,7 @@ class FieryShip(commands.Cog):
                 glow_range = 20 + pulse_intensity 
                 for i in range(glow_range, 0, -1):
                     alpha = int(220 * (1 - i/glow_range))
-                    # FIX: Removed outline from avatar frames
-                    draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=0)
+                    draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
                 glow.paste(avatar, (40, 40), avatar)
                 return glow
 
@@ -177,8 +176,7 @@ class FieryShip(commands.Cog):
             col_x, col_y, col_w, col_h = (canvas_width // 2) - 60, 120, 120, 480
             light_green = (50, 255, 50) # High-Visibility Vibrant Green
             
-            # FIX: Removed outline from the central ruler container
-            draw.rectangle([col_x, col_y, col_x + col_w, col_y + col_h], fill=(20, 20, 20, 200), width=0)
+            draw.rectangle([col_x, col_y, col_x + col_w, col_y + col_h], fill=(20, 20, 20, 200), outline=(255, 255, 255), width=5)
             
             fill_height = (percent / 100) * col_h
             if percent > 0:
@@ -188,13 +186,7 @@ class FieryShip(commands.Cog):
             score_text = f"{percent}%"
             draw.text(((canvas_width // 2) - 80, 20), score_text, fill=(255, 255, 255), stroke_width=10, stroke_fill=(0,0,0))
 
-            # Bottom Progress Bar
-            # FIX: Removed outline from bottom bar
-            draw.rectangle([100, 640, 1100, 680], fill=(15, 0, 5, 200), width=0)
-            bar_width = (percent / 100) * 1000
-            if percent > 60:
-                draw.text(((canvas_width // 2) - 15, 620), "🫦", fill=(255, 255, 255))
-            draw.rectangle([104, 644, 100 + bar_width, 676], fill=frame_color)
+            # --- REMOVED: Bottom Progress Bar Section ---
             
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
