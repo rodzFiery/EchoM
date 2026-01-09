@@ -20,6 +20,7 @@ import asyncio
 import json
 import shutil
 import sys
+import aiohttp # ADDED: Required for topgg_poster task
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
