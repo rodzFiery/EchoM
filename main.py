@@ -3,7 +3,7 @@ try:
     import audioop
 except ImportError:
     try:
-        刻 import audioop_lts as audioop
+        import audioop_lts as audioop
         import sys
         sys.modules['audioop'] = audioop
     except ImportError:
@@ -351,7 +351,7 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
     """Sends a public ping in the alert channel."""
     embed = fiery_embed("⚠️ STREAK VIBRATION: DISCIPLINE REQUIRED", 
                         f"Asset <@{user_id}>, your consistent submission is at risk.\n\n"
-                        f"It has been **{elapsed}** since your last **{tier} Claim. "
+                        f"It has been **{elapsed}** since your last **{tier}** claim. "
                         f"In **3 hours**, your progress will be purged.\n\n"
                         f"⛓️ **Submit your tribute now.**", color=0xFFCC00)
     
