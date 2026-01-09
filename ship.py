@@ -8,6 +8,7 @@ import json
 import os
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 from datetime import datetime, timezone
+import asyncio # ADDED: Required for to_thread logic
 
 class FieryShip(commands.Cog):
     def __init__(self, bot):
@@ -131,78 +132,58 @@ class FieryShip(commands.Cog):
                     p1_data = io.BytesIO(await r1.read())
                     p2_data = io.BytesIO(await r2.read())
 
-            # --- RESETTING LAYOUT ---
-            canvas_width = 1200
-            canvas_height = 700
-            
-            # Use shipbg.jpg as background
-            if os.path.exists("shipbg.jpg"):
-                canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
-            else:
-                canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
-                
-            draw = ImageDraw.Draw(canvas)
+            def draw_process():
+                # --- RESETTING LAYOUT ---
+                canvas_width = 1200
+                canvas_height = 700
+                if os.path.exists("shipbg.jpg"):
+                    canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                else:
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
+                draw = ImageDraw.Draw(canvas)
+                av_size = 400
+                av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
+                av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
+                def apply_erotic_frame_square(avatar, color, pulse_intensity=3):
+                    glow_size = av_size + 80
+                    glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
+                    draw_g = ImageDraw.Draw(glow)
+                    glow_range = 20 + pulse_intensity 
+                    for i in range(glow_range, 0, -1):
+                        alpha = int(220 * (1 - i/glow_range))
+                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
+                    glow.paste(avatar, (40, 40), avatar)
+                    return glow
+                frame_color = (255, 20, 147) # Hot Pink
+                pulse = int((percent / 100) * 10) 
+                if percent == 69: frame_color = (255, 0, 255) 
+                elif percent >= 90: frame_color = (255, 0, 80) 
+                av1_framed = apply_erotic_frame_square(av1_img, frame_color, pulse)
+                av2_framed = apply_erotic_frame_square(av2_img, frame_color, pulse)
+                canvas.paste(av1_framed, (20, 150), av1_framed)
+                canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
+                pillar_w, pillar_h = 100, 480
+                pillar_x = (canvas_width // 2) - (pillar_w // 2)
+                pillar_y = 120
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 5, 240), outline=(50, 0, 0), width=4)
+                fill_pixels = int((percent / 100) * pillar_h)
+                if fill_pixels > 0:
+                    for i in range(fill_pixels):
+                        ratio = i / pillar_h
+                        r = 255
+                        g = int(255 * ratio)
+                        b = 0
+                        current_y = (pillar_y + pillar_h) - i
+                        draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
+                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
+                percent_text = f"{percent}%"
+                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 255, 255), stroke_width=6, stroke_fill=(0,0,0))
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
 
-            # BIGGER SQUARE AVATARS: Set to 400px
-            av_size = 400
-            av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
-            av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
-
-            def apply_erotic_frame_square(avatar, color, pulse_intensity=3):
-                glow_size = av_size + 80
-                glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
-                draw_g = ImageDraw.Draw(glow)
-                glow_range = 20 + pulse_intensity 
-                for i in range(glow_range, 0, -1):
-                    alpha = int(220 * (1 - i/glow_range))
-                    draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
-                glow.paste(avatar, (40, 40), avatar)
-                return glow
-
-            frame_color = (255, 20, 147) # Hot Pink
-            pulse = int((percent / 100) * 10) 
-            
-            if percent == 69: frame_color = (255, 0, 255) 
-            elif percent >= 90: frame_color = (255, 0, 80) 
-
-            av1_framed = apply_erotic_frame_square(av1_img, frame_color, pulse)
-            av2_framed = apply_erotic_frame_square(av2_img, frame_color, pulse)
-
-            # Paste SQUARE Avatars on the sides
-            canvas.paste(av1_framed, (20, 150), av1_framed)
-            canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
-            
-            # --- NEW: MYSTIC VOLCANIC COLUMN (Obsidian/Black, Red, Yellow) ---
-            pillar_w, pillar_h = 100, 480
-            pillar_x = (canvas_width // 2) - (pillar_w // 2)
-            pillar_y = 120
-            
-            # Base Obsidian Column
-            draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 5, 240), outline=(50, 0, 0), width=4)
-            
-            # Volcanic Fill Logic
-            fill_pixels = int((percent / 100) * pillar_h)
-            if fill_pixels > 0:
-                for i in range(fill_pixels):
-                    # Gradient shift from Red to Yellow as it fills
-                    ratio = i / pillar_h
-                    r = 255
-                    g = int(255 * ratio) # Becomes more yellow at higher %
-                    b = 0
-                    current_y = (pillar_y + pillar_h) - i
-                    draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
-                
-                # Top Magma Glow (Bright Yellow Cap)
-                draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
-
-            # --- BIG % TEXT IN MIDDLE ---
-            percent_text = f"{percent}%"
-            draw.text((pillar_x - 30, 20), percent_text, fill=(255, 255, 255), stroke_width=6, stroke_fill=(0,0,0))
-
-            buf = io.BytesIO()
-            canvas.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
+            return await asyncio.to_thread(draw_process)
         except Exception as e:
             print(f"Fiery Ship Error: {e}")
             return None
@@ -214,28 +195,27 @@ class FieryShip(commands.Cog):
                     p1_data = io.BytesIO(await r1.read())
                     p2_data = io.BytesIO(await r2.read())
             
-            bg_color = (255, 20, 147, 40) if "Anniversary" in bond_type else (25, 0, 0, 255)
-            canvas = Image.new("RGBA", (1000, 500), bg_color)
-            av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
-            av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
-            
-            draw = ImageDraw.Draw(canvas)
-            if "Anniversary" in bond_type:
-                for _ in range(30):
-                    x, y = random.randint(0, 1000), random.randint(0, 500)
-                    draw.text((x, y), "💕", fill=(255, 105, 180))
+            def draw_union():
+                bg_color = (255, 20, 147, 40) if "Anniversary" in bond_type else (25, 0, 0, 255)
+                canvas = Image.new("RGBA", (1000, 500), bg_color)
+                av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
+                av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
+                draw = ImageDraw.Draw(canvas)
+                if "Anniversary" in bond_type:
+                    for _ in range(30):
+                        x, y = random.randint(0, 1000), random.randint(0, 500)
+                        draw.text((x, y), "💕", fill=(255, 105, 180))
+                canvas.paste(av1, (100, 90), av1)
+                canvas.paste(av2, (580, 90), av2)
+                icon = "⛓️🫦⛓️" if bond_type == "Marriage" else "🤝🔥🤝"
+                if "Anniversary" in bond_type: icon = "💖🔥🔞"
+                draw.text((440, 210), icon, fill=(255, 255, 255))
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
 
-            canvas.paste(av1, (100, 90), av1)
-            canvas.paste(av2, (580, 90), av2)
-            
-            icon = "⛓️🫦⛓️" if bond_type == "Marriage" else "🤝🔥🤝"
-            if "Anniversary" in bond_type: icon = "💖🔥🔞"
-            draw.text((440, 210), icon, fill=(255, 255, 255))
-            
-            buf = io.BytesIO()
-            canvas.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
+            return await asyncio.to_thread(draw_union)
         except: return None
 
     @commands.command(name="ship")
@@ -263,7 +243,8 @@ class FieryShip(commands.Cog):
 
         main_mod = sys.modules['__main__']
         
-        u1_data = main_mod.get_user(user1.id)
+        # FIXED: Wrap DB call to prevent blocking
+        u1_data = await asyncio.to_thread(main_mod.get_user, user1.id)
         is_anni = False
         if u1_data['spouse'] == user2.id and u1_data['marriage_date']:
             m_date = datetime.strptime(u1_data['marriage_date'], "%Y-%m-%d")
@@ -337,8 +318,8 @@ class FieryShip(commands.Cog):
         main_mod = sys.modules['__main__']
         if member.id == ctx.author.id: return await ctx.send("❌ You cannot own your own soul twice, asset.")
         
-        u1 = main_mod.get_user(ctx.author.id)
-        u2 = main_mod.get_user(member.id)
+        u1 = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
+        u2 = await asyncio.to_thread(main_mod.get_user, member.id)
         
         if u1['spouse'] or u2['spouse']:
             return await ctx.send("❌ One of you is already under contract elsewhere.")
@@ -356,10 +337,14 @@ class FieryShip(commands.Cog):
         async def accept(interaction):
             if interaction.user.id != member.id: return
             today = datetime.now().strftime("%Y-%m-%d")
-            with main_mod.get_db_connection() as conn:
-                conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
-                conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (ctx.author.id, today, member.id))
-                conn.commit()
+            
+            def update_db():
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
+                    conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (ctx.author.id, today, member.id))
+                    conn.commit()
+            
+            await asyncio.to_thread(update_db)
             
             img = await self.create_union_image(ctx.author.display_avatar.url, member.display_avatar.url, "Marriage")
             file = discord.File(img, filename="union.png")
@@ -390,14 +375,17 @@ class FieryShip(commands.Cog):
     async def divorce(self, ctx):
         """Sever the contract and return to the pit alone."""
         main_mod = sys.modules['__main__']
-        u = main_mod.get_user(ctx.author.id)
+        u = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
         if not u['spouse']: return await ctx.send("❌ You have no one to divorce, pet.")
         
         spouse_id = u['spouse']
-        with main_mod.get_db_connection() as conn:
-            conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (ctx.author.id,))
-            conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (spouse_id,))
-            conn.commit()
+        def run_divorce():
+            with main_mod.get_db_connection() as conn:
+                conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (ctx.author.id,))
+                conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (spouse_id,))
+                conn.commit()
+        
+        await asyncio.to_thread(run_divorce)
             
         embed = main_mod.fiery_embed("💔 CONTRACT SEVERED", f"You and <@{spouse_id}> are now strangers in the shadows.\n\nThe Red Room consumes another failed union.")
         if os.path.exists("LobbyTopRight.jpg"):
@@ -491,8 +479,12 @@ class FieryShip(commands.Cog):
     async def lovescore(self, ctx):
         """Displays the most powerful and synchronized bonds in the dungeon."""
         main_mod = sys.modules['__main__']
-        with main_mod.get_db_connection() as conn:
-            data = conn.execute("SELECT id, spouse FROM users WHERE spouse IS NOT NULL").fetchall()
+        
+        def fetch_data():
+            with main_mod.get_db_connection() as conn:
+                return conn.execute("SELECT id, spouse FROM users WHERE spouse IS NOT NULL").fetchall()
+        
+        data = await asyncio.to_thread(fetch_data)
         
         if not data:
             return await ctx.send("🥀 **The Master finds no sacred bonds in the current sector. Propose a contract!**")
@@ -604,7 +596,7 @@ class FieryShip(commands.Cog):
         """Check the status of your chains and bond level."""
         main_mod = sys.modules['__main__']
         target = user or ctx.author
-        u_data = main_mod.get_user(target.id)
+        u_data = await asyncio.to_thread(main_mod.get_user, target.id)
         
         spouse_ment = f"<@{u_data['spouse']}>" if u_data['spouse'] else "None (Single Asset)"
         m_date = u_data['marriage_date'] or "N/A"
