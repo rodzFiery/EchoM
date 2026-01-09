@@ -368,6 +368,19 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
 async def on_ready():
     print("--- STARTING SYSTEM INITIALIZATION ---")
     
+    # --- ADDED: AUDIT PERSISTENCE RETRIEVAL ---
+    try:
+        with get_db_connection() as conn:
+            # Garante que a tabela config existe
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+            row = conn.execute("SELECT value FROM config WHERE key = 'audit_channel'").fetchone()
+            if row:
+                global AUDIT_CHANNEL_ID
+                AUDIT_CHANNEL_ID = int(row['value'])
+                print(f"🕵️ PERSISTENCE: Audit Channel restored to {AUDIT_CHANNEL_ID}")
+    except Exception as e:
+        print(f"Audit restoration fail: {e}")
+
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
@@ -451,6 +464,14 @@ async def on_ready():
         print("✅ LOG: Premium System is ONLINE.")
     except Exception as e:
         print(f"Failed to load premium extension: {e}")
+
+    # --- ADDED: AUDIT MANAGER LOADING ---
+    try:
+        if not bot.get_cog("AuditManager"):
+            await bot.load_extension("audit")
+            print("✅ LOG: Audit Manager is ONLINE.")
+    except Exception as e:
+        print(f"Audit extension fail: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
@@ -484,4 +505,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
