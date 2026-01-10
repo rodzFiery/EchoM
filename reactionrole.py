@@ -95,6 +95,7 @@ class ReactionRoleSystem(commands.Cog):
             ),
             color=0x500000
         )
+        # Using the DesignerLobby class
         await ctx.send(embed=embed, view=DesignerLobby())
 
     @commands.command()
