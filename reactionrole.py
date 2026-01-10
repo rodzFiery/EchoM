@@ -39,7 +39,7 @@ class ReactionRoleSystem(commands.Cog):
 
     @commands.command()
     @commands.has_permissions(administrator=True)
-    async def setup_gateway(self, ctx, role: discord.Role):
+    async def setroles(self, ctx, role: discord.Role):
         """Standard verification gateway."""
         embed = discord.Embed(
             title="🔒 SERVER ACCESS: VERIFICATION REQUIRED",
