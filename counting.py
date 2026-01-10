@@ -78,6 +78,7 @@ class Counting(commands.Cog):
 
         if total > 0 and total % 250 == 0:
             reward = 5000
+            # ONLY REPORTING TO AUDIT.PY ON MILESTONE ACHIEVEMENT
             await main_mod.update_user_stats_async(user_id, amount=reward, source=f"Counting Milestone: {total}")
             
             embed = main_mod.fiery_embed("📜 NEURAL COUNTING CERTIFICATE", 
@@ -167,9 +168,7 @@ class Counting(commands.Cog):
         self.update_member_stats(message.author.id, is_mistake=False)
         await self.check_personal_milestone(message)
         
-        # Award 100 Flames per correct count and report to audit.py system
-        reward = 100
-        await main_mod.update_user_stats_async(message.author.id, amount=reward, source="Counting Contribution")
+        # THE INDIVIDUAL +100 FLAMES REWARD HAS BEEN REMOVED TO PREVENT SPAM LOGS
         
         try:
             await message.add_reaction("✅")
