@@ -60,10 +60,10 @@ class GuessNumber(commands.Cog):
         if message.author.bot or not self.game_channel_id or message.channel.id != self.game_channel_id:
             return
 
-        if not message.content.isdigit():
+        if not message.content.strip().isdigit():
             return
 
-        guess = int(message.content)
+        guess = int(message.content.strip())
         self.server_total_tries += 1
         self.round_tries += 1
         
@@ -80,7 +80,8 @@ class GuessNumber(commands.Cog):
         else:
             # WINNER PROTOCOL
             user_data = main_mod.get_user(message.author.id)
-            global_tries = user_data.get('guess_tries', 1)
+            # Fallback to 0 if guess_tries is None to avoid calculation errors
+            global_tries = user_data.get('guess_tries') or 1
             
             # --- CALCULATE RECORDS ---
             time_taken = round(time.time() - self.start_time, 2)
@@ -138,6 +139,7 @@ async def setup(bot):
     main_mod = sys.modules['__main__']
     try:
         with main_mod.get_db_connection() as conn:
+            # Try to add column, will fail gracefully if it exists
             conn.execute("ALTER TABLE users ADD COLUMN guess_tries INTEGER DEFAULT 0")
-    except: pass # Column already exists
+    except: pass 
     await bot.add_cog(GuessNumber(bot))
