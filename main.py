@@ -502,6 +502,19 @@ async def on_ready():
             print("✅ LOG: Counting System is ONLINE.")
     except Exception as e:
         print(f"Failed to load counting extension: {e}")
+
+    # --- ADDED: CONFESSION SYSTEM LOADING ---
+    try:
+        if not bot.get_cog("ConfessionSystem"):
+            from confessions import ConfessionSubmissionView # ADDED for persistent view
+            await bot.load_extension("confessions")
+            conf_cog = bot.get_cog("ConfessionSystem")
+            if conf_cog:
+                # REGISTER PERSISTENT VIEW
+                bot.add_view(ConfessionSubmissionView(utilis, bot, conf_cog.review_channel_id))
+            print("✅ LOG: Confession System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load confessions extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
