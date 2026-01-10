@@ -503,6 +503,14 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to load counting extension: {e}")
 
+    # --- ADDED: GUESS NUMBER SYSTEM LOADING ---
+    try:
+        if not bot.get_cog("GuessNumber"):
+            await bot.load_extension("guessnumber")
+            print("✅ LOG: Guess Number System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load guessnumber extension: {e}")
+
     # --- FIXED: CONFESSION SYSTEM LOADING SEQUENCE ---
     try:
         if not bot.get_cog("ConfessionSystem"):
