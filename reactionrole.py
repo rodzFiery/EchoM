@@ -62,13 +62,18 @@ class ReactionRoleSystem(commands.Cog):
             # Step 3: Emoji Selection
             await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click.")
             msg = await self.bot.wait_for("message", check=check, timeout=60.0)
-            target_emoji = msg.content.strip() # Fixed: Added strip to ensure no hidden spaces
+            target_emoji = msg.content.strip()
 
             # Step 4: Content Design
-            await ctx.send("📝 **STEP 4:** Type the **message/rules** that will appear in the embed.")
+            await ctx.send("📝 **STEP 4:** Type the **message/rules** (Max 4000 letters).")
             msg = await self.bot.wait_for("message", check=check, timeout=120.0)
-            rules_content = msg.content
             
+            # --- ADDED SAFETY CHECK ---
+            if len(msg.content) > 4096:
+                return await ctx.send(f"❌ **TEXT TOO LARGE:** Your message is {len(msg.content)} letters. Discord limit is 4096. Please try again with shorter text.")
+            
+            rules_content = msg.content
+
             # Step 5: Final Deployment
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
