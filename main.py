@@ -332,7 +332,8 @@ async def hall(ctx):
 
 @bot.command()
 async def echo(ctx):
-    await social_module.handle_fiery_guide(ctx, fiery_guide)
+    # FIXED: Function name updated to handle_fiery_guide to match social module
+    await social_module.handle_fiery_guide(ctx, fiery_embed)
 
 # --- GLOBAL STREAK LEADERBOARD COMMAND START (MOVED TO social.py) ---
 @bot.command()
