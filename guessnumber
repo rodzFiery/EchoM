@@ -40,6 +40,18 @@ class GuessNumber(commands.Cog):
         await ctx.send(f"✅ Guessing channel set to <#{self.game_channel_id}>. Target reset!")
         self.target_number = random.randint(0, 100)
 
+    @commands.command(name="setguess")
+    @commands.has_permissions(administrator=True)
+    async def set_guess_by_id(self, ctx, channel_id: int):
+        """Alternative command to set the guess channel using a raw ID."""
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            return await ctx.send("❌ Invalid Channel ID. I cannot find that frequency.")
+        self.game_channel_id = channel.id
+        self.save_config()
+        await ctx.send(f"✅ Guessing system initialized in <#{self.game_channel_id}>.")
+        self.target_number = random.randint(0, 100)
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not self.game_channel_id or message.channel.id != self.game_channel_id:
