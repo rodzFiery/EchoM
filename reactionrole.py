@@ -3,7 +3,29 @@ from discord.ext import commands
 import sqlite3
 import asyncio
 
-# --- REACTION LISTENER ---
+class ReactionRoleButton(discord.ui.Button):
+    def __init__(self, emoji, role_id):
+        super().__init__(style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=f"rr:{role_id}")
+        self.role_id = role_id
+
+    async def callback(self, interaction: discord.Interaction):
+        role = interaction.guild.get_role(int(self.role_id))
+        if not role:
+            return await interaction.response.send_message("❌ Error: Role not found.", ephemeral=True)
+
+        if role in interaction.user.roles:
+            await interaction.user.remove_roles(role)
+            await interaction.response.send_message(f"🔓 **ACCESS REVOKED:** {role.name} removed.", ephemeral=True)
+        else:
+            await interaction.user.add_roles(role)
+            await interaction.response.send_message(f"🔒 **ACCESS GRANTED:** {role.name} assigned.", ephemeral=True)
+
+class ReactionRoleView(discord.ui.View):
+    def __init__(self, mappings):
+        super().__init__(timeout=None)
+        for emoji, role_id in mappings.items():
+            self.add_item(ReactionRoleButton(emoji, role_id))
+
 class ReactionRoleSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -13,34 +35,6 @@ class ReactionRoleSystem(commands.Cog):
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             conn.commit()
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        """Adds role when user reacts."""
-        if payload.member.bot: return
-        
-        with sqlite3.connect("database.db") as conn:
-            row = conn.execute("SELECT role_id FROM reaction_roles WHERE message_id = ? AND emoji = ?", 
-                               (payload.message_id, str(payload.emoji))).fetchone()
-        
-        if row:
-            role = payload.member.guild.get_role(row[0])
-            if role: await payload.member.add_roles(role)
-
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload):
-        """Removes role when user removes reaction."""
-        guild = self.bot.get_guild(payload.guild_id)
-        member = guild.get_member(payload.user_id)
-        if not member or member.bot: return
-
-        with sqlite3.connect("database.db") as conn:
-            row = conn.execute("SELECT role_id FROM reaction_roles WHERE message_id = ? AND emoji = ?", 
-                               (payload.message_id, str(payload.emoji))).fetchone()
-        
-        if row:
-            role = guild.get_role(row[0])
-            if role: await member.remove_roles(role)
 
     @commands.command(name="setroles")
     @commands.has_permissions(administrator=True)
@@ -52,7 +46,7 @@ class ReactionRoleSystem(commands.Cog):
 
         try:
             # Step 1: Target Channel
-            await ctx.send("🎯 **STEP 1:** Mention the **channel** where the rules should be sent (e.g., #rules).")
+            guide_msg = await ctx.send("🎯 **STEP 1:** Mention the **channel** where the rules should be sent (e.g., #rules).")
             msg = await self.bot.wait_for("message", check=check, timeout=60.0)
             target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
             if not target_channel:
@@ -68,6 +62,7 @@ class ReactionRoleSystem(commands.Cog):
             # Step 3: Emoji Selection
             await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click.")
             msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            # FIX: Ensure emoji is cleaned of spaces/newlines
             target_emoji = msg.content.strip() 
 
             # Step 4: Content Design
@@ -75,27 +70,29 @@ class ReactionRoleSystem(commands.Cog):
             msg = await self.bot.wait_for("message", check=check, timeout=120.0)
             rules_content = msg.content
 
+            # API Protection: Character Limit Check
             if len(rules_content) > 4096:
+                await ctx.send(f"⚠️ **TEXT TOO LARGE:** Your text is {len(rules_content)} chars. Cutting to fit 4096...")
                 rules_content = rules_content[:4090] + "..."
 
             # Step 5: Final Deployment
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
             
-            final_msg = await target_channel.send(embed=embed)
+            # Use the cleaned emoji
+            view = ReactionRoleView({target_emoji: target_role.id})
             
-            # Bot adds the reaction first so others can click it
             try:
-                await final_msg.add_reaction(target_emoji)
-            except discord.HTTPException:
-                return await ctx.send("❌ **INVALID EMOJI:** Deployment failed. Bot cannot react with that emoji.")
+                final_msg = await target_channel.send(embed=embed, view=view)
+            except discord.HTTPException as e:
+                return await ctx.send(f"❌ **DEPLOYMENT FAILED:** {e}\nCheck if the bot has access to the emoji or if the role ID is valid.")
 
             # Store in DB
             with sqlite3.connect("database.db") as conn:
                 conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (final_msg.id, target_emoji, target_role.id))
                 conn.commit()
 
-            await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention} with visible counter!")
+            await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention}!")
 
         except asyncio.TimeoutError:
             await ctx.send("⌛ **TIMEOUT:** You took too long to respond. Restart with `!setroles`.")
