@@ -574,7 +574,8 @@ async def on_ready():
                 if m_id not in mappings: mappings[m_id] = {}
                 mappings[m_id][row['emoji']] = row['role_id']
             
-            from reactionrole import ReactionRoleView
+            from reactionrole import ReactionRoleView, DesignerLobby
+            bot.add_view(DesignerLobby())
             for m_id, data in mappings.items():
                 bot.add_view(ReactionRoleView(data), message_id=m_id)
         print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
