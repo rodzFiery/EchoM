@@ -335,17 +335,20 @@ class TextLevelSystem(commands.Cog):
         target = member or ctx.author
         main_mod = sys.modules['__main__']
         
-        with main_mod.get_db_connection() as conn:
-            u = conn.execute("SELECT text_level, text_xp, total_messages, total_reactions, level_status FROM users WHERE id = ?", (target.id,)).fetchone()
+        # PULL PROFILE DATA FROM MAIN
+        u_data = await asyncio.to_thread(main_mod.get_user, target.id)
         
-        if not u:
+        with main_mod.get_db_connection() as conn:
+            u_text = conn.execute("SELECT text_level, text_xp, total_messages, total_reactions, level_status FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        if not u_text:
             return await ctx.send(embed=main_mod.fiery_embed("❌ ERROR", "Asset data not found in the neural archives."))
 
-        lvl = u['text_level'] or 0
-        xp = u['text_xp'] or 0
-        msgs = u['total_messages'] or 0
-        reacts = u['total_reactions'] or 0
-        status = u['level_status']
+        lvl = u_text['text_level'] or 0
+        xp = u_text['text_xp'] or 0
+        msgs = u_text['total_messages'] or 0
+        reacts = u_text['total_reactions'] or 0
+        status = u_text['level_status']
         needed = self.get_xp_needed(lvl)
         
         next_role_info = "None Available"
@@ -374,6 +377,13 @@ class TextLevelSystem(commands.Cog):
         
         desc += "🛡️ **PRIVILEGE QUEUE**\n"
         desc += f"➤ **Next Unlock:** {next_role_info}\n\n"
+
+        desc += "⚙️ **SUBSYSTEM SNAPSHOT**\n"
+        desc += f"└─ `Neural Level:` **{u_data['fiery_level']}**\n"
+        desc += f"└─ `Total XP:` **{u_data['xp']:,}**\n"
+        desc += f"└─ `Capital:` **{u_data['balance']:,} Flames**\n"
+        desc += f"└─ `Current Class:` **{u_data['class']}**\n"
+        desc += f"└─ `Premium Tier:` **{u_data['premium_type'] or 'Standard'}**\n\n"
         
         desc += "*Your existence is recorded. The Echo remembers everything.*"
 
