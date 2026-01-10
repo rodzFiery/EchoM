@@ -26,6 +26,9 @@ class ConfessionModal(discord.ui.Modal, title="NEURAL CONFESSION SUBMISSION"):
 
         embed = self.main_mod.fiery_embed("🛰️ INCOMING CONFESSION FOR REVIEW", 
                                         f"**Submission:**\n{self.confession.value}")
+        
+        # --- ADMIN PRIVILEGED INFO ---
+        embed.add_field(name="👤 Submitter Identity", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
         embed.set_footer(text="The Master must decide the fate of this frequency.")
         
         view = ConfessionReviewView(self.main_mod, self.confession.value)
@@ -156,6 +159,9 @@ class ConfessionSystem(commands.Cog):
 
         main_mod = sys.modules['__main__']
         embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION", f"**Submission:**\n{message}")
+        
+        # --- ADMIN PRIVILEGED INFO (MANUAL) ---
+        embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
         embed.set_footer(text="Submitted via command protocol.")
         
         view = ConfessionReviewView(main_mod, message)
