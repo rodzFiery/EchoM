@@ -27,18 +27,23 @@ class ReactionRoleView(discord.ui.View):
         for emoji, role_id in mappings.items():
             self.add_item(ReactionRoleButton(emoji, role_id))
 
-# --- DESIGNER MODAL ---
+# --- DESIGNER MODAL (STEP 1: EMBED & RULES DESIGN) ---
 class ProtocolModal(discord.ui.Modal, title="🧬 DESIGN NEURAL PROTOCOL"):
-    title_input = discord.ui.TextInput(label="Embed Title", placeholder="Ex: GENDER ROLES", required=True)
-    desc_input = discord.ui.TextInput(label="Description", style=discord.TextStyle.paragraph, placeholder="Click the buttons to assign roles...", required=True)
-    emoji_input = discord.ui.TextInput(label="Emoji", placeholder="⭐", required=True)
-    role_id_input = discord.ui.TextInput(label="Role ID", placeholder="Paste Role ID here...", required=True)
+    title_input = discord.ui.TextInput(label="Embed Title (e.g. SERVER RULES)", placeholder="Ex: GENDER ROLES", required=True)
+    rules_input = discord.ui.TextInput(label="Embed Content / Rules", style=discord.TextStyle.paragraph, placeholder="Enter the rules or description the user must acknowledge...", required=True)
+    emoji_input = discord.ui.TextInput(label="Emoji for Action", placeholder="Ex: ✅ or ⭐", required=True)
+    role_id_input = discord.ui.TextInput(label="Role ID to Grant", placeholder="Paste Role ID here...", required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
         role_id = self.role_id_input.value
         emoji = self.emoji_input.value
+        rules_text = self.rules_input.value
         
-        embed = discord.Embed(title=self.title_input.value, description=self.desc_input.value, color=0xFF0000)
+        embed = discord.Embed(title=self.title_input.value, description=rules_text, color=0xFF0000)
+        
+        # Adding a professional footer to show it's an automated system
+        embed.set_footer(text="Echo Protocol | Interact to synchronize roles")
+        
         view = ReactionRoleView({emoji: role_id})
         
         msg = await interaction.channel.send(embed=embed, view=view)
@@ -48,7 +53,7 @@ class ProtocolModal(discord.ui.Modal, title="🧬 DESIGN NEURAL PROTOCOL"):
             conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (msg.id, emoji, int(role_id)))
             conn.commit()
 
-        await interaction.response.send_message("✅ **PROTOCOL DEPLOYED:** Persistent link established.", ephemeral=True)
+        await interaction.response.send_message("✅ **PROTOCOL DEPLOYED:** Rules embed and role-binding established.", ephemeral=True)
 
 # --- ADMIN LOBBY VIEW ---
 class DesignerLobby(discord.ui.View):
@@ -78,11 +83,14 @@ class ReactionRoleSystem(commands.Cog):
             title="⛓️ ECHO PROTOCOL: DESIGNER SUITE",
             description=(
                 "### 🛠️ Protocol Architect\n"
-                "Use the button below to launch the deployment modal. You can define "
-                "custom embeds, emojis, and roles for automatic assignment.\n\n"
+                "Use the button below to launch the deployment modal. \n\n"
+                "**The Process:**\n"
+                "1. Define the **Title** and **Rules** for the message.\n"
+                "2. Choose the **Emoji** that acts as the trigger.\n"
+                "3. Provide the **Role ID** to be toggled.\n\n"
                 "**Capabilities:**\n"
-                "• **Persistence:** Automatically re-binds after restarts.\n"
-                "• **Hybrid:** Supports Gateway and Multi-Role systems."
+                "• **Persistence:** Survive restarts.\n"
+                "• **Automated:** No admin action required after setup."
             ),
             color=0x500000
         )
