@@ -3,6 +3,7 @@ from discord.ext import commands
 import random
 import sys
 import json
+import time
 
 class GuessNumber(commands.Cog):
     def __init__(self, bot):
@@ -10,6 +11,8 @@ class GuessNumber(commands.Cog):
         self.target_number = random.randint(0, 100)
         self.game_channel_id = None
         self.server_total_tries = 0
+        self.start_time = time.time() # Track start of round
+        self.round_tries = 0 # Tries for current round
         self.load_config()
 
     def load_config(self):
@@ -62,6 +65,7 @@ class GuessNumber(commands.Cog):
 
         guess = int(message.content)
         self.server_total_tries += 1
+        self.round_tries += 1
         
         main_mod = sys.modules['__main__']
         # Update user total tries in DB
@@ -78,20 +82,55 @@ class GuessNumber(commands.Cog):
             user_data = main_mod.get_user(message.author.id)
             global_tries = user_data.get('guess_tries', 1)
             
-            embed = main_mod.fiery_embed("🎉 NEURAL SYNC ACHIEVED", 
-                f"Congratulations {message.author.mention}!\n\n"
-                f"You found the frequency: **{self.target_number}**\n"
-                f"--- STATISTICS ---\n"
-                f"👤 **Your Global Tries:** {global_tries}\n"
-                f"🌍 **Server Total Tries:** {self.server_total_tries}")
+            # --- CALCULATE RECORDS ---
+            time_taken = round(time.time() - self.start_time, 2)
             
-            embed.set_image(url="https://i.imgur.com/your_winner_card_placeholder.png") # Winner Card
-            embed.set_footer(text="A new frequency is being generated...")
+            with main_mod.get_db_connection() as conn:
+                # Get Global/Server stats
+                conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('total_games_played', '0')")
+                conn.execute("UPDATE config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_games_played'")
+                
+                # Check for Fastest Record
+                record_row = conn.execute("SELECT value FROM config WHERE key = 'fastest_guess'").fetchone()
+                new_record = False
+                if not record_row or time_taken < float(json.loads(record_row['value'])['time']):
+                    record_data = {'time': time_taken, 'user': message.author.name, 'number': self.target_number}
+                    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('fastest_guess', ?)", (json.dumps(record_data),))
+                    new_record = True
+                
+                stats_row = conn.execute("SELECT value FROM config WHERE key = 'total_games_played'").fetchone()
+                total_games = stats_row['value']
+                conn.commit()
+
+            # --- WINNER CARD EMBED (ECHO THEMED) ---
+            embed = main_mod.fiery_embed("🛰️ NEURAL SYNC: ECHO CERTIFICATE", 
+                f"**Frequency matched successfully, {message.author.mention}.**\n"
+                f"The Echo has verified your transmission.")
+            
+            embed.add_field(name="📜 Sync Details", value=(
+                f"🎯 **Target Number:** {self.target_number}\n"
+                f"⏱️ **Time Taken:** {time_taken}s\n"
+                f"🧪 **Round Attempts:** {self.round_tries}"
+            ), inline=True)
+            
+            embed.add_field(name="📊 Global Metrics", value=(
+                f"👤 **Your Lifetime Tries:** {global_tries}\n"
+                f"🌍 **Global Games Finished:** {total_games}\n"
+                f"🏛️ **Server Total Load:** {self.server_total_tries}"
+            ), inline=True)
+
+            if new_record:
+                embed.add_field(name="🚀 NEW WORLD RECORD", value=f"You are the fastest Echo in history: **{time_taken}s**!", inline=False)
+
+            embed.set_image(url="https://i.imgur.com/your_echo_themed_card.png") # Winner Card Image
+            embed.set_footer(text="Verification Code: ECHO-" + str(random.randint(1000, 9999)))
             
             await message.channel.send(embed=embed)
             
             # Reset for next round
             self.target_number = random.randint(0, 100)
+            self.start_time = time.time()
+            self.round_tries = 0
             self.save_config()
 
 async def setup(bot):
