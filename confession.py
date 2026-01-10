@@ -62,6 +62,17 @@ class ConfessionReviewView(discord.ui.View):
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # --- AUTO-ARCHIVE PROTOCOL ---
+        main_mod = sys.modules['__main__']
+        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
+        audit_channel = interaction.client.get_channel(audit_id)
+        
+        if audit_channel:
+            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", 
+                f"**Moderator:** {interaction.user.mention}\n"
+                f"**Content Purged:**\n```\n{self.confession_text}\n```", color=0xFF0000)
+            await audit_channel.send(embed=archive_emb)
+
         await interaction.message.delete()
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
 
