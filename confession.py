@@ -26,18 +26,23 @@ class ConfessionModal(discord.ui.Modal, title="NEURAL CONFESSION SUBMISSION"):
 
         embed = self.main_mod.fiery_embed("🛰️ INCOMING CONFESSION FOR REVIEW", 
                                         f"**Submission:**\n{self.confession.value}")
+        
+        # --- ADDED: USER IDENTITY FOR ADMINS ---
+        embed.add_field(name="👤 Submitter Identity", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
         embed.set_footer(text="The Master must decide the fate of this frequency.")
         
-        view = ConfessionReviewView(self.main_mod, self.confession.value)
+        # FIXED: Passing interaction.user.id to the review view
+        view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id)
         await review_channel.send(embed=embed, view=view)
         
         await interaction.response.send_message("✅ Your confession has been transmitted to the Master for review.", ephemeral=True)
 
 class ConfessionReviewView(discord.ui.View):
-    def __init__(self, main_mod, confession_text):
+    def __init__(self, main_mod, confession_text, submitter_id=None):
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.confession_text = confession_text
+        self.submitter_id = submitter_id
 
     @discord.ui.button(label="APPROVE", style=discord.ButtonStyle.success, emoji="✅")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -61,7 +66,15 @@ class ConfessionReviewView(discord.ui.View):
         view.children[0].label = "SUBMIT ANOTHER"
         
         await post_channel.send(embed=embed, view=view)
-        await interaction.message.delete()
+        
+        # --- MODIFIED: AUDIT PERSISTENCE ---
+        # Instead of deleting, we update the review embed and remove buttons
+        original_embed = interaction.message.embeds[0]
+        original_embed.title = "✅ CONFESSION DISPATCHED"
+        original_embed.color = discord.Color.green()
+        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}", inline=False)
+        
+        await interaction.message.edit(embed=original_embed, view=None)
         await interaction.response.send_message("✅ Confession Approved and Dispatched.", ephemeral=True)
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️")
@@ -72,8 +85,11 @@ class ConfessionReviewView(discord.ui.View):
         audit_channel = interaction.client.get_channel(audit_id)
         
         if audit_channel:
+            # Use submitter_id in the archive if available
+            user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
             archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", 
                 f"**Moderator:** {interaction.user.mention}\n"
+                f"**Submitter:** {user_info}\n"
                 f"**Content Purged:**\n```\n{self.confession_text}\n```", color=0xFF0000)
             await audit_channel.send(embed=archive_emb)
 
@@ -160,9 +176,13 @@ class ConfessionSystem(commands.Cog):
 
         main_mod = sys.modules['__main__']
         embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION", f"**Submission:**\n{message}")
+        
+        # --- ADDED: USER IDENTITY FOR ADMINS ---
+        embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
         embed.set_footer(text="Submitted via command protocol.")
         
-        view = ConfessionReviewView(main_mod, message)
+        # FIXED: Passing ctx.author.id to the review view
+        view = ConfessionReviewView(main_mod, message, ctx.author.id)
         await review_channel.send(embed=embed, view=view)
         
         try:
