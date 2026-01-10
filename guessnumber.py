@@ -16,6 +16,7 @@ class GuessNumber(commands.Cog):
         self.load_config()
 
     def load_config(self):
+        # Using sys.modules to access main bot functions
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
@@ -24,7 +25,8 @@ class GuessNumber(commands.Cog):
                     data = json.loads(row['value'])
                     self.game_channel_id = data.get('channel_id')
                     self.server_total_tries = data.get('server_tries', 0)
-        except: pass
+        except Exception as e: 
+            print(f"GuessNumber Load Error: {e}")
 
     def save_config(self):
         main_mod = sys.modules['__main__']
@@ -42,6 +44,8 @@ class GuessNumber(commands.Cog):
         self.save_config()
         await ctx.send(f"✅ Guessing channel set to <#{self.game_channel_id}>. Target reset!")
         self.target_number = random.randint(0, 100)
+        self.start_time = time.time()
+        self.round_tries = 0
 
     @commands.command(name="setguess")
     @commands.has_permissions(administrator=True)
@@ -54,6 +58,8 @@ class GuessNumber(commands.Cog):
         self.save_config()
         await ctx.send(f"✅ Guessing system initialized in <#{self.game_channel_id}>.")
         self.target_number = random.randint(0, 100)
+        self.start_time = time.time()
+        self.round_tries = 0
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -68,10 +74,14 @@ class GuessNumber(commands.Cog):
         self.round_tries += 1
         
         main_mod = sys.modules['__main__']
+        
         # Update user total tries in DB
-        with main_mod.get_db_connection() as conn:
-            conn.execute("UPDATE users SET guess_tries = guess_tries + 1 WHERE id = ?", (message.author.id,))
-            conn.commit()
+        try:
+            with main_mod.get_db_connection() as conn:
+                conn.execute("UPDATE users SET guess_tries = guess_tries + 1 WHERE id = ?", (message.author.id,))
+                conn.commit()
+        except Exception as e:
+            print(f"DB Update Error: {e}")
 
         if guess < self.target_number:
             await message.add_reaction("⬆️")
@@ -81,7 +91,7 @@ class GuessNumber(commands.Cog):
             # WINNER PROTOCOL
             user_data = main_mod.get_user(message.author.id)
             # Fallback to 0 if guess_tries is None to avoid calculation errors
-            global_tries = user_data.get('guess_tries') or 1
+            global_tries = user_data.get('guess_tries') if user_data else 1
             
             # --- CALCULATE RECORDS ---
             time_taken = round(time.time() - self.start_time, 2)
@@ -94,13 +104,23 @@ class GuessNumber(commands.Cog):
                 # Check for Fastest Record
                 record_row = conn.execute("SELECT value FROM config WHERE key = 'fastest_guess'").fetchone()
                 new_record = False
-                if not record_row or time_taken < float(json.loads(record_row['value'])['time']):
+                
+                if not record_row:
+                    new_record = True
+                else:
+                    try:
+                        old_record = json.loads(record_row['value'])
+                        if time_taken < float(old_record['time']):
+                            new_record = True
+                    except:
+                        new_record = True
+
+                if new_record:
                     record_data = {'time': time_taken, 'user': message.author.name, 'number': self.target_number}
                     conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('fastest_guess', ?)", (json.dumps(record_data),))
-                    new_record = True
                 
                 stats_row = conn.execute("SELECT value FROM config WHERE key = 'total_games_played'").fetchone()
-                total_games = stats_row['value']
+                total_games = stats_row['value'] if stats_row else 0
                 conn.commit()
 
             # --- WINNER CARD EMBED (ECHO THEMED) ---
