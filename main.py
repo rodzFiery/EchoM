@@ -333,58 +333,65 @@ async def hall(ctx):
 @bot.command()
 async def echo(ctx):
     """ULTIMATE OMNI-PROTOCOL GUIDE: TRANSFORMED V8.0"""
-    # Page 1: Architecture & Internal Modules
-    emb1 = fiery_embed("🏛️ INTERNAL MODULES & PROTOCOLS", 
-        "**System Architecture (.py Structure)**\n\n"
-        "**• database.py:** Neural Ledger. Handles SQLite persistence.\n"
-        "**• utilis.py:** Stylist engine. Forces Blood Red UI skin.\n"
-        "**• prizes.py:** Reward logic (Base × Multipliers).\n"
-        "**• lexicon.py:** Erotic flavor text database.\n"
-        "**• worknranks.py:** Identity/Rank strings and work logic.\n"
-        "**• daily.py:** Periodic reward cooldown handler.")
+    # Page 1: Gameplay & Combat Extensions
+    emb1 = fiery_embed("⚔️ COMBAT & ARENA PROTOCOLS", 
+        "**Battle Extensions (ignis.py & fight.py)**\n"
+        "• `!fierystart`: Force immediate Arena execution.\n"
+        "• `!lobby`: Open the Red Room combat lobby.\n"
+        "• `!join` / `!leave`: Enter or exit the active simulation.\n"
+        "• `!fight <@user>`: Trigger a health-bar based 1v1 duel.\n"
+        "• `!@user`: Champion's decree (Available only to winners).\n"
+        "• `!stats`: View your personal combat lethality records.")
 
-    # Page 2: Gameplay Extensions
-    emb2 = fiery_embed("⚔️ GAMEPLAY & COMBAT EXTENSIONS", 
-        "**Active Command Groups from Modules**\n\n"
-        "**• ignis.py (Arena):** `!fierystart`, `!lobby`, `!@user` ( décret).\n"
-        "• **fight.py (Duels):** `!fight <@user>`, `!stats`.\n"
-        "• **casino.py (Risk):** `!slots`, `!blackjack`, `!roulette`, `!dice`.\n"
-        "• **collect.py (Scavenging):** `!search`, `!gallery`.\n"
-        "• **ignis (Lobby):** `!join`, `!leave`.")
+    # Page 2: Social & Economy Extensions
+    emb2 = fiery_embed("🫦 SOCIAL & WEALTH PROTOCOLS", 
+        "**Economy Extensions (shop.py & ship.py)**\n"
+        "• `!shop`: Browse the Black Market for prestige items.\n"
+        "• `!buy <item_id>`: Purchase asset upgrades or titles.\n"
+        "• `!inv`: View your current asset inventory.\n"
+        "• `!ship`: Scan resonance between two assets.\n"
+        "• `!marry`: Bind souls permanently for anniversary bonuses.\n"
+        "• `!confess`: Send an anonymous link through the neural net.")
 
-    # Page 3: Social & Economy Extensions
-    emb3 = fiery_embed("🫦 SOCIAL & ECONOMY EXTENSIONS", 
-        "**Interaction & Wealth Commands**\n\n"
-        "**• shop.py:** `!shop`, `!buy <id>`, `!sell`, `!inv`.\n"
-        "• **ship.py:** `!ship`, `!marry`, `!divorce`, `!anniversary`.\n"
-        "• **premium.py:** `!premium`, `!premiumstatus`, `!claims`.\n"
-        "• **social.py:** `!ranking`, `!hall`, `!streaks`.\n"
-        "• **confession.py:** `!confess` (Anonymous Neural Link).")
+    # Page 3: Identity & Ranking
+    emb3 = fiery_embed("🏅 IDENTITY & PROGRESSION", 
+        "**Status Extensions (levels.py & social.py)**\n"
+        "• `!mylevel`: Check your social standing and global XP.\n"
+        "• `!ranktop`: View the assets with the highest neural level.\n"
+        "• `!ranking`: Global combat leaderboard (Wins/Kills).\n"
+        "• `!hall`: The Legacy Museum of record-breaking assets.\n"
+        "• `!streaks`: Leaderboard of the most disciplined souls.\n"
+        "• `!achievements`: Review your unlocked honor badges.")
 
-    # Page 4: Main System Commands
-    emb4 = fiery_embed("📜 MAIN SYSTEM CORE COMMANDS", 
-        "**Base Commands (Direct from main.py)**\n\n"
-        "**• Identity:** `!me`, `!balance`.\n"
-        "**• Stipends:** `!daily`, `!weekly`, `!monthly`.\n"
-        "**• Labor:** `!work`, `!beg`, `!flirt`, `!pimp`, `!cumcleaner`, `!experiment`, `!mystery`.\n"
-        "**• Infrastructure:** `!ping`, `!togglealerts`, `!favor` (Bribe).")
+    # Page 4: Risk & Utility
+    emb4 = fiery_embed("🎲 RISK & NEURAL UTILITIES", 
+        "**Minigames & Automation (casino.py & thread.py)**\n"
+        "• `!slots` / `!blackjack`: Standard high-risk gambling.\n"
+        "• `!roulette` / `!dice`: Luck-based Flame extraction.\n"
+        "• `!search`: Scavenge the system for hidden Flames.\n"
+        "• `!gallery`: View collected media artifacts from searches.\n"
+        "• `!ping`: Measure neural latency to the Master.\n"
+        "• `!togglealerts`: Opt-in/out of Streak Guardian pings.")
 
-    # Page 5: Utilities & Minigames
-    emb5 = fiery_embed("🎮 UTILITIES & NEURAL MINIGAMES", 
-        "**Background Automation & Engagement**\n\n"
-        "**• levels.py:** Social XP, `!mylevel`, `!ranktop`.\n"
-        "• **counting.py:** Channel-based game (High Penalty).\n"
-        "• **guessnumber.py:** Intuition challenge.\n"
-        "• **thread.py:** Auto-session management.\n"
-        "• **react.py:** Auto-media reaction protocols.")
+    # Page 5: Main Core Commands
+    emb5 = fiery_embed("📜 MAIN CORE COMMANDS", 
+        "**Base Protocols (Direct main.py execution)**\n"
+        "• `!me`: Your comprehensive asset dossier/profile.\n"
+        "• `!balance`: Check your current vault of Flames.\n"
+        "• `!daily` / `!weekly` / `!monthly`: Recurring stipend claims.\n"
+        "• `!work`: Professional extraction (Premium only).\n"
+        "• `!beg` / `!flirt` / `!pimp`: Various work-tier extractions.\n"
+        "• `!mystery`: High-variance gamble on reward amount.")
 
-    # Page 6: Master Protocols (Admin)
+    # Page 6: Master Protocols
     emb6 = fiery_embed("⚖️ MASTER OVERRIDES (ADMIN)", 
-        "**Governance & System Control (admin.py/audit.py)**\n\n"
-        "**• Master Overrides:** `!nsfwtime`, `!masterpresence`, `!echoon`.\n"
-        "• **Payment Debug:** `!activate`, `!testpay`.\n"
-        "• **Server Config:** `!audit <#ch>`, `!setlevelchannel`, `!reset_arena`.\n"
-        "• **Infrastructure:** `!reactoff`, `!threadoff`.")
+        "**Governance Protocols (admin.py & audit.py)**\n"
+        "• `!nsfwtime`: Activate the Grand Exhibition (2x Mults).\n"
+        "• `!masterpresence`: Force Peak Heat server-wide.\n"
+        "• `!echoon`: Global free-premium override toggle.\n"
+        "• `!audit <#ch>`: Rebind the Master's Ledger location.\n"
+        "• `!setlevelchannel`: Assign level-up broadcast point.\n"
+        "• `!reset_arena`: Emergency unlock for stalled sessions.")
 
     pages = [emb1, emb2, emb3, emb4, emb5, emb6]
     for e in pages:
