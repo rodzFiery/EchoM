@@ -144,5 +144,27 @@ class ConfessionSystem(commands.Cog):
         view = ConfessionSubmissionView(main_mod, self.bot, self.review_channel_id)
         await ctx.send(embed=embed, view=view)
 
+    @commands.command(name="confess")
+    async def manual_confess(self, ctx, *, message: str):
+        """Manually trigger an anonymous confession submission for review."""
+        if self.review_channel_id is None:
+            return await ctx.send("❌ The confession review channel is not configured.")
+
+        review_channel = self.bot.get_channel(self.review_channel_id)
+        if not review_channel:
+            return await ctx.send("❌ Error: Review channel not found.")
+
+        main_mod = sys.modules['__main__']
+        embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION", f"**Submission:**\n{message}")
+        embed.set_footer(text="Submitted via command protocol.")
+        
+        view = ConfessionReviewView(main_mod, message)
+        await review_channel.send(embed=embed, view=view)
+        
+        try:
+            await ctx.message.delete()
+        except: pass
+        await ctx.send("✅ Your confession has been transmitted for review.", delete_after=5)
+
 async def setup(bot):
     await bot.add_cog(ConfessionSystem(bot))
