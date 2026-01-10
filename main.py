@@ -386,12 +386,14 @@ async def echo(ctx):
     # Page 6: Master Protocols
     emb6 = fiery_embed("⚖️ MASTER OVERRIDES (ADMIN)", 
         "**Governance Protocols (admin.py & audit.py)**\n"
-        "• `!nsfwtime`: Activate the Grand Exhibition (2x Mults).\n"
+        "• `!nsfwtime`: Activate the Grand Exhibition (2x Multiplier).\n"
         "• `!masterpresence`: Force Peak Heat server-wide.\n"
         "• `!echoon`: Global free-premium override toggle.\n"
         "• `!audit <#ch>`: Rebind the Master's Ledger location.\n"
         "• `!setlevelchannel`: Assign level-up broadcast point.\n"
-        "• `!reset_arena`: Emergency unlock for stalled sessions.")
+        "• `!reset_arena`: Emergency unlock for stalled sessions.\n"
+        "• `!setuproles`: Open the designer suite for custom roles.\n"
+        "• `!setup_gateway`: Deploy automatic verification rules.")
 
     pages = [emb1, emb2, emb3, emb4, emb5, emb6]
     for e in pages:
@@ -562,6 +564,23 @@ async def on_ready():
     
     bot.add_view(ignis.LobbyView(None, None))
 
+    # --- REACTION ROLE PERSISTENCE RECOVERY ---
+    try:
+        with get_db_connection() as conn:
+            rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
+            mappings = {}
+            for row in rows:
+                m_id = row['message_id']
+                if m_id not in mappings: mappings[m_id] = {}
+                mappings[m_id][row['emoji']] = row['role_id']
+            
+            from reactionrole import ReactionRoleView
+            for m_id, data in mappings.items():
+                bot.add_view(ReactionRoleView(data), message_id=m_id)
+        print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
+    except Exception as e:
+        print(f"RR Recovery fail: {e}")
+
     # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
     try: 
         if not bot.get_cog("AdminSystem"):
@@ -684,6 +703,13 @@ async def on_ready():
             print("✅ LOG: Confession System is ONLINE.")
     except Exception as e:
         print(f"Failed to load confession extension: {e}")
+
+    # --- ADDED: REACTION ROLE SYSTEM LOADING ---
+    try:
+        await bot.load_extension("reactionrole")
+        print("✅ LOG: Reaction Role System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load reactionrole extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
