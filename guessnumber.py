@@ -78,60 +78,64 @@ class GuessNumber(commands.Cog):
         elif guess > self.target_number:
             await message.add_reaction("⬇️")
         else:
-            # WINNER PROTOCOL
-            user_data = main_mod.get_user(message.author.id)
-            global_tries = user_data.get('guess_tries', 1)
-            
-            # --- CALCULATE RECORDS ---
-            time_taken = round(time.time() - self.start_time, 2)
-            
-            with main_mod.get_db_connection() as conn:
-                # Get Global/Server stats
-                conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('total_games_played', '0')")
-                conn.execute("UPDATE config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_games_played'")
+            # WINNER PROTOCOL - Added safeguard here to prevent silent death
+            try:
+                user_data = main_mod.get_user(message.author.id)
+                global_tries = user_data.get('guess_tries', 1) if user_data else 1
                 
-                # Check for Fastest Record
-                record_row = conn.execute("SELECT value FROM config WHERE key = 'fastest_guess'").fetchone()
-                new_record = False
-                if not record_row or time_taken < float(json.loads(record_row['value'])['time']):
-                    record_data = {'time': time_taken, 'user': message.author.name, 'number': self.target_number}
-                    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('fastest_guess', ?)", (json.dumps(record_data),))
-                    new_record = True
+                # --- CALCULATE RECORDS ---
+                time_taken = round(time.time() - self.start_time, 2)
                 
-                stats_row = conn.execute("SELECT value FROM config WHERE key = 'total_games_played'").fetchone()
-                total_games = stats_row['value']
-                conn.commit()
+                with main_mod.get_db_connection() as conn:
+                    # Get Global/Server stats
+                    conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('total_games_played', '0')")
+                    conn.execute("UPDATE config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_games_played'")
+                    
+                    # Check for Fastest Record
+                    record_row = conn.execute("SELECT value FROM config WHERE key = 'fastest_guess'").fetchone()
+                    new_record = False
+                    if not record_row or time_taken < float(json.loads(record_row['value'])['time']):
+                        record_data = {'time': time_taken, 'user': message.author.name, 'number': self.target_number}
+                        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('fastest_guess', ?)", (json.dumps(record_data),))
+                        new_record = True
+                    
+                    stats_row = conn.execute("SELECT value FROM config WHERE key = 'total_games_played'").fetchone()
+                    total_games = stats_row['value']
+                    conn.commit()
 
-            # --- WINNER CARD EMBED (ECHO THEMED) ---
-            embed = main_mod.fiery_embed("🛰️ NEURAL SYNC: ECHO CERTIFICATE", 
-                f"**Frequency matched successfully, {message.author.mention}.**\n"
-                f"The Echo has verified your transmission.")
-            
-            embed.add_field(name="📜 Sync Details", value=(
-                f"🎯 **Target Number:** {self.target_number}\n"
-                f"⏱️ **Time Taken:** {time_taken}s\n"
-                f"🧪 **Round Attempts:** {self.round_tries}"
-            ), inline=True)
-            
-            embed.add_field(name="📊 Global Metrics", value=(
-                f"👤 **Your Lifetime Tries:** {global_tries}\n"
-                f"🌍 **Global Games Finished:** {total_games}\n"
-                f"🏛️ **Server Total Load:** {self.server_total_tries}"
-            ), inline=True)
+                # --- WINNER CARD EMBED (ECHO THEMED) ---
+                embed = main_mod.fiery_embed("🛰️ NEURAL SYNC: ECHO CERTIFICATE", 
+                    f"**Frequency matched successfully, {message.author.mention}.**\n"
+                    f"The Echo has verified your transmission.")
+                
+                embed.add_field(name="📜 Sync Details", value=(
+                    f"🎯 **Target Number:** {self.target_number}\n"
+                    f"⏱️ **Time Taken:** {time_taken}s\n"
+                    f"🧪 **Round Attempts:** {self.round_tries}"
+                ), inline=True)
+                
+                embed.add_field(name="📊 Global Metrics", value=(
+                    f"👤 **Your Lifetime Tries:** {global_tries}\n"
+                    f"🌍 **Global Games Finished:** {total_games}\n"
+                    f"🏛️ **Server Total Load:** {self.server_total_tries}"
+                ), inline=True)
 
-            if new_record:
-                embed.add_field(name="🚀 NEW WORLD RECORD", value=f"You are the fastest Echo in history: **{time_taken}s**!", inline=False)
+                if new_record:
+                    embed.add_field(name="🚀 NEW WORLD RECORD", value=f"You are the fastest Echo in history: **{time_taken}s**!", inline=False)
 
-            embed.set_image(url="https://i.imgur.com/your_echo_themed_card.png") # Winner Card Image
-            embed.set_footer(text="Verification Code: ECHO-" + str(random.randint(1000, 9999)))
-            
-            await message.channel.send(embed=embed)
-            
-            # Reset for next round
-            self.target_number = random.randint(0, 100)
-            self.start_time = time.time()
-            self.round_tries = 0
-            self.save_config()
+                embed.set_image(url="https://i.imgur.com/your_echo_themed_card.png") # Winner Card Image
+                embed.set_footer(text="Verification Code: ECHO-" + str(random.randint(1000, 9999)))
+                
+                await message.channel.send(embed=embed)
+                
+                # Reset for next round
+                self.target_number = random.randint(0, 100)
+                self.start_time = time.time()
+                self.round_tries = 0
+                self.save_config()
+            except Exception as e:
+                # If it fails, at least tell us why in the console
+                print(f"CRITICAL ERROR IN WINNER PROTOCOL: {e}")
 
 async def setup(bot):
     main_mod = sys.modules['__main__']
