@@ -486,6 +486,14 @@ async def on_ready():
         print("✅ LOG: Text Level System is ONLINE.")
     except Exception as e:
         print(f"Failed to load levels extension: {e}")
+
+    # --- ADDED: AUTO-REACT SYSTEM LOADING ---
+    try:
+        if not bot.get_cog("AutoReact"):
+            await bot.load_extension("react")
+            print("✅ LOG: Auto-React System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load react extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
