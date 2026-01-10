@@ -506,8 +506,9 @@ async def on_ready():
     # --- ADDED: CONFESSION SYSTEM LOADING ---
     try:
         if not bot.get_cog("ConfessionSystem"):
-            from confessions import ConfessionSubmissionView # ADDED for persistent view
+            # FIXED: Import and load sequence
             await bot.load_extension("confessions")
+            from confessions import ConfessionSubmissionView
             conf_cog = bot.get_cog("ConfessionSystem")
             if conf_cog:
                 # REGISTER PERSISTENT VIEW
