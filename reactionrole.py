@@ -60,9 +60,9 @@ class DesignerLobby(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="CREATE NEW SYSTEM", style=discord.ButtonStyle.danger, emoji="➕", custom_id="echo_create_rr")
+    @discord.ui.button(label="CREATE NEW SYSTEM", style=discord.ButtonStyle.danger, emoji="➕", custom_id="persistent_create_system")
     async def create(self, interaction: discord.Interaction):
-        # FIXED: Modal is now called directly from the interaction to prevent timeout
+        # Trigger the modal
         await interaction.response.send_modal(ProtocolModal())
 
 # --- MAIN COG ---
