@@ -332,79 +332,65 @@ async def hall(ctx):
 
 @bot.command()
 async def echo(ctx):
-    """ULTIMATE ASSET GUIDE: Comprehensive protocol integration."""
-    emb1 = fiery_embed("ECHO PROTOCOL: THE ARCHITECTURAL CORE 🏛️", 
-        "### 🧬 SECTION I: THE SILENT ENGINES\n"
-        "**1. database.py & db_module (The Central Ledger)**\n"
-        "• *Neural Link:* Connects every action to record.\n"
-        "• *Persistence:* Handles SQLite (30s timeout) for Railway stability.\n"
-        "• *Maintenance:* Auto-injects columns (premium_type, level_status).\n\n"
-        "**2. main.py (The Master Orchestrator)**\n"
-        "• *Neural Link:* Heartbeat. Dual-threading Flask and Bot.\n"
-        "• *Guardian:* Pings 3h before discipline streaks purge.\n\n"
-        "**3. utilis.py (The Stylist)**\n"
-        "• *Neural Link:* UI Skin. Forces Blood Red UI during NSFW.\n\n"
-        "**4. prizes.py (The Calculation Engine)**\n"
-        "• *Neural Link:* Multiplier stack: Base × Class × Heat × NSFW × Luck × Anniversary.\n"
-        "• *Taxation:* 20% automatic extraction for Dominant owners.")
+    """ULTIMATE OMNI-PROTOCOL GUIDE: TRANSFORMED V8.0"""
+    # Page 1: Architecture
+    emb1 = fiery_embed("🏛️ ECHO CORE: THE ARCHITECTURAL LEDGER", 
+        "**Neural Engines Powering the Red Room**\n\n"
+        "**1. The Central Ledger (database.py)**\n"
+        "Connects every neural action to a permanent record. Handles SQLite with 30s Railway-safe persistence.\n\n"
+        "**2. The Orchestrator (main.py)**\n"
+        "Bot heartbeat. Synchronizes Discord with Flask Webhooks for real-time payments.\n\n"
+        "**3. The Calculation Engine (prizes.py)**\n"
+        "Logic: Base × Class × Heat × NSFW × Luck × Anniversary.")
 
-    emb2 = fiery_embed("ECHO PROTOCOL: THE GAMING & COMBAT SECTOR ⚔️", 
-        "### ⚔️ SECTION II: HIGH-RISK SYSTEMS\n"
-        "**5. ignis.py (Echo Hangrygames Edition)**\n"
-        "• Turn-based simulation with random Legendary Events (2-5 kills).\n"
-        "• Winner Power: Champion gains `!@user` to humiliate victims.\n\n"
-        "**6. fight.py (1v1 Private Duels)**\n"
-        "• Intimate rivalry with health bars and erotic flavor text.\n"
-        "• Outcome: Winners gain Execution Stats visible on profiles.\n\n"
-        "**7. casino.py & Mini-Games**\n"
-        "• Psychological luck cycles (Slots, BJ, Roulette, Dice).\n"
-        "• Coordination: `counting.py` (500F penalty) and `guessnumber.py`.")
+    # Page 2: Combat
+    emb2 = fiery_embed("⚔️ COMBAT SECTOR: DOMINANCE PROTOCOLS", 
+        "**High-Risk Systems for Flame Harvesting**\n\n"
+        "**• Echo Hangrygames (ignis.py)**\n"
+        "Turn-based slaughter with random 'Legendary Events'. Champions gain unique `!@user` decree powers.\n\n"
+        "**• Private Duels (fight.py)**\n"
+        "Health-bar based intimate rivalry. Losers bleed Flames; winners gain Execution stats.\n\n"
+        "**• Coordination Trials**\n"
+        "Counting (Logic sequence) and GuessNumber (Intuition).")
 
-    emb3 = fiery_embed("ECHO PROTOCOL: THE SOCIAL & IDENTITY SECTOR 🫦", 
-        "### 🫦 SECTION III: THE RED ROOM HIERARCHY\n"
-        "**8. worknranks.py & classes.py (Identity)**\n"
-        "• 100 Ranks: Progression from 'Unmarked' to 'Final Authority'.\n"
-        "• Classes: Dominant (+20% F), Submissive (+25% XP), Switch, Exhibitionist (+40% F).\n\n"
-        "**9. ship.py (Soul Synchronization)**\n"
-        "• Daily resonance scans (0-100%) and Ring-based Marriage.\n"
-        "• Anniversary: 2x stats once a month to married couples.\n\n"
-        "**10. social.py (The Dossier & Hall)**\n"
-        "• `!me` profile aggregation and Legacy Museum records.")
+    # Page 3: Hierarchy
+    emb3 = fiery_embed("🫦 SOCIAL SECTOR: IDENTITY & SOUL BONDS", 
+        "**The Social Fabric of the Pit**\n\n"
+        "**• The 100 Ranks (Identity)**\n"
+        "Progression from 'Unmarked' to 'Final Authority'. Roles define your tribute logic.\n\n"
+        "**• Soul Synchronization (ship.py)**\n"
+        "Resonance scans and Ring-based Marriage. Couples gain 2x stats on Anniversaries.\n\n"
+        "**• The Dossier (social.py)**\n"
+        "Aggregates combat, victims, and ownership status into the `!me` profile.")
 
-    emb4 = fiery_embed("📜 SECTION IV: COMMAND PROTOCOLS (A)", 
+    # Page 4: Commands A
+    emb4 = fiery_embed("📜 COMMAND LIST: ASSET MANAGEMENT", 
         "**Identity & Profiles**\n"
-        "`!me`, `!setclass`, `!achievements`, `!ranking`, `!hall`, `!mylevel`, `!ranktop`, `!leveloff`, `!streaks`.\n\n"
+        "• `!me`, `!setclass`, `!achievements`, `!ranking`, `!hall`, `!streaks`\n\n"
         "**Labor & Tributes (3h Cooldown)**\n"
-        "`!work`, `!beg`, `!flirt`, `!pimp`, `!cumcleaner`, `!experiment`, `!mystery`.\n"
-        "`!daily`, `!weekly`, `!monthly`: Recurring stipends.\n\n"
-        "**Combat & The Arena**\n"
-        "`!echostart`, `!lobby`, `!fuck <@user>`, `!@user`, `!bondtrial`.")
+        "• `!work`, `!beg`, `!flirt`, `!pimp`, `!cumcleaner`, `!experiment`, `!mystery`\n\n"
+        "**Recurring Stipends**\n"
+        "• `!daily`, `!weekly`, `!monthly` (Streak-based discipline)")
 
-    emb5 = fiery_embed("📜 SECTION IV: COMMAND PROTOCOLS (B)", 
-        "**The Market & Wealth**\n"
-        "`!shop`, `!buy <item>`, `!sell`, `!inv`, `!balance`, `!favor`, `!premium`, `!premiumstatus`.\n\n"
-        "**Social & Soul Bonds**\n"
-        "`!ship`, `!marry`, `!divorce`, `!bestfriend`, `!matchmaking`, `!matchme`, `!confess`.\n\n"
+    # Page 5: Commands B
+    emb5 = fiery_embed("📜 COMMAND LIST: MARKET & SYNC", 
+        "**Market & Wealth**\n"
+        "• `!shop`, `!buy`, `!sell`, `!inv`, `!balance`, `!favor`, `!premium`\n\n"
+        "**Social & Bonds**\n"
+        "• `!ship`, `!marry`, `!divorce`, `!bestfriend`, `!matchmaking`, `!confess`\n\n"
         "**Casino & Risk**\n"
-        "`!slots`, `!blackjack`, `!roulette`, `!dice`.\n\n"
-        "**System & World Events**\n"
-        "`!quests`, `!search`, `!gallery`, `!ping`, `!togglealerts`.")
+        "• `!slots`, `!blackjack`, `!roulette`, `!dice` (Sum-guessing sum reward x8)")
 
-    emb6 = fiery_embed("⚖️ SECTION V: ADMINISTRATIVE (MASTER ONLY)", 
-        "### 🛠️ SYSTEM OVERRIDES\n"
-        "• `!nsfwtime`: Toggle Grand Exhibition (Global 2x Multiplier).\n"
-        "• `!masterpresence`: Force Peak Heat & Blood Red UI.\n"
-        "• `!echoon` / `!echooff`: Global Premium override.\n"
-        "• `!activate <@user> <plan#>`: Manual premium elevation.\n"
-        "• `!testpay <@user> <plan#>`: Simulate PayPal signal.\n\n"
-        "### ⚙️ CHANNEL & MAINTENANCE\n"
-        "• `!audit <#channel>`: Rebind the Master's Ledger.\n"
-        "• `!setlevelchannel`: Set social level destination.\n"
-        "• `!setlevelrole <lvl> <@role>`: Bind Neural Level to Role.\n"
-        "• `!react <#channel> <emoji>`: Auto-media reactions.\n"
-        "• `!thread <#channel>`: Auto-session threading.\n"
-        "• `!reactoff` / `!threadoff`: Purge channel protocols.\n"
-        "• `!reset_arena`: Unlock sessions. | `!fierystart`: Force ignis.")
+    # Page 6: Master
+    emb6 = fiery_embed("⚖️ ADMINISTRATIVE PROTOCOLS: MASTER ONLY", 
+        "**Governance of the Red Room**\n\n"
+        "**• System Overrides**\n"
+        "• `!nsfwtime`: Global 2x Multiplier.\n"
+        "• `!masterpresence`: Peak Heat & Blood Red UI.\n"
+        "• `!echoon`: Global Premium Override.\n\n"
+        "**• Maintenance Logic**\n"
+        "• `!audit`: Rebind Ledger. | `!thread`: Auto-session logic.\n"
+        "• `!reset_arena`: Emergency unlock for stalled sessions.")
 
     pages = [emb1, emb2, emb3, emb4, emb5, emb6]
     for e in pages:
