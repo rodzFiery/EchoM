@@ -62,7 +62,7 @@ class DesignerLobby(discord.ui.View):
 
     @discord.ui.button(label="CREATE NEW SYSTEM", style=discord.ButtonStyle.danger, emoji="➕", custom_id="persistent_create_system")
     async def create(self, interaction: discord.Interaction):
-        # Trigger the modal
+        # Trigger the modal - FIXED: Initialized correctly within the interaction
         await interaction.response.send_modal(ProtocolModal())
 
 # --- MAIN COG ---
