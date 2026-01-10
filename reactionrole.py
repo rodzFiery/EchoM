@@ -62,19 +62,29 @@ class ReactionRoleSystem(commands.Cog):
             # Step 3: Emoji Selection
             await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click.")
             msg = await self.bot.wait_for("message", check=check, timeout=60.0)
-            target_emoji = msg.content # Simplistic check, assumes admin sends just the emoji
+            target_emoji = msg.content.strip() # PRESERVATION: Added strip to prevent hidden character errors
 
             # Step 4: Content Design
             await ctx.send("📝 **STEP 4:** Type the **message/rules** that will appear in the embed.")
             msg = await self.bot.wait_for("message", check=check, timeout=120.0)
             rules_content = msg.content
 
+            # --- NEW API PROTECTION: Check if text is too big ---
+            if len(rules_content) > 4096:
+                await ctx.send(f"⚠️ **DATA OVERFLOW:** Your text is `{len(rules_content)}` characters. Discord limit is 4096. Cutting text to fit...")
+                rules_content = rules_content[:4090] + "..."
+
             # Step 5: Final Deployment
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
             
             view = ReactionRoleView({target_emoji: target_role.id})
-            final_msg = await target_channel.send(embed=embed, view=view)
+            
+            # Sending to the TARGET channel
+            try:
+                final_msg = await target_channel.send(embed=embed, view=view)
+            except Exception as e:
+                return await ctx.send(f"❌ **DEPLOYMENT FAILED:** {e}")
 
             # Store in DB
             with sqlite3.connect("database.db") as conn:
