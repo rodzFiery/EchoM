@@ -333,64 +333,58 @@ async def hall(ctx):
 @bot.command()
 async def echo(ctx):
     """ULTIMATE OMNI-PROTOCOL GUIDE: TRANSFORMED V8.0"""
-    # Page 1: Architecture
-    emb1 = fiery_embed("🏛️ ECHO CORE: THE ARCHITECTURAL LEDGER", 
-        "**Neural Engines Powering the Red Room**\n\n"
-        "**1. The Central Ledger (database.py)**\n"
-        "Connects every neural action to a permanent record. Handles SQLite with 30s Railway-safe persistence.\n\n"
-        "**2. The Orchestrator (main.py)**\n"
-        "Bot heartbeat. Synchronizes Discord with Flask Webhooks for real-time payments.\n\n"
-        "**3. The Calculation Engine (prizes.py)**\n"
-        "Logic: Base × Class × Heat × NSFW × Luck × Anniversary.")
+    # Page 1: Architecture & Internal Modules
+    emb1 = fiery_embed("🏛️ INTERNAL MODULES & PROTOCOLS", 
+        "**System Architecture (.py Structure)**\n\n"
+        "**• database.py:** Neural Ledger. Handles SQLite persistence.\n"
+        "**• utilis.py:** Stylist engine. Forces Blood Red UI skin.\n"
+        "**• prizes.py:** Reward logic (Base × Multipliers).\n"
+        "**• lexicon.py:** Erotic flavor text database.\n"
+        "**• worknranks.py:** Identity/Rank strings and work logic.\n"
+        "**• daily.py:** Periodic reward cooldown handler.")
 
-    # Page 2: Combat
-    emb2 = fiery_embed("⚔️ COMBAT SECTOR: DOMINANCE PROTOCOLS", 
-        "**High-Risk Systems for Flame Harvesting**\n\n"
-        "**• Echo Hangrygames (ignis.py)**\n"
-        "Turn-based slaughter with random 'Legendary Events'. Champions gain unique `!@user` decree powers.\n\n"
-        "**• Private Duels (fight.py)**\n"
-        "Health-bar based intimate rivalry. Losers bleed Flames; winners gain Execution stats.\n\n"
-        "**• Coordination Trials**\n"
-        "Counting (Logic sequence) and GuessNumber (Intuition).")
+    # Page 2: Gameplay Extensions
+    emb2 = fiery_embed("⚔️ GAMEPLAY & COMBAT EXTENSIONS", 
+        "**Active Command Groups from Modules**\n\n"
+        "**• ignis.py (Arena):** `!fierystart`, `!lobby`, `!@user` ( décret).\n"
+        "• **fight.py (Duels):** `!fight <@user>`, `!stats`.\n"
+        "• **casino.py (Risk):** `!slots`, `!blackjack`, `!roulette`, `!dice`.\n"
+        "• **collect.py (Scavenging):** `!search`, `!gallery`.\n"
+        "• **ignis (Lobby):** `!join`, `!leave`.")
 
-    # Page 3: Hierarchy
-    emb3 = fiery_embed("🫦 SOCIAL SECTOR: IDENTITY & SOUL BONDS", 
-        "**The Social Fabric of the Pit**\n\n"
-        "**• The 100 Ranks (Identity)**\n"
-        "Progression from 'Unmarked' to 'Final Authority'. Roles define your tribute logic.\n\n"
-        "**• Soul Synchronization (ship.py)**\n"
-        "Resonance scans and Ring-based Marriage. Couples gain 2x stats on Anniversaries.\n\n"
-        "**• The Dossier (social.py)**\n"
-        "Aggregates combat, victims, and ownership status into the `!me` profile.")
+    # Page 3: Social & Economy Extensions
+    emb3 = fiery_embed("🫦 SOCIAL & ECONOMY EXTENSIONS", 
+        "**Interaction & Wealth Commands**\n\n"
+        "**• shop.py:** `!shop`, `!buy <id>`, `!sell`, `!inv`.\n"
+        "• **ship.py:** `!ship`, `!marry`, `!divorce`, `!anniversary`.\n"
+        "• **premium.py:** `!premium`, `!premiumstatus`, `!claims`.\n"
+        "• **social.py:** `!ranking`, `!hall`, `!streaks`.\n"
+        "• **confession.py:** `!confess` (Anonymous Neural Link).")
 
-    # Page 4: Commands A
-    emb4 = fiery_embed("📜 COMMAND LIST: ASSET MANAGEMENT", 
-        "**Identity & Profiles**\n"
-        "• `!me`, `!setclass`, `!achievements`, `!ranking`, `!hall`, `!streaks`\n\n"
-        "**Labor & Tributes (3h Cooldown)**\n"
-        "• `!work`, `!beg`, `!flirt`, `!pimp`, `!cumcleaner`, `!experiment`, `!mystery`\n\n"
-        "**Recurring Stipends**\n"
-        "• `!daily`, `!weekly`, `!monthly` (Streak-based discipline)")
+    # Page 4: Main System Commands
+    emb4 = fiery_embed("📜 MAIN SYSTEM CORE COMMANDS", 
+        "**Base Commands (Direct from main.py)**\n\n"
+        "**• Identity:** `!me`, `!balance`.\n"
+        "**• Stipends:** `!daily`, `!weekly`, `!monthly`.\n"
+        "**• Labor:** `!work`, `!beg`, `!flirt`, `!pimp`, `!cumcleaner`, `!experiment`, `!mystery`.\n"
+        "**• Infrastructure:** `!ping`, `!togglealerts`, `!favor` (Bribe).")
 
-    # Page 5: Commands B
-    emb5 = fiery_embed("📜 COMMAND LIST: MARKET & SYNC", 
-        "**Market & Wealth**\n"
-        "• `!shop`, `!buy`, `!sell`, `!inv`, `!balance`, `!favor`, `!premium`\n\n"
-        "**Social & Bonds**\n"
-        "• `!ship`, `!marry`, `!divorce`, `!bestfriend`, `!matchmaking`, `!confess`\n\n"
-        "**Casino & Risk**\n"
-        "• `!slots`, `!blackjack`, `!roulette`, `!dice` (Sum-guessing sum reward x8)")
+    # Page 5: Utilities & Minigames
+    emb5 = fiery_embed("🎮 UTILITIES & NEURAL MINIGAMES", 
+        "**Background Automation & Engagement**\n\n"
+        "**• levels.py:** Social XP, `!mylevel`, `!ranktop`.\n"
+        "• **counting.py:** Channel-based game (High Penalty).\n"
+        "• **guessnumber.py:** Intuition challenge.\n"
+        "• **thread.py:** Auto-session management.\n"
+        "• **react.py:** Auto-media reaction protocols.")
 
-    # Page 6: Master
-    emb6 = fiery_embed("⚖️ ADMINISTRATIVE PROTOCOLS: MASTER ONLY", 
-        "**Governance of the Red Room**\n\n"
-        "**• System Overrides**\n"
-        "• `!nsfwtime`: Global 2x Multiplier.\n"
-        "• `!masterpresence`: Peak Heat & Blood Red UI.\n"
-        "• `!echoon`: Global Premium Override.\n\n"
-        "**• Maintenance Logic**\n"
-        "• `!audit`: Rebind Ledger. | `!thread`: Auto-session logic.\n"
-        "• `!reset_arena`: Emergency unlock for stalled sessions.")
+    # Page 6: Master Protocols (Admin)
+    emb6 = fiery_embed("⚖️ MASTER OVERRIDES (ADMIN)", 
+        "**Governance & System Control (admin.py/audit.py)**\n\n"
+        "**• Master Overrides:** `!nsfwtime`, `!masterpresence`, `!echoon`.\n"
+        "• **Payment Debug:** `!activate`, `!testpay`.\n"
+        "• **Server Config:** `!audit <#ch>`, `!setlevelchannel`, `!reset_arena`.\n"
+        "• **Infrastructure:** `!reactoff`, `!threadoff`.")
 
     pages = [emb1, emb2, emb3, emb4, emb5, emb6]
     for e in pages:
