@@ -535,13 +535,8 @@ async def on_message(message):
     if message.author.bot: 
         return
     
-    # CRITICAL ADDITION: High Priority processing for Railway latency
-    ctx = await bot.get_context(message)
-    if ctx.valid:
-        await bot.invoke(ctx)
-    else:
-        # Standard fallback for non-command messages
-        await bot.process_commands(message)
+    # CRITICAL: Allow Cog listeners (like GuessNumber) to hear the message
+    await bot.process_commands(message)
 
 async def main():
     try:
