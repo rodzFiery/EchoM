@@ -494,6 +494,14 @@ async def on_ready():
             print("✅ LOG: Auto-React System is ONLINE.")
     except Exception as e:
         print(f"Failed to load react extension: {e}")
+
+    # --- ADDED: COUNTING SYSTEM LOADING ---
+    try:
+        if not bot.get_cog("Counting"):
+            await bot.load_extension("counting")
+            print("✅ LOG: Counting System is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load counting extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
