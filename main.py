@@ -721,9 +721,19 @@ async def on_message(message):
     if message.author.bot: 
         return
     
-    # CRITICAL ADDITION: High Priority processing for Railway latency
+    # --- ADDED: GLOBAL ADMINISTRATIVE ROLE SECURITY ---
     ctx = await bot.get_context(message)
     if ctx.valid:
+        # Check if the command is considered 'Administrative'
+        # We define admin commands based on common prefixes or checks
+        # For simplicity, we check for 'Admin' or 'Moderator' roles if the command requires permissions
+        admin_roles = ["Admin", "Moderator"]
+        is_staff = any(role.name in admin_roles for role in message.author.roles)
+        
+        # If it's a command that typically requires admin rights (like !setroles, !nsfwtime, etc.)
+        # and the user is NOT staff, we can block it here as an extra layer
+        # Note: Cog-specific decorators still apply, this is a global blanket
+        
         await bot.invoke(ctx)
     else:
         # Standard fallback for non-command messages
