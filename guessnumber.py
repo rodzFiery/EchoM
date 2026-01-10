@@ -95,4 +95,10 @@ class GuessNumber(commands.Cog):
             self.save_config()
 
 async def setup(bot):
+    # ADDED: Critical DB check to prevent "no such column: guess_tries"
+    main_mod = sys.modules['__main__']
+    try:
+        with main_mod.get_db_connection() as conn:
+            conn.execute("ALTER TABLE users ADD COLUMN guess_tries INTEGER DEFAULT 0")
+    except: pass # Column already exists
     await bot.add_cog(GuessNumber(bot))
