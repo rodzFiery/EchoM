@@ -253,8 +253,8 @@ class FieryCasino(commands.Cog):
     async def execute_dice_logic(self, interaction, guess, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
-        if user['balance'] < bet:
-            return await interaction.response.send_message("❌ **Asset Deficiency.**", ephemeral=True)
+        if user['balance'] < bet or user['balance'] <= 0:
+            return await interaction.response.send_message("❌ **Asset Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
         await interaction.response.edit_message(content="🎲 **Rattling the cup...**", view=None, embed=None)
         await asyncio.sleep(2.0)
         d1, d2 = random.randint(1, 6), random.randint(1, 6)
@@ -291,6 +291,9 @@ class FieryCasino(commands.Cog):
             await ctx.send(embed=embed, view=view)
 
     async def start_blackjack_duel(self, interaction, bet):
+        user = await self.get_user_data(interaction.user.id)
+        if user['balance'] < bet or user['balance'] <= 0:
+            return await interaction.response.send_message("❌ **Asset Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
         p_hand = [self.draw_card(), self.draw_card()]
         d_hand = [self.draw_card(), self.draw_card()]
         if self.calculate_bj(p_hand) == 21:
@@ -367,7 +370,7 @@ class FieryCasino(commands.Cog):
     async def execute_roulette_logic(self, interaction, choice, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
-        if user['balance'] < bet: return await interaction.response.send_message("❌ **Vault Deficiency.**", ephemeral=True)
+        if user['balance'] < bet or user['balance'] <= 0: return await interaction.response.send_message("❌ **Vault Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
         await interaction.response.edit_message(content="🎡 **The wheel is spinning...**", view=None, embed=None)
         await asyncio.sleep(3.0)
         num = random.randint(0, 36)
@@ -415,7 +418,7 @@ class FieryCasino(commands.Cog):
     async def execute_slots_logic(self, interaction, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
-        if user['balance'] < bet: return await interaction.response.send_message("❌ **Vault Deficiency.**", ephemeral=True)
+        if user['balance'] < bet or user['balance'] <= 0: return await interaction.response.send_message("❌ **Vault Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
         icons = ["🫦", "⛓️", "🔞", "🍑", "💦", "🔥"]
         
         # ANIMATION SEQUENCE
@@ -448,4 +451,4 @@ class FieryCasino(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(FieryCasino(bot))
-    print("✅ LOG: Triple Pleasure Slots integrated into Casino Protocols.")
+    print("✅ LOG: Triple Pleasure Slots integrated into Casino Protocols. Well done mf !")
