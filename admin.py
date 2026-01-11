@@ -1,4 +1,4 @@
-import discord
+chimport discord
 from discord.ext import commands
 import shutil
 import os
@@ -37,7 +37,7 @@ class AdminSystem(commands.Cog):
         main_module = sys.modules['__main__']
         main_module.nsfw_mode_active = False
         self.save_game_config()
-        embed = self.fiery_embed("NSFW Mode Ended", "The NSFW Hangrygames has closed. Returning to standard Red Room protocols.")
+        embed = self.fiery_embed("NSFW Mode Ended", "The Echogames has closed. Returning to standard Red Room protocols.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
