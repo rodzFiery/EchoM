@@ -52,7 +52,7 @@ class LobbyView(discord.ui.View):
             await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
 
     # ADDED: custom_id to make the interaction persistent
-    @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="<:FIERY_heart_devilwhite:1314908504972070932>", custom_id="fiery_start_button")
+    @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.owner.id:
             return await interaction.response.send_message("Only the Masters starts the games!", ephemeral=True)
@@ -432,7 +432,7 @@ class IgnisEngine(commands.Cog):
                             event_msg = FieryLexicon.get_legendary_event([l['name'] for l in event_losers])
                         except:
                             event_msg = f"A chaotic surge wipes out: {', '.join([l['name'] for l in event_losers])}"
-                        await channel.send(embed=self.fiery_embed("LEGENDARY FIERY EVENT", event_msg, color=0x9400D3))
+                        await channel.send(embed=self.fiery_embed("LEGENDARY ECHO EVENT", event_msg, color=0x9400D3))
                         await asyncio.sleep(6)
                     
                     if len(fighters) <= 1: break
@@ -701,3 +701,4 @@ async def setup(bot):
         main.get_db_connection
     )
     await bot.add_cog(engine_control)
+
