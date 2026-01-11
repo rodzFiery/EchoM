@@ -336,7 +336,7 @@ async def echo(ctx):
     # Page 1: Gameplay & Combat Extensions
     emb1 = fiery_embed("⚔️ COMBAT & ARENA PROTOCOLS", 
         "**Battle Extensions (ignis.py & fight.py)**\n"
-        "• `!fierystart`: Force immediate Arena execution.\n"
+        "• `!echostart`: Force immediate Arena execution.\n"
         "• `!lobby`: Open the Red Room combat lobby.\n"
         "• `!join` / `!leave`: Enter or exit the active simulation.\n"
         "• `!fight <@user>`: Trigger a health-bar based 1v1 duel.\n"
@@ -545,7 +545,7 @@ async def on_ready():
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
-    # NEW: Carga EngineControl para habilitar !fierystart e !lobby que estão no ignis.py
+    # NEW: Carga EngineControl para habilitar !echostart e !lobby que estão no ignis.py
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
@@ -712,7 +712,7 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to load reactionrole extension: {e}")
     
-    await bot.change_presence(activity=discord.Game(name="Fiery Hangrygames"))
+    await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
     print(f"📊 PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
 
@@ -758,3 +758,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
