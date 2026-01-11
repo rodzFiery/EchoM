@@ -71,8 +71,8 @@ class Collect(commands.Cog):
         
         target_info = f"Stage: **#{channel_name}**" if channel_name else "Interaction: **Universal**"
         
-        embed.add_field(name="<:FIERY_fp_axdevilleft:1310628556983898142> Name", value=user.mention, inline=True)
-        embed.add_field(name="<:FIERY_heart_devilred:1329474462365777920> Protocol", value=source_desc, inline=True)
+        embed.add_field(name="📜 Name", value=user.mention, inline=True)
+        embed.add_field(name="📜 Protocol", value=source_desc, inline=True)
         embed.add_field(name="📍 Location", value=target_info, inline=True)
         embed.add_field(name="💰 Harvest", value=f"+{flames} Flames | +{xp} XP", inline=False)
         
