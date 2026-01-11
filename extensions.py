@@ -42,10 +42,10 @@ class FieryExtensions(commands.Cog):
     # ==========================================
 
     async def trigger_nsfw_start(self, ctx):
-        embed = self.fiery_embed("The Echo Hangrygames", 
+        embed = self.fiery_embed("The EchoGames", 
             "🔞 **NSFW PROTOCOL: ACTIVATED.**\n\n"
             "• **MULTIPLIER:** All Flames and XP are now **DOUBLE**.\n"
-            "• **HANGRYGAMES:** Winners may now `!flash` 3 victims.\n"
+            "• **ECHOGAMES:** Winners may now `!flash` 3 victims.\n"
             "• **FIRST BLOOD:** Automatically stripped and exposed.\n\n"
             "*The Red Room is set to its most erotic frequency for the next 90 minutes.*")
         
@@ -65,7 +65,7 @@ class FieryExtensions(commands.Cog):
             return await ctx.send("The lights are normal. This level of exposure is forbidden right now.")
             
         # --- VISUAL RECAP TEMPLATE ---
-        embed = discord.Embed(title="🔞 THE ECHO HANGRYGAMES RECAP 🔞", color=0xFF00FF)
+        embed = discord.Embed(title="🔞 THE ECHOGAMES RECAP 🔞", color=0xFF00FF)
         embed.set_author(name=f"Lead Echo Hangrygames: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
         
         desc = (f"The Winner has opened the curtains. The following assets are currently on display for the Red Room's pleasure:\n\n"
