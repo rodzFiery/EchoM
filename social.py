@@ -29,7 +29,7 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
     
     engine = bot.get_cog("IgnisEngine")
     if nsfw_mode_active and engine and engine.last_winner_id == member.id:
-        titles.append("⛓️ HANGRYGAMES LEAD 🔞")
+        titles.append("⛓️ ECHOGAMES LEAD 🔞")
 
     badge_display = " ".join(titles) if titles else "No badges yet."
 
