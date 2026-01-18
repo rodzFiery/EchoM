@@ -365,7 +365,7 @@ class FieryShip(commands.Cog):
                 log_emb = main_mod.fiery_embed("💍 VOYEUR UNION AUDIT", f"A permanent synchronization has been achieved.")
                 log_emb.add_field(name="Dominant/Partner", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Submissive/Partner", value=member.mention, inline=True)
-                log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have sealed their fates. The Red Room records their eternal bond."
+                log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.mention} and {member.mention} have sealed their fates. The Red Room records their eternal bond."
                 await audit_channel.send(embed=log_emb)
             view.stop()
 
@@ -434,7 +434,7 @@ class FieryShip(commands.Cog):
                 log_emb = main_mod.fiery_embed("🤝 VOYEUR ALLIANCE AUDIT", f"A new blood-bond has been formed.")
                 log_emb.add_field(name="Ally One", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Ally Two", value=member.mention, inline=True)
-                log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have shared blood. A platonic alliance is recorded."
+                log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.mention} and {member.mention} have shared blood. A platonic alliance is recorded."
                 await audit_channel.send(embed=log_emb)
             view.stop()
 
@@ -470,6 +470,7 @@ class FieryShip(commands.Cog):
             icon = "⛓️"
             if pct >= 69: icon = "🔞"
             if pct == 100: icon = "💖"
+            # UPDATED: Changed from display_name to mention to ensure @ tag logic
             description += f"**{idx}.** {icon} {m1.mention} + {m2.mention} — **{pct}% Sync**\n"
         embed.description = description
         embed.set_footer(text="The dungeon floor is heating up. Watch and learn.")
@@ -509,19 +510,19 @@ class FieryShip(commands.Cog):
             random.seed()
             
             try:
-                u_user = await self.bot.fetch_user(pair[0])
-                s_user = await self.bot.fetch_user(pair[1])
-                u_name = u_user.name
-                s_user_name = s_user.name
-                leaderboard_data.append((u_name, s_user_name, pct))
+                # Improved fetching to ensure mention capability
+                u_user = self.bot.get_user(pair[0]) or await self.bot.fetch_user(pair[0])
+                s_user = self.bot.get_user(pair[1]) or await self.bot.fetch_user(pair[1])
+                leaderboard_data.append((u_user, s_user, pct))
             except: pass
 
         leaderboard_data.sort(key=lambda x: x[2], reverse=True)
         embed = main_mod.fiery_embed("⛓️ THE MASTER'S LOVESCORE 💍", "The most synchronized and submissive bonds today:")
         description = ""
-        for idx, (n1, n2, pct) in enumerate(leaderboard_data[:10], 1):
+        for idx, (u1, u2, pct) in enumerate(leaderboard_data[:10], 1):
             medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🔥"
-            description += f"{medal} **{n1}** & **{n2}** — `{pct}% Resonance`\n"
+            # UPDATED: Use mention to tag members
+            description += f"{medal} {u1.mention} & {u2.mention} — `{pct}% Resonance`\n"
         embed.description = description
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -547,6 +548,7 @@ class FieryShip(commands.Cog):
             if pct > highest_pct:
                 highest_pct = pct
                 best_partner = m
+        # FIXED: Calling ship directly with user objects to maintain consistency
         await ctx.invoke(self.ship, user1=ctx.author, user2=best_partner)
 
     @commands.command(name="bondtrial", aliases=["kinkcheck"])
@@ -603,7 +605,12 @@ class FieryShip(commands.Cog):
         target = user or ctx.author
         u_data = await asyncio.to_thread(main_mod.get_user, target.id)
         
-        spouse_ment = f"<@{u_data['spouse']}>" if u_data['spouse'] else "None (Single Asset)"
+        # UPDATED: Using mention here to ensure clickable tags
+        if u_data['spouse']:
+            spouse_ment = f"<@{u_data['spouse']}>"
+        else:
+            spouse_ment = "None (Single Asset)"
+            
         m_date = u_data['marriage_date'] or "N/A"
         bond_lv = (u_data['balance'] // 10000) + 1
         
