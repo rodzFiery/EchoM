@@ -365,7 +365,7 @@ class FieryShip(commands.Cog):
                 log_emb = main_mod.fiery_embed("💍 VOYEUR UNION AUDIT", f"A permanent synchronization has been achieved.")
                 log_emb.add_field(name="Dominant/Partner", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Submissive/Partner", value=member.mention, inline=True)
-                log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.mention} and {member.mention} have sealed their fates. The Red Room records their eternal bond."
+                log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have sealed their fates. The Red Room records their eternal bond."
                 await audit_channel.send(embed=log_emb)
             view.stop()
 
@@ -434,7 +434,7 @@ class FieryShip(commands.Cog):
                 log_emb = main_mod.fiery_embed("🤝 VOYEUR ALLIANCE AUDIT", f"A new blood-bond has been formed.")
                 log_emb.add_field(name="Ally One", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Ally Two", value=member.mention, inline=True)
-                log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.mention} and {member.mention} have shared blood. A platonic alliance is recorded."
+                log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have shared blood. A platonic alliance is recorded."
                 await audit_channel.send(embed=log_emb)
             view.stop()
 
@@ -470,8 +470,8 @@ class FieryShip(commands.Cog):
             icon = "⛓️"
             if pct >= 69: icon = "🔞"
             if pct == 100: icon = "💖"
-            # UPDATED: Changed from display_name to mention to ensure @ tag logic
-            description += f"**{idx}.** {icon} {m1.mention} + {m2.mention} — **{pct}% Sync**\n"
+            # FIXED: Used display_name to ensure usernames show instead of IDs
+            description += f"**{idx}.** {icon} **{m1.display_name}** + **{m2.display_name}** — **{pct}% Sync**\n"
         embed.description = description
         embed.set_footer(text="The dungeon floor is heating up. Watch and learn.")
         if os.path.exists("LobbyTopRight.jpg"):
@@ -510,19 +510,20 @@ class FieryShip(commands.Cog):
             random.seed()
             
             try:
-                # Improved fetching to ensure mention capability
+                # FIXED: Improved fetching to ensure display names are captured
                 u_user = self.bot.get_user(pair[0]) or await self.bot.fetch_user(pair[0])
                 s_user = self.bot.get_user(pair[1]) or await self.bot.fetch_user(pair[1])
-                leaderboard_data.append((u_user, s_user, pct))
+                u_name = u_user.display_name
+                s_user_name = s_user.display_name
+                leaderboard_data.append((u_name, s_user_name, pct))
             except: pass
 
         leaderboard_data.sort(key=lambda x: x[2], reverse=True)
         embed = main_mod.fiery_embed("⛓️ THE MASTER'S LOVESCORE 💍", "The most synchronized and submissive bonds today:")
         description = ""
-        for idx, (u1, u2, pct) in enumerate(leaderboard_data[:10], 1):
+        for idx, (n1, n2, pct) in enumerate(leaderboard_data[:10], 1):
             medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🔥"
-            # UPDATED: Use mention to tag members
-            description += f"{medal} {u1.mention} & {u2.mention} — `{pct}% Resonance`\n"
+            description += f"{medal} **{n1}** & **{n2}** — `{pct}% Resonance`\n"
         embed.description = description
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -560,7 +561,7 @@ class FieryShip(commands.Cog):
             return await ctx.send("❌ Solitary play is for the cells. Find a partner for the trials.")
             
         embed = main_mod.fiery_embed("🔞 THE EXHIBITIONIST TRIAL 🔞", 
-            f"{ctx.author.mention} and {partner.mention} have been selected for the stage.\n\n"
+            f"**{ctx.author.display_name}** and **{partner.display_name}** have been selected for the stage.\n\n"
             "**The Task:** Sync your moans to the Master's rhythm.\n"
             "**React with 🫦 to begin the show!**", color=0xFF0000)
         
@@ -582,7 +583,7 @@ class FieryShip(commands.Cog):
             flames = score * 10
             
             res_emb = main_mod.fiery_embed("🫦 TRIAL COMPLETE 🫦", 
-                f"The audience is breathless. {ctx.author.mention} & {partner.mention} performed with **{score}% synchronization**.\n\n"
+                f"The audience is breathless. **{ctx.author.display_name}** & **{partner.display_name}** performed with **{score}% synchronization**.\n\n"
                 f"💰 **FLAME HARVEST:** +{flames} Flames added to both accounts.\n\n"
                 f"The exhibition has yielded a rich harvest of neural XP.")
             
@@ -596,7 +597,7 @@ class FieryShip(commands.Cog):
                 await ctx.send(embed=res_emb)
             
         except:
-            await ctx.send(f"🥀 {partner.mention} was too shy for the stage. The trial is cancelled.")
+            await ctx.send(f"🥀 **{partner.display_name}** was too shy for the stage. The trial is cancelled.")
 
     @commands.command(name="lustprofile", aliases=["bondinfo"])
     async def lustprofile(self, ctx, user: discord.Member = None):
@@ -605,16 +606,17 @@ class FieryShip(commands.Cog):
         target = user or ctx.author
         u_data = await asyncio.to_thread(main_mod.get_user, target.id)
         
-        # UPDATED: Using mention here to ensure clickable tags
+        # FIXED: Using display_name here as well
         if u_data['spouse']:
-            spouse_ment = f"<@{u_data['spouse']}>"
+            sp_obj = self.bot.get_user(u_data['spouse'])
+            spouse_ment = f"**{sp_obj.display_name if sp_obj else u_data['spouse']}**"
         else:
             spouse_ment = "None (Single Asset)"
             
         m_date = u_data['marriage_date'] or "N/A"
         bond_lv = (u_data['balance'] // 10000) + 1
         
-        embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE 🫦", f"Status report for {target.mention}:")
+        embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE 🫦", f"Status report for **{target.display_name}**:")
         embed.add_field(name="⛓️ Bound To", value=spouse_ment, inline=True)
         embed.add_field(name="📅 Contract Signed", value=m_date, inline=True)
         embed.add_field(name="🔥 Lust Potency (Level)", value=f"Level {bond_lv}", inline=False)
