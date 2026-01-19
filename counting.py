@@ -108,6 +108,17 @@ class Counting(commands.Cog):
         main_mod = sys.modules['__main__']
         await ctx.send(embed=main_mod.fiery_embed("🔢 COUNTING PROTOCOL INITIALIZED", f"The Echo is now monitoring numbers in {target.mention} for this sector.\nStart from **1**."))
 
+    @commands.command(name="countfix")
+    @commands.has_permissions(administrator=True)
+    async def count_fix(self, ctx, new_count: int):
+        """Emergency Override: Sets the current count manually if the system desyncs."""
+        guild_id = ctx.guild.id
+        self.current_counts[guild_id] = new_count
+        self.last_user_ids[guild_id] = None
+        self.save_state(guild_id)
+        main_mod = sys.modules['__main__']
+        await ctx.send(embed=main_mod.fiery_embed("🔧 NEURAL RESYNC", f"Manual override successful. The current count is now **{new_count}**.\nThe next asset must type **{new_count + 1}**."))
+
     @commands.command(name="countingtop")
     async def counting_top(self, ctx, scope: str = "global"):
         """Shows top runs. Usage: !countingtop [global/local]"""
@@ -142,37 +153,42 @@ class Counting(commands.Cog):
             with main_mod.get_db_connection() as conn:
                 stats = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
                 local = conn.execute("SELECT count FROM local_counting WHERE user_id = ? AND guild_id = ?", (target.id, guild_id)).fetchone()
-                rank = conn.execute("SELECT COUNT(*) + 1 FROM users WHERE count_total > (SELECT count_total FROM users WHERE id = ?)", (target.id,)).fetchone()[0]
-                total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 1
+                rank_row = conn.execute("SELECT COUNT(*) + 1 FROM users WHERE count_total > (SELECT COALESCE(count_total, 0) FROM users WHERE id = ?)", (target.id,)).fetchone()
+                rank = rank_row[0] if rank_row else "?"
+                total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
+                total_global = total_global_row[0] if total_global_row and total_global_row[0] else 1
                 return stats, local, rank, total_global
 
-        data, local_data, rank, total_global = await asyncio.to_thread(fetch_dossier)
-        
-        total = data['count_total'] if data else 0
-        mistakes = data['count_mistakes'] if data else 0
-        local_count = local_data['count'] if local_data else 0
-        accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
+        try:
+            data, local_data, rank, total_global = await asyncio.to_thread(fetch_dossier)
+            
+            total = data['count_total'] if data and data['count_total'] else 0
+            mistakes = data['count_mistakes'] if data and data['count_mistakes'] else 0
+            local_count = local_data['count'] if local_data and local_data['count'] else 0
+            accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
 
-        desc = (f"### 🧬 NEURAL AUDIT: {target.display_name.upper()}\n"
-                f"*Extracting numerical sequence history from the Echo...*\n\n"
-                f"🌎 **GLOBAL STANDING**\n"
-                f"```ml\n"
-                f"Accuracy: {accuracy:.2f}% | Rank: #{rank}\n"
-                f"Total Verified: {total:,}\n"
-                f"```\n"
-                f"🏙️ **LOCAL SECTOR: {ctx.guild.name.upper()}**\n"
-                f"• **Sector Contribution:** `{local_count:,} numbers`\n"
-                f"• **Regional Errors:** `{mistakes:,}`\n\n"
-                f"🔗 **SYSTEM CONTRIBUTION**\n"
-                f"You provide **{((total / total_global) * 100):.4f}%** of all processed numerical data.")
+            desc = (f"### 🧬 NEURAL AUDIT: {target.display_name.upper()}\n"
+                    f"*Extracting numerical sequence history from the Echo...*\n\n"
+                    f"🌎 **GLOBAL STANDING**\n"
+                    f"```ml\n"
+                    f"Accuracy: {accuracy:.2f}% | Rank: #{rank}\n"
+                    f"Total Verified: {total:,}\n"
+                    f"```\n"
+                    f"🏙️ **LOCAL SECTOR: {ctx.guild.name.upper()}**\n"
+                    f"• **Sector Contribution:** `{local_count:,} numbers`\n"
+                    f"• **Regional Errors:** `{mistakes:,}`\n\n"
+                    f"🔗 **SYSTEM CONTRIBUTION**\n"
+                    f"You provide **{((total / total_global) * 100):.4f}%** of all processed numerical data.")
 
-        embed = main_mod.fiery_embed("COUNTING DOSSIER", desc, color=0x3498DB)
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="stats.jpg")
-            embed.set_thumbnail(url="attachment://stats.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
+            embed = main_mod.fiery_embed("COUNTING DOSSIER", desc, color=0x3498DB)
+            if os.path.exists("LobbyTopRight.jpg"):
+                file = discord.File("LobbyTopRight.jpg", filename="stats.jpg")
+                embed.set_thumbnail(url="attachment://stats.jpg")
+                await ctx.send(file=file, embed=embed)
+            else:
+                await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ **Neural Audit Failed:** Check if the user is in the database. Error: {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
