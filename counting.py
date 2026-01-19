@@ -130,9 +130,14 @@ class Counting(commands.Cog):
         if total_global > 0 and total_global % 50000 == 0 and total_global <= 10000000:
             badge_name = f"Neural Architect: {total_global:,}"
             
-            # Universal Badge Granting Protocol
+            # Record Milestone in History
             with main_mod.get_db_connection() as conn:
-                # Grant badge to the user who hit the milestone for the whole world
+                try:
+                    conn.execute("CREATE TABLE IF NOT EXISTS global_milestone_history (id INTEGER PRIMARY KEY AUTOINCREMENT, milestone INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
+                except: pass
+                conn.execute("INSERT INTO global_milestone_history (milestone) VALUES (?)", (total_global,))
+                
+                # Universal Badge Granting Protocol
                 users_to_badge = conn.execute("SELECT id, titles FROM users").fetchall()
                 for user in users_to_badge:
                     try: 
@@ -179,6 +184,29 @@ class Counting(commands.Cog):
         )
         
         await ctx.send(embed=main_mod.fiery_embed("GLOBAL GOAL PROGRESS", desc, color=0x3498DB))
+
+    @commands.command(name="goalhistory")
+    async def global_goal_history(self, ctx):
+        """Displays all previously achieved Universal Global Goals."""
+        main_mod = sys.modules['__main__']
+        def fetch_history():
+            with main_mod.get_db_connection() as conn:
+                try:
+                    return conn.execute("SELECT milestone, timestamp FROM global_milestone_history ORDER BY milestone DESC").fetchall()
+                except:
+                    return []
+
+        history = await asyncio.to_thread(fetch_history)
+        if not history:
+            return await ctx.send("No global goals have been officially archived yet.")
+
+        desc = "### 🏛️ ARCHIVED NEURAL MILESTONES\n"
+        for entry in history:
+            # Formatting the date for aesthetic clarity
+            dt = datetime.strptime(entry['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
+            desc += f"• **{entry['milestone']:,}** — `Verified on {dt}`\n"
+
+        await ctx.send(embed=main_mod.fiery_embed("GLOBAL MILESTONE ARCHIVE", desc, color=0xE67E22))
 
     @commands.command(name="setcounting")
     @commands.has_permissions(administrator=True)
