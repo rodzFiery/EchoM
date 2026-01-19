@@ -54,8 +54,11 @@ class LobbyView(discord.ui.View):
     # ADDED: custom_id to make the interaction persistent
     @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.owner.id:
-            return await interaction.response.send_message("Only the Masters starts the games!", ephemeral=True)
+        # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
+        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in interaction.user.roles)
+        if interaction.user.id != self.owner.id and not is_staff:
+            return await interaction.response.send_message("Only the Masters or Staff start the games!", ephemeral=True)
+        
         if len(self.participants) < 2:
             return await interaction.response.send_message("Need at least 2 sexy fucks !", ephemeral=True)
         
@@ -773,3 +776,6 @@ async def setup(bot):
 
     # Registrando StatusCheck
     await bot.add_cog(StatusCheck(bot))
+    # Registrando StatusCheck
+    await bot.add_cog(StatusCheck(bot))
+
