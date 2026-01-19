@@ -45,29 +45,34 @@ class Counting(commands.Cog):
                          (f'counting_state_{guild_id}', json.dumps(state)))
             conn.commit()
 
-    def update_high_score(self, count, ruiner_id):
-        """Record the run in the high score ledger (Global across all servers)."""
+    def update_high_score(self, count, ruiner_id, guild_id):
+        """Record the run in the high score ledger (Global and Local attribution)."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             try:
-                conn.execute("CREATE TABLE IF NOT EXISTS counting_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, score INTEGER, ruiner_id INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
+                conn.execute("CREATE TABLE IF NOT EXISTS counting_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, score INTEGER, ruiner_id INTEGER, guild_id INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             except: pass
-            conn.execute("INSERT INTO counting_runs (score, ruiner_id) VALUES (?, ?)", (count, ruiner_id))
+            # ADDED guild_id to track which server achieved the score
+            conn.execute("INSERT INTO counting_runs (score, ruiner_id, guild_id) VALUES (?, ?, ?)", (count, ruiner_id, guild_id))
             conn.commit()
 
-    def update_member_stats(self, user_id, is_mistake=False):
+    def update_member_stats(self, user_id, guild_id, is_mistake=False):
         """Updates local/global counting stats for the user profile."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             try:
                 conn.execute("ALTER TABLE users ADD COLUMN count_total INTEGER DEFAULT 0")
                 conn.execute("ALTER TABLE users ADD COLUMN count_mistakes INTEGER DEFAULT 0")
+                # ADDED: Table to track local server contributions
+                conn.execute("CREATE TABLE IF NOT EXISTS local_counting (user_id INTEGER, guild_id INTEGER, count INTEGER DEFAULT 0, PRIMARY KEY (user_id, guild_id))")
             except: pass
             
             if is_mistake:
                 conn.execute("UPDATE users SET count_mistakes = count_mistakes + 1 WHERE id = ?", (user_id,))
             else:
                 conn.execute("UPDATE users SET count_total = count_total + 1 WHERE id = ?", (user_id,))
+                # Increment local server contribution
+                conn.execute("INSERT INTO local_counting (user_id, guild_id, count) VALUES (?, ?, 1) ON CONFLICT(user_id, guild_id) DO UPDATE SET count = count + 1", (user_id, guild_id))
             conn.commit()
 
     async def check_personal_milestone(self, message):
@@ -104,74 +109,64 @@ class Counting(commands.Cog):
         await ctx.send(embed=main_mod.fiery_embed("🔢 COUNTING PROTOCOL INITIALIZED", f"The Echo is now monitoring numbers in {target.mention} for this sector.\nStart from **1**."))
 
     @commands.command(name="countingtop")
-    async def counting_top(self, ctx):
-        """Shows the top 10 best counting runs globally (all servers) and who ruined them."""
+    async def counting_top(self, ctx, scope: str = "global"):
+        """Shows top runs. Usage: !countingtop [global/local]"""
         main_mod = sys.modules['__main__']
+        guild_id = ctx.guild.id
+        
         def fetch_top():
             with main_mod.get_db_connection() as conn:
+                if scope.lower() == "local":
+                    return conn.execute("SELECT score, ruiner_id FROM counting_runs WHERE guild_id = ? ORDER BY score DESC LIMIT 10", (guild_id,)).fetchall()
                 return conn.execute("SELECT score, ruiner_id FROM counting_runs ORDER BY score DESC LIMIT 10").fetchall()
         
         data = await asyncio.to_thread(fetch_top)
         if not data:
-            return await ctx.send("The archives are empty. No runs recorded yet.")
+            return await ctx.send(f"The archives for `{scope}` are empty.")
 
-        desc = "### 🏆 GLOBAL NEURAL SEQUENCES\n"
+        title = "GLOBAL HALL OF FAME" if scope.lower() == "global" else f"LOCAL SECTOR RECORDS: {ctx.guild.name}"
+        desc = f"### 🏆 {scope.upper()} NEURAL SEQUENCES\n"
         for i, row in enumerate(data, 1):
             desc += f"`#{i}` **{row['score']:,}** — Ruined by <@{row['ruiner_id']}>\n"
         
-        await ctx.send(embed=main_mod.fiery_embed("GLOBAL COUNTING HALL OF FAME", desc))
+        await ctx.send(embed=main_mod.fiery_embed(title, desc))
 
-    # ===== NEW: THEMED COUNTING STATS COMMAND =====
     @commands.command(name="countstats")
     async def countstats(self, ctx, member: discord.Member = None):
-        """ULTIMATE NEURAL AUDIT: Comprehensive report of numerical precision."""
+        """ULTIMATE NEURAL AUDIT: Global and Local precision report."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
+        guild_id = ctx.guild.id
         
         def fetch_dossier():
             with main_mod.get_db_connection() as conn:
-                # Personal Stats
                 stats = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
-                # Personal Rank
+                local = conn.execute("SELECT count FROM local_counting WHERE user_id = ? AND guild_id = ?", (target.id, guild_id)).fetchone()
                 rank = conn.execute("SELECT COUNT(*) + 1 FROM users WHERE count_total > (SELECT count_total FROM users WHERE id = ?)", (target.id,)).fetchone()[0]
-                # Highest Ruined Run
-                highest = conn.execute("SELECT MAX(score) FROM counting_runs WHERE ruiner_id = ?", (target.id,)).fetchone()[0]
-                # Global context
                 total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 1
-                return stats, rank, highest, total_global
+                return stats, local, rank, total_global
 
-        data, rank, highest_ruin, total_global = await asyncio.to_thread(fetch_dossier)
+        data, local_data, rank, total_global = await asyncio.to_thread(fetch_dossier)
         
         total = data['count_total'] if data else 0
         mistakes = data['count_mistakes'] if data else 0
-        highest_ruin = highest_ruin or 0
-        
-        # Logic for calculation
+        local_count = local_data['count'] if local_data else 0
         accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
-        contribution = (total / total_global) * 100
-
-        # Tier Logic
-        if total > 5000: tier = "Numerical Architect"
-        elif total > 1000: tier = "Sequence Guardian"
-        elif total > 500: tier = "Efficient Counter"
-        else: tier = "Fresh Asset"
 
         desc = (f"### 🧬 NEURAL AUDIT: {target.display_name.upper()}\n"
                 f"*Extracting numerical sequence history from the Echo...*\n\n"
-                f"📊 **EFFICIENCY RATING**\n"
+                f"🌎 **GLOBAL STANDING**\n"
                 f"```ml\n"
                 f"Accuracy: {accuracy:.2f}% | Rank: #{rank}\n"
-                f"Tier: {tier}\n"
+                f"Total Verified: {total:,}\n"
                 f"```\n"
-                f"📑 **INDIVIDUAL METRICS**\n"
-                f"• **Verified Numbers:** `{total:,}`\n"
-                f"• **Neural Errors (Mistakes):** `{mistakes:,}`\n"
-                f"• **Highest Run Interrupted:** `{highest_ruin:,}`\n\n"
+                f"🏙️ **LOCAL SECTOR: {ctx.guild.name.upper()}**\n"
+                f"• **Sector Contribution:** `{local_count:,} numbers`\n"
+                f"• **Regional Errors:** `{mistakes:,}`\n\n"
                 f"🔗 **SYSTEM CONTRIBUTION**\n"
-                f"You have provided **{contribution:.4f}%** of the total numerical data processed by the Red Room.")
+                f"You provide **{((total / total_global) * 100):.4f}%** of all processed numerical data.")
 
         embed = main_mod.fiery_embed("COUNTING DOSSIER", desc, color=0x3498DB)
-        
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="stats.jpg")
             embed.set_thumbnail(url="attachment://stats.jpg")
@@ -198,11 +193,10 @@ class Counting(commands.Cog):
         expected = current_count + 1
         last_user_id = self.last_user_ids.get(guild_id)
 
-        # Check if user is repeating themselves or sent wrong number
         if number != expected or message.author.id == last_user_id:
             ruined_count = current_count
-            self.update_high_score(ruined_count, message.author.id)
-            self.update_member_stats(message.author.id, is_mistake=True)
+            self.update_high_score(ruined_count, message.author.id, guild_id)
+            self.update_member_stats(message.author.id, guild_id, is_mistake=True)
             
             reason = "Wrong number." if number != expected else "You cannot count twice in a row."
             
@@ -213,7 +207,6 @@ class Counting(commands.Cog):
                     f"**Protocol:** Resetting to `0`.\n\n"
                     f"*The Red Room demands a new start.*")
             
-            # Reset state for this guild
             self.current_counts[guild_id] = 0
             self.last_user_ids[guild_id] = None
             self.save_state(guild_id)
@@ -227,13 +220,11 @@ class Counting(commands.Cog):
                 await message.channel.send(embed=embed)
             return
 
-        # Correct number for this guild
         self.current_counts[guild_id] = number
         self.last_user_ids[guild_id] = message.author.id
         self.save_state(guild_id)
         
-        # --- STATS & MILESTONE PROTOCOL (Global User Progress) ---
-        self.update_member_stats(message.author.id, is_mistake=False)
+        self.update_member_stats(message.author.id, guild_id, is_mistake=False)
         await self.check_personal_milestone(message)
         
         try:
