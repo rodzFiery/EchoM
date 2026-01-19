@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import asyncio
+from datetime import datetime
 
 class Counting(commands.Cog):
     def __init__(self, bot):
@@ -85,17 +86,21 @@ class Counting(commands.Cog):
             total = user['count_total'] if user else 0
 
         # UPDATED: Reward is now 20,000 Flames for every 50 verified numbers
+        # ADDED: DOUBLE FLAME WEEKEND (Sat=5, Sun=6)
         if total > 0 and total % 50 == 0:
-            reward = 20000
+            is_weekend = datetime.now().weekday() >= 5
+            reward = 40000 if is_weekend else 20000
+            theme_title = "🔥 DOUBLE FLAME WEEKEND" if is_weekend else "📜 NEURAL COUNTING CERTIFICATE"
+            
             # ONLY REPORTING TO AUDIT.PY ON MILESTONE ACHIEVEMENT
             await main_mod.update_user_stats_async(user_id, amount=reward, source=f"Counting Milestone: {total}")
             
-            embed = main_mod.fiery_embed("📜 NEURAL COUNTING CERTIFICATE", 
+            embed = main_mod.fiery_embed(theme_title, 
                                         f"### 🎖️ MILESTONE REACHED: {total}\n"
                                         f"Asset {message.author.mention}, your numerical precision is efficient.\n\n"
-                                        f"**Reward Granted:** `{reward:,} Flames`\n"
+                                        f"**Reward Granted:** `{reward:,} Flames` {'(2x Weekend Bonus!)' if is_weekend else ''}\n"
                                         f"**Status:** `Verified & Synchronized`\n\n"
-                                        f"*The Red Room appreciates your consistency.*", color=0x00FF00)
+                                        f"*The Red Room appreciates your consistency.*", color=0xFF4500 if is_weekend else 0x00FF00)
             await message.channel.send(embed=embed)
 
     @commands.command(name="setcounting")
