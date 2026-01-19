@@ -188,7 +188,7 @@ class Counting(commands.Cog):
             else:
                 await ctx.send(embed=embed)
         except Exception as e:
-            await ctx.send(f"❌ **Neural Audit Failed:** Check if the user is in the database. Error: {e}")
+            await ctx.send(f"❌ **Neural Audit Failed:** {e}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
