@@ -1,3 +1,14 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
 import discord
 from discord.ext import commands
 import shutil
@@ -21,11 +32,17 @@ class AdminSystem(commands.Cog):
         main_module = sys.modules['__main__']
         self.ADMIN_ROLE_ID = getattr(main_module, "ADMIN_ROLE_ID", 0)
 
-    # ===== NEW: SET ADMIN ROLE COMMAND =====
+    # ===== UPDATED: SET ADMIN ROLE COMMAND (OWNER OR SERVER ADMIN) =====
     @commands.command()
-    @commands.is_owner()
     async def setadminrole(self, ctx, role: discord.Role):
         """Sets the global role that can bypass standard command restrictions."""
+        # CHECK: Allow Bot Owner OR Server Administrator
+        is_owner = await self.bot.is_owner(ctx.author)
+        is_server_admin = ctx.author.guild_permissions.administrator
+
+        if not (is_owner or is_server_admin):
+            return await ctx.send("❌ **Access Denied:** You must be the Bot Owner or a Server Administrator to define the Master Role.")
+
         import sys
         main_module = sys.modules['__main__']
         
@@ -51,7 +68,6 @@ class AdminSystem(commands.Cog):
             return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
 
         # FIXED: Removed 'import main' to prevent circular import crash
-        # Accessible via the bot instance directly to change the global state
         import sys
         main_module = sys.modules['__main__']
         main_module.nsfw_mode_active = True
@@ -106,7 +122,6 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
         """Master command to grant flames to a user based on Admin permissions or role."""
-        # Check if user is bot owner OR has Administrator permissions OR has the designated Admin Role
         is_owner = await self.bot.is_owner(ctx.author)
         is_admin = ctx.author.guild_permissions.administrator
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
@@ -148,7 +163,6 @@ class AdminSystem(commands.Cog):
                 import ignis
                 await self.bot.remove_cog("IgnisEngine")
                 importlib.reload(ignis)
-                # Recarregamento complexo preservando referências
                 import sys
                 main_module = sys.modules['__main__']
                 RANKS = main_module.RANKS
