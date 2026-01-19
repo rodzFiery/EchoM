@@ -124,7 +124,8 @@ class Counting(commands.Cog):
         """NEW: Logic for Universal Global Goals (50k increments up to 10M)."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 0
+            total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
+            total_global = total_global_row[0] if total_global_row and total_global_row[0] else 0
             
         # Milestone trigger every 50,000 up to 10,000,000
         if total_global > 0 and total_global % 50000 == 0 and total_global <= 10000000:
@@ -162,7 +163,8 @@ class Counting(commands.Cog):
         """Displays the progress toward the next 50,000 global increment."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 0
+            total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
+            total_global = total_global_row[0] if total_global_row and total_global_row[0] else 0
         
         next_milestone = ((total_global // 50000) + 1) * 50000
         remaining = next_milestone - total_global
@@ -202,7 +204,6 @@ class Counting(commands.Cog):
 
         desc = "### 🏛️ ARCHIVED NEURAL MILESTONES\n"
         for entry in history:
-            # Formatting the date for aesthetic clarity
             dt = datetime.strptime(entry['timestamp'], '%Y-%m-%d %H:%M:%S').strftime('%d %b %Y')
             desc += f"• **{entry['milestone']:,}** — `Verified on {dt}`\n"
 
@@ -285,7 +286,7 @@ class Counting(commands.Cog):
 
     @commands.command(name="countstats")
     async def countstats(self, ctx, member: discord.Member = None):
-        """ULTIMATE NEURAL AUDIT: Global and Local precision report."""
+        """ULTIMATE NEURAL DOSSIER: Comprehensive Dynamic Precision Audit."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
         guild_id = ctx.guild.id
@@ -298,30 +299,39 @@ class Counting(commands.Cog):
                 rank = rank_row[0] if rank_row else "?"
                 total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
                 total_global = total_global_row[0] if total_global_row and total_global_row[0] else 1
-                return stats, local, rank, total_global
+                
+                # Streak Data
+                current_streak = self.current_counts.get(guild_id, 0)
+                local_record_row = conn.execute("SELECT MAX(score) FROM counting_runs WHERE guild_id = ?", (guild_id,)).fetchone()
+                local_record = local_record_row[0] if local_record_row and local_record_row[0] else 0
+                
+                return stats, local, rank, total_global, current_streak, local_record
 
         try:
-            data, local_data, rank, total_global = await asyncio.to_thread(fetch_dossier)
+            data, local_data, rank, total_global, cur_streak, best_streak = await asyncio.to_thread(fetch_dossier)
             
             total = data['count_total'] if data and data['count_total'] else 0
             mistakes = data['count_mistakes'] if data and data['count_mistakes'] else 0
             local_count = local_data['count'] if local_data and local_data['count'] else 0
             accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
+            flames_earned = (total // 50) * 20000 # Approximation based on milestones
 
-            desc = (f"### 🧬 NEURAL AUDIT: {target.display_name.upper()}\n"
-                    f"*Extracting numerical sequence history from the Echo...*\n\n"
-                    f"🌎 **GLOBAL STANDING**\n"
-                    f"```ml\n"
-                    f"Accuracy: {accuracy:.2f}% | Rank: #{rank}\n"
-                    f"Total Verified: {total:,}\n"
-                    f"```\n"
+            desc = (f"### 🧬 NEURAL DOSSIER: {target.display_name.upper()}\n"
+                    f"*Processing real-time synchronization data...*\n\n"
+                    f"🌍 **GLOBAL ARCHIVES**\n"
+                    f"• **Verified Numbers:** `{total:,}`\n"
+                    f"• **Accuracy Rating:** `{accuracy:.2f}%`\n"
+                    f"• **Global Rank:** `#{rank}`\n"
+                    f"• **Network Impact:** `{((total / total_global) * 100):.4f}%` of Echo\n\n"
                     f"🏙️ **LOCAL SECTOR: {ctx.guild.name.upper()}**\n"
-                    f"• **Sector Contribution:** `{local_count:,} numbers`\n"
-                    f"• **Regional Errors:** `{mistakes:,}`\n\n"
-                    f"🔗 **SYSTEM CONTRIBUTION**\n"
-                    f"You provide **{((total / total_global) * 100):.4f}%** of all processed numerical data.")
+                    f"• **Sector Contribution:** `{local_count:,} inputs`\n"
+                    f"• **Current Streak:** `{cur_streak:,}`\n"
+                    f"• **Sector High Score:** `{best_streak:,}`\n\n"
+                    f"💰 **ECONOMIC IMPACT**\n"
+                    f"• **Total Rewards:** `{flames_earned:,} Flames` generated.\n"
+                    f"• **Mistakes Logged:** `{mistakes:,}` failed sequences.")
 
-            embed = main_mod.fiery_embed("COUNTING DOSSIER", desc, color=0x3498DB)
+            embed = main_mod.fiery_embed("COUNTING AUDIT REPORT", desc, color=0x3498DB)
             if os.path.exists("LobbyTopRight.jpg"):
                 file = discord.File("LobbyTopRight.jpg", filename="stats.jpg")
                 embed.set_thumbnail(url="attachment://stats.jpg")
