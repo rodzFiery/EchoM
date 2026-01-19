@@ -64,9 +64,15 @@ class LobbyView(discord.ui.View):
         
         engine = interaction.client.get_cog("IgnisEngine")
         if engine: 
-            # NEW: GLOBAL LIMIT CHECK - Prevent more than 2 games at once
-            if len(engine.active_battles) >= 2:
-                return await interaction.response.send_message("❌ **The Red Room is at capacity.** Only 2 games can run at once globally. Wait for one to finish.", ephemeral=True)
+            # NEW: SERVER-SPECIFIC LIMIT CHECK - Max 2 games per Guild
+            guild_games = 0
+            for channel_id in engine.active_battles:
+                ch = interaction.client.get_channel(channel_id)
+                if ch and ch.guild.id == interaction.guild.id:
+                    guild_games += 1
+            
+            if guild_games >= 2:
+                return await interaction.response.send_message("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
 
             await interaction.response.defer(ephemeral=True)
 
