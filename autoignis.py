@@ -26,7 +26,8 @@ import main
 import ignis
 
 # Configuration for Automatic Mode
-AUTO_FIGHT_CHANNEL_ID = 123456789012345678  # CHANGE THIS to your specific channel ID
+# This will be overridden by the saved config if it exists
+AUTO_FIGHT_CHANNEL_ID = 123456789012345678 
 LOBBY_DURATION = 1800 # 30 minutes in seconds
 
 class AutoLobbyView(discord.ui.View):
@@ -48,7 +49,12 @@ class AutoLobbyView(discord.ui.View):
 class IgnisAuto(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.auto_channel_id = AUTO_FIGHT_CHANNEL_ID
+        
+        # Load the saved channel ID from main config if available
+        import sys
+        main_module = sys.modules['__main__']
+        self.auto_channel_id = getattr(main_module, "AUTO_IGNIS_CHANNEL", AUTO_FIGHT_CHANNEL_ID)
+        
         self.current_auto_lobby = None
         self.auto_loop.start() # Start the 30-minute cycle
 
@@ -120,9 +126,25 @@ class IgnisAuto(commands.Cog):
     @commands.command(name="setauto")
     @commands.is_owner()
     async def set_auto_channel(self, ctx):
-        """Sets the current channel as the Automated Ignis Pit."""
+        """Sets the current channel as the Automated Ignis Pit and saves it."""
+        import sys
+        main_module = sys.modules['__main__']
+        
+        # Update the local reference
         self.auto_channel_id = ctx.channel.id
-        await ctx.send(f"✅ **Automated Pit set to {ctx.channel.mention}.** Cycles will trigger every 30 minutes.")
+        
+        # Persist the change in the main module's config
+        main_module.AUTO_IGNIS_CHANNEL = ctx.channel.id
+        main_module.save_game_config()
+        
+        embed = main.fiery_embed("Auto-Ignis Setup", 
+            f"✅ **Automated Pit set to {ctx.channel.mention}.**\n\n"
+            f"The Master has claimed this territory. Cycles will run every 30 minutes.\n"
+            f"**First cycle starting now...**", color=0x00FF00)
+        
+        await ctx.send(embed=embed)
+        
+        # Restart the loop to trigger the first lobby immediately
         self.auto_loop.restart()
 
 async def setup(bot):
