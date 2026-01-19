@@ -215,8 +215,9 @@ class Counting(commands.Cog):
         """Sets the channel for the infinite counting game for this server."""
         target = channel or ctx.channel
         guild_id = ctx.guild.id
-        # Update cache immediately
-        self.counting_channel_ids[guild_id] = target.id
+        
+        # CRITICAL FIX: Ensure dictionary keys are integers and reset state immediately
+        self.counting_channel_ids[guild_id] = int(target.id)
         self.current_counts[guild_id] = 0
         self.last_user_ids[guild_id] = None
         
@@ -347,8 +348,12 @@ class Counting(commands.Cog):
             return
             
         guild_id = message.guild.id
-        # Check if this channel is the one registered for this guild
-        if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
+        
+        # CRITICAL RECOGNITION FIX: Ensure guild_id exists in cache before checking channel
+        if guild_id not in self.counting_channel_ids:
+            return
+            
+        if message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
         content = message.content.strip()
