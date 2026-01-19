@@ -66,7 +66,9 @@ class LobbyView(discord.ui.View):
         
         engine = interaction.client.get_cog("IgnisEngine")
         if engine: 
-            engine.current_lobby = None
+            # Clear lobby for THIS guild specifically
+            if interaction.guild.id in engine.current_lobbies:
+                del engine.current_lobbies[interaction.guild.id]
         else:
             # DEBUG: If the cog isn't found, tell the owner
             return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded?", ephemeral=True)
@@ -100,7 +102,8 @@ class EngineControl(commands.Cog):
         view = LobbyView(ctx.author, main.game_edition)
         engine = self.bot.get_cog("IgnisEngine")
         if engine: 
-            engine.current_lobby = view
+            # Assign lobby to the guild ID
+            engine.current_lobbies[ctx.guild.id] = view
 
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="lobby_thumb.jpg")
@@ -118,19 +121,22 @@ class EngineControl(commands.Cog):
     @commands.command()
     async def lobby(self, ctx):
         engine = self.bot.get_cog("IgnisEngine")
-        if not engine or not engine.current_lobby:
+        # Check specific guild lobby
+        guild_lobby = engine.current_lobbies.get(ctx.guild.id) if engine else None
+        
+        if not engine or not guild_lobby:
             embed = self.fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             return await ctx.send(file=file, embed=embed)
         
-        participants = engine.current_lobby.participants
+        participants = guild_lobby.participants
         if not participants:
             embed = self.fiery_embed("Lobby Status", "The room is empty. No one has offered their body yet.")
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             return await ctx.send(file=file, embed=embed)
         
         mentions = [f"<@{p_id}>" for p_id in participants]
-        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{engine.current_lobby.edition}:\n\n" + "\n".join(mentions), color=0x00FF00)
+        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{guild_lobby.edition}:\n\n" + "\n".join(mentions), color=0x00FF00)
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
@@ -145,11 +151,11 @@ class IgnisEngine(commands.Cog):
         self.classes = classes
         # FIXED: Pulled dynamically from main module to support the !audit system
         self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", audit_channel_id)
-        self.active_battles = set()
-        self.current_lobby = None
         
-        # Track survivors for the "am I alive" feature
-        self.current_survivors = {}
+        # INDEPENDENCE FIX: Use Guild IDs for tracking
+        self.active_battles = set() # Set of channel IDs (unique across Discord)
+        self.current_lobbies = {} # Guild ID -> LobbyView mapping
+        self.current_survivors = {} # Channel ID -> List of survivor IDs
 
         # NSFW Winner Power Tracker
         self.last_winner_id = None
@@ -222,8 +228,9 @@ class IgnisEngine(commands.Cog):
     @commands.is_owner()
     async def reset_arena(self, ctx):
         self.active_battles.clear()
-        self.current_lobby = None
-        await ctx.send("⛓️ **Dungeon Master Override:** Arena locks and lobbies have been reset.")
+        self.current_lobbies.clear()
+        self.current_survivors.clear()
+        await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
     # POWER COMMAND !@user
     @commands.command(name="@")
@@ -378,7 +385,7 @@ class IgnisEngine(commands.Cog):
                     conn.execute("UPDATE users SET games_played = games_played + 1 WHERE id = ?", (p_id,))
                     conn.commit()
 
-            # Map for survivors feature
+            # Map for survivors feature (Server Independent via Channel ID)
             self.current_survivors[channel.id] = [f['id'] for f in fighters]
 
             if len(fighters) < 2:
@@ -729,7 +736,7 @@ class StatusCheck(commands.Cog):
         if content in ["i am alive", "i am dead"]:
             # Check if there is an active game in this channel
             if message.channel.id not in engine.active_battles:
-                return await message.channel.send("🫦 **The pit is currently silent, pet. No games are active here.**")
+                return # Pit is silent in this specific channel
             
             survivors = engine.current_survivors.get(message.channel.id, [])
             is_survivor = message.author.id in survivors
@@ -776,6 +783,3 @@ async def setup(bot):
 
     # Registrando StatusCheck
     await bot.add_cog(StatusCheck(bot))
-    # Registrando StatusCheck
-    await bot.add_cog(StatusCheck(bot))
-
