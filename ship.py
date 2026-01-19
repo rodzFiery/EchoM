@@ -465,15 +465,23 @@ class FieryShip(commands.Cog):
 
         top_matches = sorted(matches, key=lambda x: x[2], reverse=True)[:5]
         embed = main_mod.fiery_embed("🫦 THE MASTER'S MATCHMAKING 🫦", "Scanning current vibrations for peak exhibition:")
-        description = ""
+        
+        description = "```\n" + "─" * 35 + "\n"
+        description += "VOYEUR COMPATIBILITY REPORT\n"
+        description += "─" * 35 + "```\n"
+
         for idx, (m1, m2, pct) in enumerate(top_matches, 1):
             icon = "⛓️"
             if pct >= 69: icon = "🔞"
             if pct == 100: icon = "💖"
-            # FIXED: Used display_name to ensure usernames show instead of IDs
-            description += f"**{idx}.** {icon} **{m1.display_name}** + **{m2.display_name}** — **{pct}% Sync**\n"
+            
+            # Organized format: Bold Names + Silent Tags + Spacing
+            description += f"**{idx}.** {icon} **{m1.display_name}** & **{m2.display_name}**\n"
+            description += f"┗ `Sync: {pct}%` | [ <@{m1.id}> × <@{m2.id}> ]\n\n"
+
         embed.description = description
         embed.set_footer(text="The dungeon floor is heating up. Watch and learn.")
+        
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
              embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
