@@ -723,10 +723,10 @@ async def on_ready():
     
     # --- ADDED: AUTO-IGNIS LOADING ---
     try:
-        await bot.load_extension("ignisauto")
+        await bot.load_extension("autoignis")
         print("✅ LOG: Automated Ignis is ONLINE.")
     except Exception as e:
-        print(f"Failed to load ignisauto extension: {e}")
+        print(f"Failed to load autoignis extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
