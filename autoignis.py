@@ -111,7 +111,10 @@ class IgnisAuto(commands.Cog):
         
         image_path = "LobbyTopRight.jpg"
         embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
-        embed.set_footer(text=f"Next Execution: {datetime.now().strftime('%H:%M:%S')} (Every 30m)")
+        
+        # UPDATED: Real-time footer calculation for 30m precision
+        next_run = datetime.now().timestamp() + LOBBY_DURATION
+        embed.set_footer(text=f"Next Execution: {datetime.fromtimestamp(next_run).strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="auto_lobby.jpg")
