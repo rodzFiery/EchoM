@@ -145,6 +145,9 @@ class IgnisEngine(commands.Cog):
         self.active_battles = set()
         self.current_lobby = None
         
+        # Track survivors for the "am I alive" feature
+        self.current_survivors = {}
+
         # NSFW Winner Power Tracker
         self.last_winner_id = None
         self.flash_sentences = [
@@ -286,6 +289,7 @@ class IgnisEngine(commands.Cog):
             return buf
         except Exception as e:
             print(f"Arena Image Error: {e}")
+            # FALLBACK
             fallback = Image.new("RGBA", (1000, 700), (120, 20, 0, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
@@ -371,6 +375,9 @@ class IgnisEngine(commands.Cog):
                     conn.execute("UPDATE users SET games_played = games_played + 1 WHERE id = ?", (p_id,))
                     conn.commit()
 
+            # Map for survivors feature
+            self.current_survivors[channel.id] = [f['id'] for f in fighters]
+
             if len(fighters) < 2:
                 await channel.send("❌ Game cancelled: Not enough tributes found in the dungeon.")
                 if channel.id in self.active_battles:
@@ -418,6 +425,11 @@ class IgnisEngine(commands.Cog):
 
                         loser = fighters.pop(temp_index)
                         event_losers.append(loser)
+                        # Update current survivors map
+                        if channel.id in self.current_survivors:
+                            if loser['id'] in self.current_survivors[channel.id]:
+                                self.current_survivors[channel.id].remove(loser['id'])
+
                         await self.update_user_stats(loser['id'], deaths=1, source="Legendary Event")
                         
                         rem = len(fighters)
@@ -454,6 +466,11 @@ class IgnisEngine(commands.Cog):
                 p1_win_chance = max(0.1, min(0.9, p1_win_chance))
                 winner, loser = (p1, p2) if random.random() < p1_win_chance else (p2, p1)
                 fighters.append(winner)
+
+                # Update current survivors map
+                if channel.id in self.current_survivors:
+                    if loser['id'] in self.current_survivors[channel.id]:
+                        self.current_survivors[channel.id].remove(loser['id'])
                 
                 game_kills[winner['id']] += 1
                 fxp_log[winner['id']]["kills"] += 37
@@ -669,12 +686,62 @@ class IgnisEngine(commands.Cog):
             await channel.send(embed=win_card)
 
         except Exception as e:
-            print(f"❌ CRITICAL ENGINE FAILURE: {e}")
+            print(f"# CRITICAL ENGINE FAILURE: {e}")
             traceback.print_exc()
             await channel.send("❌ A critical dungeon error occurred. Call Dev.rodz.")
         finally:
+            if channel.id in self.current_survivors:
+                del self.current_survivors[channel.id]
             if channel.id in self.active_battles:
                 self.active_battles.remove(channel.id)
+
+class StatusCheck(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.alive_sentences = [
+            "Still breathing and begging for more, aren't you? {mention} is alive.",
+            "The chains haven't broken you yet. {mention} is still in the game.",
+            "A stubborn toy. {mention} is still standing in the pit.",
+            "You look good in the dark. {mention} is very much alive.",
+            "Your heart is still racing for the Master. {mention} survives."
+        ]
+        self.dead_sentences = [
+            "Cold, quiet, and completely used up. {mention} is dead.",
+            "Another soul for the furnace. {mention} has been eliminated.",
+            "The cage is empty. {mention} has fallen.",
+            "Submission reached its limit. {mention} is out of the game.",
+            "Silence suits you, loser. {mention} is dead."
+        ]
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot: return
+        
+        content = message.content.lower().strip()
+        engine = self.bot.get_cog("IgnisEngine")
+        if not engine: return
+
+        if content in ["i am alive", "i am dead"]:
+            # Check if there is an active game in this channel
+            if message.channel.id not in engine.active_battles:
+                return await message.channel.send("🫦 **The pit is currently silent, pet. No games are active here.**")
+            
+            survivors = engine.current_survivors.get(message.channel.id, [])
+            is_survivor = message.author.id in survivors
+
+            if content == "i am alive":
+                if is_survivor:
+                    msg = random.choice(self.alive_sentences).format(mention=message.author.mention)
+                    await message.channel.send(f"🔞 **{msg}**")
+                else:
+                    await message.channel.send(f"🥀 **Don't lie to the Master, ghost. You are already broken and gone.**")
+            
+            elif content == "i am dead":
+                if not is_survivor:
+                    msg = random.choice(self.dead_sentences).format(mention=message.author.mention)
+                    await message.channel.send(f"💀 **{msg}**")
+                else:
+                    await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 async def setup(bot):
     import sys
@@ -702,3 +769,5 @@ async def setup(bot):
     )
     await bot.add_cog(engine_control)
 
+    # Registrando StatusCheck
+    await bot.add_cog(StatusCheck(bot))
