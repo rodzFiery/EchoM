@@ -43,7 +43,8 @@ class AutoLobbyView(discord.ui.View):
         self.participants.append(interaction.user.id)
         
         embed = interaction.message.embeds[0]
-        embed.set_field_at(0, name="🧙‍♂️ Registered Sinners", value=f"Total: `{len(self.participants)}` sinners ready to be broken.", inline=False)
+        # VISUAL UPDATE: Enhanced Participant Counter
+        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
 
 class IgnisAuto(commands.Cog):
@@ -133,7 +134,8 @@ class IgnisAuto(commands.Cog):
         )
         
         image_path = "LobbyTopRight.jpg"
-        embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
+        # VISUAL UPDATE: High visibility Soul Counter
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
         
         # NEW INFORMATIVE CONCEPTS
         embed.add_field(
@@ -206,7 +208,7 @@ class IgnisAuto(commands.Cog):
             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
             "This lobby will close at the next 30-minute mark.", color=0x00FF00)
         
-        embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```", inline=False)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
 
         image_path = "LobbyTopRight.jpg"
