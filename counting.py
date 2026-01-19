@@ -306,26 +306,40 @@ class Counting(commands.Cog):
                 local_record_row = conn.execute("SELECT MAX(score) FROM counting_runs WHERE guild_id = ?", (guild_id,)).fetchone()
                 local_record = local_record_row[0] if local_record_row and local_record_row[0] else 0
                 
-                return stats, local, rank, total_global, current_streak, local_record
+                # NEW: Sector Ranking Badge Logic (Top 20)
+                sector_rank = "?"
+                sector_lb = conn.execute("SELECT user_id FROM local_counting WHERE guild_id = ? ORDER BY count DESC", (guild_id,)).fetchall()
+                for i, row in enumerate(sector_lb, 1):
+                    if row['user_id'] == target.id:
+                        sector_rank = i
+                        break
+                
+                return stats, local, rank, total_global, current_streak, local_record, sector_rank
 
         try:
-            data, local_data, rank, total_global, cur_streak, best_streak = await asyncio.to_thread(fetch_dossier)
+            data, local_data, rank, total_global, cur_streak, best_streak, s_rank = await asyncio.to_thread(fetch_dossier)
             
             total = data['count_total'] if data and data['count_total'] else 0
             mistakes = data['count_mistakes'] if data and data['count_mistakes'] else 0
             local_count = local_data['count'] if local_data and local_data['count'] else 0
             accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
-            flames_earned = (total // 50) * 20000 # Approximation based on milestones
+            flames_earned = (total // 50) * 20000 
+
+            # Badge Assignment
+            badge = ""
+            if isinstance(s_rank, int) and s_rank <= 20:
+                tier = "ELITE" if s_rank <= 5 else "OPERATIVE"
+                badge = f"\n🏆 **RANK BADGE:** `[TOP {s_rank}] SECTOR {tier}`"
 
             desc = (f"### 🧬 NEURAL DOSSIER: {target.display_name.upper()}\n"
-                    f"*Processing real-time synchronization data...*\n\n"
+                    f"*Processing real-time synchronization data...*{badge}\n\n"
                     f"🌍 **GLOBAL ARCHIVES**\n"
                     f"• **Verified Numbers:** `{total:,}`\n"
                     f"• **Accuracy Rating:** `{accuracy:.2f}%`\n"
                     f"• **Global Rank:** `#{rank}`\n"
                     f"• **Network Impact:** `{((total / total_global) * 100):.4f}%` of Echo\n\n"
                     f"🏙️ **LOCAL SECTOR: {ctx.guild.name.upper()}**\n"
-                    f"• **Sector Contribution:** `{local_count:,} inputs`\n"
+                    f"• **Sector Contribution:** `{local_count:,} inputs` (Rank: `#{s_rank}`)\n"
                     f"• **Current Streak:** `{cur_streak:,}`\n"
                     f"• **Sector High Score:** `{best_streak:,}`\n\n"
                     f"💰 **ECONOMIC IMPACT**\n"
