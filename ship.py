@@ -282,7 +282,7 @@ class FieryShip(commands.Cog):
                 is_anni = True
 
         # --- ENHANCED EMBED VISUALS ---
-        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}\n{status_note}")
+        embed = main_mod.fiery_embed("💖 LOVEFINDER", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}\n{status_note}")
         
         if is_anni:
             embed.title = "🔞 HOT PINK ANNIVERSARY 🔞"
@@ -301,7 +301,7 @@ class FieryShip(commands.Cog):
         bar = "❤️‍🔥" * filled + "⛓️" * (bar_len - filled)
         
         embed.description = (
-            f"**SYNC STATUS:** `{percent}%` [{bar}]\n"
+            f"**LOVE STATUS:** `{percent}%` [{bar}]\n"
             f"**RESONANCE TIER:** `{tier.upper()}`\n\n"
             f"💬 *\"{result_msg}\"*"
         )
