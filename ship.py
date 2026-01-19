@@ -13,6 +13,8 @@ import asyncio # ADDED: Required for to_thread logic
 class FieryShip(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # ADDED: Track attempts for reroll logic
+        self.ship_attempts = {} 
         # 250+ EROTIC & EMOTIONAL MESSAGES CATEGORIZED BY TIER
         self.erotic_lexicon = {
             "sad": [
@@ -227,9 +229,27 @@ class FieryShip(commands.Cog):
             user1 = ctx.author
 
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
-        random.seed(seed_str)
-        percent = random.randint(0, 100)
+        # ADDED: Reroll tracking logic
+        pair_key = f"{min(user1.id, user2.id)}-{max(user1.id, user2.id)}"
+        
+        if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
+            
+        self.ship_attempts[pair_key]['count'] += 1
+        attempt_count = self.ship_attempts[pair_key]['count']
+
+        if attempt_count < 3:
+            # First two tries are purely random and different
+            random.seed(f"{pair_key}{datetime.now().timestamp()}")
+            percent = random.randint(0, 100)
+            status_note = f"⚠️ **Unstable Vibration:** Scan {attempt_count}/3. Results are fluctuating..."
+        else:
+            # Third try and beyond is locked for the day (12h+)
+            seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
+            random.seed(seed_str)
+            percent = random.randint(0, 100)
+            status_note = "🔒 **Frequency Locked:** Resonance has stabilized for the next cycle."
+            
         random.seed()
 
         if percent == 0: tier = "sad"
@@ -254,7 +274,7 @@ class FieryShip(commands.Cog):
                 is_anni = True
 
         # --- ENHANCED EMBED VISUALS ---
-        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}")
+        embed = main_mod.fiery_embed("🔞 SOUL SYNCHRONIZATION 🔞", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}\n{status_note}")
         
         if is_anni:
             embed.title = "🔞 HOT PINK ANNIVERSARY 🔞"
