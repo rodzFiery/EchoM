@@ -53,6 +53,7 @@ class IgnisAuto(commands.Cog):
         # Load the saved channel ID from main config if available
         import sys
         main_module = sys.modules['__main__']
+        # CONNECTION: Link to main.py global configuration variable
         self.auto_channel_id = getattr(main_module, "AUTO_IGNIS_CHANNEL", AUTO_FIGHT_CHANNEL_ID)
         
         self.current_auto_lobby = None
@@ -133,7 +134,7 @@ class IgnisAuto(commands.Cog):
         # Update the local reference
         self.auto_channel_id = ctx.channel.id
         
-        # Persist the change in the main module's config
+        # CONNECTION: Persist the change in the main module's config
         main_module.AUTO_IGNIS_CHANNEL = ctx.channel.id
         main_module.save_game_config()
         
