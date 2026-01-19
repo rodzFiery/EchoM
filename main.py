@@ -60,6 +60,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 game_edition = 1 
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
 AUTO_IGNIS_CHANNEL = 0 # ADDED: Persistence for Automated Pit
+AUTO_IGNIS_ROLE = 0    # ADDED: Persistence for Hourly Pings
 
 # Ranks and Classes now sourced from worknranks.py
 RANKS = worknranks.RANKS
@@ -72,21 +73,24 @@ def get_db_connection():
 
 # NEW PERSISTENCE HELPERS (Synced with database.py)
 def save_game_config():
-    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL
+    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
     db_module.save_game_config(game_edition, nsfw_mode_active)
-    # ADDED: Save auto channel to config table
+    # ADDED: Save auto channel and role to config table
     with get_db_connection() as conn:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(AUTO_IGNIS_CHANNEL),))
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_role', ?)", (str(AUTO_IGNIS_ROLE),))
         conn.commit()
 
 def load_game_config():
-    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL
+    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
     # FIXED: Load via db_module
     game_edition, nsfw_mode_active = db_module.load_game_config()
-    # ADDED: Load auto channel
+    # ADDED: Load auto channel and role
     with get_db_connection() as conn:
-        row = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_channel'").fetchone()
-        if row: AUTO_IGNIS_CHANNEL = int(row['value'])
+        row_ch = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_channel'").fetchone()
+        if row_ch: AUTO_IGNIS_CHANNEL = int(row_ch['value'])
+        row_rl = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_role'").fetchone()
+        if row_rl: AUTO_IGNIS_ROLE = int(row_rl['value'])
 
 def init_db():
     # FIXED: Initialize via db_module
