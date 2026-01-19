@@ -1,0 +1,129 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
+import discord
+from discord.ext import commands, tasks
+import random
+import asyncio
+import io
+import os
+import json
+import sqlite3
+import sys
+from PIL import Image, ImageDraw, ImageOps
+from datetime import datetime, timezone
+
+# Accessing shared logic
+import main
+import ignis
+
+# Configuration for Automatic Mode
+AUTO_FIGHT_CHANNEL_ID = 123456789012345678  # CHANGE THIS to your specific channel ID
+LOBBY_DURATION = 1800 # 30 minutes in seconds
+
+class AutoLobbyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.participants = []
+
+    @discord.ui.button(label="Enter the Automated Pit", style=discord.ButtonStyle.danger, emoji="🤖", custom_id="auto_ignis_join")
+    async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in self.participants:
+            return await interaction.response.send_message("You are already registered for the next cycle, pet.", ephemeral=True)
+        
+        self.participants.append(interaction.user.id)
+        
+        embed = interaction.message.embeds[0]
+        embed.set_field_at(0, name="🧙‍♂️ Registered Sinners", value=f"Total: `{len(self.participants)}` souls ready to be broken.", inline=False)
+        await interaction.response.edit_message(embed=embed, view=self)
+
+class IgnisAuto(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.auto_channel_id = AUTO_FIGHT_CHANNEL_ID
+        self.current_auto_lobby = None
+        self.auto_loop.start() # Start the 30-minute cycle
+
+    def cog_unload(self):
+        self.auto_loop.cancel()
+
+    @tasks.loop(seconds=LOBBY_DURATION)
+    async def auto_loop(self):
+        await self.bot.wait_until_ready()
+        channel = self.bot.get_channel(self.auto_channel_id)
+        if not channel:
+            print(f"AUTO_IGNIS: Channel {self.auto_channel_id} not found.")
+            return
+
+        # 1. Process the previous lobby if it exists
+        if self.current_auto_lobby and len(self.current_auto_lobby.participants) >= 2:
+            await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
+            
+            # Transfer logic to the IgnisEngine cog
+            ignis_engine = self.bot.get_cog("IgnisEngine")
+            if ignis_engine:
+                # We fetch the edition from main
+                import sys
+                main_module = sys.modules['__main__']
+                edition = getattr(main_module, "game_edition", 1)
+                
+                # Start the battle using the existing engine logic
+                asyncio.create_task(ignis_engine.start_battle(
+                    channel, 
+                    self.current_auto_lobby.participants, 
+                    edition
+                ))
+                
+                # Increment edition in main
+                if hasattr(main_module, "game_edition"):
+                    main_module.game_edition += 1
+                    main_module.save_game_config()
+            else:
+                await channel.send("❌ Error: IgnisEngine not found. System failure.")
+        
+        elif self.current_auto_lobby:
+            await channel.send("🥀 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+
+        # 2. Start NEW lobby for the next 30 minutes
+        self.current_auto_lobby = AutoLobbyView()
+        
+        embed = main.fiery_embed(
+            "🤖 AUTOMATED RED ROOM CYCLE", 
+            f"The gates are open for the next **30 minutes**.\n"
+            f"Registration is mandatory for those seeking public discipline.",
+            color=0x5865F2
+        )
+        
+        image_path = "LobbyTopRight.jpg"
+        embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
+        embed.set_footer(text=f"Next Execution: {datetime.now().strftime('%H:%M:%S')} (Every 30m)")
+
+        if os.path.exists(image_path):
+            file = discord.File(image_path, filename="auto_lobby.jpg")
+            embed.set_thumbnail(url="attachment://auto_lobby.jpg")
+            await channel.send(file=file, embed=embed, view=self.current_auto_lobby)
+        else:
+            await channel.send(embed=embed, view=self.current_auto_lobby)
+
+    @auto_loop.before_loop
+    async def before_auto_loop(self):
+        await self.bot.wait_until_ready()
+
+    @commands.command(name="setauto")
+    @commands.is_owner()
+    async def set_auto_channel(self, ctx):
+        """Sets the current channel as the Automated Ignis Pit."""
+        self.auto_channel_id = ctx.channel.id
+        await ctx.send(f"✅ **Automated Pit set to {ctx.channel.mention}.** Cycles will trigger every 30 minutes.")
+        self.auto_loop.restart()
+
+async def setup(bot):
+    await bot.add_cog(IgnisAuto(bot))
