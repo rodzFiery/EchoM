@@ -173,12 +173,14 @@ class FieryShip(commands.Cog):
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
+                        # CHANGED: Colors adjusted for "Pinky Girl Light" aesthetic (Soft Pinks)
                         r = 255
-                        g = int(255 * ratio)
-                        b = 0
+                        g = int(182 + (73 * ratio)) # Light Pink range (182-255)
+                        b = int(193 + (62 * ratio)) # Soft Pink range (193-255)
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
-                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 100))
+                    # Indicator line (Pastel Yellow Accent)
+                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 180))
                 percent_text = f"{percent}%"
                 draw.text((pillar_x - 30, 20), percent_text, fill=(255, 255, 255), stroke_width=6, stroke_fill=(0,0,0))
                 buf = io.BytesIO()
@@ -610,8 +612,8 @@ class FieryShip(commands.Cog):
             
         embed = main_mod.fiery_embed("🔞 THE EXHIBITIONIST TRIAL 🔞", 
             f"**{ctx.author.display_name}** and **{partner.display_name}** have been selected for the stage.\n\n"
-            "**The Task:** Sync your moans to the Master's rhythm.\n"
-            "**React with 🫦 to begin the show!**", color=0xFF0000)
+            f"**The Task:** Sync your moans to the Master's rhythm.\n"
+            f"**React with 🫦 to begin the show!**", color=0xFF0000)
         
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
