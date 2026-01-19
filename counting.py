@@ -76,7 +76,7 @@ class Counting(commands.Cog):
             conn.commit()
 
     async def check_personal_milestone(self, message):
-        """Logic for 250-step personal milestones (250, 500, 750, etc.)."""
+        """Logic for 50-step personal milestones (50, 100, 150, etc.)."""
         main_mod = sys.modules['__main__']
         user_id = message.author.id
         
@@ -84,8 +84,9 @@ class Counting(commands.Cog):
             user = conn.execute("SELECT count_total FROM users WHERE id = ?", (user_id,)).fetchone()
             total = user['count_total'] if user else 0
 
-        if total > 0 and total % 250 == 0:
-            reward = 5000
+        # UPDATED: Reward is now 20,000 Flames for every 50 verified numbers
+        if total > 0 and total % 50 == 0:
+            reward = 20000
             # ONLY REPORTING TO AUDIT.PY ON MILESTONE ACHIEVEMENT
             await main_mod.update_user_stats_async(user_id, amount=reward, source=f"Counting Milestone: {total}")
             
