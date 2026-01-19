@@ -55,6 +55,8 @@ class IgnisAuto(commands.Cog):
         main_module = sys.modules['__main__']
         # CONNECTION: Link to main.py global configuration variable
         self.auto_channel_id = getattr(main_module, "AUTO_IGNIS_CHANNEL", AUTO_FIGHT_CHANNEL_ID)
+        # ADDED: Load saved ping role
+        self.ping_role_id = getattr(main_module, "AUTO_IGNIS_ROLE", 0)
         
         self.current_auto_lobby = None
         self.auto_loop.start() # Start the 30-minute cycle
@@ -122,12 +124,17 @@ class IgnisAuto(commands.Cog):
         next_run_time = (now + timedelta(minutes=30)).replace(second=0, microsecond=0)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
+        # ADDED: Hourly ping logic for .00
+        content = None
+        if now.minute == 0 and self.ping_role_id != 0:
+            content = f"<@&{self.ping_role_id}>"
+
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="auto_lobby.jpg")
             embed.set_thumbnail(url="attachment://auto_lobby.jpg")
-            await channel.send(file=file, embed=embed, view=self.current_auto_lobby)
+            await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
         else:
-            await channel.send(embed=embed, view=self.current_auto_lobby)
+            await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
             
         # Prevent the loop from firing multiple times in the same minute
         await asyncio.sleep(61)
@@ -159,6 +166,24 @@ class IgnisAuto(commands.Cog):
         
         # Restart the loop to trigger synchronization
         self.auto_loop.restart()
+
+    @commands.command(name="autoignis")
+    @commands.is_owner()
+    async def set_auto_ping_role(self, ctx, role: discord.Role):
+        """Sets the role to be pinged every hour at .00."""
+        import sys
+        main_module = sys.modules['__main__']
+        
+        self.ping_role_id = role.id
+        
+        # Persist to main config
+        main_module.AUTO_IGNIS_ROLE = role.id
+        main_module.save_game_config()
+        
+        embed = main.fiery_embed("Auto-Ignis Ping Config",
+            f"🔔 **Lobby pings enabled.**\n\n"
+            f"The role {role.mention} will now be summoned every hour at `:00` to face the Red Room.", color=0x00FF00)
+        await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
     @commands.is_owner()
