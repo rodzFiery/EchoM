@@ -102,24 +102,22 @@ class IgnisAuto(commands.Cog):
                     main_module.game_edition += 1
                     main_module.save_game_config()
             else:
-                await channel.send("❌ Error: IgnisEngine not found. System failure.")
+                await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
         
         elif self.current_auto_lobby:
-            await channel.send("🥀 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+            await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
 
         # 2. Start NEW lobby for the next 30 minutes
         self.current_auto_lobby = AutoLobbyView()
         
         # ENHANCED INFORMATIVE CONTENT
         lobby_desc = (
-            "🥀 **The scent of worn leather and cold iron fills the air.**\n\n"
-            "The Red Room has opened its automated gates for the current cycle. "
-            "This is a high-stakes social simulation where dominance is the only currency. "
+            "🔞 **The scent of worn leather and cold iron fills the air.**\n\n"
             "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
         )
 
         embed = main.fiery_embed(
-            "🤖 AUTOMATED RED ROOM CYCLE", 
+            "🔞 AUTOMATED RED ROOM CYCLE", 
             lobby_desc,
             color=0x5865F2
         )
@@ -131,10 +129,7 @@ class IgnisAuto(commands.Cog):
         embed.add_field(
             name="⛓️ Dungeon Protocol",
             value=(
-                "• **The Collection:** Use the button below to register your presence.\n"
-                "• **The Extraction:** Winners harvest Flames and XP from the fallen.\n"
                 "• **The Execution:** Once the timer hits zero, the session begins automatically.\n"
-                "• **Minimum Required:** 2 Sinners are needed to trigger the ritual."
             ),
             inline=False
         )
@@ -189,7 +184,7 @@ class IgnisAuto(commands.Cog):
         
         next_run_time = now.replace(minute=next_m, second=0, microsecond=0)
 
-        embed = main.fiery_embed("🤖 AUTOMATED RED ROOM: INITIALIZED", 
+        embed = main.fiery_embed("🔞 AUTOMATED RED ROOM: INITIALIZED", 
             "🥀 **Automated Pit set and synchronized.**\n\n"
             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
             "This lobby will close at the next 30-minute mark.", color=0x00FF00)
