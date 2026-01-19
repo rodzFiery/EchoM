@@ -59,6 +59,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 # These will be updated from the database in on_ready
 game_edition = 1 
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
+AUTO_IGNIS_CHANNEL = 0 # ADDED: Persistence for Automated Pit
 
 # Ranks and Classes now sourced from worknranks.py
 RANKS = worknranks.RANKS
@@ -71,13 +72,21 @@ def get_db_connection():
 
 # NEW PERSISTENCE HELPERS (Synced with database.py)
 def save_game_config():
-    global game_edition, nsfw_mode_active
+    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL
     db_module.save_game_config(game_edition, nsfw_mode_active)
+    # ADDED: Save auto channel to config table
+    with get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(AUTO_IGNIS_CHANNEL),))
+        conn.commit()
 
 def load_game_config():
-    global game_edition, nsfw_mode_active
+    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL
     # FIXED: Load via db_module
     game_edition, nsfw_mode_active = db_module.load_game_config()
+    # ADDED: Load auto channel
+    with get_db_connection() as conn:
+        row = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_channel'").fetchone()
+        if row: AUTO_IGNIS_CHANNEL = int(row['value'])
 
 def init_db():
     # FIXED: Initialize via db_module
@@ -712,6 +721,13 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to load reactionrole extension: {e}")
     
+    # --- ADDED: AUTO-IGNIS LOADING ---
+    try:
+        await bot.load_extension("ignisauto")
+        print("✅ LOG: Automated Ignis is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load ignisauto extension: {e}")
+    
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
     print(f"📊 PERSISTENCE: Edition #8 | NSFW Mode: {nsfw_mode_active}")
@@ -758,4 +774,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
