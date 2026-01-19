@@ -1,4 +1,4 @@
-chimport discord
+import discord
 from discord.ext import commands
 import shutil
 import os
@@ -59,6 +59,27 @@ class AdminSystem(commands.Cog):
         
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
+
+    # ===== ADDED: FLAMES COMMAND =====
+    @commands.command()
+    async def flames(self, ctx, member: discord.Member, amount: int):
+        """Staff/Owner command to grant flames to a user."""
+        # Role checking for Staff, King, Boss, Owner, Familiar keywords
+        staff_keywords = ["staff", "king", "boss", "owner", "familiar"]
+        is_staff = any(any(key in role.name.lower() for key in staff_keywords) for role in ctx.author.roles)
+        is_owner = await self.bot.is_owner(ctx.author)
+
+        if not (is_staff or is_owner):
+            embed = self.fiery_embed("Access Denied", "❌ Only the Elite or Staff hold the keys to the furnace.")
+            return await ctx.send(embed=embed)
+
+        try:
+            await self.update_user_stats_async(member.id, amount=amount, source="Master's Decree")
+            embed = self.fiery_embed("Flames Dispatched", f"🔥 The Master has funneled **{amount:,} Flames** into {member.mention}'s vault.")
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            await ctx.send(file=file, embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ **Failed to update ledger:** {e}")
 
     # ===== MAINTENANCE & RELOAD =====
     @commands.command()
