@@ -142,6 +142,30 @@ class Counting(commands.Cog):
         
         await ctx.send(embed=main_mod.fiery_embed(title, desc))
 
+    @commands.command(name="countinglb")
+    async def counting_lb(self, ctx):
+        """LOCAL SECTOR LEADERBOARD: Ranks assets by their contributions in this server."""
+        main_mod = sys.modules['__main__']
+        guild_id = ctx.guild.id
+
+        def fetch_lb():
+            with main_mod.get_db_connection() as conn:
+                return conn.execute("""
+                    SELECT user_id, count FROM local_counting 
+                    WHERE guild_id = ? ORDER BY count DESC LIMIT 10
+                """, (guild_id,)).fetchall()
+
+        data = await asyncio.to_thread(fetch_lb)
+        if not data:
+            return await ctx.send("No numerical data has been synchronized in this sector yet.")
+
+        desc = f"### 📊 SECTOR CONTRIBUTION RANKINGS: {ctx.guild.name.upper()}\n"
+        for i, row in enumerate(data, 1):
+            desc += f"`#{i}` <@{row['user_id']}> — **{row['count']:,}** verified numbers\n"
+
+        embed = main_mod.fiery_embed("LOCAL COUNTING LEADERBOARD", desc, color=0xFFA500)
+        await ctx.send(embed=embed)
+
     @commands.command(name="countstats")
     async def countstats(self, ctx, member: discord.Member = None):
         """ULTIMATE NEURAL AUDIT: Global and Local precision report."""
