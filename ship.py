@@ -151,16 +151,22 @@ class FieryShip(commands.Cog):
                     glow_size = av_size + 80
                     glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
                     draw_g = ImageDraw.Draw(glow)
-                    glow_range = 20 + pulse_intensity 
+                    # UPDATED: Pulse intensity now scales exponentially with percent
+                    glow_range = int(20 + (pulse_intensity * 2)) 
                     for i in range(glow_range, 0, -1):
                         alpha = int(220 * (1 - i/glow_range))
                         draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
                     glow.paste(avatar, (40, 40), avatar)
                     return glow
-                frame_color = (255, 20, 147) # Hot Pink
-                pulse = int((percent / 100) * 10) 
-                if percent == 69: frame_color = (255, 0, 255) 
-                elif percent >= 90: frame_color = (255, 0, 80) 
+                
+                # CHANGED: Border color now a softer light pink aesthetic
+                frame_color = (255, 182, 193) # Light Pink
+                # UPDATED: pulse calculation for more dramatic glow on higher matches
+                pulse = int((percent / 100) * 15) 
+                
+                if percent == 69: frame_color = (255, 105, 180) # Hot Pink for 69
+                elif percent >= 90: frame_color = (255, 20, 147) # Deep Pink for high resonance
+                
                 av1_framed = apply_erotic_frame_square(av1_img, frame_color, pulse)
                 av2_framed = apply_erotic_frame_square(av2_img, frame_color, pulse)
                 canvas.paste(av1_framed, (20, 150), av1_framed)
@@ -173,10 +179,10 @@ class FieryShip(commands.Cog):
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
-                        # CHANGED: Colors adjusted for "Pinky Girl Light" aesthetic (Soft Pinks)
+                        # PINKY GIRL LIGHT aesthetic column
                         r = 255
-                        g = int(182 + (73 * ratio)) # Light Pink range (182-255)
-                        b = int(193 + (62 * ratio)) # Soft Pink range (193-255)
+                        g = int(182 + (73 * ratio)) 
+                        b = int(193 + (62 * ratio)) 
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
                     # Indicator line (Pastel Yellow Accent)
