@@ -6,14 +6,6 @@ import json
 import importlib
 from datetime import datetime
 
-class AdminSystem(commands.Cog):import discord
-from discord.ext import commands
-import shutil
-import os
-import json
-import importlib
-from datetime import datetime
-
 class AdminSystem(commands.Cog):
     def __init__(self, bot, db_path, fiery_embed, save_game_config, get_user, get_db_connection, update_user_stats_async):
         self.bot = bot
@@ -23,11 +15,41 @@ class AdminSystem(commands.Cog):
         self.get_user = get_user
         self.get_db_connection = get_db_connection
         self.update_user_stats_async = update_user_stats_async
+        
+        # ADDED: Load Admin Role from persistence
+        import sys
+        main_module = sys.modules['__main__']
+        self.ADMIN_ROLE_ID = getattr(main_module, "ADMIN_ROLE_ID", 0)
+
+    # ===== NEW: SET ADMIN ROLE COMMAND =====
+    @commands.command()
+    @commands.is_owner()
+    async def setadminrole(self, ctx, role: discord.Role):
+        """Sets the global role that can bypass standard command restrictions."""
+        import sys
+        main_module = sys.modules['__main__']
+        
+        self.ADMIN_ROLE_ID = role.id
+        main_module.ADMIN_ROLE_ID = role.id
+        
+        # Persist to database config table
+        with self.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('admin_role_id', ?)", (str(role.id),))
+            conn.commit()
+            
+        embed = self.fiery_embed("Security Protocol Updated", f"✅ The role {role.mention} has been granted **Master Access** to administrative commands.")
+        await ctx.send(embed=embed)
 
     # ===== NSFW Special Commands =====
     @commands.command()
-    @commands.is_owner()
     async def nsfwtime(self, ctx):
+        # UPDATED: Added Role Check
+        is_owner = await self.bot.is_owner(ctx.author)
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        
+        if not (is_owner or has_admin_role):
+            return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
+
         # FIXED: Removed 'import main' to prevent circular import crash
         # Accessible via the bot instance directly to change the global state
         import sys
@@ -38,8 +60,14 @@ class AdminSystem(commands.Cog):
         if ext: await ext.trigger_nsfw_start(ctx)
 
     @commands.command()
-    @commands.is_owner()
     async def nomorensfw(self, ctx):
+        # UPDATED: Added Role Check
+        is_owner = await self.bot.is_owner(ctx.author)
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        
+        if not (is_owner or has_admin_role):
+            return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
+
         # FIXED: Removed 'import main' to prevent circular import crash
         import sys
         main_module = sys.modules['__main__']
@@ -50,8 +78,14 @@ class AdminSystem(commands.Cog):
         await ctx.send(file=file, embed=embed)
 
     @commands.command()
-    @commands.is_owner()
     async def grantbadge(self, ctx, member: discord.Member, badge: str):
+        # UPDATED: Added Role Check
+        is_owner = await self.bot.is_owner(ctx.author)
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        
+        if not (is_owner or has_admin_role):
+            return await ctx.send("❌ Access Denied.")
+
         u = self.get_user(member.id)
         try: titles = json.loads(u['titles'])
         except: titles = []
@@ -68,16 +102,17 @@ class AdminSystem(commands.Cog):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
-    # ===== UPDATED: FLAMES COMMAND (PERMISSIONS BASED) =====
+    # ===== UPDATED: FLAMES COMMAND (PERMISSIONS + ROLE BASED) =====
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
-        """Master command to grant flames to a user based on Admin permissions."""
-        # Check if user is bot owner OR has Administrator permissions in the server
+        """Master command to grant flames to a user based on Admin permissions or role."""
+        # Check if user is bot owner OR has Administrator permissions OR has the designated Admin Role
         is_owner = await self.bot.is_owner(ctx.author)
         is_admin = ctx.author.guild_permissions.administrator
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
 
-        if not (is_owner or is_admin):
-            embed = self.fiery_embed("Access Denied", "❌ Only those with Administrative authority or the Bot Owner hold the keys to the furnace.")
+        if not (is_owner or is_admin or has_admin_role):
+            embed = self.fiery_embed("Access Denied", "❌ Only those with Administrative authority, the Admin Role, or the Bot Owner hold the keys to the furnace.")
             return await ctx.send(embed=embed)
 
         try:
@@ -120,7 +155,7 @@ class AdminSystem(commands.Cog):
                 CLASSES = main_module.CLASSES
                 AUDIT_CHANNEL_ID = main_module.AUDIT_CHANNEL_ID
                 await self.bot.add_cog(ignis.IgnisEngine(self.bot, self.update_user_stats_async, self.get_user, self.fiery_embed, self.get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
-            elif cog_name.lower() in ["extensions", "ship", "shop", "collect", "fight", "casino", "ask"]:
+            elif cog_name.lower() in ["extensions", "ship", "shop", "collect", "fight", "casino", "ask", "autoignis"]:
                 await self.bot.reload_extension(cog_name.lower())
             else:
                 embed = self.fiery_embed("Reload Error", f"❌ Cog `{cog_name}` not found.")
