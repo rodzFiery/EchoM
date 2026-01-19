@@ -19,7 +19,7 @@ import json
 import sqlite3
 import sys
 from PIL import Image, ImageDraw, ImageOps
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Accessing shared logic
 import main
@@ -62,9 +62,15 @@ class IgnisAuto(commands.Cog):
     def cog_unload(self):
         self.auto_loop.cancel()
 
-    @tasks.loop(seconds=LOBBY_DURATION)
+    @tasks.loop(seconds=60) # Changed to 60s check to ensure strict alignment
     async def auto_loop(self):
         await self.bot.wait_until_ready()
+        
+        # FIX: Strict 30-minute alignment logic (:00 and :30)
+        now = datetime.now()
+        if now.minute not in [0, 30]:
+            return
+
         channel = self.bot.get_channel(self.auto_channel_id)
         if not channel:
             print(f"AUTO_IGNIS: Channel {self.auto_channel_id} not found.")
@@ -113,8 +119,8 @@ class IgnisAuto(commands.Cog):
         embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
         
         # UPDATED: Real-time footer calculation for 30m precision
-        next_run = datetime.now().timestamp() + LOBBY_DURATION
-        embed.set_footer(text=f"Next Execution: {datetime.fromtimestamp(next_run).strftime('%H:%M:%S')} (Strict 30m Cycle)")
+        next_run_time = (now + timedelta(minutes=30)).replace(second=0, microsecond=0)
+        embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="auto_lobby.jpg")
@@ -122,6 +128,9 @@ class IgnisAuto(commands.Cog):
             await channel.send(file=file, embed=embed, view=self.current_auto_lobby)
         else:
             await channel.send(embed=embed, view=self.current_auto_lobby)
+            
+        # Prevent the loop from firing multiple times in the same minute
+        await asyncio.sleep(61)
 
     @auto_loop.before_loop
     async def before_auto_loop(self):
@@ -144,11 +153,11 @@ class IgnisAuto(commands.Cog):
         embed = main.fiery_embed("Auto-Ignis Setup", 
             f"✅ **Automated Pit set to {ctx.channel.mention}.**\n\n"
             f"The Master has claimed this territory. Cycles will run every 30 minutes.\n"
-            f"**First cycle starting now...**", color=0x00FF00)
+            f"**Cycle synchronization starting...**", color=0x00FF00)
         
         await ctx.send(embed=embed)
         
-        # Restart the loop to trigger the first lobby immediately
+        # Restart the loop to trigger synchronization
         self.auto_loop.restart()
 
     @commands.command(name="stopautoignis")
