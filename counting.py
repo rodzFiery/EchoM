@@ -152,6 +152,34 @@ class Counting(commands.Cog):
                                         f"*The Red Room has expanded its reach.*", color=0xFFD700)
             await message.channel.send(embed=embed)
 
+    @commands.command(name="globalgoal")
+    async def global_goal_progress(self, ctx):
+        """Displays the progress toward the next 50,000 global increment."""
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 0
+        
+        next_milestone = ((total_global // 50000) + 1) * 50000
+        remaining = next_milestone - total_global
+        progress_pct = (total_global % 50000) / 50000
+        
+        # Visual Progress Bar
+        bar_length = 20
+        filled = int(progress_pct * bar_length)
+        bar = "█" * filled + "░" * (bar_length - filled)
+        
+        desc = (
+            f"### 🌐 NEURAL SYNCHRONIZATION STATUS\n"
+            f"The Red Room is absorbing numerical frequencies globally.\n\n"
+            f"**Total Verified Data:** `{total_global:,}`\n"
+            f"**Next Global Goal:** `{next_milestone:,}`\n"
+            f"**Data Remaining:** `{remaining:,}`\n\n"
+            f"`{bar}` **{progress_pct*100:.1f}%**\n\n"
+            f"*Upon reaching the next goal, all active assets will be awarded a new rank badge.*"
+        )
+        
+        await ctx.send(embed=main_mod.fiery_embed("GLOBAL GOAL PROGRESS", desc, color=0x3498DB))
+
     @commands.command(name="setcounting")
     @commands.has_permissions(administrator=True)
     async def set_counting(self, ctx, channel: discord.TextChannel = None):
