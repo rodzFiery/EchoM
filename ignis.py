@@ -62,10 +62,14 @@ class LobbyView(discord.ui.View):
         if len(self.participants) < 2:
             return await interaction.response.send_message("Need at least 2 sexy fucks !", ephemeral=True)
         
-        await interaction.response.defer(ephemeral=True)
-        
         engine = interaction.client.get_cog("IgnisEngine")
         if engine: 
+            # NEW: GLOBAL LIMIT CHECK - Prevent more than 2 games at once
+            if len(engine.active_battles) >= 2:
+                return await interaction.response.send_message("❌ **The Red Room is at capacity.** Only 2 games can run at once globally. Wait for one to finish.", ephemeral=True)
+
+            await interaction.response.defer(ephemeral=True)
+
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
