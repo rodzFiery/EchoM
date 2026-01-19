@@ -6,6 +6,14 @@ import json
 import importlib
 from datetime import datetime
 
+class AdminSystem(commands.Cog):import discord
+from discord.ext import commands
+import shutil
+import os
+import json
+import importlib
+from datetime import datetime
+
 class AdminSystem(commands.Cog):
     def __init__(self, bot, db_path, fiery_embed, save_game_config, get_user, get_db_connection, update_user_stats_async):
         self.bot = bot
