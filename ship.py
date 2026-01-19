@@ -557,6 +557,10 @@ class FieryShip(commands.Cog):
             if pct > highest_pct:
                 highest_pct = pct
                 best_partner = m
+        
+        # Identify both users clearly in the trigger message
+        await ctx.send(f"👁️ **Voyeur Scan Complete:** Identifying peak compatibility for {ctx.author.mention} and {best_partner.mention}...")
+        
         # FIXED: Calling ship directly with user objects to maintain consistency
         await ctx.invoke(self.ship, user1=ctx.author, user2=best_partner)
 
