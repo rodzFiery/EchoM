@@ -385,10 +385,12 @@ class IgnisEngine(commands.Cog):
                 return
 
             try:
-                roster_embed = self.fiery_embed(f"Tribute Roster - Edition #{edition}", "\n".join(roster_list))
+                # ADDED: Total number of participants in the description/footer logic
+                total_count = len(fighters)
+                roster_embed = self.fiery_embed(f"Tribute Roster - Edition #{edition}", f"**Total Sinners Bound:** `{total_count}`\n\n" + "\n".join(roster_list))
                 await channel.send(embed=roster_embed)
             except:
-                await channel.send(f"**Tribute Roster - Edition #{edition}**\n" + "\n".join(roster_list))
+                await channel.send(f"**Tribute Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
 
             await asyncio.sleep(4)
             try:
