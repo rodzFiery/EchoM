@@ -35,7 +35,7 @@ class AutoLobbyView(discord.ui.View):
         super().__init__(timeout=None)
         self.participants = []
 
-    @discord.ui.button(label="Enter the Automated Pit", style=discord.ButtonStyle.danger, emoji="🤖", custom_id="auto_ignis_join")
+    @discord.ui.button(label="Enter the Red Room ", style=discord.ButtonStyle.danger, emoji="🔞", custom_id="auto_ignis_join")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id in self.participants:
             return await interaction.response.send_message("You are already registered for the next cycle, pet.", ephemeral=True)
@@ -43,7 +43,7 @@ class AutoLobbyView(discord.ui.View):
         self.participants.append(interaction.user.id)
         
         embed = interaction.message.embeds[0]
-        embed.set_field_at(0, name="🧙‍♂️ Registered Sinners", value=f"Total: `{len(self.participants)}` souls ready to be broken.", inline=False)
+        embed.set_field_at(0, name="🧙‍♂️ Registered Sinners", value=f"Total: `{len(self.participants)}` sinners ready to be broken.", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
 
 class IgnisAuto(commands.Cog):
