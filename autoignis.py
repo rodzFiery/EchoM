@@ -110,15 +110,34 @@ class IgnisAuto(commands.Cog):
         # 2. Start NEW lobby for the next 30 minutes
         self.current_auto_lobby = AutoLobbyView()
         
+        # ENHANCED INFORMATIVE CONTENT
+        lobby_desc = (
+            "🥀 **The scent of worn leather and cold iron fills the air.**\n\n"
+            "The Red Room has opened its automated gates for the current cycle. "
+            "This is a high-stakes social simulation where dominance is the only currency. "
+            "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
+        )
+
         embed = main.fiery_embed(
             "🤖 AUTOMATED RED ROOM CYCLE", 
-            f"The gates are open for the next **30 minutes**.\n"
-            f"Registration is mandatory for those seeking public discipline.",
+            lobby_desc,
             color=0x5865F2
         )
         
         image_path = "LobbyTopRight.jpg"
         embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
+        
+        # NEW INFORMATIVE CONCEPTS
+        embed.add_field(
+            name="⛓️ Dungeon Protocol",
+            value=(
+                "• **The Collection:** Use the button below to register your presence.\n"
+                "• **The Extraction:** Winners harvest Flames and XP from the fallen.\n"
+                "• **The Execution:** Once the timer hits zero, the session begins automatically.\n"
+                "• **Minimum Required:** 2 Sinners are needed to trigger the ritual."
+            ),
+            inline=False
+        )
         
         # UPDATED: Real-time footer calculation for 30m precision
         next_run_time = (now + timedelta(minutes=30)).replace(second=0, microsecond=0)
@@ -157,14 +176,36 @@ class IgnisAuto(commands.Cog):
         main_module.AUTO_IGNIS_CHANNEL = ctx.channel.id
         main_module.save_game_config()
         
-        embed = main.fiery_embed("Auto-Ignis Setup", 
-            f"✅ **Automated Pit set to {ctx.channel.mention}.**\n\n"
-            f"The Master has claimed this territory. Cycles will run every 30 minutes.\n"
-            f"**Cycle synchronization starting...**", color=0x00FF00)
+        # --- ADDED: IMMEDIATE LOBBY TRIGGER FOR SETUP ---
+        self.current_auto_lobby = AutoLobbyView()
+        now = datetime.now()
         
-        await ctx.send(embed=embed)
+        # Logic to determine next interval for the footer
+        if now.minute < 30:
+            next_m = 30
+        else:
+            next_m = 0
+            now = now + timedelta(hours=1)
         
-        # Restart the loop to trigger synchronization
+        next_run_time = now.replace(minute=next_m, second=0, microsecond=0)
+
+        embed = main.fiery_embed("🤖 AUTOMATED RED ROOM: INITIALIZED", 
+            "🥀 **Automated Pit set and synchronized.**\n\n"
+            "The Master has claimed this territory. Registration is now open for the first cycle.\n"
+            "This lobby will close at the next 30-minute mark.", color=0x00FF00)
+        
+        embed.add_field(name="🧙‍♂️ Registered Sinners", value="Total: `0` souls ready to be broken.", inline=False)
+        embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
+
+        image_path = "LobbyTopRight.jpg"
+        if os.path.exists(image_path):
+            file = discord.File(image_path, filename="auto_lobby.jpg")
+            embed.set_thumbnail(url="attachment://auto_lobby.jpg")
+            await ctx.send(file=file, embed=embed, view=self.current_auto_lobby)
+        else:
+            await ctx.send(embed=embed, view=self.current_auto_lobby)
+        
+        # Restart the loop to keep the background check alive
         self.auto_loop.restart()
 
     @commands.command(name="autoignis")
