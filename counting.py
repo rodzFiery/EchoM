@@ -8,42 +8,45 @@ import asyncio
 class Counting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Local cache for current count and high scores
-        self.current_count = 0
-        self.last_user_id = None
-        self.counting_channel_id = None
+        # Local cache now uses dictionaries keyed by Guild ID
+        self.current_counts = {}
+        self.last_user_ids = {}
+        self.counting_channel_ids = {}
         self.load_config()
 
     def load_config(self):
-        """Load counting data from the database config."""
+        """Load counting data from the database config for all guilds."""
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
-                # Load channel
-                c_row = conn.execute("SELECT value FROM config WHERE key = 'counting_channel'").fetchone()
-                if c_row: self.counting_channel_id = int(c_row['value'])
+                # Load all guild-specific channels
+                c_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'counting_channel_%'").fetchall()
+                for row in c_rows:
+                    guild_id = int(row['key'].split('_')[-1])
+                    self.counting_channel_ids[guild_id] = int(row['value'])
                 
-                # Load current state
-                s_row = conn.execute("SELECT value FROM config WHERE key = 'counting_state'").fetchone()
-                if s_row:
-                    state = json.loads(s_row['value'])
-                    self.current_count = state.get('count', 0)
-                    self.last_user_id = state.get('last_user', None)
+                # Load all guild-specific states
+                s_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'counting_state_%'").fetchall()
+                for row in s_rows:
+                    guild_id = int(row['key'].split('_')[-1])
+                    state = json.loads(row['value'])
+                    self.current_counts[guild_id] = state.get('count', 0)
+                    self.last_user_ids[guild_id] = state.get('last_user', None)
         except: pass
 
-    def save_state(self):
-        """Save counting state and channel."""
+    def save_state(self, guild_id):
+        """Save counting state and channel for a specific guild."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
-                         ('counting_channel', str(self.counting_channel_id)))
-            state = {'count': self.current_count, 'last_user': self.last_user_id}
+                         (f'counting_channel_{guild_id}', str(self.counting_channel_ids.get(guild_id))))
+            state = {'count': self.current_counts.get(guild_id, 0), 'last_user': self.last_user_ids.get(guild_id)}
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
-                         ('counting_state', json.dumps(state)))
+                         (f'counting_state_{guild_id}', json.dumps(state)))
             conn.commit()
 
     def update_high_score(self, count, ruiner_id):
-        """Record the run in the high score ledger."""
+        """Record the run in the high score ledger (Global across all servers)."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             try:
@@ -92,16 +95,17 @@ class Counting(commands.Cog):
     @commands.command(name="setcounting")
     @commands.has_permissions(administrator=True)
     async def set_counting(self, ctx, channel: discord.TextChannel = None):
-        """Sets the channel for the infinite counting game."""
+        """Sets the channel for the infinite counting game for this server."""
         target = channel or ctx.channel
-        self.counting_channel_id = target.id
-        self.save_state()
+        guild_id = ctx.guild.id
+        self.counting_channel_ids[guild_id] = target.id
+        self.save_state(guild_id)
         main_mod = sys.modules['__main__']
-        await ctx.send(embed=main_mod.fiery_embed("🔢 COUNTING PROTOCOL INITIALIZED", f"The Echo is now monitoring numbers in {target.mention}.\nStart from **1**."))
+        await ctx.send(embed=main_mod.fiery_embed("🔢 COUNTING PROTOCOL INITIALIZED", f"The Echo is now monitoring numbers in {target.mention} for this sector.\nStart from **1**."))
 
     @commands.command(name="countingtop")
     async def counting_top(self, ctx):
-        """Shows the top 10 best counting runs and who ruined them."""
+        """Shows the top 10 best counting runs globally (all servers) and who ruined them."""
         main_mod = sys.modules['__main__']
         def fetch_top():
             with main_mod.get_db_connection() as conn:
@@ -111,15 +115,19 @@ class Counting(commands.Cog):
         if not data:
             return await ctx.send("The archives are empty. No runs recorded yet.")
 
-        desc = "### 🏆 TOP 10 NEURAL SEQUENCES\n"
+        desc = "### 🏆 GLOBAL NEURAL SEQUENCES\n"
         for i, row in enumerate(data, 1):
             desc += f"`#{i}` **{row['score']:,}** — Ruined by <@{row['ruiner_id']}>\n"
         
-        await ctx.send(embed=main_mod.fiery_embed("COUNTING HALL OF FAME", desc))
+        await ctx.send(embed=main_mod.fiery_embed("GLOBAL COUNTING HALL OF FAME", desc))
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or message.channel.id != self.counting_channel_id:
+        if message.author.bot or not message.guild:
+            return
+            
+        guild_id = message.guild.id
+        if message.channel.id != self.counting_channel_ids.get(guild_id):
             return
 
         content = message.content.strip()
@@ -128,11 +136,13 @@ class Counting(commands.Cog):
 
         main_mod = sys.modules['__main__']
         number = int(content)
-        expected = self.current_count + 1
+        current_count = self.current_counts.get(guild_id, 0)
+        expected = current_count + 1
+        last_user_id = self.last_user_ids.get(guild_id)
 
         # Check if user is repeating themselves or sent wrong number
-        if number != expected or message.author.id == self.last_user_id:
-            ruined_count = self.current_count
+        if number != expected or message.author.id == last_user_id:
+            ruined_count = current_count
             self.update_high_score(ruined_count, message.author.id)
             self.update_member_stats(message.author.id, is_mistake=True)
             
@@ -145,10 +155,10 @@ class Counting(commands.Cog):
                     f"**Protocol:** Resetting to `0`.\n\n"
                     f"*The Red Room demands a new start.*")
             
-            # Reset state
-            self.current_count = 0
-            self.last_user_id = None
-            self.save_state()
+            # Reset state for this guild
+            self.current_counts[guild_id] = 0
+            self.last_user_ids[guild_id] = None
+            self.save_state(guild_id)
             
             embed = main_mod.fiery_embed("🚫 RUN RUINED", desc, color=0xFF0000)
             if os.path.exists("LobbyTopRight.jpg"):
@@ -159,16 +169,14 @@ class Counting(commands.Cog):
                 await message.channel.send(embed=embed)
             return
 
-        # Correct number
-        self.current_count = number
-        self.last_user_id = message.author.id
-        self.save_state()
+        # Correct number for this guild
+        self.current_counts[guild_id] = number
+        self.last_user_ids[guild_id] = message.author.id
+        self.save_state(guild_id)
         
-        # --- STATS & MILESTONE PROTOCOL ---
+        # --- STATS & MILESTONE PROTOCOL (Global User Progress) ---
         self.update_member_stats(message.author.id, is_mistake=False)
         await self.check_personal_milestone(message)
-        
-        # THE INDIVIDUAL +100 FLAMES REWARD HAS BEEN REMOVED TO PREVENT SPAM LOGS
         
         try:
             await message.add_reaction("✅")
