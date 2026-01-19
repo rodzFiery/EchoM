@@ -120,6 +120,38 @@ class Counting(commands.Cog):
                                         f"**Status:** `Optimization Successful`", color=0x9B59B6)
             await message.channel.send(content="@here", embed=embed)
 
+    async def check_global_goal(self, message):
+        """NEW: Logic for Universal Global Goals (50k increments up to 10M)."""
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 0
+            
+        # Milestone trigger every 50,000 up to 10,000,000
+        if total_global > 0 and total_global % 50000 == 0 and total_global <= 10000000:
+            badge_name = f"Neural Architect: {total_global:,}"
+            
+            # Universal Badge Granting Protocol
+            with main_mod.get_db_connection() as conn:
+                # Grant badge to the user who hit the milestone for the whole world
+                users_to_badge = conn.execute("SELECT id, titles FROM users").fetchall()
+                for user in users_to_badge:
+                    try: 
+                        titles = json.loads(user['titles']) 
+                    except: 
+                        titles = []
+                    if badge_name not in titles:
+                        titles.append(badge_name)
+                        conn.execute("UPDATE users SET titles = ? WHERE id = ?", (json.dumps(titles), user['id']))
+                conn.commit()
+
+            embed = main_mod.fiery_embed("🌍 UNIVERSAL NEURAL SYNC",
+                                        f"### 🏆 GLOBAL GOAL REACHED: {total_global:,}\n"
+                                        f"The Echo has achieved a massive milestone across all sectors.\n\n"
+                                        f"**Global Badge Granted:** `[{badge_name}]`\n"
+                                        f"All synchronized assets have been updated with this clearance level.\n\n"
+                                        f"*The Red Room has expanded its reach.*", color=0xFFD700)
+            await message.channel.send(embed=embed)
+
     @commands.command(name="setcounting")
     @commands.has_permissions(administrator=True)
     async def set_counting(self, ctx, channel: discord.TextChannel = None):
@@ -261,7 +293,6 @@ class Counting(commands.Cog):
         now = datetime.now()
         
         # --- WEEKEND TRANSITION CHECK ---
-        # Logic: If current time is precisely the turn of the hour on Fri/Sat or Sun/Mon
         if now.hour == 0 and now.minute == 0:
             if now.weekday() == 5: # Saturday Start
                 await message.channel.send(embed=main_mod.fiery_embed("🔥 PROTOCOL: DOUBLE FLAMES", "The weekend has arrived. Reward frequencies are now doubled for all assets.", color=0xFF4500))
@@ -307,6 +338,7 @@ class Counting(commands.Cog):
         self.update_member_stats(message.author.id, guild_id, is_mistake=False)
         await self.check_personal_milestone(message)
         await self.check_community_milestone(message)
+        await self.check_global_goal(message)
         
         try:
             await message.add_reaction("✅")
