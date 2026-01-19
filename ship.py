@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 import random
@@ -279,13 +278,13 @@ class FieryShip(commands.Cog):
             # First two tries are purely random and different
             random.seed(f"{pair_key}{datetime.now().timestamp()}")
             percent = random.randint(0, 100)
-            status_note = f"⚠️ **Unstable Vibration:** Scan {attempt_count}/3. Results are fluctuating..."
+            status_note = f"**⚠️ Unstable Vibration: Scan {attempt_count}/3. Results are fluctuating...**"
         else:
             # Third try and beyond is locked for the day (12h+)
             seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
-            status_note = "🔒 **Frequency Locked:** Resonance has stabilized for the next cycle."
+            status_note = "**🔒 Frequency Locked: Resonance has stabilized for the next cycle.**"
             
         random.seed()
 
@@ -311,28 +310,28 @@ class FieryShip(commands.Cog):
                 is_anni = True
 
         # --- ENHANCED EMBED VISUALS ---
-        embed = main_mod.fiery_embed("💖 LOVEFINDER", f"**Assets Involved:** {user1.mention} ❤️‍🔥 {user2.mention}\n{status_note}")
+        embed = main_mod.fiery_embed("**💖 LOVEFINDER**", f"**Assets Involved: {user1.mention} ❤️‍🔥 {user2.mention}**\n{status_note}")
         
         if is_anni:
-            embed.title = "🔞 HOT PINK ANNIVERSARY 🔞"
-            result_msg = f"💖 **1 MONTH MILESTONE!** {result_msg}\n\n🔥 **DOUBLE REWARDS ACTIVE:** You both gain 2x XP and Flames today!"
+            embed.title = "**🔞 HOT PINK ANNIVERSARY 🔞**"
+            result_msg = f"**💖 1 MONTH MILESTONE! {result_msg}**\n\n**🔥 DOUBLE REWARDS ACTIVE: You both gain 2x XP and Flames today!**"
             embed.color = 0xFF1493 
 
         if percent == 69: 
-            embed.title = "🫦 EXHIBITIONIST PEAK REACHED 🫦"
+            embed.title = "**🫦 EXHIBITIONIST PEAK REACHED 🫦**"
             await main_mod.update_user_stats_async(user1.id, amount=2500, source="Ship 69% Bonus")
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
-            result_msg += "\n\n💰 **EXHIBITION REWARD:** The dungeon provides **2,500 Flames** for the show!"
+            result_msg += "\n\n**💰 EXHIBITION REWARD: The dungeon provides 2,500 Flames for the show!**"
 
         # FIXED: Removed love status bar emojis to clean up the description
         embed.description = (
-            f"**LOVE STATUS:** `{percent}%` \n"
-            f"**RESONANCE TIER:** `{tier.upper()}`\n\n"
-            f"💬 *\"{result_msg}\"*"
+            f"**LOVE STATUS: `{percent}%`** \n"
+            f"**RESONANCE TIER: `{tier.upper()}`**\n\n"
+            f"**💬 *\"{result_msg}\"* **"
         )
 
-        embed.add_field(name="⛓️ Connection Stats", value=f"• Sync: `{percent}%`\n• Tier: `{tier}`\n• Date: `{today}`", inline=True)
-        embed.add_field(name="🔥 Potential", value=f"• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`\n• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`", inline=True)
+        embed.add_field(name="**⛓️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
+        embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
         
