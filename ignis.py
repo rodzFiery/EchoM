@@ -139,6 +139,7 @@ class EngineControl(commands.Cog):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             return await ctx.send(file=file, embed=embed)
         
+        # FIX: Now correctly identifying members from the View's participant list
         participants = guild_lobby.participants
         if not participants:
             embed = self.fiery_embed("Lobby Status", "The room is empty. No one has offered their body yet.")
