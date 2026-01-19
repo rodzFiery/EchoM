@@ -103,6 +103,23 @@ class Counting(commands.Cog):
                                         f"*The Red Room appreciates your consistency.*", color=0xFF4500 if is_weekend else 0x00FF00)
             await message.channel.send(embed=embed)
 
+    async def check_community_milestone(self, message):
+        """Logic for community-wide milestones reached in this server (1000, 2000, etc.)."""
+        main_mod = sys.modules['__main__']
+        guild_id = message.guild.id
+        with main_mod.get_db_connection() as conn:
+            row = conn.execute("SELECT SUM(count) as total FROM local_counting WHERE guild_id = ?", (guild_id,)).fetchone()
+            total_community = row['total'] if row and row['total'] else 0
+            
+        if total_community > 0 and total_community % 1000 == 0:
+            embed = main_mod.fiery_embed("🛰️ SECTOR MILESTONE ACHIEVED",
+                                        f"### 🌐 COLLECTIVE PRECISION: {total_community:,}\n"
+                                        f"Attention assets of **{message.guild.name}**.\n\n"
+                                        f"This sector has successfully synchronized `{total_community:,}` verified numbers into the neural network.\n"
+                                        f"Local efficiency has increased. The Red Room is watching.\n\n"
+                                        f"**Status:** `Optimization Successful`", color=0x9B59B6)
+            await message.channel.send(content="@here", embed=embed)
+
     @commands.command(name="setcounting")
     @commands.has_permissions(administrator=True)
     async def set_counting(self, ctx, channel: discord.TextChannel = None):
@@ -241,6 +258,16 @@ class Counting(commands.Cog):
             return
 
         main_mod = sys.modules['__main__']
+        now = datetime.now()
+        
+        # --- WEEKEND TRANSITION CHECK ---
+        # Logic: If current time is precisely the turn of the hour on Fri/Sat or Sun/Mon
+        if now.hour == 0 and now.minute == 0:
+            if now.weekday() == 5: # Saturday Start
+                await message.channel.send(embed=main_mod.fiery_embed("🔥 PROTOCOL: DOUBLE FLAMES", "The weekend has arrived. Reward frequencies are now doubled for all assets.", color=0xFF4500))
+            elif now.weekday() == 0: # Monday End
+                await message.channel.send(embed=main_mod.fiery_embed("📜 PROTOCOL: STANDARD FREQUENCY", "Weekend cycle completed. Returning to standard neural reward rates.", color=0x00FF00))
+
         number = int(content)
         current_count = self.current_counts.get(guild_id, 0)
         expected = current_count + 1
@@ -279,6 +306,7 @@ class Counting(commands.Cog):
         
         self.update_member_stats(message.author.id, guild_id, is_mistake=False)
         await self.check_personal_milestone(message)
+        await self.check_community_milestone(message)
         
         try:
             await message.add_reaction("✅")
