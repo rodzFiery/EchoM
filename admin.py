@@ -60,17 +60,16 @@ class AdminSystem(commands.Cog):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
-    # ===== ADDED: FLAMES COMMAND =====
+    # ===== UPDATED: FLAMES COMMAND (PERMISSIONS BASED) =====
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
-        """Staff/Owner command to grant flames to a user."""
-        # Role checking for Staff, King, Boss, Owner, Familiar keywords
-        staff_keywords = ["staff", "king", "boss", "owner", "familiar"]
-        is_staff = any(any(key in role.name.lower() for key in staff_keywords) for role in ctx.author.roles)
+        """Master command to grant flames to a user based on Admin permissions."""
+        # Check if user is bot owner OR has Administrator permissions in the server
         is_owner = await self.bot.is_owner(ctx.author)
+        is_admin = ctx.author.guild_permissions.administrator
 
-        if not (is_staff or is_owner):
-            embed = self.fiery_embed("Access Denied", "❌ Only the Elite or Staff hold the keys to the furnace.")
+        if not (is_owner or is_admin):
+            embed = self.fiery_embed("Access Denied", "❌ Only those with Administrative authority or the Bot Owner hold the keys to the furnace.")
             return await ctx.send(embed=embed)
 
         try:
