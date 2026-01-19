@@ -121,6 +121,64 @@ class Counting(commands.Cog):
         
         await ctx.send(embed=main_mod.fiery_embed("GLOBAL COUNTING HALL OF FAME", desc))
 
+    # ===== NEW: THEMED COUNTING STATS COMMAND =====
+    @commands.command(name="countstats")
+    async def countstats(self, ctx, member: discord.Member = None):
+        """ULTIMATE NEURAL AUDIT: Comprehensive report of numerical precision."""
+        target = member or ctx.author
+        main_mod = sys.modules['__main__']
+        
+        def fetch_dossier():
+            with main_mod.get_db_connection() as conn:
+                # Personal Stats
+                stats = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
+                # Personal Rank
+                rank = conn.execute("SELECT COUNT(*) + 1 FROM users WHERE count_total > (SELECT count_total FROM users WHERE id = ?)", (target.id,)).fetchone()[0]
+                # Highest Ruined Run
+                highest = conn.execute("SELECT MAX(score) FROM counting_runs WHERE ruiner_id = ?", (target.id,)).fetchone()[0]
+                # Global context
+                total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 1
+                return stats, rank, highest, total_global
+
+        data, rank, highest_ruin, total_global = await asyncio.to_thread(fetch_dossier)
+        
+        total = data['count_total'] if data else 0
+        mistakes = data['count_mistakes'] if data else 0
+        highest_ruin = highest_ruin or 0
+        
+        # Logic for calculation
+        accuracy = (total / (total + mistakes) * 100) if (total + mistakes) > 0 else 100.0
+        contribution = (total / total_global) * 100
+
+        # Tier Logic
+        if total > 5000: tier = "Numerical Architect"
+        elif total > 1000: tier = "Sequence Guardian"
+        elif total > 500: tier = "Efficient Counter"
+        else: tier = "Fresh Asset"
+
+        desc = (f"### 🧬 NEURAL AUDIT: {target.display_name.upper()}\n"
+                f"*Extracting numerical sequence history from the Echo...*\n\n"
+                f"📊 **EFFICIENCY RATING**\n"
+                f"```ml\n"
+                f"Accuracy: {accuracy:.2f}% | Rank: #{rank}\n"
+                f"Tier: {tier}\n"
+                f"```\n"
+                f"📑 **INDIVIDUAL METRICS**\n"
+                f"• **Verified Numbers:** `{total:,}`\n"
+                f"• **Neural Errors (Mistakes):** `{mistakes:,}`\n"
+                f"• **Highest Run Interrupted:** `{highest_ruin:,}`\n\n"
+                f"🔗 **SYSTEM CONTRIBUTION**\n"
+                f"You have provided **{contribution:.4f}%** of the total numerical data processed by the Red Room.")
+
+        embed = main_mod.fiery_embed("COUNTING DOSSIER", desc, color=0x3498DB)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="stats.jpg")
+            embed.set_thumbnail(url="attachment://stats.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild:
