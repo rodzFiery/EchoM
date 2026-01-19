@@ -103,7 +103,11 @@ class Counting(commands.Cog):
         """Sets the channel for the infinite counting game for this server."""
         target = channel or ctx.channel
         guild_id = ctx.guild.id
+        # Update cache immediately
         self.counting_channel_ids[guild_id] = target.id
+        self.current_counts[guild_id] = 0
+        self.last_user_ids[guild_id] = None
+        
         self.save_state(guild_id)
         main_mod = sys.modules['__main__']
         await ctx.send(embed=main_mod.fiery_embed("🔢 COUNTING PROTOCOL INITIALIZED", f"The Echo is now monitoring numbers in {target.mention} for this sector.\nStart from **1**."))
@@ -150,6 +154,8 @@ class Counting(commands.Cog):
 
         def fetch_lb():
             with main_mod.get_db_connection() as conn:
+                # Ensure table exists before querying
+                conn.execute("CREATE TABLE IF NOT EXISTS local_counting (user_id INTEGER, guild_id INTEGER, count INTEGER DEFAULT 0, PRIMARY KEY (user_id, guild_id))")
                 return conn.execute("""
                     SELECT user_id, count FROM local_counting 
                     WHERE guild_id = ? ORDER BY count DESC LIMIT 10
@@ -220,7 +226,8 @@ class Counting(commands.Cog):
             return
             
         guild_id = message.guild.id
-        if message.channel.id != self.counting_channel_ids.get(guild_id):
+        # Check if this channel is the one registered for this guild
+        if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
         content = message.content.strip()
