@@ -1,3 +1,4 @@
+
 import discord
 from discord.ext import commands
 import random
@@ -144,6 +145,23 @@ class FieryShip(commands.Cog):
                 else:
                     canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
                 draw = ImageDraw.Draw(canvas)
+
+                # ADDED: Background Particle Effects (Density based on percent)
+                # Higher percentage = more sparks and hearts
+                particle_count = int((percent / 100) * 80) + 10
+                for _ in range(particle_count):
+                    px = random.randint(0, canvas_width)
+                    py = random.randint(0, canvas_height)
+                    p_size = random.randint(10, 25)
+                    # Randomly choose between a "heart" glow and a "spark"
+                    p_type = random.choice(["heart", "spark"])
+                    p_color = random.choice([(255, 182, 193, 150), (255, 20, 147, 180), (255, 255, 255, 130)])
+                    
+                    if p_type == "heart":
+                        draw.text((px, py), "💕", fill=p_color)
+                    else:
+                        draw.ellipse([px, py, px+p_size//3, py+p_size//3], fill=p_color)
+
                 av_size = 400
                 av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
@@ -171,6 +189,17 @@ class FieryShip(commands.Cog):
                 av2_framed = apply_erotic_frame_square(av2_img, frame_color, pulse)
                 canvas.paste(av1_framed, (20, 150), av1_framed)
                 canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
+
+                # ADDED: Perfect 100% Soul Bond Badge
+                if percent == 100:
+                    badge_w, badge_h = 460, 100
+                    badge_x = (canvas_width // 2) - (badge_w // 2)
+                    badge_y = 10
+                    # Golden Glow Rect
+                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 215, 0, 100))
+                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 215, 0), width=4)
+                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 215, 0))
+
                 pillar_w, pillar_h = 100, 480
                 pillar_x = (canvas_width // 2) - (pillar_w // 2)
                 pillar_y = 120
@@ -406,7 +435,7 @@ class FieryShip(commands.Cog):
                 log_emb.add_field(name="Dominant/Partner", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Submissive/Partner", value=member.mention, inline=True)
                 log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have sealed their fates. The Red Room records their eternal bond."
-                await audit_channel.send(embed=log_emb)
+                await audit_channel.send(log_emb)
             view.stop()
 
         btn = discord.ui.Button(label="Accept Possession", style=discord.ButtonStyle.success, emoji="🫦")
@@ -445,7 +474,7 @@ class FieryShip(commands.Cog):
             log_emb.add_field(name="Asset One", value=ctx.author.mention, inline=True)
             log_emb.add_field(name="Asset Two", value=f"<@{spouse_id}>", inline=True)
             log_emb.description = f"🥀 **VOYEUR NOTE:** The contract between these assets has been nullified. They return to the dungeon floor as solitary figures."
-            await audit_channel.send(embed=log_emb)
+            await audit_channel.send(log_emb)
 
     @commands.command(name="bestfriend")
     async def bestfriend(self, ctx, member: discord.Member):
@@ -475,7 +504,7 @@ class FieryShip(commands.Cog):
                 log_emb.add_field(name="Ally One", value=ctx.author.mention, inline=True)
                 log_emb.add_field(name="Ally Two", value=member.mention, inline=True)
                 log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have shared blood. A platonic alliance is recorded."
-                await audit_channel.send(embed=log_emb)
+                await audit_channel.send(log_emb)
             view.stop()
 
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
