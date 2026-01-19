@@ -90,33 +90,37 @@ class IgnisAuto(commands.Cog):
             return
 
         # 1. Process the previous lobby if it exists
-        if self.current_auto_lobby and len(self.current_auto_lobby.participants) >= 2:
-            await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
-            
-            # Transfer logic to the IgnisEngine cog
-            ignis_engine = self.bot.get_cog("IgnisEngine")
-            if ignis_engine:
-                # We fetch the edition from main
-                import sys
-                main_module = sys.modules['__main__']
-                edition = getattr(main_module, "game_edition", 1)
+        # CRITICAL FIX: Ensure the battle is dispatched BEFORE the lobby object is refreshed
+        if self.current_auto_lobby:
+            if len(self.current_auto_lobby.participants) >= 2:
+                await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
                 
-                # Start the battle using the existing engine logic
-                asyncio.create_task(ignis_engine.start_battle(
-                    channel, 
-                    self.current_auto_lobby.participants, 
-                    edition
-                ))
-                
-                # Increment edition in main
-                if hasattr(main_module, "game_edition"):
-                    main_module.game_edition += 1
-                    main_module.save_game_config()
+                # Transfer logic to the IgnisEngine cog
+                ignis_engine = self.bot.get_cog("IgnisEngine")
+                if ignis_engine:
+                    # We fetch the edition from main
+                    import sys
+                    main_module = sys.modules['__main__']
+                    edition = getattr(main_module, "game_edition", 1)
+                    
+                    # Start the battle using the existing engine logic
+                    # Capture the list to ensure no reference issues during lobby reset
+                    battle_participants = list(self.current_auto_lobby.participants)
+                    
+                    asyncio.create_task(ignis_engine.start_battle(
+                        channel, 
+                        battle_participants, 
+                        edition
+                    ))
+                    
+                    # Increment edition in main
+                    if hasattr(main_module, "game_edition"):
+                        main_module.game_edition += 1
+                        main_module.save_game_config()
+                else:
+                    await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
             else:
-                await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
-        
-        elif self.current_auto_lobby:
-            await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+                await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
 
         # 2. Start NEW lobby for the next 30 minutes
         self.current_auto_lobby = AutoLobbyView()
