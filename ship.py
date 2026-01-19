@@ -295,13 +295,9 @@ class FieryShip(commands.Cog):
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
             result_msg += "\n\n💰 **EXHIBITION REWARD:** The dungeon provides **2,500 Flames** for the show!"
 
-        # Create a text-based progress bar for the description
-        bar_len = 10
-        filled = int(percent / bar_len)
-        bar = "❤️‍🔥" * filled + "⛓️" * (bar_len - filled)
-        
+        # FIXED: Removed love status bar emojis to clean up the description
         embed.description = (
-            f"**LOVE STATUS:** `{percent}%` [{bar}]\n"
+            f"**LOVE STATUS:** `{percent}%` \n"
             f"**RESONANCE TIER:** `{tier.upper()}`\n\n"
             f"💬 *\"{result_msg}\"*"
         )
