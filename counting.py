@@ -356,8 +356,15 @@ class Counting(commands.Cog):
         if message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
+        # NEW: Auto-Cleanup Protocol - Deletes non-number messages in the channel
         content = message.content.strip()
         if not content.isdigit():
+            # Only delete if it's not a command for this bot
+            ctx = await self.bot.get_context(message)
+            if not ctx.valid:
+                try:
+                    await message.delete()
+                except: pass
             return
 
         main_mod = sys.modules['__main__']
