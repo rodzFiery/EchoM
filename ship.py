@@ -302,6 +302,22 @@ class FieryShip(commands.Cog):
         embed.add_field(name="🔥 Potential", value=f"• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`\n• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
+        
+        # --- ADDED: Reroll Button Logic ---
+        view = discord.ui.View(timeout=60)
+        if attempt_count < 3:
+            reroll_btn = discord.ui.Button(label=f"Reroll Vibration ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
+            
+            async def reroll_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
+                await interaction.response.defer()
+                await ctx.invoke(self.ship, user1=user1, user2=user2)
+                view.stop()
+            
+            reroll_btn.callback = reroll_callback
+            view.add_item(reroll_btn)
+
         if img_buf:
             file = discord.File(img_buf, filename="ship.png")
             embed.set_image(url="attachment://ship.png")
@@ -310,9 +326,9 @@ class FieryShip(commands.Cog):
             if os.path.exists("LobbyTopRight.jpg"):
                 files_to_send.append(discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg"))
             
-            await ctx.send(content=f"{user1.mention} {user2.mention}" if is_anni else None, files=files_to_send, embed=embed)
+            await ctx.send(content=f"{user1.mention} {user2.mention}" if is_anni else None, files=files_to_send, embed=embed, view=view if attempt_count < 3 else None)
         else:
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, view=view if attempt_count < 3 else None)
 
         if percent in [0, 69, 100]:
             # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
