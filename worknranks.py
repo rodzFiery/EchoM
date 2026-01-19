@@ -41,7 +41,8 @@ async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update
     last_key = f"last_{cmd_name}"
     
     # FIX: Ensure dictionary key exists
-    last_time_str = user[last_key] if last_key in user.keys() else None
+    # Use .get() to avoid KeyError if the database column hasn't been created yet
+    last_time_str = user.get(last_key)
     last = datetime.fromisoformat(last_time_str) if last_time_str else now - timedelta(hours=3)
     
     if now - last < timedelta(hours=3):
