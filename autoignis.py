@@ -148,5 +148,20 @@ class IgnisAuto(commands.Cog):
         # Restart the loop to trigger the first lobby immediately
         self.auto_loop.restart()
 
+    @commands.command(name="stopautoignis")
+    @commands.is_owner()
+    async def stop_auto_ignis(self, ctx):
+        """Stops the Automated Ignis cycle immediately."""
+        if self.auto_loop.is_running():
+            self.auto_loop.stop()
+            self.current_auto_lobby = None
+            embed = main.fiery_embed("Auto-Ignis Terminated", 
+                "🛑 **The Automated Cycle has been halted.**\n\n"
+                "The gears have stopped turning and the registration ledger is cleared. "
+                "The Master has revoked the automated protocol.", color=0xFF0000)
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("❌ **The Automated Cycle is not currently running.**", ephemeral=True)
+
 async def setup(bot):
     await bot.add_cog(IgnisAuto(bot))
