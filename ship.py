@@ -142,22 +142,24 @@ class FieryShip(commands.Cog):
                 if os.path.exists("shipbg.jpg"):
                     canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
                 else:
-                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 5, 255))
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 15, 255))
                 draw = ImageDraw.Draw(canvas)
 
-                # ADDED: Background Particle Effects (Density based on percent)
-                # Higher percentage = more sparks and hearts
-                particle_count = int((percent / 100) * 80) + 10
+                # ADDED: Galactic Background Particle Effects (Density based on percent)
+                # Higher percentage = more nebula stardust and cosmic hearts
+                particle_count = int((percent / 100) * 120) + 20
                 for _ in range(particle_count):
                     px = random.randint(0, canvas_width)
                     py = random.randint(0, canvas_height)
-                    p_size = random.randint(10, 25)
-                    # Randomly choose between a "heart" glow and a "spark"
-                    p_type = random.choice(["heart", "spark"])
-                    p_color = random.choice([(255, 182, 193, 150), (255, 20, 147, 180), (255, 255, 255, 130)])
+                    p_size = random.randint(5, 15)
+                    # Randomly choose between a "cosmic heart" and "stardust spark"
+                    p_type = random.choice(["heart", "spark", "nebula"])
+                    p_color = random.choice([(255, 182, 193, 180), (147, 0, 211, 150), (255, 255, 255, 200)])
                     
                     if p_type == "heart":
                         draw.text((px, py), "💕", fill=p_color)
+                    elif p_type == "nebula":
+                        draw.ellipse([px, py, px+p_size*2, py+p_size*2], fill=(*p_color[:3], 40))
                     else:
                         draw.ellipse([px, py, px+p_size//3, py+p_size//3], fill=p_color)
 
@@ -172,6 +174,7 @@ class FieryShip(commands.Cog):
                     glow_range = int(20 + (pulse_intensity * 2)) 
                     for i in range(glow_range, 0, -1):
                         alpha = int(220 * (1 - i/glow_range))
+                        # Nebula Shift: Mixes frame color with deep galactic indigo
                         draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
                     glow.paste(avatar, (40, 40), avatar)
                     return glow
@@ -202,16 +205,16 @@ class FieryShip(commands.Cog):
                 pillar_w, pillar_h = 100, 480
                 pillar_x = (canvas_width // 2) - (pillar_w // 2)
                 pillar_y = 120
-                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 5, 240), outline=(50, 0, 0), width=4)
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 15, 240), outline=(75, 0, 130), width=4)
                 fill_pixels = int((percent / 100) * pillar_h)
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
                         # GALACTIC LIGHT PINK GRADIENT logic
-                        # Bottom is deeper cosmic magenta, Top is soft stardust pink
-                        r = int(147 + (108 * ratio)) # Transition towards 255
-                        g = int(0 + (182 * ratio))   # Transition towards 182
-                        b = int(211 + (-18 * ratio)) # Transition towards 193
+                        # Bottom: Deep Cosmic Magenta / Top: Nebula Pink
+                        r = int(147 + (108 * ratio)) # Galactic R shift
+                        g = int(0 + (182 * ratio))   # Nebula G shift
+                        b = int(211 + (-18 * ratio)) # Stardust B shift
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
                     # Indicator line (Pastel Yellow Accent)
@@ -331,7 +334,7 @@ class FieryShip(commands.Cog):
             f"**💬 *\"{result_msg}\"* **"
         )
 
-        embed.add_field(name="**❤️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
+        embed.add_field(name="**⛓️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
         embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
