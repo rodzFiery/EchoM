@@ -26,10 +26,10 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner, edition):
+    def __init__(self, owner_id, edition):
         # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
-        self.owner = owner
+        self.owner_id = owner_id
         self.edition = edition
         self.participants = []
 
@@ -55,8 +55,10 @@ class LobbyView(discord.ui.View):
     @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
-        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
-        if interaction.user.id != self.owner.id and not is_staff:
+        is_staff = any(role.name in ["Staff", "Admin", "Moderator", "AdminSystem"] for role in getattr(interaction.user, 'roles', []))
+        
+        # Checking against stored owner_id
+        if interaction.user.id != self.owner_id and not is_staff:
             return await interaction.response.send_message("Only the Masters or Staff start the games!", ephemeral=True)
         
         if len(self.participants) < 2:
@@ -74,7 +76,7 @@ class LobbyView(discord.ui.View):
             if guild_games >= 2:
                 return await interaction.response.send_message("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
 
-            # FIX: Acknowledgement of the interaction before starting the long task
+            # MUST DEFER before starting the heavy battle logic
             await interaction.response.defer(ephemeral=True)
 
             # Clear lobby for THIS guild specifically
@@ -84,8 +86,8 @@ class LobbyView(discord.ui.View):
             # Visual confirmation the game is launching
             await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
             
-            # Explicitly passing the bot's loop to avoid task death
-            asyncio.create_task(engine.start_battle(interaction.channel, self.participants, self.edition))
+            # FIX: Execute the battle as a background task to prevent the button from hanging
+            interaction.client.loop.create_task(engine.start_battle(interaction.channel, list(self.participants), self.edition))
             self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
@@ -110,7 +112,8 @@ class EngineControl(commands.Cog):
             color=0xFF0000
         )
         
-        view = LobbyView(ctx.author, main.game_edition)
+        # Store by ID to ensure cross-restart compatibility
+        view = LobbyView(ctx.author.id, main.game_edition)
         engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
@@ -346,7 +349,7 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
-        # FIXED: Pulling dynamically from self to ensure !audit changes work instantly
+        # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
         self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
