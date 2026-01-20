@@ -334,7 +334,7 @@ class FieryShip(commands.Cog):
             f"**💬 *\"{result_msg}\"* **"
         )
 
-        embed.add_field(name="**⛓️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
+        embed.add_field(name="**❤️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
         embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
