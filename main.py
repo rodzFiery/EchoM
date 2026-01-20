@@ -587,10 +587,11 @@ async def on_ready():
         topgg_poster.start()
     
     # --- RE-SYNC: PERSISTENT VIEWS REGISTRATION ---
-    # This block is mandatory for buttons to survive bot restarts
+    # REQUIRED: Registration of persistent views with their custom_ids
+    # Note: We pass Dummy values as the View extracts what it needs from the interaction context
     from ignis import LobbyView
     from autoignis import AutoLobbyView
-    bot.add_view(LobbyView(None, 0)) # Manual Lobby
+    bot.add_view(LobbyView(None, 0)) # Manual Lobby for !echostart
     bot.add_view(AutoLobbyView())     # Automated Cycle Lobby
     # --- END RE-SYNC ---
 
