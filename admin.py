@@ -29,7 +29,7 @@ class AdminSystem(commands.Cog):
         
         # ADDED: Load Admin Role from persistence
         import sys
-        import main_module = sys.modules['__main__']
+        main_module = sys.modules['__main__']
         self.ADMIN_ROLE_ID = getattr(main_module, "ADMIN_ROLE_ID", 0)
 
     # ===== UPDATED: SET ADMIN ROLE COMMAND (OWNER OR SERVER ADMIN) =====
