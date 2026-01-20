@@ -109,37 +109,61 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
             if kills > 0: 
                 conn.execute("UPDATE quests SET d1 = d1 + ?, w2 = w2 + ? WHERE user_id = ?", (kills, kills, user_id))
                 q = conn.execute("SELECT d1, w2 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                if q and q['d1'] >= 1: pending_rewards.append(("Daily Reward", 250, 100))
-                if q and q['w2'] >= 25: pending_rewards.append(("Weekly Reward", 2000, 1000))
+                if q and q['d1'] >= 1: 
+                    conn.execute("UPDATE quests SET d1 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Daily Reward", 250, 100))
+                if q and q['w2'] >= 25: 
+                    conn.execute("UPDATE quests SET w2 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Weekly Reward", 2000, 1000))
 
             if wins > 0: 
                 conn.execute("UPDATE quests SET d6 = d6 + 1, w1 = w1 + 1 WHERE user_id = ?", (user_id,))
                 q = conn.execute("SELECT d6, w1 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                if q and q['d6'] >= 1: pending_rewards.append(("Daily Reward", 250, 100))
-                if q and q['w1'] >= 5: pending_rewards.append(("Weekly Reward", 2000, 1000))
+                if q and q['d6'] >= 1: 
+                    conn.execute("UPDATE quests SET d6 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Daily Reward", 250, 100))
+                if q and q['w1'] >= 5: 
+                    conn.execute("UPDATE quests SET w1 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Weekly Reward", 2000, 1000))
 
             if source == "Work": 
                 conn.execute("UPDATE quests SET d5 = d5 + 1, w5 = w5 + 1 WHERE user_id = ?", (user_id,))
                 q = conn.execute("SELECT d5, w5 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                if q and q['d5'] >= 5: pending_rewards.append(("Daily Reward", 250, 100))
-                if q and q['w5'] >= 30: pending_rewards.append(("Weekly Reward", 2000, 1000))
+                if q and q['d5'] >= 5: 
+                    conn.execute("UPDATE quests SET d5 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Daily Reward", 250, 100))
+                if q and q['w5'] >= 30: 
+                    conn.execute("UPDATE quests SET w5 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Weekly Reward", 2000, 1000))
 
             if source == "Beg": 
                 conn.execute("UPDATE quests SET d4 = d4 + 1, w15 = w15 + 1 WHERE user_id = ?", (user_id,))
                 q = conn.execute("SELECT d4, w15 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                if q and q['d4'] >= 5: pending_rewards.append(("Daily Reward", 250, 100))
-                if q and q['w15'] >= 20: pending_rewards.append(("Weekly Reward", 2000, 1000))
+                if q and q['d4'] >= 5: 
+                    conn.execute("UPDATE quests SET d4 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Daily Reward", 250, 100))
+                if q and q['w15'] >= 20: 
+                    conn.execute("UPDATE quests SET w15 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Weekly Reward", 2000, 1000))
 
             if source == "Flirt": 
                 conn.execute("UPDATE quests SET d11 = d11 + 1, w10 = w10 + 1 WHERE user_id = ?", (user_id,))
                 q = conn.execute("SELECT d11, w10 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                if q and q['d11'] >= 5: pending_rewards.append(("Daily Reward", 250, 100))
-                if q and q['w10'] >= 20: pending_rewards.append(("Weekly Reward", 2000, 1000))
+                if q and q['d11'] >= 5: 
+                    conn.execute("UPDATE quests SET d11 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Daily Reward", 250, 100))
+                if q and q['w10'] >= 20: 
+                    conn.execute("UPDATE quests SET w10 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                    pending_rewards.append(("Weekly Reward", 2000, 1000))
             
             conn.execute("UPDATE quests SET d12 = d12 + 1, w6 = w6 + 1 WHERE user_id = ?", (user_id,))
             q_gen = conn.execute("SELECT d12, w6 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-            if q_gen and q_gen['d12'] >= 10: pending_rewards.append(("Daily Reward", 250, 100))
-            if q_gen and q_gen['w6'] >= 50: pending_rewards.append(("Weekly Reward", 2000, 1000))
+            if q_gen and q_gen['d12'] >= 10: 
+                conn.execute("UPDATE quests SET d12 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                pending_rewards.append(("Daily Reward", 250, 100))
+            if q_gen and q_gen['w6'] >= 50: 
+                conn.execute("UPDATE quests SET w6 = 0 WHERE user_id = ?", (user_id,)) # RESET TO PREVENT LOOP
+                pending_rewards.append(("Weekly Reward", 2000, 1000))
 
         # --- UPDATE MAIN STATS ---
         if ext and amount > 0:
