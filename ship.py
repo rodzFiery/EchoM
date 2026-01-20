@@ -173,7 +173,7 @@ class FieryShip(commands.Cog):
                 av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
 
-                # UPDATED: Frame color logic (Litle litle less intense glow)
+                # UPDATED: Frame color logic - Restored to Pinky Girl Light to match Coluna
                 def apply_erotic_frame_square(avatar, pulse_intensity=3):
                     glow_size = av_size + 80
                     glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
@@ -183,10 +183,10 @@ class FieryShip(commands.Cog):
                     for i in range(glow_range, 0, -1):
                         alpha = int(210 * (1 - i/glow_range))
                         # MATCHING THE COLUMN BAR GRADIENT LOGIC - Pinky Girl Light
-                        ratio = 0.85 
+                        # Using same base as the top of the pillar (Sakura #FFB6C1)
                         r = int(255) 
-                        g = int(182 + (20 * ratio))   
-                        b = int(193 + (30 * ratio))
+                        g = int(182)   
+                        b = int(193)
                         draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
                     
                     glow.paste(avatar, (40, 40), avatar)
@@ -342,7 +342,7 @@ class FieryShip(commands.Cog):
             f"**💬 *\"{result_msg}\"* **"
         )
 
-        embed.add_field(name="**⛓️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
+        embed.add_field(name="**❤️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
         embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
