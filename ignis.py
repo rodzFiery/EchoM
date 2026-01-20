@@ -59,7 +59,8 @@ class LobbyView(discord.ui.View):
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
         
         # Checking if owner exists (owner is passed as ctx.author in echostart)
-        owner_id = self.owner.id if self.owner else None
+        # FIXED: Added safe check for template views (where owner is None)
+        owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
             return await interaction.response.send_message("Only the Masters or Staff start the games!", ephemeral=True)
@@ -73,7 +74,7 @@ class LobbyView(discord.ui.View):
             guild_games = 0
             for channel_id in engine.active_battles:
                 ch = interaction.client.get_channel(channel_id)
-                if ch and ch.guild.id == interaction.guild.id:
+                if ch and ch.guild and ch.guild.id == interaction.guild.id:
                     guild_games += 1
             
             if guild_games >= 2:
