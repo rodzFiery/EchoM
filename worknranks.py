@@ -59,8 +59,22 @@ async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update
 
     base_reward = random.randint(reward_range[0], reward_range[1])
     
-    # Chama o atualizador assíncrono do main.py para lidar com XP e Quests
-    await update_user_stats_async(ctx.author.id, amount=base_reward, xp_gain=50, source=cmd_name.capitalize())
+    # FIXED: Added all missing required arguments to match the 13-argument signature in prizes.py
+    await update_user_stats_async(
+        ctx.author.id, 
+        amount=base_reward, 
+        xp_gain=50, 
+        wins=0, 
+        kills=0, 
+        deaths=0, 
+        source=cmd_name.capitalize(), 
+        get_user=get_user, 
+        bot=bot, 
+        get_db_connection=get_db_connection, 
+        CLASSES=CLASSES, 
+        nsfw_mode_active=nsfw_mode_active, 
+        send_audit_log=None # Passing None as the prizes.py handles its own logic
+    )
     
     # Atualiza o timestamp do cooldown
     # FIXED: Added safety check for missing database columns
