@@ -744,6 +744,14 @@ async def on_ready():
         print("✅ LOG: Automated Ignis is ONLINE.")
     except Exception as e:
         print(f"Failed to load autoignis extension: {e}")
+
+    # --- ADDED: HELPER SYSTEM LOADING (Refresh Protocol) ---
+    try:
+        if not bot.get_cog("HelperSystem"):
+            await bot.load_extension("helper")
+            print("✅ LOG: Helper System (Refresh Protocol) is ONLINE.")
+    except Exception as e:
+        print(f"Failed to load helper extension: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
