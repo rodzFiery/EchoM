@@ -331,7 +331,7 @@ class FieryShip(commands.Cog):
         embed.description = (
             f"# **` {percent}% Resonance `**\n"
             f"**─── Galactic Sync Report ───**\n"
-            f"**RESONANCE TIER: `{tier.upper()}`**\n\n"
+            f"**LOVE SCORE TIER: `{tier.upper()}`**\n\n"
             f"**💬 *\"{result_msg}\"* **"
         )
 
@@ -521,7 +521,10 @@ class FieryShip(commands.Cog):
         """Scans the dungeon for the highest compatibility pairs of the day."""
         main_mod = sys.modules['__main__']
         await ctx.send("👁️ **The Master's Voyeurs are scanning the pit for erotic frequencies...**")
-        members = [m for m in ctx.channel.members if not m.bot][:40]
+        
+        # FIXED: Explicitly scan only members currently in the server cache
+        members = [m for m in ctx.guild.members if not m.bot][:40]
+        
         if len(members) < 2:
             return await ctx.send("❌ Not enough assets in this sector to scan.")
 
@@ -604,7 +607,7 @@ class FieryShip(commands.Cog):
         description = ""
         for idx, (n1, n2, pct) in enumerate(leaderboard_data[:10], 1):
             medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🔥"
-            description += f"{medal} **{n1}** & **{n2}** — `{pct}% Resonance`\n"
+            description += f"{medal} **{n1}** & **{n2}** — `{pct}% LOVE SCORE`\n"
         embed.description = description
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -707,7 +710,7 @@ class FieryShip(commands.Cog):
         embed.add_field(name="**🔥 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
         
         if u_data['spouse']:
-            embed.set_footer(text="Your chains are heavy, but your resonance is eternal.")
+            embed.set_footer(text="Your chains are heavy, but your LOVE SCORE is eternal.")
         else:
             embed.set_footer(text="A wandering soul. Use !matchme to find a Master or a Pet.")
             
