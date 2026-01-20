@@ -36,20 +36,22 @@ class HelperSystem(commands.Cog):
             ]
 
             reloaded = []
+            failed = []
+
             for ext in extensions:
                 try:
                     # Attempt to reload the extension
                     await self.bot.reload_extension(ext)
-                    reloaded.append(ext)
+                    reloaded.append(f"✅ {ext}")
                 except commands.ExtensionNotLoaded:
                     # If it wasn't loaded yet, load it now
                     try:
                         await self.bot.load_extension(ext)
-                        reloaded.append(ext)
+                        reloaded.append(f"✅ {ext}")
                     except Exception as e:
-                        print(f"Failed to load {ext} during refresh: {e}")
+                        failed.append(f"❌ {ext} (Load Fail: {e})")
                 except Exception as e:
-                    print(f"Failed to reload {ext}: {e}")
+                    failed.append(f"❌ {ext} (Reload Fail: {e})")
 
             # Import fiery_embed from utilis or use local logic to match main.py style
             from utilis import fiery_embed
@@ -57,8 +59,13 @@ class HelperSystem(commands.Cog):
             main_mod = sys.modules['__main__']
             nsfw = getattr(main_mod, 'nsfw_mode_active', False)
             
+            # Formatting the Status Report
+            status_report = "**Synchronized:**\n" + (", ".join(reloaded) if reloaded else "None")
+            if failed:
+                status_report += "\n\n**Failed Protocols:**\n" + "\n".join(failed)
+
             embed = fiery_embed(self.bot, nsfw, "⚙️ SYSTEM REFRESH COMPLETE", 
-                                f"Neural links restored.\n**Extensions Synchronized:** {len(reloaded)}\n**Database:** Persistent & Online.", 
+                                f"Neural links restored.\n\n{status_report}\n\n**Database:** Persistent & Online.", 
                                 color=0x00FF00)
             
             await msg.edit(content=None, embed=embed)
