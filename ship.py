@@ -142,53 +142,58 @@ class FieryShip(commands.Cog):
                 if os.path.exists("shipbg.jpg"):
                     canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
                 else:
-                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (10, 0, 15, 255))
+                    # UPDATED: Deeper, pinker galactic void background
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (30, 0, 40, 255))
                 draw = ImageDraw.Draw(canvas)
 
                 # ADDED: Galactic Background Particle Effects (Density based on percent)
                 # Higher percentage = more nebula stardust and cosmic hearts
-                particle_count = int((percent / 100) * 120) + 20
+                particle_count = int((percent / 100) * 150) + 40
                 for _ in range(particle_count):
                     px = random.randint(0, canvas_width)
                     py = random.randint(0, canvas_height)
-                    p_size = random.randint(5, 15)
-                    # Randomly choose between a "cosmic heart" and "stardust spark"
+                    p_size = random.randint(5, 20)
+                    # UPDATED: Muxh more pinky galactic palette
                     p_type = random.choice(["heart", "spark", "nebula"])
-                    p_color = random.choice([(255, 182, 193, 180), (147, 0, 211, 150), (255, 255, 255, 200)])
+                    p_color = random.choice([
+                        (255, 20, 147, 200),  # Deep Hot Pink
+                        (255, 105, 180, 180), # Hot Pink
+                        (219, 112, 147, 150), # Pale Violet Red
+                        (255, 182, 193, 220)  # Light Pink
+                    ])
                     
                     if p_type == "heart":
-                        draw.text((px, py), "💕", fill=p_color)
+                        draw.text((px, py), "💖", fill=p_color)
                     elif p_type == "nebula":
-                        draw.ellipse([px, py, px+p_size*2, py+p_size*2], fill=(*p_color[:3], 40))
+                        draw.ellipse([px, py, px+p_size*3, py+p_size*3], fill=(*p_color[:3], 30))
                     else:
-                        draw.ellipse([px, py, px+p_size//3, py+p_size//3], fill=p_color)
+                        draw.ellipse([px, py, px+p_size//2, py+p_size//2], fill=p_color)
 
                 av_size = 400
                 av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
 
-                # UPDATED: Frame color logic to match the pillar bar gradient exactly
+                # UPDATED: Frame color logic to match the pillar bar gradient exactly (Intensified Pink)
                 def apply_erotic_frame_square(avatar, pulse_intensity=3):
                     glow_size = av_size + 80
                     glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
                     draw_g = ImageDraw.Draw(glow)
                     
-                    glow_range = int(20 + (pulse_intensity * 2)) 
+                    glow_range = int(30 + (pulse_intensity * 3)) 
                     for i in range(glow_range, 0, -1):
-                        alpha = int(220 * (1 - i/glow_range))
-                        # MATCHING THE COLUMN BAR GRADIENT LOGIC
-                        # We use a mid-point ratio for the frame color consistency
-                        ratio = 0.8 # Favors the nebula pink for visibility
-                        r = int(147 + (108 * ratio)) 
-                        g = int(0 + (182 * ratio))   
-                        b = int(211 + (-18 * ratio))
-                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
+                        alpha = int(240 * (1 - i/glow_range))
+                        # MATCHING THE COLUMN BAR GRADIENT LOGIC (High Saturation Pink)
+                        ratio = 0.9 
+                        r = int(180 + (75 * ratio)) 
+                        g = int(0 + (100 * ratio))   
+                        b = int(211 + (-20 * ratio))
+                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=6)
                     
                     glow.paste(avatar, (40, 40), avatar)
                     return glow
                 
                 # UPDATED: pulse calculation for more dramatic glow on higher matches
-                pulse = int((percent / 100) * 15) 
+                pulse = int((percent / 100) * 20) 
                 
                 av1_framed = apply_erotic_frame_square(av1_img, pulse)
                 av2_framed = apply_erotic_frame_square(av2_img, pulse)
@@ -201,29 +206,28 @@ class FieryShip(commands.Cog):
                     badge_x = (canvas_width // 2) - (badge_w // 2)
                     badge_y = 10
                     # Golden Glow Rect
-                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 215, 0, 100))
-                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 215, 0), width=4)
-                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 215, 0))
+                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 20, 147, 100))
+                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 105, 180), width=4)
+                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 105, 180))
 
                 pillar_w, pillar_h = 100, 480
                 pillar_x = (canvas_width // 2) - (pillar_w // 2)
                 pillar_y = 120
-                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(10, 5, 15, 240), outline=(75, 0, 130), width=4)
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 25, 240), outline=(255, 20, 147), width=4)
                 fill_pixels = int((percent / 100) * pillar_h)
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
-                        # GALACTIC LIGHT PINK GRADIENT logic
-                        # Bottom: Deep Cosmic Magenta / Top: Nebula Pink
-                        r = int(147 + (108 * ratio)) # Galactic R shift
-                        g = int(0 + (182 * ratio))   # Nebula G shift
-                        b = int(211 + (-18 * ratio)) # Stardust B shift
+                        # GALACTIC LIGHT PINK GRADIENT logic (Enhanced Pink)
+                        r = int(160 + (95 * ratio)) 
+                        g = int(0 + (150 * ratio))   
+                        b = int(230 + (-20 * ratio)) 
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
                     # Indicator line (Pastel Yellow Accent)
-                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 180))
+                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 200))
                 percent_text = f"{percent}%"
-                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 255, 255), stroke_width=6, stroke_fill=(0,0,0))
+                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 105, 180), stroke_width=6, stroke_fill=(0,0,0))
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
@@ -242,7 +246,7 @@ class FieryShip(commands.Cog):
                     p2_data = io.BytesIO(await r2.read())
             
             def draw_union():
-                bg_color = (255, 20, 147, 40) if "Anniversary" in bond_type else (25, 0, 0, 255)
+                bg_color = (255, 20, 147, 60) if "Anniversary" in bond_type else (35, 0, 15, 255)
                 canvas = Image.new("RGBA", (1000, 500), bg_color)
                 av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
                 av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
@@ -250,12 +254,12 @@ class FieryShip(commands.Cog):
                 if "Anniversary" in bond_type:
                     for _ in range(30):
                         x, y = random.randint(0, 1000), random.randint(0, 500)
-                        draw.text((x, y), "💕", fill=(255, 105, 180))
+                        draw.text((x, y), "💕", fill=(255, 20, 147))
                 canvas.paste(av1, (100, 90), av1)
                 canvas.paste(av2, (580, 90), av2)
                 icon = "⛓️🫦⛓️" if bond_type == "Marriage" else "🤝🔥🤝"
                 if "Anniversary" in bond_type: icon = "💖🔥🔞"
-                draw.text((440, 210), icon, fill=(255, 255, 255))
+                draw.text((440, 210), icon, fill=(255, 105, 180))
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
