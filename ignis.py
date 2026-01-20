@@ -55,7 +55,7 @@ class LobbyView(discord.ui.View):
     @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
-        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in interaction.user.roles)
+        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
         if interaction.user.id != self.owner.id and not is_staff:
             return await interaction.response.send_message("Only the Masters or Staff start the games!", ephemeral=True)
         
@@ -74,21 +74,22 @@ class LobbyView(discord.ui.View):
             if guild_games >= 2:
                 return await interaction.response.send_message("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
 
+            # FIX: Acknowledgement of the interaction before starting the long task
             await interaction.response.defer(ephemeral=True)
 
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
+            
+            # Visual confirmation the game is launching
+            await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
+            
+            # Explicitly passing the bot's loop to avoid task death
+            asyncio.create_task(engine.start_battle(interaction.channel, self.participants, self.edition))
+            self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
             return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded?", ephemeral=True)
-        
-        self.stop()
-        # Visual confirmation the game is launching
-        await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
-        
-        # Explicitly passing the bot's loop to avoid task death
-        asyncio.create_task(engine.start_battle(interaction.channel, self.participants, self.edition))
 
 # --- NOVO: ENGINE CONTROL INTEGRADO ---
 class EngineControl(commands.Cog):
