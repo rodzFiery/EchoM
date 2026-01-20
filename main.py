@@ -758,7 +758,8 @@ async def on_message(message):
                                    "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
             return await message.reply(embed=denied_emb)
         
-        await bot.invoke(ctx)
+        # FIXED: Core Command Execution Protocol
+        await bot.process_commands(message)
     else:
         # Standard fallback for non-command messages
         await bot.process_commands(message)
@@ -775,6 +776,7 @@ async def main():
 
 if __name__ == "__main__": 
     try:
-        asyncio.run(main())
+        async with bot:
+            await bot.start(TOKEN)
     except KeyboardInterrupt:
         pass
