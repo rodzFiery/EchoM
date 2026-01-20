@@ -752,15 +752,13 @@ async def on_message(message):
         command_cog = ctx.command.cog_name if ctx.command else None
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
         
-        # FIXED: Only enforce the staff check if the command belongs to an admin cog
-        if command_cog in admin_cogs:
-            if not is_staff:
-                denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                       f"Neural link signature for asset {message.author.mention} rejected.\n"
-                                       "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                return await message.reply(embed=denied_emb)
+        if command_cog in admin_cogs and not is_staff:
+            denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                   f"Neural link signature for asset {message.author.mention} rejected.\n"
+                                   "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+            return await message.reply(embed=denied_emb)
     
-    # FIXED: Commands must always be processed at the end of on_message to ensure economy works
+    # FIXED: Commands must always be processed outside of any restricting if-block logic
     await bot.process_commands(message)
 
 async def main():
