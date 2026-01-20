@@ -587,7 +587,10 @@ async def on_ready():
         topgg_poster.start()
     
     # FIXED: Re-registering with correct positional arguments for current class signature
-    bot.add_view(ignis.LobbyView(None, 0))
+    from ignis import LobbyView
+    from autoignis import AutoLobbyView
+    bot.add_view(LobbyView(None, 0)) # Manual Template
+    bot.add_view(AutoLobbyView())     # Automated Template
 
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
