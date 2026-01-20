@@ -586,7 +586,14 @@ async def on_ready():
     if not topgg_poster.is_running():
         topgg_poster.start()
     
-    bot.add_view(ignis.LobbyView(None, None))
+    # --- CRITICAL FIX: PERSISTENT VIEWS REGISTRATION ---
+    # We must register the views with the bot so buttons continue to work after restart.
+    # The custom_ids in ignis.py and autoignis.py MUST match these.
+    from ignis import LobbyView
+    from autoignis import AutoLobbyView
+    bot.add_view(LobbyView(None, 0)) # Manual Lobby Template
+    bot.add_view(AutoLobbyView())     # Automated Cycle Lobby Template
+    # --- END CRITICAL FIX ---
 
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
