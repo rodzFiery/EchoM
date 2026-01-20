@@ -112,8 +112,19 @@ def get_user(user_id):
     return db_module.get_user(user_id)
 
 # --- REDIRECTED TO prizes.py ---
-async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0, source="System"):
-    await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, get_user, bot, get_db_connection, CLASSES, nsfw_mode_active, send_audit_log)
+# FIXED: Updated signature to ensure all 13 arguments from prizes.py are handled correctly
+async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0, source="System", 
+                                  get_user_func=None, bot_obj=None, db_func=None, class_dict=None, nsfw=None, audit_func=None):
+    
+    # Use provided funcs or fall back to globals defined in main.py
+    g_user = get_user_func or get_user
+    b_obj = bot_obj or bot
+    d_func = db_func or get_db_connection
+    c_dict = class_dict or CLASSES
+    n_mode = nsfw if nsfw is not None else nsfw_mode_active
+    a_log = audit_func or send_audit_log
+
+    await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, g_user, b_obj, d_func, c_dict, n_mode, a_log)
 
 def update_user_stats(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0):
     prizes_module.update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection)
