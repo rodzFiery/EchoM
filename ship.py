@@ -327,14 +327,15 @@ class FieryShip(commands.Cog):
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
             result_msg += "\n\n**💰 EXHIBITION REWARD: The dungeon provides 2,500 Flames for the show!**"
 
-        # FIXED: Removed love status bar emojis to clean up the description
+        # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
-            f"**LOVE STATUS: `{percent}%`** \n"
+            f"# **` {percent}% Resonance `**\n"
+            f"**─── Galactic Sync Report ───**\n"
             f"**RESONANCE TIER: `{tier.upper()}`**\n\n"
             f"**💬 *\"{result_msg}\"* **"
         )
 
-        embed.add_field(name="**❤️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
+        embed.add_field(name="**⛓️ Connection Stats**", value=f"**• Sync: `{percent}%`**\n**• Tier: `{tier}`**\n**• Date: `{today}`**", inline=True)
         embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
@@ -513,7 +514,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(embed=emb, view=view)
+        await ctx.send(emb, view=view)
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
@@ -701,9 +702,9 @@ class FieryShip(commands.Cog):
         bond_lv = (u_data['balance'] // 10000) + 1
         
         embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE 🫦", f"Status report for **{target.display_name}**:")
-        embed.add_field(name="⛓️ Bound To", value=spouse_ment, inline=True)
-        embed.add_field(name="📅 Contract Signed", value=m_date, inline=True)
-        embed.add_field(name="🔥 Lust Potency (Level)", value=f"Level {bond_lv}", inline=False)
+        embed.add_field(name="**⛓️ Bound To**", value=spouse_ment, inline=True)
+        embed.add_field(name="**📅 Contract Signed**", value=m_date, inline=True)
+        embed.add_field(name="**🔥 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
         
         if u_data['spouse']:
             embed.set_footer(text="Your chains are heavy, but your resonance is eternal.")
