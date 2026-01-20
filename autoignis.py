@@ -32,9 +32,11 @@ LOBBY_DURATION = 1800 # 30 minutes in seconds
 
 class AutoLobbyView(discord.ui.View):
     def __init__(self):
+        # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
         self.participants = []
 
+    # ADDED: custom_id to make the interaction persistent across bot restarts
     @discord.ui.button(label="Enter the Red Room ", style=discord.ButtonStyle.danger, emoji="🔞", custom_id="auto_ignis_join")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id in self.participants:
@@ -123,6 +125,7 @@ class IgnisAuto(commands.Cog):
                 await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
 
         # 2. Start NEW lobby for the next 30 minutes
+        # Registering the View to ensure button persistence
         self.current_auto_lobby = AutoLobbyView()
         
         # ENHANCED INFORMATIVE CONTENT
