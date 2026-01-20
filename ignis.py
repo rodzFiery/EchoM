@@ -346,6 +346,7 @@ class IgnisEngine(commands.Cog):
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
         # FIXED: Pulling dynamically from self to ensure !audit changes work instantly
+        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
