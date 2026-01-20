@@ -329,8 +329,7 @@ class FieryShip(commands.Cog):
 
         # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
-            f"# **` {percent}% Resonance `**\n"
-            f"**─── Galactic Sync Report ───**\n"
+            f"# **` {percent}% LOVE SCORE `**\n"
             f"**LOVE SCORE TIER: `{tier.upper()}`**\n\n"
             f"**💬 *\"{result_msg}\"* **"
         )
