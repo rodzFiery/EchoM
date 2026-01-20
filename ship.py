@@ -156,10 +156,10 @@ class FieryShip(commands.Cog):
                     # UPDATED: Fine-tuned pinky galactic palette
                     p_type = random.choice(["heart", "spark", "nebula"])
                     p_color = random.choice([
-                        (255, 20, 147, 180),  # Deep Hot Pink
-                        (255, 105, 180, 160), # Hot Pink
-                        (219, 112, 147, 140), # Pale Violet Red
-                        (255, 182, 193, 200)  # Light Pink
+                        (255, 192, 203, 180),  # Pink
+                        (255, 182, 193, 160),  # Light Pink
+                        (255, 105, 180, 140),  # Hot Pink
+                        (255, 240, 245, 200)   # Lavender Blush (Light Highlight)
                     ])
                     
                     if p_type == "heart":
@@ -182,11 +182,11 @@ class FieryShip(commands.Cog):
                     glow_range = int(25 + (pulse_intensity * 2.5)) 
                     for i in range(glow_range, 0, -1):
                         alpha = int(210 * (1 - i/glow_range))
-                        # MATCHING THE COLUMN BAR GRADIENT LOGIC
+                        # MATCHING THE COLUMN BAR GRADIENT LOGIC - Pinky Girl Light
                         ratio = 0.85 
-                        r = int(170 + (85 * ratio)) 
-                        g = int(10 + (140 * ratio))   
-                        b = int(211 + (-15 * ratio))
+                        r = int(255) 
+                        g = int(182 + (20 * ratio))   
+                        b = int(193 + (30 * ratio))
                         draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
                     
                     glow.paste(avatar, (40, 40), avatar)
@@ -206,28 +206,29 @@ class FieryShip(commands.Cog):
                     badge_x = (canvas_width // 2) - (badge_w // 2)
                     badge_y = 10
                     # Refined Pink Glow
-                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 20, 147, 80))
-                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 105, 180), width=4)
-                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 105, 180))
+                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 105, 180, 80))
+                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 182, 193), width=4)
+                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 182, 193))
 
                 pillar_w, pillar_h = 100, 480
                 pillar_x = (canvas_width // 2) - (pillar_w // 2)
                 pillar_y = 120
-                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 25, 240), outline=(255, 20, 147), width=4)
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 25, 240), outline=(255, 182, 193), width=4)
                 fill_pixels = int((percent / 100) * pillar_h)
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
-                        # GALACTIC LIGHT PINK GRADIENT logic
-                        r = int(155 + (100 * ratio)) 
-                        g = int(20 + (130 * ratio))   
-                        b = int(220 + (-10 * ratio)) 
+                        # GALACTIC LIGHT PINK GRADIENT logic - Pinky Girl Light
+                        # Bottom: Deep Rose (#FF1493) / Top: Light Sakura (#FFB6C1)
+                        r = int(255) 
+                        g = int(20 + (162 * ratio))   
+                        b = int(147 + (46 * ratio)) 
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
-                    # Indicator line (Pastel Yellow Accent)
-                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 255, 190))
+                    # Indicator line (Pastel White/Pink Accent)
+                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 245, 250))
                 percent_text = f"{percent}%"
-                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 105, 180), stroke_width=6, stroke_fill=(0,0,0))
+                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 182, 193), stroke_width=6, stroke_fill=(0,0,0))
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
@@ -246,7 +247,7 @@ class FieryShip(commands.Cog):
                     p2_data = io.BytesIO(await r2.read())
             
             def draw_union():
-                bg_color = (255, 20, 147, 50) if "Anniversary" in bond_type else (30, 0, 10, 255)
+                bg_color = (255, 182, 193, 50) if "Anniversary" in bond_type else (30, 0, 10, 255)
                 canvas = Image.new("RGBA", (1000, 500), bg_color)
                 av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
                 av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
@@ -254,12 +255,12 @@ class FieryShip(commands.Cog):
                 if "Anniversary" in bond_type:
                     for _ in range(30):
                         x, y = random.randint(0, 1000), random.randint(0, 500)
-                        draw.text((x, y), "💕", fill=(255, 20, 147))
+                        draw.text((x, y), "💕", fill=(255, 182, 193))
                 canvas.paste(av1, (100, 90), av1)
                 canvas.paste(av2, (580, 90), av2)
                 icon = "⛓️🫦⛓️" if bond_type == "Marriage" else "🤝🔥🤝"
                 if "Anniversary" in bond_type: icon = "💖🔥🔞"
-                draw.text((440, 210), icon, fill=(255, 105, 180))
+                draw.text((440, 210), icon, fill=(255, 182, 193))
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
@@ -324,9 +325,9 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("**💖 LOVEFINDER**", f"**Assets Involved: {user1.mention} ❤️‍🔥 {user2.mention}**\n{status_note}")
         
         if is_anni:
-            embed.title = "**🔞 HOT PINK ANNIVERSARY 🔞**"
+            embed.title = "**🔞 SAKURA ANNIVERSARY 🔞**"
             result_msg = f"**💖 1 MONTH MILESTONE! {result_msg}**\n\n**🔥 DOUBLE REWARDS ACTIVE: You both gain 2x XP and Flames today!**"
-            embed.color = 0xFF1493 
+            embed.color = 0xFFB6C1 
 
         if percent == 69: 
             embed.title = "**🫦 EXHIBITIONIST PEAK REACHED 🫦**"
@@ -412,7 +413,7 @@ class FieryShip(commands.Cog):
         if not has_ring:
             return await ctx.send("❌ You cannot propose empty-handed. Purchase a **Ring** from the Market first.")
 
-        emb = main_mod.fiery_embed("🔞 SACRED CONTRACT OFFERED", f"{ctx.author.mention} is offering their soul and a ring to {member.mention}.\n\nDo you accept these chains?", color=0xFF1493)
+        emb = main_mod.fiery_embed("🔞 SACRED CONTRACT OFFERED", f"{ctx.author.mention} is offering their soul and a ring to {member.mention}.\n\nDo you accept these chains?", color=0xFFB6C1)
         view = discord.ui.View(timeout=60)
         
         async def accept(interaction):
@@ -526,7 +527,7 @@ class FieryShip(commands.Cog):
     async def matchmaking(self, ctx):
         """Scans the dungeon for the highest compatibility pairs of the day."""
         main_mod = sys.modules['__main__']
-        await ctx.send("👁️ **The Master's Voyeurs are scanning the pit for erotic frequencies...**")
+        await ctx.send("👁️ **The Master's Voyeurs are scanning the pit for light frequencies...**")
         
         # FIXED: Explicitly scan only members currently in the server cache
         members = [m for m in ctx.guild.members if not m.bot][:40]
@@ -546,7 +547,7 @@ class FieryShip(commands.Cog):
                 matches.append((u1, u2, percent))
 
         top_matches = sorted(matches, key=lambda x: x[2], reverse=True)[:5]
-        embed = main_mod.fiery_embed("🫦 THE MASTER'S MATCHMAKING 🫦", "Scanning current vibrations for peak exhibition:")
+        embed = main_mod.fiery_embed("🫦 THE MASTER'S MATCHMAKING 🫦", "Scanning current vibrations for light resonance:")
         
         description = "```\n" + "─" * 35 + "\n"
         description += "VOYEUR COMPATIBILITY REPORT\n"
@@ -554,7 +555,7 @@ class FieryShip(commands.Cog):
 
         for idx, (m1, m2, pct) in enumerate(top_matches, 1):
             icon = "⛓️"
-            if pct >= 69: icon = "🔞"
+            if pct >= 69: icon = "🌸"
             if pct == 100: icon = "💖"
             
             # Organized format: Bold Names + Silent Tags + Spacing
@@ -562,7 +563,7 @@ class FieryShip(commands.Cog):
             description += f"┗ `Sync: {pct}%` | [ <@{m1.id}> × <@{m2.id}> ]\n\n"
 
         embed.description = description
-        embed.set_footer(text="The dungeon floor is heating up. Watch and learn.")
+        embed.set_footer(text="The dungeon floor is heating up with light. Watch and learn.")
         
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -612,7 +613,7 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("⛓️ THE MASTER'S LOVESCORE 💍", "The most synchronized and submissive bonds today:")
         description = ""
         for idx, (n1, n2, pct) in enumerate(leaderboard_data[:10], 1):
-            medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🔥"
+            medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🌸"
             description += f"{medal} **{n1}** & **{n2}** — `{pct}% LOVE SCORE`\n"
         embed.description = description
         if os.path.exists("LobbyTopRight.jpg"):
@@ -657,7 +658,7 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("🔞 THE EXHIBITIONIST TRIAL 🔞", 
             f"**{ctx.author.display_name}** and **{partner.display_name}** have been selected for the stage.\n\n"
             f"**The Task:** Sync your moans to the Master's rhythm.\n"
-            f"**React with 🫦 to begin the show!**", color=0xFF0000)
+            f"**React with 🫦 to begin the show!**", color=0xFFB6C1)
         
         if os.path.exists("LobbyTopRight.jpg"):
              file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -713,7 +714,7 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE 🫦", f"Status report for **{target.display_name}**:")
         embed.add_field(name="**⛓️ Bound To**", value=spouse_ment, inline=True)
         embed.add_field(name="**📅 Contract Signed**", value=m_date, inline=True)
-        embed.add_field(name="**🔥 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
+        embed.add_field(name="**🌸 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
         
         if u_data['spouse']:
             embed.set_footer(text="Your chains are heavy, but your LOVE SCORE is eternal.")
