@@ -95,7 +95,9 @@ def init_db():
             ("spouse", "INTEGER DEFAULT NULL"), ("marriage_date", "TEXT DEFAULT NULL"), # ADDED: Marriage Logic
             ("last_daily_streak", "TEXT"), ("last_weekly_streak", "TEXT"), ("last_monthly_streak", "TEXT"),
             ("daily_streak", "INTEGER DEFAULT 0"), ("weekly_streak", "INTEGER DEFAULT 0"), ("monthly_streak", "INTEGER DEFAULT 0"), # ADDED: STREAK COLUMNS
-            ("streak_alerts", "INTEGER DEFAULT 1") # ADDED: TOGGLE ALERT COLUMN
+            ("streak_alerts", "INTEGER DEFAULT 1"), # ADDED: TOGGLE ALERT COLUMN
+            ("premium_type", "TEXT DEFAULT 'Free'"), # ADDED: Required for Webhook
+            ("premium_date", "TEXT") # ADDED: Required for Webhook
         ]
 
         cursor = conn.execute("PRAGMA table_info(users)")
