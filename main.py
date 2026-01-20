@@ -762,7 +762,11 @@ async def on_message(message):
     if message.author.bot: 
         return
     
-    # --- FIXED: GLOBAL ADMINISTRATIVE ROLE SECURITY ---
+    # --- TRIGGER COMMANDS FOR EVERYONE ---
+    # MUST BE AT THE TOP to ensure the command handler processes economy commands correctly.
+    await bot.process_commands(message)
+
+    # --- GLOBAL ADMINISTRATIVE ROLE SECURITY ---
     ctx = await bot.get_context(message)
     if ctx.valid and ctx.command:
         # Check if the command belongs to an administrative cog
@@ -778,10 +782,8 @@ async def on_message(message):
                 denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                        f"Neural link signature for asset {message.author.mention} rejected.\n"
                                        "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                return await message.reply(embed=denied_emb)
-    
-    # FIXED: This MUST be outside the staff check block so economy commands run
-    await bot.process_commands(message)
+                # No longer returning here, the command was already processed or ignored.
+                pass
 
 async def main():
     try:
