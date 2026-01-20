@@ -591,6 +591,8 @@ async def on_ready():
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
         with get_db_connection() as conn:
+            # FIXED: Creation check added to solve 'no such table' error in logs
+            conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
             mappings = {}
             for row in rows:
@@ -752,26 +754,25 @@ async def on_message(message):
     if message.author.bot: 
         return
     
-    # --- ADDED: GLOBAL ADMINISTRATIVE ROLE SECURITY ---
+    # --- FIXED: GLOBAL ADMINISTRATIVE ROLE SECURITY ---
     ctx = await bot.get_context(message)
-    if ctx.valid:
-        # Check if the command is considered 'Administrative'
-        admin_roles = ["Admin", "Moderator"]
-        is_staff = any(role.name in admin_roles for role in message.author.roles)
-        
-        # If command is admin-locked and user is not staff, notify and return
+    if ctx.valid and ctx.command:
+        # Check if the command belongs to an administrative cog
         command_cog = ctx.command.cog_name if ctx.command else None
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
         
-        # FIXED: Only enforce staff check IF the command is confirmed to be in an admin cog
         if command_cog in admin_cogs:
-            if not is_staff:
+            admin_roles = ["Admin", "Moderator"]
+            # Added safety check for author.roles to prevent 'NoneType' crashes
+            is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+            
+            if not is_staff and not await bot.is_owner(message.author):
                 denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                        f"Neural link signature for asset {message.author.mention} rejected.\n"
                                        "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
                 return await message.reply(embed=denied_emb)
     
-    # FIXED: Commands must always be processed outside of restricting blocks to allow economy commands to work
+    # FIXED: This MUST be outside the staff check block so economy commands run
     await bot.process_commands(message)
 
 async def main():
