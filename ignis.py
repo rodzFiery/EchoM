@@ -59,7 +59,7 @@ class LobbyView(discord.ui.View):
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
         
         # Checking if owner exists (owner is passed as ctx.author in echostart)
-        # FIXED: Added safe check for template views (where owner is None)
+        # FIXED: Use getattr to safely handle cases where owner is None (Persistent View Template)
         owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
