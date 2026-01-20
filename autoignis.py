@@ -97,6 +97,17 @@ class IgnisAuto(commands.Cog):
             if len(self.current_auto_lobby.participants) >= 2:
                 # TRANSFER CHECK: Only start if the manual engine isn't already busy in this channel
                 ignis_engine = self.bot.get_cog("IgnisEngine")
+                
+                # NEW: WAIT PROTOCOL - If a game is still running, wait for it to end
+                wait_count = 0
+                while ignis_engine and channel.id in ignis_engine.active_battles:
+                    if wait_count == 0:
+                        await channel.send("⏳ **The previous massacre is still concluding.** New cycle is in queue...")
+                    await asyncio.sleep(30) # Check every 30 seconds
+                    wait_count += 1
+                    if wait_count > 20: # Timeout after 10 mins of waiting
+                         break
+
                 if ignis_engine and channel.id not in ignis_engine.active_battles:
                     await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
                     
@@ -118,7 +129,7 @@ class IgnisAuto(commands.Cog):
                         main_module.game_edition += 1
                         main_module.save_game_config()
                 elif ignis_engine and channel.id in ignis_engine.active_battles:
-                     await channel.send("⚠️ **Lobby Terminated:** A manual session is already occupying the Red Room.")
+                     await channel.send("⚠️ **Lobby Terminated:** The previous session took too long. Resetting for next cycle.")
                 else:
                     await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
             else:
