@@ -93,17 +93,15 @@ class IgnisAuto(commands.Cog):
         # CRITICAL FIX: Ensure the battle is dispatched BEFORE the lobby object is refreshed
         if self.current_auto_lobby:
             if len(self.current_auto_lobby.participants) >= 2:
-                await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
-                
-                # Transfer logic to the IgnisEngine cog
+                # TRANSFER CHECK: Only start if the manual engine isn't already busy in this channel
                 ignis_engine = self.bot.get_cog("IgnisEngine")
-                if ignis_engine:
-                    # We fetch the edition from main
+                if ignis_engine and channel.id not in ignis_engine.active_battles:
+                    await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
+                    
                     import sys
                     main_module = sys.modules['__main__']
                     edition = getattr(main_module, "game_edition", 1)
                     
-                    # Start the battle using the existing engine logic
                     # Capture the list to ensure no reference issues during lobby reset
                     battle_participants = list(self.current_auto_lobby.participants)
                     
@@ -117,6 +115,8 @@ class IgnisAuto(commands.Cog):
                     if hasattr(main_module, "game_edition"):
                         main_module.game_edition += 1
                         main_module.save_game_config()
+                elif ignis_engine and channel.id in ignis_engine.active_battles:
+                     await channel.send("⚠️ **Lobby Terminated:** A manual session is already occupying the Red Room.")
                 else:
                     await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
             else:
