@@ -63,9 +63,14 @@ async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update
     await update_user_stats_async(ctx.author.id, amount=base_reward, xp_gain=50, source=cmd_name.capitalize())
     
     # Atualiza o timestamp do cooldown
-    with get_db_connection() as conn:
-        conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), ctx.author.id))
-        conn.commit()
+    # FIXED: Added safety check for missing database columns
+    try:
+        with get_db_connection() as conn:
+            conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), ctx.author.id))
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️ Database Error in {cmd_name}: {e}")
+        # If the column is missing, we proceed anyway so the command doesn't "die"
     
     # Recarrega stats para mostrar o saldo atualizado no embed
     user_upd = get_user(ctx.author.id)
