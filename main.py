@@ -757,12 +757,9 @@ async def on_message(message):
                                    f"Neural link signature for asset {message.author.mention} rejected.\n"
                                    "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
             return await message.reply(embed=denied_emb)
-        
-        # Standard fallback for commands
-        await bot.process_commands(message)
-    else:
-        # Standard fallback for non-command messages
-        await bot.process_commands(message)
+    
+    # FIXED: Commands must always be processed at the end of on_message
+    await bot.process_commands(message)
 
 async def main():
     try:
