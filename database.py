@@ -20,7 +20,7 @@ def get_db_connection():
 def save_game_config(game_edition, nsfw_mode_active):
     with get_db_connection() as conn:
         conn.execute("UPDATE game_config SET game_edition = ?, nsfw_mode = ? WHERE id = 1", 
-                     (game_edition, 1 if nsfw_mode_active else 0))
+                      (game_edition, 1 if nsfw_mode_active else 0))
         conn.commit()
 
 def load_game_config():
