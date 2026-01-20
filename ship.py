@@ -166,29 +166,32 @@ class FieryShip(commands.Cog):
                 av_size = 400
                 av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
-                def apply_erotic_frame_square(avatar, color, pulse_intensity=3):
+
+                # UPDATED: Frame color logic to match the pillar bar gradient exactly
+                def apply_erotic_frame_square(avatar, pulse_intensity=3):
                     glow_size = av_size + 80
                     glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
                     draw_g = ImageDraw.Draw(glow)
-                    # UPDATED: Pulse intensity now scales exponentially with percent
+                    
                     glow_range = int(20 + (pulse_intensity * 2)) 
                     for i in range(glow_range, 0, -1):
                         alpha = int(220 * (1 - i/glow_range))
-                        # Nebula Shift: Mixes frame color with deep galactic indigo
-                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(*color, alpha), width=5)
+                        # MATCHING THE COLUMN BAR GRADIENT LOGIC
+                        # We use a mid-point ratio for the frame color consistency
+                        ratio = 0.8 # Favors the nebula pink for visibility
+                        r = int(147 + (108 * ratio)) 
+                        g = int(0 + (182 * ratio))   
+                        b = int(211 + (-18 * ratio))
+                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
+                    
                     glow.paste(avatar, (40, 40), avatar)
                     return glow
                 
-                # CHANGED: Border color now a softer light pink aesthetic
-                frame_color = (255, 182, 193) # Light Pink
                 # UPDATED: pulse calculation for more dramatic glow on higher matches
                 pulse = int((percent / 100) * 15) 
                 
-                if percent == 69: frame_color = (255, 105, 180) # Hot Pink for 69
-                elif percent >= 90: frame_color = (255, 20, 147) # Deep Pink for high resonance
-                
-                av1_framed = apply_erotic_frame_square(av1_img, frame_color, pulse)
-                av2_framed = apply_erotic_frame_square(av2_img, frame_color, pulse)
+                av1_framed = apply_erotic_frame_square(av1_img, pulse)
+                av2_framed = apply_erotic_frame_square(av2_img, pulse)
                 canvas.paste(av1_framed, (20, 150), av1_framed)
                 canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
 
@@ -513,7 +516,7 @@ class FieryShip(commands.Cog):
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
-        await ctx.send(emb, view=view)
+        await ctx.send(embed=emb, view=view)
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
