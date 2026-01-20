@@ -207,10 +207,11 @@ class FieryShip(commands.Cog):
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
-                        # PINKY GIRL LIGHT aesthetic column
-                        r = 255
-                        g = int(182 + (73 * ratio)) 
-                        b = int(193 + (62 * ratio)) 
+                        # GALACTIC LIGHT PINK GRADIENT logic
+                        # Bottom is deeper cosmic magenta, Top is soft stardust pink
+                        r = int(147 + (108 * ratio)) # Transition towards 255
+                        g = int(0 + (182 * ratio))   # Transition towards 182
+                        b = int(211 + (-18 * ratio)) # Transition towards 193
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
                     # Indicator line (Pastel Yellow Accent)
