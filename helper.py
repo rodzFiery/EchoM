@@ -3,6 +3,7 @@ from discord.ext import commands
 import sys
 import importlib
 import os
+import traceback
 
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
@@ -32,7 +33,7 @@ class HelperSystem(commands.Cog):
                 "admin", "classes", "extensions", "ship", "shop", "collect", 
                 "fight", "casino", "ask", "premium", "audit", "thread", 
                 "levels", "react", "counting", "guessnumber", "reactionrole", 
-                "autoignis", "confession"
+                "autoignis", "confession", "helper"
             ]
 
             reloaded = []
@@ -73,6 +74,32 @@ class HelperSystem(commands.Cog):
 
         except Exception as e:
             await msg.edit(content=f"❌ **SYSTEM RECOVERY FAILED:** `{e}`")
+
+    @commands.command(name="debug_cmd")
+    @commands.is_owner()
+    async def debug_cmd(self, ctx, command_name: str):
+        """DEBUGGER: Tests why a specific command (like flirt) might not be working."""
+        cmd = self.bot.get_command(command_name)
+        
+        if not cmd:
+            return await ctx.send(f"❌ **Command `{command_name}` not found in the neural net.** It might not be loaded.")
+        
+        # Check Cog association
+        cog_name = cmd.cog_name if cmd.cog_name else "Main Core"
+        
+        # Check Permissions/Checks
+        checks = cmd.checks
+        
+        report = [
+            f"🔍 **DEBUG REPORT: `!{command_name}`**",
+            f"• **Status:** Registered",
+            f"• **Source Cog:** `{cog_name}`",
+            f"• **Enabled:** {cmd.enabled}",
+            f"• **Hidden:** {cmd.hidden}",
+            f"• **Has Checks:** {len(checks) > 0}"
+        ]
+        
+        await ctx.send("\n".join(report))
 
 async def setup(bot):
     await bot.add_cog(HelperSystem(bot))
