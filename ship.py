@@ -336,7 +336,7 @@ class FieryShip(commands.Cog):
 
         # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
-            f"# **` {percent}% LOVE SCORE `**\n"
+            f"# **`{percent}% LOVESCORE `**\n"
             f"**LOVE SCORE TIER: `{tier.upper()}`**\n\n"
             f"**💬 *\"{result_msg}\"* **"
         )
