@@ -586,14 +586,7 @@ async def on_ready():
     if not topgg_poster.is_running():
         topgg_poster.start()
     
-    # --- RE-SYNC: PERSISTENT VIEWS REGISTRATION ---
-    # REQUIRED: Registration of persistent views with their custom_ids
-    # Note: We pass Dummy values as the View extracts what it needs from the interaction context
-    from ignis import LobbyView
-    from autoignis import AutoLobbyView
-    bot.add_view(LobbyView(None, 0)) # Manual Lobby for !echostart
-    bot.add_view(AutoLobbyView())     # Automated Cycle Lobby
-    # --- END RE-SYNC ---
+    bot.add_view(ignis.LobbyView(None, None))
 
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
@@ -768,29 +761,25 @@ async def on_ready():
 async def on_message(message):
     if message.author.bot: 
         return
-    
-    # --- TRIGGER COMMANDS FOR EVERYONE ---
-    # MUST BE AT THE TOP to ensure the command handler processes economy commands correctly.
-    await bot.process_commands(message)
 
+    # FIXED: Commands must always be processed immediately
+    await bot.process_commands(message)
+    
     # --- GLOBAL ADMINISTRATIVE ROLE SECURITY ---
     ctx = await bot.get_context(message)
     if ctx.valid and ctx.command:
-        # Check if the command belongs to an administrative cog
         command_cog = ctx.command.cog_name if ctx.command else None
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
         
         if command_cog in admin_cogs:
             admin_roles = ["Admin", "Moderator"]
-            # Added safety check for author.roles to prevent 'NoneType' crashes
             is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
             
             if not is_staff and not await bot.is_owner(message.author):
                 denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                        f"Neural link signature for asset {message.author.mention} rejected.\n"
                                        "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                # No longer returning here, the command was already processed or ignored.
-                pass
+                await message.reply(embed=denied_emb)
 
 async def main():
     try:
