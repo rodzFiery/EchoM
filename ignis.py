@@ -59,7 +59,7 @@ class LobbyView(discord.ui.View):
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
         
         # Checking if owner exists (owner is passed as ctx.author in echostart)
-        # FIXED: Use getattr to safely handle cases where owner is None (Persistent View Template)
+        # FIXED: Added safe check for template views (where owner is None)
         owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
@@ -352,8 +352,9 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
-        # FIXED: Pulling dynamically from self to ensure !audit changes work instantly
-        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
+        # FIXED: Ensure 'sys' is accessed from global scope to avoid UnboundLocalError
+        import sys as _sys
+        self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
@@ -529,8 +530,8 @@ class IgnisEngine(commands.Cog):
                         fxp_log[winner['id']]["first_kill"] = 75
                         first_blood_recorded = True
                         
-                        import sys
-                        main = sys.modules['__main__']
+                        import sys as _sys_mod
+                        main = _sys_mod.modules['__main__']
                         if main.nsfw_mode_active:
                             flash_msg = f"🔞 **FIRST BLOOD HANGRYGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
@@ -607,7 +608,8 @@ class IgnisEngine(commands.Cog):
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
             # RE-SYNC: Ensure we have the absolute latest audit channel
-            self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
+            import sys as _sys_audit
+            self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
             audit_channel = self.bot.get_channel(self.audit_channel_id)
 
             if audit_channel:
@@ -775,8 +777,8 @@ class StatusCheck(commands.Cog):
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 async def setup(bot):
-    import sys
-    main = sys.modules['__main__']
+    import sys as _sys_setup
+    main = _sys_setup.modules['__main__']
     
     # Registrando IgnisEngine
     ignis_engine = IgnisEngine(
