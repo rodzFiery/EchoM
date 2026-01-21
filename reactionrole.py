@@ -3,8 +3,18 @@ from discord.ext import commands
 import sqlite3
 import asyncio
 
+# --- ADDED: DesignerLobby (The missing piece main.py was looking for) ---
+class DesignerLobby(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="DESIGNER SUITE", style=discord.ButtonStyle.primary, custom_id="designer_suite_permanent")
+    async def open_suite(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("🛠️ Designer Suite access initiated. Please use `!setroles` to configure new links.", ephemeral=True)
+
 class ReactionRoleButton(discord.ui.Button):
     def __init__(self, emoji, role_id):
+        # Preservation of the custom_id structure for persistence
         super().__init__(style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=f"rr:{role_id}")
         self.role_id = role_id
 
