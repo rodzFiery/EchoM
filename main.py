@@ -744,22 +744,29 @@ async def on_message(message):
     # Then check for Admin security
     ctx = await bot.get_context(message)
     
-    # NATIVE UNBLOCK: Ensure main.py commands ignore the Cog security gate
-    if ctx.valid and ctx.command and hasattr(ctx.command, 'cog') and ctx.command.cog is not None:
-        try:
-            command_cog = ctx.command.cog_name
-            admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
-            
-            if command_cog in admin_cogs:
-                admin_roles = ["Admin", "Moderator"]
-                is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+    # MANDATORY ARCHITECTURAL FIX: 
+    # If a command has NO Cog (None), it is a Main Core command (Work, Beg, etc.).
+    # The previous logic hit an AttributeError when scanning 'ctx.command.cog_name' on a None object.
+    if ctx.valid and ctx.command:
+        # Check if it belongs to a Cog. If cog is None, it is a main.py native command.
+        if ctx.command.cog is not None:
+            try:
+                command_cog = ctx.command.cog_name
+                admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
                 
-                if not is_staff and not await bot.is_owner(message.author):
-                    denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                           f"Neural link signature for asset {message.author.mention} rejected.\n"
-                                           "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                    await message.reply(embed=denied_emb)
-        except Exception:
+                if command_cog in admin_cogs:
+                    admin_roles = ["Admin", "Moderator"]
+                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    
+                    if not is_staff and not await bot.is_owner(message.author):
+                        denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                               f"Neural link signature for asset {message.author.mention} rejected.\n"
+                                               "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+                        await message.reply(embed=denied_emb)
+            except Exception:
+                pass
+        else:
+            # Main Core commands bypass the Cog-security scanner entirely
             pass
 
 async def main():
