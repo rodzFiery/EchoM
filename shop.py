@@ -1,3 +1,14 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
 import discord
 from discord.ext import commands
 import sqlite3
@@ -423,6 +434,7 @@ class Shop(commands.Cog):
             log_emb.add_field(name="Price Paid", value=f"`{found_item['price']:,}` 🔥", inline=True)
             log_emb.description = f"🔞 **VOYEUR NOTE:** {author.display_name} is increasing their power. Their inventory has been updated with the {found_tier} asset: *{found_item['desc']}*"
             log_emb.set_footer(text="The Ledger never lies. Your wealth is monitored.")
+            log_emb.timestamp = datetime.now(timezone.utc)
             await audit_channel.send(embed=log_emb)
 
     @commands.command(name="inv", aliases=["inventory", "assets"])
@@ -444,8 +456,8 @@ class Shop(commands.Cog):
             if item:
                 emoji = TIER_EMOJIS.get(tier, "⚪")
                 stat_text = ""
-                if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}]"
-                elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}]"
+                if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}%]"
+                elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
                 categories[cat].append(f"{emoji} **{name}**{stat_text}")
             else:
                 categories["Other"].append(f"⚪ **{name}**")
@@ -524,6 +536,7 @@ class Shop(commands.Cog):
                 log_emb.add_field(name="Soul Two (Target)", value=target.mention, inline=True)
                 log_emb.add_field(name="The Bond", value=f"{TIER_EMOJIS[tier]} **{item['name']}**", inline=True)
                 log_emb.description = f"💍 **VOYEUR NOTE:** Two assets are now synchronized. {author.display_name} has sacrificed `{item['price']:,}` 🔥 to weave their fate with {target.display_name}."
+                log_emb.timestamp = datetime.now(timezone.utc)
                 await audit_channel.send(embed=log_emb)
 
         except Exception as e:
@@ -552,6 +565,52 @@ class Shop(commands.Cog):
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
         await ctx.send(embed=sell_emb)
+
+    # NEW: Command to check integrated combat percentages
+    @commands.command(name="checkbuffs")
+    async def check_buffs(self, ctx, member: discord.Member = None):
+        """Calculates and displays the exact combat weightings for an asset."""
+        target = member or ctx.author
+        
+        with self.get_db_connection() as conn:
+            user = conn.execute("SELECT titles FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        if not user or not user['titles'] or user['titles'] == "[]":
+            return await ctx.send(embed=discord.Embed(title="📊 Combat Analysis", description="This asset has no combat weightings. Total Luck: 0% | Total Protection: 0%", color=0x808080))
+
+        inv = json.loads(user['titles'])
+        total_prot = 0
+        total_luck = 0
+        
+        for name in inv:
+            item, cat, tier = self.get_item_details(name)
+            if item:
+                if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
+                elif cat == "Pets": total_luck = max(total_luck, item.get('luck', 0))
+
+        # Relationship Luck Check
+        rel_luck = 0
+        with self.get_db_connection() as conn:
+            rel = conn.execute("SELECT shared_luck FROM relationships WHERE (user_one = ? OR user_two = ?)", (target.id, target.id)).fetchone()
+            if rel: rel_luck = int(rel['shared_luck'] * 100)
+
+        embed = discord.Embed(title=f"📊 COMBAT ANALYSIS: {target.display_name.upper()}", color=0xFF4500)
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        desc = (
+            f"🛡️ **First Blood Protection:** `{total_prot}%` \n"
+            f"*Chance to dodge death rolls in the early game.*\n\n"
+            f"🍀 **Final Stand Luck:** `{total_luck}%` \n"
+            f"*Bonus percentage added to your 1v1 win probability.*\n\n"
+            f"💍 **Relationship Shared Luck:** `+{rel_luck}%` \n"
+            f"*Bonus luck synchronized with your bound partner.*"
+        )
+        
+        embed.description = desc
+        embed.set_footer(text="The calculations are final. The Master knows the odds.")
+        embed.timestamp = datetime.now(timezone.utc)
+        
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Shop(bot))
