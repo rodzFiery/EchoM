@@ -305,4 +305,4 @@ class IgnisAuto(commands.Cog):
             await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(IgnisAuto(bot))
+    await bot.add_cog(IgnisAuto(bot))))
