@@ -604,15 +604,21 @@ async def on_ready():
                 if m_id not in mappings: mappings[m_id] = {}
                 mappings[m_id][row['emoji']] = row['role_id']
             
-            from reactionrole import ReactionRoleView, DesignerLobby
-            bot.add_view(DesignerLobby())
-            for m_id, data in mappings.items():
-                bot.add_view(ReactionRoleView(data), message_id=m_id)
+            # FIXED: Using safety wrapper to prevent import errors from stopping startup
+            try:
+                from reactionrole import ReactionRoleView, DesignerLobby
+                bot.add_view(DesignerLobby())
+                for m_id, data in mappings.items():
+                    bot.add_view(ReactionRoleView(data), message_id=m_id)
+            except Exception as e:
+                print(f"⚠️ LOG: Persistence recovery skipped for specific views: {e}")
+                
         print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
     except Exception as e:
         print(f"RR Recovery fail: {e}")
 
     # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
