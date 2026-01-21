@@ -766,13 +766,17 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # --- GLOBAL ADMINISTRATIVE ROLE SECURITY ---
-    # STAFF CHECK FIRST
+    # Process regular commands first
+    await bot.process_commands(message)
+
+    # Then check for Admin security
     ctx = await bot.get_context(message)
+    # CRITICAL FIX: Only run security if ctx.command is VALID and NOT NULL
     if ctx.valid and ctx.command:
         command_cog = ctx.command.cog_name
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
         
+        # We only apply the restrictive "Return" logic if the command is actually an admin command
         if command_cog in admin_cogs:
             admin_roles = ["Admin", "Moderator"]
             is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
@@ -781,10 +785,8 @@ async def on_message(message):
                 denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                        f"Neural link signature for asset {message.author.mention} rejected.\n"
                                        "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                return await message.reply(embed=denied_emb)
-
-    # PROCESS COMMANDS AFTER SECURITY
-    await bot.process_commands(message)
+                # No return here, just reply
+                await message.reply(embed=denied_emb)
 
 async def main():
     try:
