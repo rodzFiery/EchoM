@@ -778,6 +778,7 @@ async def on_message(message):
     # Then check for Admin security
     ctx = await bot.get_context(message)
     # FIX: Check if command exists AND is part of a Cog before checking security
+    # This ensures local main.py commands like !work are NEVER blocked.
     if ctx.valid and ctx.command and ctx.command.cog:
         command_cog = ctx.command.cog_name
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
