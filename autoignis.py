@@ -280,5 +280,29 @@ class IgnisAuto(commands.Cog):
         else:
             await ctx.send("❌ **The Automated Cycle is not currently running.**", ephemeral=True)
 
+    # ADDED: Specialized Lobby Command for Automated Sessions
+    @commands.command(name="autolobby")
+    async def autolobby_status(self, ctx):
+        """Checks the current souls registered for the Automated Cycle."""
+        if not self.current_auto_lobby:
+            embed = main.fiery_embed("Automated Lobby", "No active cycle is currently gathering souls.")
+            return await ctx.send(embed=embed)
+        
+        participants = self.current_auto_lobby.participants
+        if not participants:
+            embed = main.fiery_embed("Automated Lobby", "The automated room is currently empty. No souls have signed yet.")
+            return await ctx.send(embed=embed)
+        
+        mentions = [f"<@{p_id}>" for p_id in participants]
+        embed = main.fiery_embed("Upcoming Souls", f"The following sinners are queued for the next automated execution:\n\n" + "\n".join(mentions), color=0x5865F2)
+        
+        image_path = "LobbyTopRight.jpg"
+        if os.path.exists(image_path):
+            file = discord.File(image_path, filename="lobby.jpg")
+            embed.set_thumbnail(url="attachment://lobby.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(IgnisAuto(bot))
