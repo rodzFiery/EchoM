@@ -213,33 +213,33 @@ async def on_guild_remove(guild):
 # ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
 @bot.command()
 @commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
-async def work(ctx): await worknranks.handle_work_command(ctx, bot, "work", (500, 750), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def work(ctx): await worknranks.handle_work_command(ctx, bot, "work", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def beg(ctx): await worknranks.handle_work_command(ctx, bot, "beg", (500, 1500), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def beg(ctx): await worknranks.handle_work_command(ctx, bot, "beg", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def cumcleaner(ctx): await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 1800), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def cumcleaner(ctx): await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def pimp(ctx): await worknranks.handle_work_command(ctx, bot, "pimp", (800, 1600), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def pimp(ctx): await worknranks.handle_work_command(ctx, bot, "pimp", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def experiment(ctx): await worknranks.handle_work_command(ctx, bot, "experiment", (500, 2000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def experiment(ctx): await worknranks.handle_work_command(ctx, bot, "experiment", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def mystery(ctx): await worknranks.handle_work_command(ctx, bot, "mystery", (100, 3000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def mystery(ctx): await worknranks.handle_work_command(ctx, bot, "mystery", (100, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 @bot.command()
-async def flirt(ctx): await worknranks.handle_work_command(ctx, bot, "flirt", (700, 1800), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def flirt(ctx): await worknranks.handle_work_command(ctx, bot, "flirt", (700, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 # ===== 6. CORE PERIODIC REWARDS SYSTEM (REMOVED TO daily.py) =====
 
 @bot.command()
 async def daily(ctx):
-    await daily_module.handle_periodic_reward(ctx, "daily", 400, 800, 150, timedelta(days=1), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "daily", 2500, 15000, 2000, timedelta(days=1), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def weekly(ctx):
-    await daily_module.handle_periodic_reward(ctx, "weekly", 2500, 5000, 1000, timedelta(days=7), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "weekly", 20000, 90000, 10000, timedelta(days=7), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def monthly(ctx):
-    await daily_module.handle_periodic_reward(ctx, "monthly", 12000, 20000, 5000, timedelta(days=30), get_user, update_user_stats_async, fiery_embed, get_db_connection)
+    await daily_module.handle_periodic_reward(ctx, "monthly", 100000, 450000, 50000, timedelta(days=30), get_user, update_user_stats_async, fiery_embed, get_db_connection)
 
 @bot.command()
 async def balance(ctx, member: discord.Member = None):
@@ -800,3 +800,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+
