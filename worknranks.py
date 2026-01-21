@@ -1,109 +1,150 @@
 import discord
-from discord.ext import commands
-import random
+import json
 import os
-from datetime import datetime, timedelta, timezone
+import random
+from datetime import datetime, timezone, timedelta
 
-# The 100-Tier Rank List (PRESERVED)
-RANKS = [
-    "Unmarked", "Dormant", "Aware", "Stirring", "Curious", "Drawn", "Attuned", "Noticed", "Touched", "Opened",
-    "Initiate", "Invited", "Observed", "Evaluated", "Selected", "Guided", "Oriented", "Accepted", "Entered", "Aligned",
-    "Receptive", "Willing", "Softened", "Inclined", "Leaning", "Yielding", "Responsive", "Compliant", "Ready", "Offered",
-    "Anchored", "Linked", "Tethered", "Bound", "Held", "Secured", "Settled", "Claimed", "Assigned", "Enclosed",
-    "Conditioned", "Trained", "Adjusted", "Corrected", "Regulated", "Disciplined", "Rewritten", "Imprinted", "Shaped", "Programmed",
-    "Restrained", "Directed", "Commanded", "Ordered", "Governed", "Managed", "Controlled", "Dominated", "Overruled", "Possessed",
-    "Loyal", "Faithful", "Dedicated", "Devoted", "Invested", "Subscribed", "Sworn", "Consecrated", "Bound by Oath", "Living Oath",
-    "Polished", "Refined", "Cultivated", "Perfected", "Harmonized", "Balanced", "Tempered", "Elevated", "Enhanced", "Idealized",
-    "Shadow Rank", "Inner Circle", "Black Seal", "Velvet Chain", "Silent Order", "Crowned", "Exalted", "Absolute Trust", "Total Grant", "Supreme Bond",
-    "Dark Ascendant", "Chosen Asset", "Perfect Control", "Living Property", "Total Surrender", "Velvet Sovereign", "Throne-Bound", "Eternal Possession", "Absolute Dominion", "Final Authority"
-]
-
-# 🧬 EROTIC CLASSES DEFINITION (PRESERVED)
+# SHARED CONFIGURATION
+RANKS = ["Tribute", "Neophyte", "Slave", "Servant", "Thrall", "Vassal", "Initiate", "Follower", "Devotee", "Acolyte"] # (Extend as needed)
 CLASSES = {
-    "Dominant": {"bonus_flames": 1.20, "bonus_xp": 1.00, "desc": "20% more Flames from all rewards.", "icon": "🔥"},
-    "Submissive": {"bonus_flames": 1.00, "bonus_xp": 1.25, "desc": "25% more Experience (XP/FXP).", "icon": "💦"},
-    "Switch": {"bonus_flames": 1.15, "bonus_xp": 1.15, "desc": "15% more Flames and 15% more XP.", "icon": "🔄"},
-    "Exhibitionist": {"bonus_flames": 1.40, "bonus_xp": 0.80, "desc": "40% more Flames, but 20% less XP.", "icon": "📸"}
+    "Dominant": {"bonus": "20% Flames", "desc": "Dictate the flow."},
+    "Submissive": {"bonus": "25% XP", "desc": "Absorb the discipline."},
+    "Switch": {"bonus": "14% Flames/XP", "desc": "Versatile pleasure."},
+    "Exhibitionist": {"bonus": "40% Flames, -20% XP", "desc": "Pure display."}
 }
 
-async def handle_work_command(ctx, bot, cmd_name, reward_range, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
-    """
-    Sincronizado com o main.py:
-    Processa a lógica de economia preservando multiplicadores e cooldowns.
-    """
-    # LEGENDARY BLACKOUT CHECK: Disable if lights are out
-    ext = bot.get_cog("FieryExtensions")
-    if ext and hasattr(ext, 'is_blackout') and ext.is_blackout:
-        return await ctx.send("🌑 **THE LIGHTS ARE OUT.** The machines are dead. You cannot work in the dark. Use `!search`!")
-
-    user = get_user(ctx.author.id)
+# --- ECONOMY HANDLER ---
+async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
+    """Universal handler for Work, Beg, Flirt, etc."""
+    user_id = ctx.author.id
+    u = get_user(user_id)
     now = datetime.now(timezone.utc)
+    
+    # COOLDOWN CHECK (3 Hours)
     last_key = f"last_{cmd_name}"
+    cooldown = timedelta(hours=3)
     
-    # FIX: Ensure dictionary key exists
-    # Use .get() to avoid KeyError if the database column hasn't been created yet
-    last_time_str = user.get(last_key)
-    last = datetime.fromisoformat(last_time_str) if last_time_str else now - timedelta(hours=3)
-    
-    if now - last < timedelta(hours=3):
-        wait = timedelta(hours=3) - (now - last)
-        hours, remainder = divmod(int(wait.total_seconds()), 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        embed = fiery_embed("Exhaustion Protocol", f"❌ Your body is broken. You cannot perform **{cmd_name}** yet.\n\nRecovery time remaining: **{hours}h {minutes}m**.", color=0xFF0000)
-        
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        return await ctx.send(embed=embed)
+    if u[last_key]:
+        last_time = datetime.fromisoformat(u[last_key])
+        if now - last_time < cooldown:
+            remaining = cooldown - (now - last_time)
+            mins = int(remaining.total_seconds() / 60)
+            return await ctx.send(embed=fiery_embed("COOLDOWN ACTIVE", f"❌ Your body requires rest. Return in **{mins} minutes**."))
 
-    base_reward = random.randint(reward_range[0], reward_range[1])
+    # PAYOUT CALCULATION
+    min_f, max_f = range_tuple
+    base_flames = random.randint(min_f, max_f)
+    base_xp = random.randint(50, 200)
+
+    # CLASS BONUSES
+    if u['class'] == "Dominant": base_flames = int(base_flames * 1.20)
+    elif u['class'] == "Exhibitionist": 
+        base_flames = int(base_flames * 1.40)
+        base_xp = int(base_xp * 0.80)
+    elif u['class'] == "Submissive": base_xp = int(base_xp * 1.25)
+    elif u['class'] == "Switch":
+        base_flames = int(base_flames * 1.14)
+        base_xp = int(base_xp * 1.14)
+
+    # UPDATE LEDGER
+    await update_user_stats_async(user_id, amount=base_flames, xp_gain=base_xp, source=cmd_name.capitalize())
     
-    # FIXED: Added all missing required arguments to match the 13-argument signature in prizes.py
-    await update_user_stats_async(
-        ctx.author.id, 
-        amount=base_reward, 
-        xp_gain=50, 
-        wins=0, 
-        kills=0, 
-        deaths=0, 
-        source=cmd_name.capitalize(), 
-        get_user=get_user, 
-        bot=bot, 
-        get_db_connection=get_db_connection, 
-        CLASSES=CLASSES, 
-        nsfw_mode_active=nsfw_mode_active, 
-        send_audit_log=None # Passing None as the prizes.py handles its own logic
-    )
+    with get_db_connection() as conn:
+        conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), user_id))
+        conn.commit()
+
+    # RESPONSE
+    lexicon_key = cmd_name.upper()
+    response_text = random.choice(getattr(FieryLexicon, lexicon_key, ["You performed your duties."]))
     
-    # Atualiza o timestamp do cooldown
-    # FIXED: Added safety check for missing database columns
-    try:
-        with get_db_connection() as conn:
-            conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), ctx.author.id))
-            conn.commit()
-    except Exception as e:
-        print(f"⚠️ Database Error in {cmd_name}: {e}")
-        # If the column is missing, we proceed anyway so the command doesn't "die"
+    embed = fiery_embed(f"PROTOCOL: {cmd_name.upper()}", 
+                        f"{response_text}\n\n"
+                        f"💰 **Earned:** {base_flames:,} Flames\n"
+                        f"🔥 **Experience:** +{base_xp} XP")
     
-    # Recarrega stats para mostrar o saldo atualizado no embed
-    user_upd = get_user(ctx.author.id)
-    u_class = user_upd['class']
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="work.jpg")
+        embed.set_thumbnail(url="attachment://work.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
+
+# --- PROFILE HANDLER ---
+async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embed, bot, RANKS, nsfw_mode_active):
+    member = member or ctx.author
+    u = get_user(member.id)
+    with get_db_connection() as conn:
+        wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
+        kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
+        wins_rank = wins_row['r'] if wins_row else "?"
+        kills_rank = kills_row['r'] if kills_row else "?"
+        
+        duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
+        duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
+
+        victims = conn.execute("""
+            SELECT loser_id, win_count FROM duel_history 
+            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
+        """, (member.id,)).fetchall()
     
-    # Cálculo de bônus para exibição visual no embed
-    bonus = CLASSES[u_class]['bonus_flames'] if u_class in CLASSES else 1.0
-    h_mult = ext.heat_multiplier if ext and hasattr(ext, 'heat_multiplier') else 1.0
-    nsfw_mult = 2.0 if nsfw_mode_active else 1.0
+    lvl = u['fiery_level']
+    rank_name = RANKS[lvl-1] if lvl <= 100 else RANKS[-1]
     
-    final_reward = int(base_reward * bonus * h_mult * nsfw_mult)
+    try: titles = json.loads(u['titles'])
+    except: titles = []
     
-    # Obtém a mensagem temática do Lexicon
-    msg = FieryLexicon.get_economy_msg(cmd_name, ctx.author.display_name, final_reward)
-    
-    embed = fiery_embed(cmd_name.upper(), f"{msg}\n\n⛓️ **Session Payout:** {final_reward}F\n🫦 **Total XP:** +50\n💳 **New Balance:** {user_upd['balance']:,}F", color=0xFF4500)
+    engine = bot.get_cog("IgnisEngine")
+    if nsfw_mode_active and engine and engine.last_winner_id == member.id:
+        titles.append("⛓️ ECHOGAMES LEAD 🔞")
+
+    badge_display = " ".join(titles) if titles else "No badges yet."
+
+    embed = discord.Embed(title=f"📜 {member.display_name}'s Dossier", color=0xFF0000)
     
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
+    else:
+        embed.set_thumbnail(url=member.display_avatar.url)
+
+    embed.add_field(name="❤ Class", value=f"**{u['class']}**", inline=False)
+    embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
+    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u['balance']}\n**Global Level:** {u['level']} ({u['xp']} XP)", inline=True)
+    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']}", inline=True)
+    
+    combat = (f"🏆 **Wins:** {u['wins']} (Rank #{wins_rank})\n"
+              f"⚔️ **Kills:** {u['kills']} (Rank #{kills_rank})\n"
+              f"🫦 **Duel Wins:** {u['duel_wins']} (Rank #{duel_rank})\n"
+              f"💀 **Deaths:** {u['deaths']}\n"
+              f"🎮 **Games Played:** {u['games_played']}")
+    embed.add_field(name="⚔️ Echo Hangrygames & Duels", value=combat, inline=False)
+    
+    if victims:
+        v_lines = []
+        for v in victims:
+            v_member = ctx.guild.get_member(v['loser_id'])
+            v_name = v_member.display_name if v_member else f"Unknown ({v['loser_id']})"
+            v_lines.append(f"• **{v_name}**: {v['win_count']} times")
+        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="\n".join(v_lines), inline=False)
+    else:
+        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
+
+    owner_text = "Free Soul"
+    if u['spouse']:
+        owner_text = f"Bound to <@{u['spouse']}> (Married)"
+    else:
+        with get_db_connection() as conn:
+            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (member.id,)).fetchone()
+            if contract_data:
+                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+    embed.add_field(name="🔒 Ownership Status", value=f"**{owner_text}**", inline=False)
+
+    ach_cog = bot.get_cog("Achievements")
+    if ach_cog:
+        summary = ach_cog.get_achievement_summary(member.id)
+        embed.add_field(name="🏅 Achievements", value=summary, inline=False)
+    
+    if os.path.exists("LobbyTopRight.jpg"):
         await ctx.send(file=file, embed=embed)
     else:
         await ctx.send(embed=embed)
