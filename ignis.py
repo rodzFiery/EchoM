@@ -777,6 +777,7 @@ class StatusCheck(commands.Cog):
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 async def setup(bot):
+    # MANDATORY REGISTRY FIX: Ensuring absolute module access to avoid NoneType on first boot
     import sys as _sys_setup
     main = _sys_setup.modules['__main__']
     
