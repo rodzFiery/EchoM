@@ -54,7 +54,6 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
 
     # MANDATORY BRIDGE: Filling all 13 arguments required by prizes.py
     # Args: user_id, amount, xp_gain, wins, kills, deaths, source, get_user_func, bot_obj, db_func, class_dict, nsfw, audit_func
-    # send_audit_log is handled via the wrapper in main.py
     await update_user_stats_async(
         user_id, 
         base_flames, 
@@ -66,7 +65,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
         get_db_connection,
         CLASSES,
         nsfw_mode_active,
-        None # Audit log is inherited from main's global scope
+        None # Audit log is handled via the global wrapper in main
     )
     
     with get_db_connection() as conn:
