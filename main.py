@@ -778,9 +778,8 @@ async def on_message(message):
     # Then check for Admin security
     ctx = await bot.get_context(message)
     
-    # FIX: Use a more robust check to ensure local commands are NOT blocked
-    # We verify command exists, is valid, AND has a cog attribute that is NOT None.
-    # This specifically unblocks !work, !beg, !flirt, etc.
+    # RAW FIX: Move directly to processing if command has no Cog (Main.py Native)
+    # This removes the "Gate over Gate" logic collision.
     if ctx.valid and ctx.command and hasattr(ctx.command, 'cog') and ctx.command.cog is not None:
         try:
             command_cog = ctx.command.cog_name
@@ -796,7 +795,6 @@ async def on_message(message):
                                            "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
                     await message.reply(embed=denied_emb)
         except Exception:
-            # Bypass any security logic error to ensure command execution
             pass
 
 async def main():
