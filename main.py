@@ -604,14 +604,14 @@ async def on_ready():
                 if m_id not in mappings: mappings[m_id] = {}
                 mappings[m_id][row['emoji']] = row['role_id']
             
-            # FIXED: Using safety wrapper to prevent import errors from stopping startup
+            # STARTUP SHIELD: Prevent import/view failure from blocking boot
             try:
                 from reactionrole import ReactionRoleView, DesignerLobby
                 bot.add_view(DesignerLobby())
                 for m_id, data in mappings.items():
                     bot.add_view(ReactionRoleView(data), message_id=m_id)
             except Exception as e:
-                print(f"⚠️ LOG: Persistence recovery skipped for specific views: {e}")
+                print(f"⚠️ LOG: Reaction Role recovery bypassed (Broken View): {e}")
                 
         print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
     except Exception as e:
@@ -631,137 +631,103 @@ async def on_ready():
             print("✅ LOG: Class System is ONLINE.")
     except Exception as e: print(f"Class System fail: {e}")
 
+    # INDIVIDUAL SHIELDS FOR EVERY EXTENSION
     try:
         if not bot.get_cog("FieryExtensions"):
             await bot.load_extension("extensions")
-    except Exception as e:
-        print(f"Failed to load extensions: {e}")
+    except Exception as e: print(f"Extension fail: {e}")
 
     try:
         if not bot.get_cog("FieryShip"):
             await bot.load_extension("ship")
-    except Exception as e:
-        print(f"Failed to load ship extension: {e}")
+    except Exception as e: print(f"Ship fail: {e}")
 
-    try:
-        await bot.load_extension("shop")
-    except Exception as e:
-        print(f"Failed to load shop extension: {e}")
+    try: await bot.load_extension("shop")
+    except Exception as e: print(f"Shop fail: {e}")
 
-    try:
-        await bot.load_extension("collect")
-    except Exception as e:
-        print(f"Failed to load collect extension: {e}")
+    try: await bot.load_extension("collect")
+    except Exception as e: print(f"Collect fail: {e}")
 
     try:
         await bot.load_extension("fight")
         print("✅ LOG: Fight System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load fight extension: {e}")
+    except Exception as e: print(f"Fight fail: {e}")
 
-    # --- ADDED: CASINO EXTENSION LOADING ---
     try:
         await bot.load_extension("casino")
         print("✅ LOG: Casino System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load casino extension: {e}")
+    except Exception as e: print(f"Casino fail: {e}")
     
-    # --- ADDED: ASK EXTENSION LOADING ---
     try:
         await bot.load_extension("ask")
         print("✅ LOG: Ask System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load ask extension: {e}")
+    except Exception as e: print(f"Ask fail: {e}")
 
-    # --- ADDED: PREMIUM EXTENSION LOADING ---
     try:
         await bot.load_extension("premium")
         print("✅ LOG: Premium System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load premium extension: {e}")
+    except Exception as e: print(f"Premium fail: {e}")
 
-    # --- ADDED: AUDIT MANAGER LOADING ---
     try:
         if not bot.get_cog("AuditManager"):
             await bot.load_extension("audit")
             print("✅ LOG: Audit Manager is ONLINE.")
-    except Exception as e:
-        print(f"Audit extension fail: {e}")
+    except Exception as e: print(f"Audit fail: {e}")
 
-    # --- ADDED: THREAD SYSTEM LOADING ---
     try:
         await bot.load_extension("thread")
         print("✅ LOG: Thread System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load thread extension: {e}")
+    except Exception as e: print(f"Thread fail: {e}")
 
-    # --- ADDED: TEXT LEVEL SYSTEM LOADING ---
     try:
         await bot.load_extension("levels")
         print("✅ LOG: Text Level System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load levels extension: {e}")
+    except Exception as e: print(f"Levels fail: {e}")
 
-    # --- ADDED: AUTO-REACT SYSTEM LOADING ---
     try:
         if not bot.get_cog("AutoReact"):
             await bot.load_extension("react")
             print("✅ LOG: Auto-React System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load react extension: {e}")
+    except Exception as e: print(f"React fail: {e}")
 
-    # --- ADDED: COUNTING SYSTEM LOADING ---
     try:
         if not bot.get_cog("Counting"):
             await bot.load_extension("counting")
             print("✅ LOG: Counting System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load counting extension: {e}")
+    except Exception as e: print(f"Counting fail: {e}")
 
-    # --- ADDED: GUESS NUMBER SYSTEM LOADING ---
     try:
         if not bot.get_cog("GuessNumber"):
             await bot.load_extension("guessnumber")
             print("✅ LOG: Guess Number System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load guessnumber extension: {e}")
+    except Exception as e: print(f"GuessNumber fail: {e}")
 
-    # --- FIXED: CONFESSION SYSTEM LOADING SEQUENCE ---
     try:
         if not bot.get_cog("ConfessionSystem"):
-            # Ensure the correct filename 'confession' is used
             await bot.load_extension("confession")
             from confession import ConfessionSubmissionView
             conf_cog = bot.get_cog("ConfessionSystem")
             if conf_cog:
-                # REGISTER PERSISTENT VIEW correctly using sys.modules['__main__'] logic
                 main_mod = sys.modules['__main__']
                 bot.add_view(ConfessionSubmissionView(main_mod, bot, conf_cog.review_channel_id))
             print("✅ LOG: Confession System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load confession extension: {e}")
+    except Exception as e: print(f"Confession fail: {e}")
 
-    # --- ADDED: REACTION ROLE SYSTEM LOADING ---
     try:
         await bot.load_extension("reactionrole")
         print("✅ LOG: Reaction Role System is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load reactionrole extension: {e}")
+    except Exception as e: print(f"RR System fail: {e}")
     
-    # --- ADDED: AUTO-IGNIS LOADING ---
     try:
         await bot.load_extension("autoignis")
         print("✅ LOG: Automated Ignis is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load autoignis extension: {e}")
+    except Exception as e: print(f"AutoIgnis fail: {e}")
 
-    # --- ADDED: HELPER SYSTEM LOADING (Refresh Protocol) ---
     try:
         if not bot.get_cog("HelperSystem"):
             await bot.load_extension("helper")
             print("✅ LOG: Helper System (Refresh Protocol) is ONLINE.")
-    except Exception as e:
-        print(f"Failed to load helper extension: {e}")
+    except Exception as e: print(f"Helper fail: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE using persistent DB at {DATABASE_PATH}.")
@@ -778,8 +744,7 @@ async def on_message(message):
     # Then check for Admin security
     ctx = await bot.get_context(message)
     
-    # RAW FIX: Move directly to processing if command has no Cog (Main.py Native)
-    # This removes the "Gate over Gate" logic collision.
+    # NATIVE UNBLOCK: Ensure main.py commands ignore the Cog security gate
     if ctx.valid and ctx.command and hasattr(ctx.command, 'cog') and ctx.command.cog is not None:
         try:
             command_cog = ctx.command.cog_name
@@ -801,14 +766,11 @@ async def main():
     try:
         async with bot: 
             await bot.start(TOKEN)
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt: pass
     finally:
-        if not bot.is_closed():
-            await bot.close()
+        if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    try: asyncio.run(main())
+    except KeyboardInterrupt: pass
+
