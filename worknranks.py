@@ -24,8 +24,14 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     last_key = f"last_{cmd_name}"
     cooldown = timedelta(hours=3)
     
-    if u[last_key]:
-        last_time = datetime.fromisoformat(u[last_key])
+    # Safely handle the cooldown check from the Row object
+    try:
+        last_val = u[last_key]
+    except KeyError:
+        last_val = None
+
+    if last_val:
+        last_time = datetime.fromisoformat(last_val)
         if now - last_time < cooldown:
             remaining = cooldown - (now - last_time)
             mins = int(remaining.total_seconds() / 60)
@@ -46,8 +52,22 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
         base_flames = int(base_flames * 1.14)
         base_xp = int(base_xp * 1.14)
 
-    # UPDATE LEDGER
-    await update_user_stats_async(user_id, amount=base_flames, xp_gain=base_xp, source=cmd_name.capitalize())
+    # MANDATORY BRIDGE: Filling all 13 arguments required by prizes.py
+    # Args: user_id, amount, xp_gain, wins, kills, deaths, source, get_user_func, bot_obj, db_func, class_dict, nsfw, audit_func
+    # send_audit_log is handled via the wrapper in main.py
+    await update_user_stats_async(
+        user_id, 
+        base_flames, 
+        base_xp, 
+        0, 0, 0, 
+        cmd_name.capitalize(),
+        get_user,
+        bot,
+        get_db_connection,
+        CLASSES,
+        nsfw_mode_active,
+        None # Audit log is inherited from main's global scope
+    )
     
     with get_db_connection() as conn:
         conn.execute(f"UPDATE users SET {last_key} = ? WHERE id = ?", (now.isoformat(), user_id))
