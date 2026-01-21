@@ -39,12 +39,13 @@ class ConfessionModal(discord.ui.Modal, title="NEURAL CONFESSION SUBMISSION"):
 
 class ConfessionReviewView(discord.ui.View):
     def __init__(self, main_mod, confession_text, submitter_id=None):
+        # MANDATORY PERSISTENCE FIX: Added custom_id bridge
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.confession_text = confession_text
         self.submitter_id = submitter_id
 
-    @discord.ui.button(label="APPROVE", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="APPROVE", style=discord.ButtonStyle.success, emoji="✅", custom_id="confess_approve_btn")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         main_mod = sys.modules['__main__']
         cog = interaction.client.get_cog("ConfessionSystem")
@@ -77,7 +78,7 @@ class ConfessionReviewView(discord.ui.View):
         await interaction.message.edit(embed=original_embed, view=None)
         await interaction.response.send_message("✅ Confession Approved and Dispatched.", ephemeral=True)
 
-    @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️")
+    @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="confess_reject_btn")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         # --- AUTO-ARCHIVE PROTOCOL ---
         main_mod = sys.modules['__main__']
@@ -98,12 +99,13 @@ class ConfessionReviewView(discord.ui.View):
 
 class ConfessionSubmissionView(discord.ui.View):
     def __init__(self, main_mod, bot, review_channel_id):
+        # MANDATORY PERSISTENCE FIX: Views must have timeout=None and custom_id
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.bot = bot
         self.review_channel_id = review_channel_id
 
-    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑")
+    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑", custom_id="permanent_confess_btn")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
