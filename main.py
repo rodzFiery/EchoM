@@ -766,13 +766,13 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # FIXED: Commands must always be processed immediately
+    # Process regular commands first
     await bot.process_commands(message)
-    
-    # --- GLOBAL ADMINISTRATIVE ROLE SECURITY ---
+
+    # Then check for Admin security
     ctx = await bot.get_context(message)
     if ctx.valid and ctx.command:
-        command_cog = ctx.command.cog_name if ctx.command else None
+        command_cog = ctx.command.cog_name
         admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
         
         if command_cog in admin_cogs:
@@ -800,4 +800,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
-
