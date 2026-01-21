@@ -766,10 +766,8 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # Process regular commands first
-    await bot.process_commands(message)
-
-    # Then check for Admin security
+    # --- GLOBAL ADMINISTRATIVE ROLE SECURITY ---
+    # STAFF CHECK FIRST
     ctx = await bot.get_context(message)
     if ctx.valid and ctx.command:
         command_cog = ctx.command.cog_name
@@ -783,7 +781,10 @@ async def on_message(message):
                 denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                        f"Neural link signature for asset {message.author.mention} rejected.\n"
                                        "Required Privileges: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                await message.reply(embed=denied_emb)
+                return await message.reply(embed=denied_emb)
+
+    # PROCESS COMMANDS AFTER SECURITY
+    await bot.process_commands(message)
 
 async def main():
     try:
