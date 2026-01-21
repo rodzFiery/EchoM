@@ -263,8 +263,6 @@ MARKET_DATA = {
     }
 }
 
-# --- INTERACTIVE COMPONENTS ---
-
 class ShopView(discord.ui.View):
     def __init__(self, cog, category, page, user, items):
         super().__init__(timeout=60)
@@ -338,7 +336,6 @@ class Shop(commands.Cog):
                         return item, category, tier
         return None, None, None
 
-    # Helper for Button UI updates
     async def update_shop_message(self, interaction, category, page, user):
         tiers = list(MARKET_DATA[category].keys())
         page = max(1, min(page, len(tiers)))
@@ -384,7 +381,6 @@ class Shop(commands.Cog):
 
     @commands.command(name="buy")
     async def buy_item(self, ctx, *, item_name: str):
-        # Support for both standard command and Button interaction
         author = ctx.author if hasattr(ctx, 'author') else ctx.user
         send_method = ctx.send if hasattr(ctx, 'send') else ctx.followup.send
         guild = ctx.guild if hasattr(ctx, 'guild') else ctx.guild
@@ -423,12 +419,11 @@ class Shop(commands.Cog):
         else:
             await send_method(embed=success_emb)
 
-        # --- AUDIT LOG FOR PURCHASES ---
         main_mod = sys.modules['__main__']
         audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
         if audit_channel:
             log_emb = main_mod.fiery_embed("🕵️ VOYEUR TRANSACTION REPORT", f"The Master's Ledger has recorded a purchase in {found_cat}.")
-            log_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png") # The Fiery JPG
+            log_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
             log_emb.add_field(name="Asset Involved", value=author.mention, inline=True)
             log_emb.add_field(name="Item Claimed", value=f"{TIER_EMOJIS[found_tier]} **{found_item['name']}**", inline=True)
             log_emb.add_field(name="Price Paid", value=f"`{found_item['price']:,}` 🔥", inline=True)
@@ -499,8 +494,8 @@ class Shop(commands.Cog):
             if target.id == author.id:
                 return await channel.send(embed=discord.Embed(title="❌ Forbidden Narcissism", description="A bond requires two souls.", color=0xFF0000))
 
-            luck_bonus = 0.01 
-            income_bonus = 0.0 
+            luck_bonus = 0.01 
+            income_bonus = 0.0 
 
             if tier == "Normal": luck_bonus = 0.02
             elif tier == "Rare": luck_bonus = 0.04
@@ -526,7 +521,6 @@ class Shop(commands.Cog):
                                    f"💰 **Shared Ecstasy (Income):** +{int(income_bonus*100)}%"
             await channel.send(embed=bond_emb)
 
-            # --- AUDIT LOG FOR RING PURCHASE ---
             main_mod = sys.modules['__main__']
             audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
             if audit_channel:
@@ -542,10 +536,8 @@ class Shop(commands.Cog):
         except Exception as e:
             await channel.send(embed=discord.Embed(title="❌ Ritual Interrupted", description="The Master is bored by your hesitation. Request expired.", color=0xFF0000))
 
-    # ADDED: Sell Command to Liquidate Assets for 50% Value
     @commands.command(name="sell")
     async def sell_item(self, ctx, *, item_name: str):
-        """Liquidate an asset for 50% of its original Flame value."""
         found_item, found_cat, found_tier = self.get_item_details(item_name)
         if not found_item:
             return await ctx.send(embed=discord.Embed(title="❌ Item Not Found", description="This asset does not exist in our records.", color=0xFF0000))
@@ -566,10 +558,8 @@ class Shop(commands.Cog):
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
         await ctx.send(embed=sell_emb)
 
-    # NEW: Command to check integrated combat percentages
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
-        """Calculates and displays the exact combat weightings for an asset."""
         target = member or ctx.author
         
         with self.get_db_connection() as conn:
@@ -588,7 +578,6 @@ class Shop(commands.Cog):
                 if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
                 elif cat == "Pets": total_luck = max(total_luck, item.get('luck', 0))
 
-        # Relationship Luck Check
         rel_luck = 0
         with self.get_db_connection() as conn:
             rel = conn.execute("SELECT shared_luck FROM relationships WHERE (user_one = ? OR user_two = ?)", (target.id, target.id)).fetchone()
@@ -613,4 +602,4 @@ class Shop(commands.Cog):
         await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(Shop(bot))
+    await bot.add_cog(Shop(bot))
