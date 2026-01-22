@@ -507,7 +507,7 @@ class IgnisEngine(commands.Cog):
                         self.current_survivors[channel.id].remove(loser['id'])
                 
                 game_kills[winner['id']] += 1
-                fxp_log[winner['id']]["kills"] += 37
+                fxp_log[winner['id']]["kills"] += 750
                 
                 await self.update_user_stats(winner['id'], kills=1, source="Combat")
                 await self.update_user_stats(loser['id'], deaths=1, source="Combat")
@@ -529,13 +529,13 @@ class IgnisEngine(commands.Cog):
                 with self.get_db_connection() as conn:
                     if not first_blood_recorded:
                         conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
-                        fxp_log[winner['id']]["first_kill"] = 75
+                        fxp_log[winner['id']]["first_kill"] = 1000
                         first_blood_recorded = True
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
                         if main.nsfw_mode_active:
-                            flash_msg = f"🔞 **FIRST BLOOD HANGRYGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     conn.execute("UPDATE users SET current_kill_streak = current_kill_streak + 1 WHERE id = ?", (winner['id'],))
@@ -572,7 +572,7 @@ class IgnisEngine(commands.Cog):
 
             winner_final = fighters[0]
             self.last_winner_id = winner_final['id']
-            fxp_log[winner_final['id']]["placement"] = 526 
+            fxp_log[winner_final['id']]["placement"] = 5000 
             fxp_log[winner_final['id']]["final_rank"] = 1
             
             processed_data = {}
@@ -608,7 +608,7 @@ class IgnisEngine(commands.Cog):
 
             total_flames_won = int(25000 * flame_multiplier)
 
-            await self.update_user_stats(winner_final['id'], amount=15000, xp_gain=1000, wins=1, source="Game Win")
+            await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
             
             f_u = self.get_user(winner_final['id'])
             lvl = f_u['fiery_level']
@@ -675,7 +675,7 @@ class IgnisEngine(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
-            win_card = discord.Embed(title=f"👑 Echo Hangrygames Winner 👑 # {edition}", color=0xFFD700)
+            win_card = discord.Embed(title=f"👑 Echogames Winner 👑 # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
@@ -723,7 +723,7 @@ class IgnisEngine(commands.Cog):
             win_card.add_field(name="📊 SERVER STATS", value=rank_text, inline=True)
             
             legacy_text = (f"👑 **Total Arena Wins:** {total_arena_wins}\n"
-                           f"⛓️ **Total Participations:** {total_participations}\n"
+                           f"📝 **Total Participations:** {total_participations}\n"
                            f"🔥 **Lifetime Arena Flames:** {lifetime_flame_pool:,}F")
             win_card.add_field(name="🏛️ VICTOR'S LEGACY", value=legacy_text, inline=False)
             
@@ -824,3 +824,4 @@ async def setup(bot):
 
     # Registrando StatusCheck
     await bot.add_cog(StatusCheck(bot))
+
