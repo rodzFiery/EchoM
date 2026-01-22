@@ -32,12 +32,18 @@ class LobbyView(discord.ui.View):
         self.owner = owner
         self.edition = edition
         self.participants = []
+        self.active = True # NEW: Gate Closure Protocol
 
     # ADDED: custom_id to make the interaction persistent and stop "Interaction Failed"
     @discord.ui.button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # NEW: Gate Closure Check
+        if not self.active:
+            return await interaction.response.send_message("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
+
         if interaction.user.id in self.participants:
-            return await interaction.response.send_message("Already joined mf!", ephemeral=True)
+            # UPDATED: Locked-In message. Once they are in, they stay in.
+            return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
         
         self.participants.append(interaction.user.id)
         
@@ -82,6 +88,9 @@ class LobbyView(discord.ui.View):
             
             if guild_games >= 2:
                 return await interaction.response.send_message("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
+
+            # NEW: Lockdown the lobby so no one joins during the defer/setup phase
+            self.active = False
 
             # MANDATORY: Defer to prevent "Interaction Failed" during battle setup
             await interaction.response.defer(ephemeral=True)
