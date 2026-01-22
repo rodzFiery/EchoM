@@ -52,6 +52,19 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
         base_flames = int(base_flames * 1.14)
         base_xp = int(base_xp * 1.14)
 
+    # --- CARD MASTERY PASSIVE INTEGRATION ---
+    with get_db_connection() as conn:
+        # Check for Category Masteries (+5% each)
+        category_masteries = conn.execute("SELECT COUNT(*) FROM card_mastery WHERE user_id = ? AND mastery_key LIKE 'cat_%'", (user_id,)).fetchone()[0]
+        if category_masteries > 0:
+            multiplier = 1 + (category_masteries * 0.05)
+            base_flames = int(base_flames * multiplier)
+        
+        # Check for Absolute Mastery (1.5x Global Multiplier)
+        absolute_master = conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = 'absolute_master'", (user_id,)).fetchone()
+        if absolute_master:
+            base_flames = int(base_flames * 1.5)
+
     # MANDATORY 13-ARGUMENT BRIDGE
     # Filling every slot required by prizes.py to prevent TypeError
     await update_user_stats_async(
