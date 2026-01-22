@@ -241,8 +241,7 @@ class FieryExtensions(commands.Cog):
         self.master_present = True
         self.heat_multiplier = 2.0
         
-        # Quests: Heat Chaser (Weekly w19) - Increment for all active? Or triggerer?
-        # Here we increment heat for the system state.
+        # Quests: Heat Chaser (Weekly w19)
         
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
@@ -527,8 +526,11 @@ class FieryExtensions(commands.Cog):
         }
         
         with self.get_db_connection() as conn:
+            conn.row_factory = sqlite3.Row # Ensure column-based access works reliably
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (user_id,))
-            current = conn.execute(f"SELECT {quest_key} FROM quests WHERE user_id = ?", (user_id,)).fetchone()[0]
+            
+            res = conn.execute(f"SELECT {quest_key} FROM quests WHERE user_id = ?", (user_id,)).fetchone()
+            current = res[0] if res else 0
             
             new_val = current + amount
             conn.execute(f"UPDATE quests SET {quest_key} = ? WHERE user_id = ?", (new_val, user_id))
@@ -556,27 +558,32 @@ class FieryExtensions(commands.Cog):
                 # --- DAILY COMPLETIONIST BONUS (100,000 FLAMES) ---
                 if not is_weekly:
                     q_data = conn.execute("SELECT * FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                    daily_all_done = True
-                    for i in range(1, 21):
-                        d_key = f"d{i}"
-                        if q_data[d_key] < goals[d_key]:
-                            daily_all_done = False
-                            break
-                    
-                    if daily_all_done:
-                        bonus = 100000
-                        await self.update_user_stats(user_id, amount=bonus, source="DAILY COMPLETIONIST BONUS")
-                        if audit_chan:
-                            bonus_emb = self.fiery_embed("🏆 THE ULTIMATE SUBMISSION", 
-                                f"🔞 {user_mention} has completed **EVERY SINGLE DAILY DEMAND**!\n\n"
-                                f"🔥 **ULTRA BONUS:** {bonus:,} Flames injected into vault.", color=0xFFD700)
-                            await audit_chan.send(embed=bonus_emb)
+                    if q_data:
+                        daily_all_done = True
+                        for i in range(1, 21):
+                            d_key = f"d{i}"
+                            # Support both row object and standard tuple access
+                            val = q_data[d_key] if hasattr(q_data, '__getitem__') else q_data[i]
+                            if val < goals[d_key]:
+                                daily_all_done = False
+                                break
+                        
+                        if daily_all_done:
+                            bonus = 100000
+                            await self.update_user_stats(user_id, amount=bonus, source="DAILY COMPLETIONIST BONUS")
+                            if audit_chan:
+                                bonus_emb = self.fiery_embed("🏆 THE ULTIMATE SUBMISSION", 
+                                    f"🔞 {user_mention} has completed **EVERY SINGLE DAILY DEMAND**!\n\n"
+                                    f"🔥 **ULTRA BONUS:** {bonus:,} Flames injected into vault.", color=0xFFD700)
+                                await audit_chan.send(embed=bonus_emb)
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
         """Global listener to track command-based quests."""
         user_id = ctx.author.id
-        cmd = ctx.command.name
+        # Use the base command name to ensure aliases also trigger quests
+        cmd = ctx.command.name if ctx.command else None
+        if not cmd: return
         
         # General active asset tracking
         await self.increment_quest(user_id, "d12") # Daily d12: 10 commands total
