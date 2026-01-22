@@ -5,7 +5,7 @@ import random
 from datetime import datetime, timezone, timedelta
 
 # SHARED CONFIGURATION
-RANKS = ["Tribute", "Neophyte", "Slave", "Servant", "Thrall", "Vassal", "Initiate", "Follower", "Devotee", "Acolyte"] # (Extend as needed)
+RANKS = ["Tribute", "Neophyte", "Slave", "Servant", "Thrall", "Vassal", "Initiate", "Follower", "Devotee", "Acolyte"]
 CLASSES = {
     "Dominant": {"bonus": "20% Flames", "desc": "Dictate the flow."},
     "Submissive": {"bonus": "25% XP", "desc": "Absorb the discipline."},
@@ -13,7 +13,7 @@ CLASSES = {
     "Exhibitionist": {"bonus": "40% Flames, -20% XP", "desc": "Pure display."}
 }
 
-# --- ECONOMY HANDLER ---
+# --- REBUILT ECONOMY HANDLER ---
 async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
     """Universal handler for Work, Beg, Flirt, etc."""
     user_id = ctx.author.id
@@ -24,7 +24,6 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     last_key = f"last_{cmd_name}"
     cooldown = timedelta(hours=3)
     
-    # Safely handle the cooldown check from the Row object
     try:
         last_val = u[last_key]
     except KeyError:
@@ -43,29 +42,32 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     base_xp = random.randint(50, 200)
 
     # CLASS BONUSES
-    if u['class'] == "Dominant": base_flames = int(base_flames * 1.20)
-    elif u['class'] == "Exhibitionist": 
+    user_class = u['class']
+    if user_class == "Dominant": base_flames = int(base_flames * 1.20)
+    elif user_class == "Exhibitionist": 
         base_flames = int(base_flames * 1.40)
         base_xp = int(base_xp * 0.80)
-    elif u['class'] == "Submissive": base_xp = int(base_xp * 1.25)
-    elif u['class'] == "Switch":
+    elif user_class == "Submissive": base_xp = int(base_xp * 1.25)
+    elif user_class == "Switch":
         base_flames = int(base_flames * 1.14)
         base_xp = int(base_xp * 1.14)
 
-    # MANDATORY BRIDGE: Filling all 13 arguments required by prizes.py
-    # Args: user_id, amount, xp_gain, wins, kills, deaths, source, get_user_func, bot_obj, db_func, class_dict, nsfw, audit_func
+    # MANDATORY 13-ARGUMENT BRIDGE
+    # Specifically mapped to prevent 'TypeError' in prizes_module
     await update_user_stats_async(
-        user_id, 
-        base_flames, 
-        base_xp, 
-        0, 0, 0, 
-        cmd_name.capitalize(),
-        get_user,
-        bot,
-        get_db_connection,
-        CLASSES,
-        nsfw_mode_active,
-        None # Audit log is handled via the global wrapper in main
+        user_id,            # 1: User ID
+        base_flames,        # 2: Amount
+        base_xp,            # 3: XP Gain
+        0,                  # 4: Wins
+        0,                  # 5: Kills
+        0,                  # 6: Deaths
+        cmd_name.capitalize(), # 7: Source
+        get_user,           # 8: get_user_func
+        bot,                # 9: bot_obj
+        get_db_connection,  # 10: db_func
+        CLASSES,            # 11: class_dict
+        nsfw_mode_active,   # 12: nsfw flag
+        None                # 13: audit_func
     )
     
     with get_db_connection() as conn:
