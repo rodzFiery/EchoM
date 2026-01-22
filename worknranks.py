@@ -13,7 +13,7 @@ CLASSES = {
     "Exhibitionist": {"bonus": "40% Flames, -20% XP", "desc": "Pure display."}
 }
 
-# --- REBUILT ECONOMY HANDLER ---
+# --- REBUILT ECONOMY HANDLER (ALIGNED) ---
 async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
     """Universal handler for Work, Beg, Flirt, etc."""
     user_id = ctx.author.id
@@ -53,7 +53,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
         base_xp = int(base_xp * 1.14)
 
     # MANDATORY 13-ARGUMENT BRIDGE
-    # Specifically mapped to prevent 'TypeError' in prizes_module
+    # Filling every slot required by prizes.py to prevent TypeError
     await update_user_stats_async(
         user_id,            # 1: User ID
         base_flames,        # 2: Amount
