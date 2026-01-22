@@ -72,23 +72,33 @@ class IgnisAuto(commands.Cog):
         except: pass
 
         self.current_auto_lobby = None
+        # NEW: Track the last processed window to prevent double-firing or missed-firing
+        self.last_processed_window = None 
         self.auto_loop.start() # Start the 30-minute cycle
 
     def cog_unload(self):
         self.auto_loop.cancel()
 
-    @tasks.loop(seconds=60) # Changed to 60s check to ensure strict alignment
+    @tasks.loop(seconds=10) # CHECK FREQUENTLY (10s) TO PREVENT MISSING THE START
     async def auto_loop(self):
         await self.bot.wait_until_ready()
         
-        # FIX: Strict 30-minute alignment logic (:00 and :30)
         now = datetime.now()
-        if now.minute not in [0, 30]:
+        
+        # CALCULATE CURRENT WINDOW (:00 or :30)
+        # This identifies which 30-minute block we are currently in
+        current_minute_block = 0 if now.minute < 30 else 30
+        window_id = f"{now.hour}_{current_minute_block}"
+
+        # If we have already triggered the start/reset for this specific window, skip
+        if self.last_processed_window == window_id:
             return
+
+        # UPDATE TRACKER
+        self.last_processed_window = window_id
 
         channel = self.bot.get_channel(self.auto_channel_id)
         if not channel:
-            print(f"AUTO_IGNIS: Channel {self.auto_channel_id} not found.")
             return
 
         # 1. Process the previous lobby if it exists
@@ -165,12 +175,16 @@ class IgnisAuto(commands.Cog):
         )
         
         # UPDATED: Real-time footer calculation for 30m precision
-        next_run_time = (now + timedelta(minutes=30)).replace(second=0, microsecond=0)
+        next_run_delta = 30 if now.minute < 30 else 60
+        next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
+        if now.minute >= 30:
+            next_run_time += timedelta(hours=1)
+
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
         # ADDED: HOURLY PING LOGIC (Every 1 hour at .00)
         content = None
-        if now.minute == 0 and self.ping_role_id != 0:
+        if now.minute < 5 and self.ping_role_id != 0: # Ping if it's the start of the hour
             content = f"<@&{self.ping_role_id}>"
 
         if os.path.exists(image_path):
@@ -179,9 +193,6 @@ class IgnisAuto(commands.Cog):
             await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
         else:
             await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
-            
-        # Prevent the loop from firing multiple times in the same minute
-        await asyncio.sleep(61)
 
     @auto_loop.before_loop
     async def before_auto_loop(self):
@@ -215,11 +226,12 @@ class IgnisAuto(commands.Cog):
         # Logic to determine next interval for the footer
         if now.minute < 30:
             next_m = 30
+            target_time = now
         else:
             next_m = 0
-            now = now + timedelta(hours=1)
+            target_time = now + timedelta(hours=1)
         
-        next_run_time = now.replace(minute=next_m, second=0, microsecond=0)
+        next_run_time = target_time.replace(minute=next_m, second=0, microsecond=0)
 
         embed = main.fiery_embed("🔞 AUTOMATED RED ROOM: INITIALIZED", 
             "🥀 **Automated Pit set and synchronized.**\n\n"
