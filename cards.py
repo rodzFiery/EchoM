@@ -135,6 +135,8 @@ class CardSystem(commands.Cog):
         with main_mod.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
+            # ADDED: Table to track which mastery rewards have been claimed
+            conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
             conn.commit()
 
     def _load_config(self):
@@ -174,26 +176,14 @@ class CardSystem(commands.Cog):
     async def spawn_card(self):
         tier = self.get_random_tier()
         tier_pool = [c for c in self.card_pool if c['tier'] == tier]
-        
-        if not tier_pool: # Fallback
-            tier_pool = [c for c in self.card_pool if c['tier'] == "basic"]
-
+        if not tier_pool: tier_pool = [c for c in self.card_pool if c['tier'] == "basic"]
         self.current_card = random.choice(tier_pool)
         channel = self.bot.get_channel(self.spawn_channel_id)
-        
         if channel:
             main_mod = sys.modules['__main__']
-            embed = main_mod.fiery_embed(
-                "🌋 A WILD CARD HAS EMERGED!",
-                f"**Card:** {self.current_card['name']}\n"
-                f"**Tier:** {self.current_card['tier'].upper()}\n"
-                f"**Type:** {self.current_card['type']}\n\n"
-                f"Type `!catch {self.current_card['name']}` to collect it!"
-            )
-            
+            embed = main_mod.fiery_embed("🌋 A WILD CARD HAS EMERGED!", f"**Card:** {self.current_card['name']}\n**Tier:** {self.current_card['tier'].upper()}\n**Type:** {self.current_card['type']}\n\nType `!catch {self.current_card['name']}` to collect it!")
             image_filename = self.current_card['image']
             image_path = f"card.base/{image_filename}"
-            
             if os.path.exists(image_path):
                 file = discord.File(image_path, filename=image_filename)
                 embed.set_image(url=f"attachment://{image_filename}")
@@ -212,120 +202,119 @@ class CardSystem(commands.Cog):
         if not message.author.bot and message.guild:
             self.activity_pool += 1
 
+    async def check_mastery(self, ctx, user_id):
+        """SCANS DATABASE FOR FULL COLLECTIONS AND AWARDS PASSIVES"""
+        main_mod = sys.modules['__main__']
+        
+        with main_mod.get_db_connection() as conn:
+            user_cards = [r[0] for r in conn.execute("SELECT card_name FROM user_cards WHERE user_id = ?", (user_id,)).fetchall()]
+            
+            # --- 1. CATEGORY MASTERY (e.g. LAVA, GLADIATOR) ---
+            categories = set(c['type'] for c in self.card_pool)
+            for cat in categories:
+                mastery_key = f"cat_{cat.lower()}"
+                already_claimed = conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = ?", (user_id, mastery_key)).fetchone()
+                
+                if not already_claimed:
+                    required = [c['name'] for c in self.card_pool if c['type'] == cat]
+                    if all(req in user_cards for req in required):
+                        # AWARD: 500k Flames + 20k XP + PASSIVE: +5% Work Yield
+                        conn.execute("INSERT INTO card_mastery (user_id, mastery_key) VALUES (?, ?)", (user_id, mastery_key))
+                        await main_mod.update_user_stats_async(user_id, amount=500000, xp_gain=20000, source=f"Mastery: {cat}")
+                        
+                        await ctx.send(embed=main_mod.fiery_embed("🏆 COLLECTION MASTERED", 
+                            f"Asset {ctx.author.mention}, you have unified the **{cat}** Series.\n\n"
+                            f"**Rewards:**\n💰 +500,000 Flames\n🧬 +20,000 Global XP\n"
+                            f"⚡ **PASSIVE UNLOCKED:** +5% Multiplier to all extraction commands (!work, !beg, etc).", color=0xFFD700))
+
+            # --- 2. TIER MASTERY (e.g. ALL SUPREMES) ---
+            tiers = ["basic", "rare", "epic", "platine", "legendary", "supreme"]
+            for tier in tiers:
+                mastery_key = f"tier_{tier}"
+                already_claimed = conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = ?", (user_id, mastery_key)).fetchone()
+                
+                if not already_claimed:
+                    required = [c['name'] for c in self.card_pool if c['tier'] == tier]
+                    if all(req in user_cards for req in required):
+                        # AWARD: 1M Flames + 50k XP + PASSIVE: ARENA DEFENSE BOOST
+                        conn.execute("INSERT INTO card_mastery (user_id, mastery_key) VALUES (?, ?)", (user_id, mastery_key))
+                        await main_mod.update_user_stats_async(user_id, amount=1000000, xp_gain=50000, source=f"Tier Mastery: {tier}")
+                        
+                        await ctx.send(embed=main_mod.fiery_embed("👑 TIER ARCHITECT UNLOCKED", 
+                            f"Asset {ctx.author.mention}, you have archived every **{tier.upper()}** asset in existence.\n\n"
+                            f"**Rewards:**\n💰 +1,000,000 Flames\n🧬 +50,000 Global XP\n"
+                            f"🛡️ **PASSIVE UNLOCKED:** +10% Health in Echo Hangrygames (Ignis Arena).", color=0x00FFFF))
+
+            # --- 3. ABSOLUTE COMPLETION (THE MASTER) ---
+            master_key = "absolute_master"
+            already_claimed = conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = ?", (user_id, master_key)).fetchone()
+            if not already_claimed:
+                all_required = [c['name'] for c in self.card_pool]
+                if all(req in user_cards for req in all_required):
+                    conn.execute("INSERT INTO card_mastery (user_id, mastery_key) VALUES (?, ?)", (user_id, master_key))
+                    await main_mod.update_user_stats_async(user_id, amount=10000000, xp_gain=250000, source="Absolute Mastery")
+                    
+                    await ctx.send(embed=main_mod.fiery_embed("🌌 GOD OF THE ECHO VOLCANO", 
+                        f"Asset {ctx.author.mention}, the neural archive is 100% complete.\n\n"
+                        f"**Rewards:**\n💰 +10,000,000 Flames\n🧬 +250,000 Global XP\n"
+                        f"🔱 **PASSIVE UNLOCKED:** Permanent 1.5x Multiplier to ALL income and +20% Critical Strike in Arena.", color=0xFF0000))
+            conn.commit()
+
     @commands.command()
     async def catch(self, ctx, *, card_name: str):
         if not self.current_card or card_name.lower() != self.current_card['name'].lower():
             return await ctx.reply("❌ That card is not here or the name is incorrect!")
-
         main_mod = sys.modules['__main__']
         user_id = ctx.author.id
         card = self.current_card
-        self.current_card = None # Prevent double catching
-
+        self.current_card = None 
         with main_mod.get_db_connection() as conn:
-            # 1. Archive the new asset
-            conn.execute("INSERT INTO user_cards (user_id, card_name, tier) VALUES (?, ?, ?)", 
-                         (user_id, card['name'], card['tier']))
+            conn.execute("INSERT INTO user_cards (user_id, card_name, tier) VALUES (?, ?, ?)", (user_id, card['name'], card['tier']))
             conn.commit()
-
-            # 2. Extract Statistics for the visual Dossier
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
-            
-            tiers = ["supreme", "legendary", "platine", "epic", "rare", "basic"]
-            tier_stats = []
-            for t in tiers:
-                count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ? AND tier = ?", (user_id, t)).fetchone()[0]
-                if count > 0:
-                    tier_stats.append(f"• **{t.upper()}:** {count}")
-            
+            tier_stats = [f"• **{t.upper()}:** {conn.execute('SELECT COUNT(*) FROM user_cards WHERE user_id = ? AND tier = ?', (user_id, t)).fetchone()[0]}" for t in ["supreme", "legendary", "platine", "epic", "rare", "basic"]]
             rows = conn.execute("SELECT card_name FROM user_cards WHERE user_id = ?", (user_id,)).fetchall()
             user_card_names = [r[0] for r in rows]
-            
             collections = {}
             for p_card in self.card_pool:
                 if p_card['name'] in user_card_names:
-                    c_type = p_card['type']
-                    collections[c_type] = collections.get(c_type, 0) + user_card_names.count(p_card['name'])
+                    collections[p_card['type']] = collections.get(p_card['type'], 0) + user_card_names.count(p_card['name'])
 
-        # 3. Build the High-Fidelity Capture Dossier
-        tier_display = "\n".join(tier_stats) if tier_stats else "New collection started."
-        coll_display = "\n".join([f"🔸 **{k}:** {v}" for k, v in list(collections.items())[:5]])
-
-        embed = main_mod.fiery_embed(
-            "🔥 ASSET SECURED!",
-            f"{ctx.author.mention} has successfully synchronized with **{card['name']}**!",
-            color=0xFFD700 # Gold color for success
-        )
-        
-        embed.add_field(name="🧬 Spec Details", value=f"**Type:** {card['type']}\n**Tier:** {card['tier'].upper()}", inline=True)
-        embed.add_field(name="📊 Vault Summary", value=f"**Total Assets:** {total_count}\n**Rank:** Asset Hunter", inline=True)
-        embed.add_field(name="💎 Rarity Distribution", value=tier_display, inline=False)
-        embed.add_field(name="🏛️ Collection Mastery", value=coll_display or "Gathering data...", inline=False)
-        
+        embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} caught **{card['name']}**!", color=0xFFD700)
+        embed.add_field(name="🧬 Specs", value=f"**Type:** {card['type']}\n**Tier:** {card['tier'].upper()}", inline=True)
+        embed.add_field(name="📊 Vault", value=f"**Total Assets:** {total_count}", inline=True)
+        embed.add_field(name="💎 Rarity", value="\n".join([s for s in tier_stats if ": 0" not in s]), inline=False)
         image_path = f"card.base/{card['image']}"
         if os.path.exists(image_path):
-            file = discord.File(image_path, filename="captured_asset.png")
-            embed.set_image(url="attachment://captured_asset.png")
+            file = discord.File(image_path, filename="captured.png")
+            embed.set_image(url="attachment://captured.png")
             await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
+        else: await ctx.send(embed=embed)
+        
+        # TRIGGER MASTERY CHECK
+        await self.check_mastery(ctx, user_id)
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
-        """DYNAMIC & INTERACTIVE POKEDEX: Categorized browsing with Select Menus."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
-        
         with main_mod.get_db_connection() as conn:
             rows = conn.execute("SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? GROUP BY card_name", (target.id,)).fetchall()
-
-        if not rows:
-            return await ctx.send(f"📕 {target.display_name}'s Pokedex is empty. Go catch something, toy.")
-
-        # Organize user cards by their collection type (Matching with card_pool)
+        if not rows: return await ctx.send(f"📕 {target.display_name}'s Pokedex is empty.")
         categorized_data = {}
         total_found = 0
-        
         for row in rows:
-            card_name = row[0]
-            # Find the type from card_pool
-            pool_data = next((c for c in self.card_pool if c['name'] == card_name), None)
+            pool_data = next((c for c in self.card_pool if c['name'] == row[0]), None)
             if pool_data:
                 c_type = pool_data['type']
-                if c_type not in categorized_data:
-                    categorized_data[c_type] = []
-                categorized_data[c_type].append({'name': card_name, 'tier': row[1], 'count': row[2]})
+                if c_type not in categorized_data: categorized_data[c_type] = []
+                categorized_data[c_type].append({'name': row[0], 'tier': row[1], 'count': row[2]})
                 total_found += row[2]
-
-        # Create the Interactive View
         view = PokedexView(target, categorized_data, self.card_pool, main_mod.fiery_embed)
-        
-        # Setup Initial Select Options
-        for category in categorized_data.keys():
-            view.select_category.add_option(
-                label=category, 
-                description=f"View your {len(categorized_data[category])} {category} assets",
-                emoji="🔞" if category == "Flirt" else "🔥",
-                value=category
-            )
-
-        # Build Intro Embed
-        intro_desc = (
-            f"### 🛡️ NEURAL ARCHIVE OF {target.display_name}\n"
-            f"**Total Mastered Assets:** `{total_found}`\n"
-            f"**Unique Collections:** `{len(categorized_data)}` categories detected.\n\n"
-            "*Use the terminal below to filter through your categorized captures.*"
-        )
-        
-        embed = main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", intro_desc)
-        
-        # Visual Decoration
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="pokedex_thumb.jpg")
-            embed.set_thumbnail(url="attachment://pokedex_thumb.jpg")
-            await ctx.send(file=file, embed=embed, view=view)
-        else:
-            await ctx.send(embed=embed, view=view)
+        for cat in categorized_data.keys():
+            view.select_category.add_option(label=cat, description=f"{len(categorized_data[cat])} assets", emoji="🔥", value=cat)
+        embed = main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", f"### 🛡️ NEURAL ARCHIVE\n**Assets Mastered:** `{total_found}`\n**Categories:** `{len(categorized_data)}`")
+        await ctx.send(embed=embed, view=view)
 
 async def setup(bot):
     await bot.add_cog(CardSystem(bot))
