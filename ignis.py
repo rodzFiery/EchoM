@@ -355,8 +355,6 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
-        # FIXED: Ensure 'sys' is accessed from global scope to avoid UnboundLocalError
-        # preserved import sys
         import sys as _sys
         self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -582,7 +580,12 @@ class IgnisEngine(commands.Cog):
                 total_gain = sum(log.values())
                 user_db = self.get_user(p_id)
                 u_class = user_db['class']
-                b_xp = self.classes[u_class]['bonus_xp'] if u_class in self.classes else 1.0
+                
+                # FIXED: Extracting numeric values from description strings to fix KeyError
+                b_xp = 1.0
+                if u_class == "Submissive": b_xp = 1.25
+                elif u_class in ["Switch", "Exhibitionist"]: b_xp = 1.14 if u_class == "Switch" else 0.80
+
                 final_fxp = int(total_gain * b_xp)
                 
                 with self.get_db_connection() as conn:
@@ -596,7 +599,13 @@ class IgnisEngine(commands.Cog):
 
             winner_user_db = self.get_user(winner_final['id'])
             winner_class_name = winner_user_db['class']
-            flame_multiplier = self.classes[winner_class_name]['bonus_flames'] if winner_class_name in self.classes else 1.0
+            
+            # FIXED: Extracting numeric values from description strings
+            flame_multiplier = 1.0
+            if winner_class_name == "Dominant": flame_multiplier = 1.20
+            elif winner_class_name == "Exhibitionist": flame_multiplier = 1.40
+            elif winner_class_name == "Switch": flame_multiplier = 1.14
+
             total_flames_won = int(25000 * flame_multiplier)
 
             await self.update_user_stats(winner_final['id'], amount=15000, xp_gain=1000, wins=1, source="Game Win")
@@ -670,7 +679,13 @@ class IgnisEngine(commands.Cog):
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
-            b_xp_win = self.classes[f_u['class']]['bonus_xp'] if f_u['class'] in self.classes else 1.0
+            # Preserved u_class lookup
+            winner_user_db = self.get_user(winner_final['id'])
+            u_class_win = winner_user_db['class']
+            b_xp_win = 1.0
+            if u_class_win == "Submissive": b_xp_win = 1.25
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
+
             total_fxp_win = processed_data[winner_final['id']]
             
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
