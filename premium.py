@@ -9,44 +9,22 @@ import asyncio
 import aiohttp # ADDED: For more stable asynchronous requests
 
 # --- PAYPAL CONFIGURATION (AUTOMATIC WEBHOOK INTEGRATION) ---
-# Using environment variables (Railway) or default values
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
-# Your Webhook Handler URL (where the bot will process the PayPal signal)
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CURRENCY = "USD"
 
-# --- PRE-CONFIGURED PLANS (20 BUNDLES + 9 A LA CARTE - TOTAL 29 PLANS) ---
+# --- RECONFIGURED ELITE PLANS (MAX 10 - ABSOLUTELY SYNCED) ---
 PREMIUM_PLANS = {
-    "1. Starter Core Pack": {"cost": 6.5, "perks": "Classes + Economy + Shop", "color": 0x3498DB},
-    "2. Combat Pack": {"cost": 5.0, "perks": "Echo HangryGames + 1v1 Arena", "color": 0xE74C3C},
-    "3. Echo Survival Pack": {"cost": 4.0, "perks": "Echo HangryGames", "color": 0x2ECC71},
-    "4. Work & Wealth Pack": {"cost": 3.5, "perks": "Economy System", "color": 0xF1C40F},
-    "5. Mega Core Bundle": {"cost": 8.5, "perks": "Classes + Econ + Shop + Utility", "color": 0x9B59B6},
-    "6. All-Combat Bundle": {"cost": 7.5, "perks": "Echo HG + Arena + Casino", "color": 0xE67E22},
-    "7. Ultimate Progression": {"cost": 10.5, "perks": "Classes + Econ + Shop + Echo", "color": 0x1ABC9C},
-    "8. Economy Expansion": {"cost": 4.5, "perks": "Economy + Shop", "color": 0x27AE60},
-    "9. Social Interaction": {"cost": 2.5, "perks": "Ship + Ask-to-DM", "color": 0xFD79A8},
-    "10. Casino Pack": {"cost": 2.5, "perks": "Casino System", "color": 0xAD1457},
-    "11. Exploration Pack": {"cost": 5.5, "perks": "Utility + Economy", "color": 0x74B9FF},
-    "12. Advanced Arena": {"cost": 7.0, "perks": "Echo + Arena + Classes", "color": 0xD63031},
-    "13. Guild Builder": {"cost": 5.5, "perks": "Economy + Shop + Ship", "color": 0x00B894},
-    "14. Complete Battle": {"cost": 12.0, "perks": "Echo + Arena + Casino + Econ + Shop", "color": 0x6C5CE7},
-    "15. Merchant Pack": {"cost": 6.5, "perks": "Shop + Econ + Utility", "color": 0xFDCB6E},
-    "16. Creators Pack": {"cost": 8.0, "perks": "Classes + Econ + Shop + Ask-to-DM", "color": 0xFF8B94},
-    "17. Echo Boost Pack": {"cost": 6.0, "perks": "Echo HG + Utility", "color": 0x81ECEC},
-    "18. Arena Combo": {"cost": 11.5, "perks": "Echo + Arena + Classes + Econ + Shop", "color": 0xFF7675},
-    "19. Minimal Starter": {"cost": 5.5, "perks": "Economy + Utility", "color": 0xA29BFE},
-    "20. Full Premium Everything": {"cost": 19.5, "perks": "ALL SYSTEMS UNLOCKED", "color": 0xFFD700},
-    # --- INDIVIDUAL ITEMS (A LA CARTE) ---
-    "A1. Classes": {"cost": 2.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A2. Echo HangryGames": {"cost": 4.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A3. 1v1 Arena Fight": {"cost": 1.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A4. Economy": {"cost": 3.5, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A5. Shop": {"cost": 1.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A6. Ship System": {"cost": 1.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A7. Casino": {"cost": 2.5, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A8. Utility": {"cost": 2.0, "perks": "Individual System Access", "color": 0x95A5A6},
-    "A9. Ask-to-DM": {"cost": 1.5, "perks": "Individual System Access", "color": 0x95A5A6}
+    "1. Starter Core": {"cost": 5.5, "perks": "Classes + Economy + Shop", "color": 0x3498DB},
+    "2. Combatant": {"cost": 5.0, "perks": "Echo HangryGames + 1v1 Arena", "color": 0xE74C3C},
+    "3. High Roller": {"cost": 4.5, "perks": "Casino + Economy Expansion", "color": 0x9B59B6},
+    "4. Social Elite": {"cost": 3.5, "perks": "Ship System + Ask-to-DM", "color": 0xFD79A8},
+    "5. Battle Master": {"cost": 8.5, "perks": "Echo HG + Arena + Classes", "color": 0xE67E22},
+    "6. Wealth Architect": {"cost": 6.5, "perks": "Economy + Shop + Utility", "color": 0xF1C40F},
+    "7. Executioner Bundle": {"cost": 10.5, "perks": "Classes + Echo + Arena + Casino", "color": 0xD63031},
+    "8. Dungeon Merchant": {"cost": 7.5, "perks": "Shop + Econ + Social Access", "color": 0x27AE60},
+    "9. Utility Pro": {"cost": 4.0, "perks": "Utility + Economy Access", "color": 0x74B9FF},
+    "10. Full Premium": {"cost": 19.5, "perks": "ALL SYSTEMS UNLOCKED (GOD MODE)", "color": 0xFFD700}
 }
 
 class PremiumShopView(discord.ui.View):
@@ -175,7 +153,6 @@ class PremiumSystem(commands.Cog):
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
         self.update_user_stats = update_user_stats
-        # FIXED: Pulled dynamically from main module to support the !audit system
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
 
     async def log_admin_action(self, member, plan_name, action):
@@ -204,7 +181,7 @@ class PremiumSystem(commands.Cog):
             await ctx.send(embed=embed, view=view)
 
     @commands.command(name="activate")
-    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can override
+    @commands.is_owner()
     @commands.has_permissions(administrator=True)
     async def activate_premium(self, ctx, member: discord.Member, plan_number: int):
         """Manually activate premium after payment verification."""
@@ -216,7 +193,6 @@ class PremiumSystem(commands.Cog):
         p_date = datetime.now().isoformat()
         
         with self.get_db_connection() as conn:
-            # ACCUMULATION LOGIC: Fetch current plans and append the new one
             current = conn.execute("SELECT premium_type FROM users WHERE id = ?", (member.id,)).fetchone()
             if not current or current['premium_type'] in ['Free', '', None]:
                 new_val = plan_name
@@ -233,13 +209,12 @@ class PremiumSystem(commands.Cog):
         await self.log_admin_action(member, plan_name, "MANUAL ACTIVATION")
 
     @commands.command(name="testpay")
-    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can test payment
+    @commands.is_owner()
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx, member: discord.Member, plan_number: int):
-        """CRITICAL FIX: Uses multi-path connection for Railway stability."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Invalid plan index (1-29).")
+            return await ctx.send("❌ Invalid plan index (1-10).")
         
         plan_name = plan_list[plan_number - 1]
         payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
@@ -271,7 +246,6 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="premiumstatus")
     async def premium_status(self, ctx, member: discord.Member = None):
-        """Displays a themed, comprehensive overview of the user's acquired assets."""
         target = member or ctx.author
         with self.get_db_connection() as conn:
             u = conn.execute("SELECT premium_type, premium_date, balance, xp, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
@@ -310,18 +284,18 @@ class PremiumSystem(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
-    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can activate global override
+    @commands.is_owner()
     @commands.has_permissions(administrator=True)
     async def echo_on(self, ctx):
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
-            conn.execute("UPDATE users SET premium_type = '20. Full Premium Everything', premium_date = ?", (p_date,))
+            conn.execute("UPDATE users SET premium_type = '10. Full Premium', premium_date = ?", (p_date,))
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", "👑 ALL ASSETS ELEVATED.", color=0xFFD700))
         await self.log_admin_action(ctx.guild.me, "All Users", "GLOBAL PREMIUM OVERRIDE (ON)")
 
     @commands.command(name="echooff")
-    @commands.is_owner() # SECURED FOR TOP.GG: Only owner (425328974210793472) can reset system
+    @commands.is_owner()
     @commands.has_permissions(administrator=True)
     async def echo_off(self, ctx):
         with self.get_db_connection() as conn:
