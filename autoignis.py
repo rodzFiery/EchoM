@@ -109,6 +109,10 @@ class IgnisAuto(commands.Cog):
 
         # 1. Process the previous lobby if it exists
         if self.current_auto_lobby:
+            # FIX: Disable previous view buttons to stop users from joining a "ghost" lobby
+            for item in self.current_auto_lobby.children:
+                item.disabled = True
+
             if len(self.current_auto_lobby.participants) >= 2:
                 # INDEPENDENT TRIGGER: We no longer check if IgnisEngine is busy.
                 # Both manual and automatic games can run simultaneously.
@@ -221,6 +225,10 @@ class IgnisAuto(commands.Cog):
         
         next_run_time = target_time.replace(minute=next_m, second=0, microsecond=0)
 
+        # Update last processed window so we don't double-trigger on initialization
+        current_minute_block = 0 if now.minute < 30 else 30
+        self.last_processed_window = f"{now.hour}_{current_minute_block}"
+
         embed = main.fiery_embed("🔞 AUTOMATED RED ROOM: INITIALIZED", 
             "🥀 **Automated Pit set and synchronized.**\n\n"
             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
@@ -300,4 +308,4 @@ class IgnisAuto(commands.Cog):
             await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(IgnisAuto(bot))
+    await bot.add_cog(IgnisAuto(bot))))
