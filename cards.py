@@ -16,29 +16,85 @@ class CardSystem(commands.Cog):
         self._init_db()
         self.card_spawn_loop.start()
 
-        # INITIAL 20 CARD DATA (Echo Volcano Theme)
-        # Types: Magma, Ash, Obsidian, Inferno
+        # COMPLETE CARD POOL (Including every single uploaded file)
         self.card_pool = [
-            {"name": "Magma Core", "tier": "basic", "type": "Magma", "image": "Magma_Core.jpg"},
-            {"name": "Ash Cloud", "tier": "basic", "type": "Ash", "image": "Ash_Cloud.jpg"},
-            {"name": "Obsidion Shard", "tier": "basic", "type": "Obsidian", "image": "Obsidion_Shard.jpg"},
-            {"name": "Small Spark", "tier": "basic", "type": "Inferno", "image": "Small_Spark.jpg"},
-            {"name": "Lava Snake", "tier": "rare", "type": "Magma", "image": "Lava_Snake.jpg"},
-            {"name": "Cinder Spirit", "tier": "rare", "type": "Ash", "image": "Cinder_Spirit.jpg"},
-            {"name": "Stone Golem", "tier": "rare", "type": "Obsidian", "image": "Stone_Golem.jpg"},
-            {"name": "Fire Wisp", "tier": "rare", "type": "Inferno", "image": "Fire_Wisp.jpg"},
-            {"name": "Volcanic Dragon", "tier": "epic", "type": "Magma", "image": "Volcanic_Dragon.jpg"},
-            {"name": "Phoenix Feather", "tier": "epic", "type": "Inferno", "image": "Phoenix_Feather.jpg"},
-            {"name": "Obsidian Armor", "tier": "epic", "type": "Obsidian", "image": "Obsidian_Armor.jpg"},
-            {"name": "Platinum Embers", "tier": "platine", "type": "Inferno", "image": "Platinum_Embers.jpg"},
-            {"name": "Crystal Magma", "tier": "platine", "type": "Magma", "image": "Crystal_Magma.jpg"},
-            {"name": "Eternal Flame", "tier": "legendary", "type": "Inferno", "image": "Eternal_Flame.jpg"},
-            {"name": "Echo Volcano Heart", "tier": "legendary", "type": "Ash", "image": "Echo_Volcano_Heart.jpg"},
-            {"name": "Supreme Inferno King", "tier": "supreme", "type": "Inferno", "image": "Supreme_Inferno_King.jpg"},
-            {"name": "Magma Leviathan", "tier": "epic", "type": "Magma", "image": "Magma_Leviathan.jpg"},
-            {"name": "Shadow Ash", "tier": "rare", "type": "Ash", "image": "Shadow_Ash.jpg"},
-            {"name": "Burning Rune", "tier": "basic", "type": "Inferno", "image": "Burning_Rune.jpg"},
-            {"name": "Void Obsidian", "tier": "platine", "type": "Obsidian", "image": "Void_Obsidian.jpg"}
+            # LAVA SERIES
+            {"name": "Lava Core", "tier": "basic", "type": "Lava", "image": "lava_BASIC_1.png"},
+            {"name": "Lava Surge", "tier": "rare", "type": "Lava", "image": "lava_RARE_1.png"},
+            {"name": "Lava Titan", "tier": "epic", "type": "Lava", "image": "lava_EPIC_1.png"},
+            {"name": "Lava Sentry", "tier": "platine", "type": "Lava", "image": "lava_PLAT_1.png"},
+            {"name": "Lava King", "tier": "legendary", "type": "Lava", "image": "lava_LEGENDARY_1.png"},
+            {"name": "Lava God", "tier": "supreme", "type": "Lava", "image": "lava_SUPREME_1.png"},
+            
+            # GLADIATOR SERIES
+            {"name": "Gladiator Recruit", "tier": "basic", "type": "Gladiator", "image": "gladiator_BASIC_1.png"},
+            {"name": "Gladiator Veteran", "tier": "rare", "type": "Gladiator", "image": "gladiator_RARE_1.png"},
+            {"name": "Gladiator Champion", "tier": "epic", "type": "Gladiator", "image": "gladiator_EPIC_1.png"},
+            {"name": "Gladiator Elite", "tier": "platine", "type": "Gladiator", "image": "gladiator_PLAT_1.png"},
+            {"name": "Gladiator Legend", "tier": "legendary", "type": "Gladiator", "image": "gladiator_LEGENDARY_1.png"},
+            {"name": "Gladiator Emperor", "tier": "supreme", "type": "Gladiator", "image": "gladiator_SUPREME_1.png"},
+
+            # WATER SERIES
+            {"name": "Water Spirit", "tier": "basic", "type": "Water", "image": "water_BASIC_1.png"},
+            {"name": "Water Wraith", "tier": "rare", "type": "Water", "image": "water_RARE_1.png"},
+            {"name": "Water Drake", "tier": "epic", "type": "Water", "image": "water_EPIC_1.png"},
+            {"name": "Water Guardian", "tier": "platine", "type": "Water", "image": "water_PLAT_1.png"},
+            {"name": "Water Sovereign", "tier": "legendary", "type": "Water", "image": "water_LEGENDARY_1.png"},
+            {"name": "Water Deity", "tier": "supreme", "type": "Water", "image": "water_SUPREME_1.png"},
+
+            # SPACE SERIES
+            {"name": "Space Dust", "tier": "basic", "type": "Space", "image": "space_BASIC_1.png"},
+            {"name": "Space Nebula", "tier": "rare", "type": "Space", "image": "space_RARE_1.png"},
+            {"name": "Space Pulsar", "tier": "epic", "type": "Space", "image": "space_EPIC_1.png"},
+            {"name": "Space Rift", "tier": "platine", "type": "Space", "image": "space_PLAT_1.png"},
+            {"name": "Space Singularity", "tier": "legendary", "type": "Space", "image": "space_LEGENDARY_1.png"},
+            {"name": "Space Overlord", "tier": "supreme", "type": "Space", "image": "space_SUPREME_1.png"},
+
+            # GRASS SERIES
+            {"name": "Grass Sprout", "tier": "basic", "type": "Grass", "image": "grass_BASIC_1.png"},
+            {"name": "Grass Guardian", "tier": "rare", "type": "Grass", "image": "grass_RARE_1.png"},
+            {"name": "Grass Ancient", "tier": "epic", "type": "Grass", "image": "grass_EPIC_1.png"},
+            {"name": "Grass Warden", "tier": "platine", "type": "Grass", "image": "grass_PLAT_1.png"},
+            {"name": "Grass Avatar", "tier": "legendary", "type": "Grass", "image": "grass_LEGENDARY_1.png"},
+            {"name": "Grass Creator", "tier": "supreme", "type": "Grass", "image": "grass_SUPREME_1.png"},
+
+            # TRICITY SERIES
+            {"name": "Tricity Circuit", "tier": "basic", "type": "Tricity", "image": "tricity_basic_1.png"},
+            {"name": "Tricity Pulse", "tier": "rare", "type": "Tricity", "image": "tricity_rare_1.png"},
+            {"name": "Tricity Storm", "tier": "epic", "type": "Tricity", "image": "tricity_EPIC_1.png"},
+            {"name": "Tricity Node", "tier": "platine", "type": "Tricity", "image": "tricity_PLAT_1.png"},
+            {"name": "Tricity Core", "tier": "legendary", "type": "Tricity", "image": "tricity_LEGENDARY_1.png"},
+            {"name": "Tricity Prime", "tier": "supreme", "type": "trcitiy_SUPREME_1.png"},
+
+            # FLIRT SERIES
+            {"name": "Flirt Spark", "tier": "basic", "type": "Flirt", "image": "flirt_BASIC_1.png"},
+            {"name": "Flirt Glance", "tier": "rare", "type": "Flirt", "image": "flirt_RARE_1.png"},
+            {"name": "Flirt Charm", "tier": "epic", "type": "Flirt", "image": "flirt_EPIC_1.png"},
+            {"name": "Flirt Allure", "tier": "platine", "type": "Flirt", "image": "flirt_PLAT_1.png"},
+            {"name": "Flirt Desire", "tier": "legendary", "type": "Flirt", "image": "flirt_LEGENDARY_1.png"},
+            {"name": "Flirt Goddess", "tier": "supreme", "type": "flirt_SUPREME_1.png"},
+
+            # PINK SERIES
+            {"name": "Pink Mist", "tier": "basic", "type": "Pink", "image": "pink_BASIC_1.png"},
+            {"name": "Pink Bloom", "tier": "rare", "type": "Pink", "image": "pink_RARE_1.png"},
+            {"name": "Pink Jewel", "tier": "epic", "type": "Pink", "image": "pink_EPIC_1.png"},
+            {"name": "Pink Crystal", "tier": "platine", "type": "Pink", "image": "pink_PLAT_1.png"},
+            {"name": "Pink Essence", "tier": "legendary", "type": "Pink", "image": "pink_LEGENDARY_1.png"},
+            {"name": "Pink Empress", "tier": "supreme", "type": "pink_SUPREME_1.png"},
+
+            # GROUND SERIES
+            {"name": "Ground Pebble", "tier": "basic", "type": "Ground", "image": "ground_BASIC_1.png"},
+            {"name": "Ground Crag", "tier": "rare", "type": "Ground", "image": "ground_RARE_1.png"},
+            {"name": "Ground Golem", "tier": "epic", "type": "Ground", "image": "ground_EPIC_1.png"},
+            {"name": "Ground Pillar", "tier": "platine", "type": "Ground", "image": "ground_PLAT_1.png"},
+            {"name": "Ground Mountain", "tier": "legendary", "type": "Ground", "image": "ground_LEGENDARY_1.png"},
+            {"name": "Ground Earth-Heart", "tier": "supreme", "type": "ground_SUPREME_1.png"},
+
+            # MYSTERY SERIES
+            {"name": "Mystery Fog", "tier": "basic", "type": "Mystery", "image": "mystery_BASIC_1.png"},
+            {"name": "Mystery Shadow", "tier": "rare", "type": "Mystery", "image": "mystery_RARE_1.png"},
+            {"name": "Mystery Enigma", "tier": "epic", "type": "Mystery", "image": "mystery_EPIC_1.png"},
+            {"name": "Mystery Void", "tier": "platine", "type": "Mystery", "image": "mystery_PLAT_1.png"}
         ]
 
     def _init_db(self):
@@ -76,9 +132,8 @@ class CardSystem(commands.Cog):
                 f"Type `!catch {self.current_card['name']}` to collect it!"
             )
             
-            # Updated image path logic using the 'image' key from pool
             image_filename = self.current_card['image']
-            image_path = f"cards/{image_filename}"
+            image_path = f"card.base/{image_filename}"
             
             if os.path.exists(image_path):
                 file = discord.File(image_path, filename=image_filename)
