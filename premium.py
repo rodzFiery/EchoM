@@ -122,13 +122,16 @@ class PremiumShopView(discord.ui.View):
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
-        custom_data = f"{interaction.user.id}|{plan_name}|30"
+        # SERVER-WIDE LOGIC: If user is admin, purchase is flagged for guild ID
+        target_id = f"G{interaction.guild.id}" if interaction.user.guild_permissions.administrator else interaction.user.id
+        custom_data = f"{target_id}|{plan_name}|30"
+        
         query = {
             "business": PAYPAL_EMAIL,
             "cmd": "_xclick",
-            "amount": plan['cost'],
+            "amount": plan['cost'] if not interaction.user.guild_permissions.administrator else plan['cost'] * 3, # Server license is 3x price
             "currency_code": CURRENCY,
-            "item_name": f"Elite Premium: {plan_name}",
+            "item_name": f"Elite Premium: {plan_name} ({'SERVER UNLOCK' if 'G' in str(target_id) else 'USER UNLOCK'})",
             "custom": custom_data,
             "notify_url": WEBHOOK_URL, 
             "no_shipping": "1",
@@ -136,16 +139,19 @@ class PremiumShopView(discord.ui.View):
         }
         paypal_url = f"https://www.paypal.com/cgi-bin/webscr?{urllib.parse.urlencode(query)}"
 
+        scope = "🌐 **SERVER-WIDE LICENSE**" if "G" in str(target_id) else "👤 **PERSONAL LICENSE**"
+        final_cost = query['amount']
+
         embed = self.fiery_embed("INVOICE GENERATED │ SECURE CHECKOUT", 
                                 f"🔞 **User:** {interaction.user.mention}\n"
+                                f"🏷️ **Scope:** {scope}\n"
                                 f"💎 **Plan:** `{plan_name}`\n"
-                                f"💵 **Total:** `${plan['cost']} USD`\n\n"
+                                f"💵 **Total:** `${final_cost} USD`\n\n"
                                 f"✅ [CLICK HERE TO FINALIZE ON PAYPAL]({paypal_url})\n\n"
-                                f"⏳ *The system will detect payment and unlock your access immediately.*")
+                                f"⏳ *The system will detect payment and unlock access immediately.*")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        # Log to Audit Channel
-        await self.send_audit_report(interaction, plan_name, plan['cost'])
+        await self.send_audit_report(interaction, plan_name, final_cost)
 
 class PremiumSystem(commands.Cog):
     def __init__(self, bot, get_db_connection, fiery_embed, update_user_stats):
@@ -163,7 +169,7 @@ class PremiumSystem(commands.Cog):
         if channel:
             embed = self.fiery_embed("⚖️ ADMINISTRATIVE PREMIUM OVERRIDE", 
                 f"**Action:** `{action}`\n"
-                f"**Target:** {member.mention}\n"
+                f"**Target:** {member.mention if hasattr(member, 'mention') else member}\n"
                 f"**Plan Details:** `{plan_name}`", color=0xE74C3C)
             await channel.send(embed=embed)
 
@@ -180,11 +186,27 @@ class PremiumSystem(commands.Cog):
         else:
             await ctx.send(embed=embed, view=view)
 
+    @commands.command(name="activateserver")
+    @commands.is_owner()
+    @commands.has_permissions(administrator=True)
+    async def activate_server_premium(self, ctx, guild_id: int, plan_number: int):
+        """Manually activate premium for a whole server."""
+        plan_list = list(PREMIUM_PLANS.keys())
+        plan_name = plan_list[plan_number - 1]
+        p_date = datetime.now().isoformat()
+        
+        with self.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)",
+                         (guild_id, plan_name, p_date))
+            conn.commit()
+            
+        await ctx.send(embed=self.fiery_embed("SERVER PREMIUM ACTIVATED", f"✅ Guild ID `{guild_id}` elevated to **{plan_name}**.", color=0x00FF00))
+        await self.log_admin_action(f"Guild {guild_id}", plan_name, "SERVER MANUAL ACTIVATION")
+
     @commands.command(name="activate")
     @commands.is_owner()
     @commands.has_permissions(administrator=True)
     async def activate_premium(self, ctx, member: discord.Member, plan_number: int):
-        """Manually activate premium after payment verification."""
         plan_list = list(PREMIUM_PLANS.keys())
         if plan_number < 1 or plan_number > len(plan_list):
             return await ctx.send("❌ Invalid plan.")
@@ -211,13 +233,11 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="testpay")
     @commands.is_owner()
     @commands.has_permissions(administrator=True)
-    async def test_payment(self, ctx, member: discord.Member, plan_number: int):
+    async def test_payment(self, ctx, member: discord.Member, plan_number: int, is_server: bool = False):
         plan_list = list(PREMIUM_PLANS.keys())
-        if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Invalid plan index (1-10).")
-        
         plan_name = plan_list[plan_number - 1]
-        payload = {'payment_status': 'Completed', 'custom': f"{member.id}|{plan_name}|30"}
+        target = f"G{ctx.guild.id}" if is_server else member.id
+        payload = {'payment_status': 'Completed', 'custom': f"{target}|{plan_name}|30"}
         
         port = os.environ.get("PORT", "8080")
         urls = [f"http://127.0.0.1:{port}/webhook", WEBHOOK_URL]
@@ -228,17 +248,18 @@ class PremiumSystem(commands.Cog):
                 try:
                     async with session.post(url, data=payload, timeout=5) as resp:
                         if resp.status == 200:
-                            return await ctx.send(f"✅ **Success via {url}!**\n{member.mention} added: **{plan_name}**.")
+                            return await ctx.send(f"✅ **Success via {url}!**\nType: **{'SERVER' if is_server else 'USER'}** | Plan: **{plan_name}**.")
                 except Exception:
                     continue
-        
-        await ctx.send("❌ **Test Failed.** Webhook unreachable. Ensure Flask is running in main.py.")
+        await ctx.send("❌ **Test Failed.**")
 
     @commands.command(name="premiumstats")
     async def premium_stats(self, ctx):
         with self.get_db_connection() as conn:
             stats = conn.execute("SELECT premium_type, COUNT(*) as count FROM users GROUP BY premium_type").fetchall()
+            srv_stats = conn.execute("SELECT COUNT(*) FROM server_premium").fetchone()[0]
         desc = "📉 **MARKET DISTRIBUTION REPORT**\n\n"
+        desc += f"🌐 **Premium Servers:** {srv_stats} Guilds\n"
         for row in stats:
             p_type = row['premium_type'] or "Free"
             desc += f"• **{p_type}:** {row['count']} Units\n"
@@ -248,40 +269,21 @@ class PremiumSystem(commands.Cog):
     async def premium_status(self, ctx, member: discord.Member = None):
         target = member or ctx.author
         with self.get_db_connection() as conn:
-            u = conn.execute("SELECT premium_type, premium_date, balance, xp, fiery_level FROM users WHERE id = ?", (target.id,)).fetchone()
+            u = conn.execute("SELECT premium_type, premium_date FROM users WHERE id = ?", (target.id,)).fetchone()
+            s = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
         
-        if not u or u['premium_type'] in ['Free', '', None]:
-            return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is currently restricted to **Standard Access**.", color=0x808080))
+        is_user_p = u and u['premium_type'] not in ['Free', '', None]
+        is_server_p = s is not None
         
-        bundles = [b.strip() for b in u['premium_type'].split(',')]
+        if not is_user_p and not is_server_p:
+            return await ctx.send(embed=self.fiery_embed("ASSET SEARCH", f"⛓️ {target.display_name} is restricted to **Standard Access**.", color=0x808080))
         
         desc = f"### 💎 ELITE ACCOUNT OVERVIEW: {target.display_name.upper()} 💎\n"
-        desc += f"*Verification confirmed. Accessing secure vault data...*\n\n"
+        if is_server_p: desc += f"🌐 **SERVER PREMIUM ACTIVE:** `{s['premium_type']}`\n"
+        if is_user_p: desc += f"👤 **PERSONAL PREMIUM ACTIVE:** `{u['premium_type']}`\n"
         
-        desc += "📊 **GLOBAL STANDING**\n"
-        desc += f"```ml\nLevel: {u['fiery_level']} | XP: {u['xp']:,} | Capital: {u['balance']:,} Flames\n```\n"
-        
-        desc += "📂 **ACQUIRED BUNDLES & PRIVILEGES**\n"
-        for bundle in bundles:
-            plan_info = PREMIUM_PLANS.get(bundle)
-            if plan_info:
-                desc += f"➤ **{bundle.upper()}**\n"
-                desc += f"└─ `PERKS:` *{plan_info['perks']}*\n"
-            else:
-                desc += f"➤ **{bundle.upper()}**\n└─ `PERKS:` *Custom Administrative Override*\n"
-        
-        desc += f"\n⏳ **LATEST SYNCHRONIZATION:**\n`{u['premium_date']}`\n"
-        desc += "\n*Protocol V4 is active. All premium logic is synchronized.*"
-
         embed = self.fiery_embed("PRIVATE ASSET OVERVIEW", desc, color=0xFFD700)
-        embed.set_thumbnail(url=target.display_avatar.url)
-        
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="status_header.jpg")
-            embed.set_image(url="attachment://status_header.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
     @commands.is_owner()
@@ -292,7 +294,6 @@ class PremiumSystem(commands.Cog):
             conn.execute("UPDATE users SET premium_type = '10. Full Premium', premium_date = ?", (p_date,))
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", "👑 ALL ASSETS ELEVATED.", color=0xFFD700))
-        await self.log_admin_action(ctx.guild.me, "All Users", "GLOBAL PREMIUM OVERRIDE (ON)")
 
     @commands.command(name="echooff")
     @commands.is_owner()
@@ -300,16 +301,19 @@ class PremiumSystem(commands.Cog):
     async def echo_off(self, ctx):
         with self.get_db_connection() as conn:
             conn.execute("UPDATE users SET premium_type = 'Free', premium_date = NULL")
+            conn.execute("DELETE FROM server_premium")
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", "🌑 ALL UNITS RESET.", color=0x808080))
-        await self.log_admin_action(ctx.guild.me, "All Users", "GLOBAL SYSTEM PURGE (OFF)")
 
     @staticmethod
     def is_premium():
         async def predicate(ctx):
             main = sys.modules['__main__']
-            user = main.get_user(ctx.author.id)
-            if user and user.get('premium_type') and user['premium_type'] not in ['Free', '']:
+            with main.get_db_connection() as conn:
+                user = conn.execute("SELECT premium_type FROM users WHERE id = ?", (ctx.author.id,)).fetchone()
+                serv = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            
+            if (user and user['premium_type'] not in ['Free', '']) or serv:
                 return True
             await ctx.send(embed=main.fiery_embed("ACCESS DENIED", "❌ Premium Access Required."))
             return False
@@ -319,6 +323,7 @@ async def setup(bot):
     import sys
     main = sys.modules['__main__']
     with main.get_db_connection() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS server_premium (guild_id INTEGER PRIMARY KEY, premium_type TEXT, premium_date TEXT)")
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_type TEXT DEFAULT 'Free'")
         except: pass 
         try: conn.execute("ALTER TABLE users ADD COLUMN premium_date TEXT")
