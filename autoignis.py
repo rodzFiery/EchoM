@@ -3,10 +3,8 @@ try:
     import audioop
 except ImportError:
     try:
-        import audioop_lts as audioop
-        import sys
-        sys.modules['audioop'] = audioop
-    except ImportError:
+        from aiohttp import audioop
+    except:
         pass 
 
 import discord
@@ -308,4 +306,4 @@ class IgnisAuto(commands.Cog):
             await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(IgnisAuto(bot))))
+    await bot.add_cog(IgnisAuto(bot))
