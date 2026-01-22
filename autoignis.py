@@ -86,7 +86,6 @@ class IgnisAuto(commands.Cog):
         now = datetime.now()
         
         # CALCULATE CURRENT WINDOW (:00 or :30)
-        # This identifies which 30-minute block we are currently in
         current_minute_block = 0 if now.minute < 30 else 30
         window_id = f"{now.hour}_{current_minute_block}"
 
@@ -102,23 +101,13 @@ class IgnisAuto(commands.Cog):
             return
 
         # 1. Process the previous lobby if it exists
-        # CRITICAL FIX: Ensure the battle is dispatched BEFORE the lobby object is refreshed
         if self.current_auto_lobby:
             if len(self.current_auto_lobby.participants) >= 2:
-                # TRANSFER CHECK: Only start if the manual engine isn't already busy in this channel
+                # INDEPENDENT TRIGGER: We no longer check if IgnisEngine is busy.
+                # Both manual and automatic games can run simultaneously.
                 ignis_engine = self.bot.get_cog("IgnisEngine")
-                
-                # NEW: WAIT PROTOCOL - If a game is still running, wait for it to end
-                wait_count = 0
-                while ignis_engine and channel.id in ignis_engine.active_battles:
-                    if wait_count == 0:
-                        await channel.send("⏳ **The previous massacre is still concluding.** New cycle is in queue...")
-                    await asyncio.sleep(30) # Check every 30 seconds
-                    wait_count += 1
-                    if wait_count > 20: # Timeout after 10 mins of waiting
-                         break
 
-                if ignis_engine and channel.id not in ignis_engine.active_battles:
+                if ignis_engine:
                     await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
                     
                     import sys
@@ -138,15 +127,12 @@ class IgnisAuto(commands.Cog):
                     if hasattr(main_module, "game_edition"):
                         main_module.game_edition += 1
                         main_module.save_game_config()
-                elif ignis_engine and channel.id in ignis_engine.active_battles:
-                     await channel.send("⚠️ **Lobby Terminated:** The previous session took too long. Resetting for next cycle.")
                 else:
                     await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
             else:
                 await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
 
         # 2. Start NEW lobby for the next 30 minutes
-        # Registering the View to ensure button persistence
         self.current_auto_lobby = AutoLobbyView()
         
         # ENHANCED INFORMATIVE CONTENT
@@ -175,7 +161,6 @@ class IgnisAuto(commands.Cog):
         )
         
         # UPDATED: Real-time footer calculation for 30m precision
-        next_run_delta = 30 if now.minute < 30 else 60
         next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
         if now.minute >= 30:
             next_run_time += timedelta(hours=1)
@@ -184,7 +169,7 @@ class IgnisAuto(commands.Cog):
 
         # ADDED: HOURLY PING LOGIC (Every 1 hour at .00)
         content = None
-        if now.minute < 5 and self.ping_role_id != 0: # Ping if it's the start of the hour
+        if now.minute < 5 and self.ping_role_id != 0: 
             content = f"<@&{self.ping_role_id}>"
 
         if os.path.exists(image_path):
@@ -205,25 +190,19 @@ class IgnisAuto(commands.Cog):
         import sys
         main_module = sys.modules['__main__']
         
-        # Update the local reference
         self.auto_channel_id = ctx.channel.id
-        
-        # CONNECTION: Persist the change in the main module's config
         main_module.AUTO_IGNIS_CHANNEL = ctx.channel.id
         main_module.save_game_config()
         
-        # DATABASE PERSISTENCE: Ensure Railway redeploy doesn't reset this
         try:
             with main_module.get_db_connection() as conn:
                 conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(ctx.channel.id),))
                 conn.commit()
         except: pass
         
-        # --- ADDED: IMMEDIATE LOBBY TRIGGER FOR SETUP ---
         self.current_auto_lobby = AutoLobbyView()
         now = datetime.now()
         
-        # Logic to determine next interval for the footer
         if now.minute < 30:
             next_m = 30
             target_time = now
@@ -249,7 +228,6 @@ class IgnisAuto(commands.Cog):
         else:
             await ctx.send(embed=embed, view=self.current_auto_lobby)
         
-        # Restart the loop to keep the background check alive
         self.auto_loop.restart()
 
     @commands.command(name="autoignis")
@@ -258,55 +236,38 @@ class IgnisAuto(commands.Cog):
         """Sets the role to be pinged every hour at .00."""
         import sys
         main_module = sys.modules['__main__']
-        
         self.ping_role_id = role.id
-        
-        # Persist to main config
         main_module.AUTO_IGNIS_ROLE = role.id
         main_module.save_game_config()
-
-        # DATABASE PERSISTENCE: Ensure Railway redeploy doesn't reset this
         try:
             with main_module.get_db_connection() as conn:
                 conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_role', ?)", (str(role.id),))
                 conn.commit()
         except: pass
-        
-        embed = main.fiery_embed("Auto-Ignis Ping Config",
-            f"🔔 **Lobby pings enabled.**\n\n"
-            f"The role {role.mention} will now be summoned every hour at `:00` to face the Red Room.", color=0x00FF00)
+        embed = main.fiery_embed("Auto-Ignis Ping Config", f"🔔 **Lobby pings enabled.**\n\nThe role {role.mention} will now be summoned every hour at `:00` to face the Red Room.", color=0x00FF00)
         await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
     @commands.is_owner()
     async def stop_auto_ignis(self, ctx):
         """Stops the Automated Ignis cycle immediately."""
-        # NEW: CANCEL PROTOCOL
-        self.auto_loop.cancel() # Stronger than .stop()
+        self.auto_loop.cancel()
         self.current_auto_lobby = None
-        
-        embed = main.fiery_embed("Auto-Ignis Terminated", 
-            "🛑 **The Automated Cycle has been halted.**\n\n"
-            "The gears have stopped turning and the registration ledger is cleared. "
-            "The Master has revoked the automated protocol.", color=0xFF0000)
+        embed = main.fiery_embed("Auto-Ignis Terminated", "🛑 **The Automated Cycle has been halted.**", color=0xFF0000)
         await ctx.send(embed=embed)
 
-    # ADDED: Specialized Lobby Command for Automated Sessions
     @commands.command(name="autolobby")
     async def autolobby_status(self, ctx):
         """Checks the current souls registered for the Automated Cycle."""
         if not self.current_auto_lobby:
             embed = main.fiery_embed("Automated Lobby", "No active cycle is currently gathering souls.")
             return await ctx.send(embed=embed)
-        
         participants = self.current_auto_lobby.participants
         if not participants:
-            embed = main.fiery_embed("Automated Lobby", "The automated room is currently empty. No souls have signed yet.")
+            embed = main.fiery_embed("Automated Lobby", "The automated room is currently empty.")
             return await ctx.send(embed=embed)
-        
         mentions = [f"<@{p_id}>" for p_id in participants]
-        embed = main.fiery_embed("Upcoming Souls", f"The following sinners are queued for the next automated execution:\n\n" + "\n".join(mentions), color=0x5865F2)
-        
+        embed = main.fiery_embed("Upcoming Souls", f"Queued for next automated execution:\n\n" + "\n".join(mentions), color=0x5865F2)
         image_path = "LobbyTopRight.jpg"
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="lobby.jpg")
