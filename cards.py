@@ -16,7 +16,7 @@ class CardSystem(commands.Cog):
         self._init_db()
         self.card_spawn_loop.start()
         
-        # PERSISTENCE: Restore the spawn channel from the database
+        # PERSISTENCE: Restore the spawn channel from the central config table
         self._load_config()
 
         # COMPLETE CARD POOL (Including every single uploaded file)
@@ -104,6 +104,7 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
+            # ADDED: Table to store card system settings independently
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.commit()
 
