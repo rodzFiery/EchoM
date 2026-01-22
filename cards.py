@@ -104,7 +104,6 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
-            # ADDED: Table to store card system settings independently
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.commit()
 
@@ -194,15 +193,55 @@ class CardSystem(commands.Cog):
         self.current_card = None # Prevent double catching
 
         with main_mod.get_db_connection() as conn:
+            # 1. Archive the new asset
             conn.execute("INSERT INTO user_cards (user_id, card_name, tier) VALUES (?, ?, ?)", 
                          (user_id, card['name'], card['tier']))
             conn.commit()
 
-        await ctx.send(embed=main_mod.fiery_embed(
-            "🔥 CARD COLLECTED!",
-            f"{ctx.author.mention} has captured **{card['name']}** ({card['tier'].upper()})!\n"
-            f"This asset has been archived in your Pokedex."
-        ))
+            # 2. Extract Statistics for the visual Dossier
+            # Total Card Count
+            total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
+            
+            # Tier Breakdown
+            tiers = ["supreme", "legendary", "platine", "epic", "rare", "basic"]
+            tier_stats = []
+            for t in tiers:
+                count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ? AND tier = ?", (user_id, t)).fetchone()[0]
+                if count > 0:
+                    tier_stats.append(f"• **{t.upper()}:** {count}")
+            
+            # Collection Breakdown (Matching pool types)
+            rows = conn.execute("SELECT card_name FROM user_cards WHERE user_id = ?", (user_id,)).fetchall()
+            user_card_names = [r[0] for r in rows]
+            
+            collections = {}
+            for p_card in self.card_pool:
+                if p_card['name'] in user_card_names:
+                    c_type = p_card['type']
+                    collections[c_type] = collections.get(c_type, 0) + user_card_names.count(p_card['name'])
+
+        # 3. Build the High-Fidelity Capture Dossier
+        tier_display = "\n".join(tier_stats) if tier_stats else "New collection started."
+        coll_display = "\n".join([f"🔸 **{k}:** {v}" for k, v in list(collections.items())[:5]])
+
+        embed = main_mod.fiery_embed(
+            "🔥 ASSET SECURED!",
+            f"{ctx.author.mention} has successfully synchronized with **{card['name']}**!",
+            color=0xFFD700 # Gold color for success
+        )
+        
+        embed.add_field(name="🧬 Spec Details", value=f"**Type:** {card['type']}\n**Tier:** {card['tier'].upper()}", inline=True)
+        embed.add_field(name="📊 Vault Summary", value=f"**Total Assets:** {total_count}\n**Rank:** Asset Hunter", inline=True)
+        embed.add_field(name="💎 Rarity Distribution", value=tier_display, inline=False)
+        embed.add_field(name="🏛️ Collection Mastery", value=coll_display or "Gathering data...", inline=False)
+        
+        image_path = f"card.base/{card['image']}"
+        if os.path.exists(image_path):
+            file = discord.File(image_path, filename="captured_asset.png")
+            embed.set_image(url="attachment://captured_asset.png")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
