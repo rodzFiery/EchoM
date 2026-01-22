@@ -25,20 +25,12 @@ class AuditManager(commands.Cog):
         channel_ids = [c.id for c in channels]
         primary_id = channel_ids[0]
         
-        # Update Global Variable in main.py memory
-        main_mod.AUDIT_CHANNEL_ID = primary_id
-        
-        # Sync with other modules that might be holding the old ID
-        for cog_name in ["IgnisEngine", "Collect", "FieryShip", "DungeonAsk"]:
-            cog = self.bot.get_cog(cog_name)
-            if cog and hasattr(cog, "AUDIT_CHANNEL_ID"):
-                cog.AUDIT_CHANNEL_ID = primary_id
-
-        # PERSISTENCE: Save to database so it stays fixed after Railway restart
+        # PERSISTENCE: Save per GUILD ID so each server is independent
         try:
             with db_module.get_db_connection() as conn:
-                # We assume a 'config' table exists for system variables
-                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('audit_channel', ?)", (str(primary_id),))
+                # Table ensures each guild has its own independent audit channel
+                conn.execute("CREATE TABLE IF NOT EXISTS guild_config (guild_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
+                conn.execute("INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, 'audit_channel', ?)", (ctx.guild.id, str(primary_id)))
                 conn.commit()
         except Exception as e:
             print(f"⚠️ Persistence Error: {e}")
@@ -46,9 +38,9 @@ class AuditManager(commands.Cog):
         # Final Confirmation
         channel_mentions = " ".join([c.mention for c in channels])
         embed = main_mod.fiery_embed("🕵️ AUDIT PROTOCOL UPDATED", 
-            f"The Master has redirected the voyeur frequencies.\n\n"
+            f"The Master has redirected the voyeur frequencies for this sector.\n\n"
             f"**New Audit Target(s):** {channel_mentions}\n"
-            f"**System Status:** All logs are now routing to the designated sector.", color=0x00FF00)
+            f"**System Status:** Logs for **{ctx.guild.name}** are now independent.", color=0x00FF00)
         
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
@@ -59,4 +51,4 @@ class AuditManager(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(AuditManager(bot))
-    print("✅ LOG: Audit Manager Extension (Dynamic Redirect) is ONLINE.")
+    print("✅ LOG: Audit Manager Extension (Guild-Independent) is ONLINE.")
