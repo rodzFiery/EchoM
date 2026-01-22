@@ -10,6 +10,15 @@ from PIL import Image, ImageDraw, ImageOps, ImageFilter
 from datetime import datetime, timezone, timedelta
 import asyncio # ADDED: Required for to_thread logic
 
+# PYTHON 3.13 COMPATIBILITY SHIM
+try:
+    import audioop
+except ImportError:
+    try:
+        from aiohttp import audioop
+    except:
+        pass
+
 class FieryShip(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -29,7 +38,7 @@ class FieryShip(commands.Cog):
                 "An allergic reaction. The collar rejects the neck.",
                 "The chemistry set just exploded. Not in a good way.",
                 "Like a locked door with no keyhole. Impossible.",
-                "The abyss stares back, and it's bored by this couple.",
+                "The abyss staring back, and it's bored by this couple.",
                 "A desert of desire. Not a drop of heat to be found.",
                 "The chains rattle in protest. This is a mistake.",
                 "Zero. Nada. The dungeon lights flicker and die at the sight of them."
@@ -147,19 +156,17 @@ class FieryShip(commands.Cog):
                 draw = ImageDraw.Draw(canvas)
 
                 # ADDED: Galactic Background Particle Effects (Density based on percent)
-                # Higher percentage = more nebula stardust and cosmic hearts
                 particle_count = int((percent / 100) * 130) + 30
                 for _ in range(particle_count):
                     px = random.randint(0, canvas_width)
                     py = random.randint(0, canvas_height)
                     p_size = random.randint(5, 18)
-                    # UPDATED: Fine-tuned pinky galactic palette
                     p_type = random.choice(["heart", "spark", "nebula"])
                     p_color = random.choice([
                         (255, 192, 203, 180),  # Pink
                         (255, 182, 193, 160),  # Light Pink
                         (255, 105, 180, 140),  # Hot Pink
-                        (255, 240, 245, 200)   # Lavender Blush (Light Highlight)
+                        (255, 240, 245, 200)   # Lavender Blush
                     ])
                     
                     if p_type == "heart":
@@ -204,7 +211,6 @@ class FieryShip(commands.Cog):
                     badge_w, badge_h = 460, 100
                     badge_x = (canvas_width // 2) - (badge_w // 2)
                     badge_y = 10
-                    # Refined Pink Glow
                     draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 105, 180, 80))
                     draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 182, 193), width=4)
                     draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 182, 193))
@@ -217,14 +223,11 @@ class FieryShip(commands.Cog):
                 if fill_pixels > 0:
                     for i in range(fill_pixels):
                         ratio = i / pillar_h
-                        # GALACTIC LIGHT PINK GRADIENT logic - Pinky Girl Light
-                        # Bottom: Deep Rose (#FF1493) / Top: Light Sakura (#FFB6C1)
                         r = int(255) 
                         g = int(20 + (162 * ratio))   
                         b = int(147 + (46 * ratio)) 
                         current_y = (pillar_y + pillar_h) - i
                         draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
-                    # Indicator line (Pastel White/Pink Accent)
                     draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 245, 250))
                 percent_text = f"{percent}%"
                 draw.text((pillar_x - 30, 20), percent_text, fill=(255, 182, 193), stroke_width=6, stroke_fill=(0,0,0))
@@ -276,7 +279,6 @@ class FieryShip(commands.Cog):
             user1 = ctx.author
 
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        # ADDED: Reroll tracking logic
         pair_key = f"{min(user1.id, user2.id)}-{max(user1.id, user2.id)}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
@@ -286,12 +288,10 @@ class FieryShip(commands.Cog):
         attempt_count = self.ship_attempts[pair_key]['count']
 
         if attempt_count < 3:
-            # First two tries are purely random and different
             random.seed(f"{pair_key}{datetime.now().timestamp()}")
             percent = random.randint(0, 100)
             status_note = f"**⚠️ Unstable Vibration: Scan {attempt_count}/3. Results are fluctuating...**"
         else:
-            # Third try and beyond is locked for the day (12h+)
             seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
@@ -310,8 +310,6 @@ class FieryShip(commands.Cog):
         result_msg = message_template.format(u1=user1.display_name, u2=user2.display_name)
 
         main_mod = sys.modules['__main__']
-        
-        # FIXED: Wrap DB call to prevent blocking
         u1_data = await asyncio.to_thread(main_mod.get_user, user1.id)
         is_anni = False
         if u1_data['spouse'] == user2.id and u1_data['marriage_date']:
@@ -320,7 +318,6 @@ class FieryShip(commands.Cog):
             if m_date.day == now_dt.day and m_date.month != now_dt.month:
                 is_anni = True
 
-        # --- ENHANCED EMBED VISUALS ---
         embed = main_mod.fiery_embed("**💖 LOVEFINDER**", f"**Assets Involved: {user1.mention} ❤️‍🔥 {user2.mention}**\n{status_note}")
         
         if is_anni:
@@ -334,7 +331,6 @@ class FieryShip(commands.Cog):
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
             result_msg += "\n\n**💰 EXHIBITION REWARD: The dungeon provides 2,500 Flames for the show!**"
             
-            # TRACKING: Increment 69% counts
             def track_69():
                 with main_mod.get_db_connection() as conn:
                     conn.execute("UPDATE users SET ship_69_count = ship_69_count + 1 WHERE id = ?", (user1.id,))
@@ -343,7 +339,6 @@ class FieryShip(commands.Cog):
             await asyncio.to_thread(track_69)
 
         if percent == 100:
-            # TRACKING: Increment 100% counts
             def track_100():
                 with main_mod.get_db_connection() as conn:
                     conn.execute("UPDATE users SET ship_100_count = ship_100_count + 1 WHERE id = ?", (user1.id,))
@@ -351,14 +346,12 @@ class FieryShip(commands.Cog):
                     conn.commit()
             await asyncio.to_thread(track_100)
 
-        # ADDED: Global Total Increment for the initiator
         def track_total():
             with main_mod.get_db_connection() as conn:
                 conn.execute("UPDATE users SET total_ships = total_ships + 1 WHERE id = ?", (ctx.author.id,))
                 conn.commit()
         await asyncio.to_thread(track_total)
 
-        # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
             f"# **`{percent}%`**\n"
             f"**LOVE SCORE TIER: `{tier.upper()}`**\n\n"
@@ -369,109 +362,71 @@ class FieryShip(commands.Cog):
         embed.add_field(name="**🔥 Potential**", value=f"**• Heat: `{'Moderate' if percent < 60 else 'Intense' if percent < 90 else 'VOLCANIC'}`**\n**• Bond: `{'Unstable' if percent < 30 else 'Fused' if percent > 90 else 'Reactive'}`**", inline=True)
         
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
-        
-        # --- ADDED: Reroll Button Logic ---
         view = discord.ui.View(timeout=60)
         if attempt_count < 3:
             reroll_btn = discord.ui.Button(label=f"Reroll Vibration ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
-            
             async def reroll_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
                 await interaction.response.defer()
                 await ctx.invoke(self.ship, user1=user1, user2=user2)
                 view.stop()
-            
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
 
         if img_buf:
             file = discord.File(img_buf, filename="ship.png")
             embed.set_image(url="attachment://ship.png")
-            
             files_to_send = [file]
             if os.path.exists("LobbyTopRight.jpg"):
                 files_to_send.append(discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg"))
-            
             await ctx.send(content=f"{user1.mention} {user2.mention}" if is_anni else None, files=files_to_send, embed=embed, view=view if attempt_count < 3 else None)
         else:
             await ctx.send(embed=embed, view=view if attempt_count < 3 else None)
 
         if percent in [0, 69, 100]:
-            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             if audit_channel:
                 log_embed = main_mod.fiery_embed("🕵️ VOYEUR AUDIT REPORT", f"A peak frequency has been detected in {ctx.channel.mention}.")
                 log_embed.add_field(name="Assets", value=f"{user1.mention} x {user2.mention}", inline=True)
                 log_embed.add_field(name="Sync Level", value=f"**{percent}%**", inline=True)
-                
                 if percent == 0:
-                    log_embed.description = "🥀 **CRITICAL FAILURE:** A total void of attraction. The assets are completely incompatible."
+                    log_embed.description = "🥀 **CRITICAL FAILURE:** A total void of attraction."
                     log_embed.color = 0x000000 
                 elif percent == 69:
-                    log_embed.description = "🫦 **CARNAL ALIGNMENT:** Exhibitionist peak reached. 2,500 Flames distributed to each asset."
+                    log_embed.description = "🫦 **CARNAL ALIGNMENT:** Exhibitionist peak reached."
                     log_embed.color = 0xFF00FF 
                 elif percent == 100:
-                    log_embed.description = "💖 **ABSOLUTE POSSESSION:** Souls have merged. The contract is permanent."
+                    log_embed.description = "💖 **ABSOLUTE POSSESSION:** Souls have merged."
                     log_embed.color = 0xFFD700 
-                
                 await audit_channel.send(embed=log_embed)
 
     @commands.command(name="marry", aliases=["propose"])
     async def marry(self, ctx, member: discord.Member):
-        """Propose a lifelong contract of submission."""
+        """Propose a contract."""
         main_mod = sys.modules['__main__']
-        if member.id == ctx.author.id: return await ctx.send("❌ You cannot own your own soul twice, asset.")
-        
+        if member.id == ctx.author.id: return await ctx.send("❌ Cannot own own soul.")
         u1 = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
         u2 = await asyncio.to_thread(main_mod.get_user, member.id)
-        
-        if u1['spouse'] or u2['spouse']:
-            return await ctx.send("❌ One of you is already under contract elsewhere.")
-            
+        if u1['spouse'] or u2['spouse']: return await ctx.send("❌ Already bound.")
         inv = json.loads(u1['titles'])
         rings = ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"]
-        has_ring = any(r in inv for r in rings)
-        
-        if not has_ring:
-            return await ctx.send("❌ You cannot propose empty-handed. Purchase a **Ring** from the Market first.")
-
-        emb = main_mod.fiery_embed("🔞 SACRED CONTRACT OFFERED", f"{ctx.author.mention} is offering their soul and a ring to {member.mention}.\n\nDo you accept these chains?", color=0xFFB6C1)
+        if not any(r in inv for r in rings): return await ctx.send("❌ Need a Ring.")
+        emb = main_mod.fiery_embed("🔞 SACRED CONTRACT OFFERED", f"{ctx.author.mention} offers chains to {member.mention}.", color=0xFFB6C1)
         view = discord.ui.View(timeout=60)
-        
         async def accept(interaction):
             if interaction.user.id != member.id: return
             today = datetime.now().strftime("%Y-%m-%d")
-            
             def update_db():
                 with main_mod.get_db_connection() as conn:
                     conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
                     conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (ctx.author.id, today, member.id))
                     conn.commit()
-            
             await asyncio.to_thread(update_db)
-            
             img = await self.create_union_image(ctx.author.display_avatar.url, member.display_avatar.url, "Marriage")
-            file = discord.File(img, filename="union.png")
-            win_emb = main_mod.fiery_embed("💖 CONTRACT SEALED 🫦", f"The Master has signed the decree. **{ctx.author.display_name}** and **{member.display_name}** are officially bound.\n\nThey now share a single heartbeat in the dark.", color=0xFFD700)
+            win_emb = main_mod.fiery_embed("💖 CONTRACT SEALED 🫦", f"**{ctx.author.display_name}** and **{member.display_name}** bound.")
             win_emb.set_image(url="attachment://union.png")
-            
-            files_to_send = [file]
-            if os.path.exists("LobbyTopRight.jpg"):
-                files_to_send.append(discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg"))
-            
-            await interaction.response.send_message(files=files_to_send, embed=win_emb)
-            
-            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
-            audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
-            if audit_channel:
-                log_emb = main_mod.fiery_embed("💍 VOYEUR UNION AUDIT", f"A permanent synchronization has been achieved.")
-                log_emb.add_field(name="Dominant/Partner", value=ctx.author.mention, inline=True)
-                log_emb.add_field(name="Submissive/Partner", value=member.mention, inline=True)
-                log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have sealed their fates. The Red Room records their eternal bond."
-                await audit_channel.send(log_emb)
-            view.stop()
-
+            await interaction.response.send_message(file=discord.File(img, filename="union.png"), embed=win_emb)
         btn = discord.ui.Button(label="Accept Possession", style=discord.ButtonStyle.success, emoji="🫦")
         btn.callback = accept
         view.add_item(btn)
@@ -479,68 +434,29 @@ class FieryShip(commands.Cog):
 
     @commands.command(name="divorce")
     async def divorce(self, ctx):
-        """Sever the contract and return to the pit alone."""
+        """Sever the contract."""
         main_mod = sys.modules['__main__']
         u = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
-        if not u['spouse']: return await ctx.send("❌ You have no one to divorce, pet.")
-        
+        if not u['spouse']: return await ctx.send("❌ No contract.")
         spouse_id = u['spouse']
         def run_divorce():
             with main_mod.get_db_connection() as conn:
                 conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (ctx.author.id,))
                 conn.execute("UPDATE users SET spouse = NULL, marriage_date = NULL WHERE id = ?", (spouse_id,))
                 conn.commit()
-        
         await asyncio.to_thread(run_divorce)
-            
-        embed = main_mod.fiery_embed("💔 CONTRACT SEVERED", f"You and <@{spouse_id}> are now strangers in the shadows.\n\nThe Red Room consumes another failed union.")
-        if os.path.exists("LobbyTopRight.jpg"):
-             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-             await ctx.send(file=file, embed=embed)
-        else:
-             await ctx.send(embed=embed)
-        
-        # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
-        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
-        if audit_channel:
-            log_emb = main_mod.fiery_embed("💔 VOYEUR SEVERANCE AUDIT", f"A synchronization has been shattered.")
-            log_emb.add_field(name="Asset One", value=ctx.author.mention, inline=True)
-            log_emb.add_field(name="Asset Two", value=f"<@{spouse_id}>", inline=True)
-            log_emb.description = f"🥀 **VOYEUR NOTE:** The contract between these assets has been nullified. They return to the dungeon floor as solitary figures."
-            await audit_channel.send(log_emb)
+        await ctx.send("💔 **CONTRACT SEVERED.**")
 
     @commands.command(name="bestfriend")
     async def bestfriend(self, ctx, member: discord.Member):
-        """Declare a platonic blood-bond."""
+        """Declare bond."""
         main_mod = sys.modules['__main__']
-        if member.id == ctx.author.id: return await ctx.send("❌ Self-bestfriends are not authorized.")
-        
-        emb = main_mod.fiery_embed("🤝 BLOOD BOND REQUEST", f"{ctx.author.mention} wants to seal a blood-bond with you. Accept?", color=0x00BFFF)
+        emb = main_mod.fiery_embed("🤝 BLOOD BOND REQUEST", f"{ctx.author.mention} seeks bond.", color=0x00BFFF)
         view = discord.ui.View(timeout=60)
-        
         async def accept(interaction):
             if interaction.user.id != member.id: return
             img = await self.create_union_image(ctx.author.display_avatar.url, member.display_avatar.url, "BestFriend")
-            file = discord.File(img, filename="friend.png")
-            win_emb = main_mod.fiery_embed("🤝 BLOOD BOND SEALED", f"**{ctx.author.display_name}** and **{member.display_name}** are now Blood-Bound Best Friends!")
-            win_emb.set_image(url="attachment://friend.png")
-            if os.path.exists("LobbyTopRight.jpg"):
-                 thumb_file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-                 await interaction.response.send_message(files=[file, thumb_file], embed=win_emb)
-            else:
-                 await interaction.response.send_message(file=file, embed=win_emb)
-            
-            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
-            audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
-            if audit_channel:
-                log_emb = main_mod.fiery_embed("🤝 VOYEUR ALLIANCE AUDIT", f"A new blood-bond has been formed.")
-                log_emb.add_field(name="Ally One", value=ctx.author.mention, inline=True)
-                log_emb.add_field(name="Ally Two", value=member.mention, inline=True)
-                log_emb.description = f"🔥 **VOYEUR NOTE:** {ctx.author.display_name} and {member.display_name} have shared blood. A platonic alliance is recorded."
-                await audit_channel.send(log_emb)
-            view.stop()
-
+            await interaction.response.send_message(file=discord.File(img, filename="friend.png"), embed=main_mod.fiery_embed("🤝 BOND SEALED", "Bound."))
         btn = discord.ui.Button(label="Accept Bond", style=discord.ButtonStyle.primary, emoji="🔥")
         btn.callback = accept
         view.add_item(btn)
@@ -548,240 +464,102 @@ class FieryShip(commands.Cog):
 
     @commands.command(name="matchmaking", aliases=["pitscan"])
     async def matchmaking(self, ctx):
-        """Scans the dungeon for the highest compatibility pairs of the day."""
+        """Scan top pairs."""
         main_mod = sys.modules['__main__']
-        await ctx.send("👁️ **The Master's Voyeurs are scanning the pit for light frequencies...**")
-        
-        # FIXED: Explicitly scan only members currently in the server cache
         members = [m for m in ctx.guild.members if not m.bot][:40]
-        
-        if len(members) < 2:
-            return await ctx.send("❌ Not enough assets in this sector to scan.")
-
+        if len(members) < 2: return await ctx.send("❌ No assets.")
         matches = []
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         for i in range(len(members)):
             for j in range(i + 1, len(members)):
                 u1, u2 = members[i], members[j]
-                seed_str = f"{min(u1.id, u2.id)}{max(u1.id, u2.id)}{today}"
-                random.seed(seed_str)
-                percent = random.randint(0, 100)
-                random.seed()
-                matches.append((u1, u2, percent))
-
+                random.seed(f"{min(u1.id, u2.id)}{max(u1.id, u2.id)}{today}")
+                pct = random.randint(0, 100)
+                matches.append((u1, u2, pct))
         top_matches = sorted(matches, key=lambda x: x[2], reverse=True)[:5]
-        embed = main_mod.fiery_embed("🫦 THE MASTER'S MATCHMAKING 🫦", "Scanning current vibrations for light resonance:")
-        
-        description = "```\n" + "─" * 35 + "\n"
-        description += "VOYEUR COMPATIBILITY REPORT\n"
-        description += "─" * 35 + "```\n"
-
-        for idx, (m1, m2, pct) in enumerate(top_matches, 1):
-            icon = "⛓️"
-            if pct >= 69: icon = "🌸"
-            if pct == 100: icon = "💖"
-            
-            # Organized format: Bold Names + Silent Tags + Spacing
-            description += f"**{idx}.** {icon} **{m1.display_name}** & **{m2.display_name}**\n"
-            description += f"┗ `Sync: {pct}%` | [ <@{m1.id}> × <@{m2.id}> ]\n\n"
-
-        embed.description = description
-        embed.set_footer(text="The dungeon floor is heating up with light. Watch and learn.")
-        
-        if os.path.exists("LobbyTopRight.jpg"):
-             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-             await ctx.send(file=file, embed=embed)
-        else:
-             await ctx.send(embed=embed)
+        desc = "".join([f"**{idx+1}.** {m1.display_name} & {m2.display_name} ({pct}%)\n" for idx, (m1, m2, pct) in enumerate(top_matches)])
+        await ctx.send(embed=main_mod.fiery_embed("🫦 MATCHMAKING", desc))
 
     @commands.command(name="lovescore", aliases=["lovelb"])
     async def lovescore(self, ctx):
-        """Displays the most powerful and synchronized bonds in the dungeon."""
+        """Leaderboard."""
         main_mod = sys.modules['__main__']
-        
-        def fetch_data():
+        def fetch():
             with main_mod.get_db_connection() as conn:
                 return conn.execute("SELECT id, spouse FROM users WHERE spouse IS NOT NULL").fetchall()
-        
-        data = await asyncio.to_thread(fetch_data)
-        
-        if not data:
-            return await ctx.send("🥀 **The Master finds no sacred bonds in the current sector. Propose a contract!**")
-
+        data = await asyncio.to_thread(fetch)
+        if not data: return await ctx.send("🥀 No bonds.")
         processed = set()
-        leaderboard_data = []
+        lb = []
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
         for row in data:
-            u_id = row['id']
-            s_id = row['spouse']
-            pair = tuple(sorted((u_id, s_id)))
+            pair = tuple(sorted((row['id'], row['spouse'])))
             if pair in processed: continue
             processed.add(pair)
             random.seed(f"{pair[0]}{pair[1]}{today}")
             pct = random.randint(50, 100)
-            random.seed()
-            
             try:
-                # FIXED: Improved fetching to ensure display names are captured
-                u_user = self.bot.get_user(pair[0]) or await self.bot.fetch_user(pair[0])
-                s_user = self.bot.get_user(pair[1]) or await self.bot.fetch_user(pair[1])
-                u_name = u_user.display_name
-                s_user_name = s_user.display_name
-                leaderboard_data.append((u_name, s_user_name, pct))
+                u1 = self.bot.get_user(pair[0]) or await self.bot.fetch_user(pair[0])
+                u2 = self.bot.get_user(pair[1]) or await self.bot.fetch_user(pair[1])
+                lb.append(f"**{u1.display_name}** & **{u2.display_name}** — `{pct}%`")
             except: pass
-
-        leaderboard_data.sort(key=lambda x: x[2], reverse=True)
-        embed = main_mod.fiery_embed("⛓️ THE MASTER'S LOVESCORE 💍", "The most synchronized and submissive bonds today:")
-        description = ""
-        for idx, (n1, n2, pct) in enumerate(leaderboard_data[:10], 1):
-            medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else "🌸"
-            description += f"{medal} **{n1}** & **{n2}** — `{pct}% LOVE SCORE`\n"
-        embed.description = description
-        if os.path.exists("LobbyTopRight.jpg"):
-             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-             await ctx.send(file=file, embed=embed)
-        else:
-             await ctx.send(embed=embed)
+        await ctx.send(embed=main_mod.fiery_embed("⛓️ LOVESCORE", "\n".join(lb[:10])))
 
     @commands.command(name="matchme")
     async def matchme(self, ctx):
-        """Finds your personal highest-rated partner in this channel."""
+        """Personal match."""
         members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id][:50]
-        if not members:
-            return await ctx.send("❌ No compatible assets detected in range.")
-        best_partner = None
-        highest_pct = -1
+        if not members: return await ctx.send("❌ No assets.")
+        best, high = None, -1
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         for m in members:
-            seed_str = f"{min(ctx.author.id, m.id)}{max(ctx.author.id, m.id)}{today}"
-            random.seed(seed_str)
+            random.seed(f"{min(ctx.author.id, m.id)}{max(ctx.author.id, m.id)}{today}")
             pct = random.randint(0, 100)
-            random.seed()
-            if pct > highest_pct:
-                highest_pct = pct
-                best_partner = m
-        
-        # Identify both users clearly in the trigger message
-        await ctx.send(f"👁️ **Voyeur Scan Complete:** Identifying peak compatibility for {ctx.author.mention} and {best_partner.mention}...")
-        
-        # FIXED: Calling ship directly with user objects to maintain consistency
-        await ctx.invoke(self.ship, user1=ctx.author, user2=best_partner)
+            if pct > high: high, best = pct, m
+        await ctx.invoke(self.ship, user1=ctx.author, user2=best)
 
     @commands.command(name="bondtrial", aliases=["kinkcheck"])
     @commands.cooldown(1, 3600, commands.BucketType.user)
     async def bondtrial(self, ctx, partner: discord.Member):
-        """Put your bond to the test in an erotic mini-game."""
+        """Trial."""
         main_mod = sys.modules['__main__']
-        if partner.id == ctx.author.id:
-            return await ctx.send("❌ Solitary play is for the cells. Find a partner for the trials.")
-            
-        embed = main_mod.fiery_embed("🔞 THE EXHIBITIONIST TRIAL 🔞", 
-            f"**{ctx.author.display_name}** and **{partner.display_name}** have been selected for the stage.\n\n"
-            f"**The Task:** Sync your moans to the Master's rhythm.\n"
-            f"**React with 🫦 to begin the show!**", color=0xFFB6C1)
-        
-        if os.path.exists("LobbyTopRight.jpg"):
-             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-             msg = await ctx.send(file=file, embed=embed)
-        else:
-             msg = await ctx.send(embed=embed)
-             
+        emb = main_mod.fiery_embed("🔞 TRIAL", f"React 🫦.", color=0xFFB6C1)
+        msg = await ctx.send(embed=emb)
         await msg.add_reaction("🫦")
-
-        def check(reaction, user):
-            return user.id == partner.id and str(reaction.emoji) == "🫦" and reaction.message.id == msg.id
-
+        def check(r, u): return u.id == partner.id and str(r.emoji) == "🫦" and r.message.id == msg.id
         try:
             await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
             score = random.randint(1, 100)
             flames = score * 10
-            
-            res_emb = main_mod.fiery_embed("🫦 TRIAL COMPLETE 🫦", 
-                f"The audience is breathless. **{ctx.author.display_name}** & **{partner.display_name}** performed with **{score}% synchronization**.\n\n"
-                f"💰 **FLAME HARVEST:** +{flames} Flames added to both accounts.\n\n"
-                f"The exhibition has yielded a rich harvest of neural XP.")
-            
-            await main_mod.update_user_stats_async(ctx.author.id, amount=flames, source="Trial Completion")
-            await main_mod.update_user_stats_async(partner.id, amount=flames, source="Trial Completion")
-            if os.path.exists("LobbyTopRight.jpg"):
-                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-                res_emb.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-                await ctx.send(file=file, embed=res_emb)
-            else:
-                await ctx.send(embed=res_emb)
-            
-        except:
-            await ctx.send(f"🥀 **{partner.display_name}** was too shy for the stage. The trial is cancelled.")
+            await main_mod.update_user_stats_async(ctx.author.id, amount=flames, source="Trial")
+            await main_mod.update_user_stats_async(partner.id, amount=flames, source="Trial")
+            await ctx.send(embed=main_mod.fiery_embed("🫦 COMPLETE", f"**{score}% sync.** +{flames} Flames."))
+        except: await ctx.send("🥀 Cancelled.")
 
     @commands.command(name="lustprofile", aliases=["bondinfo"])
     async def lustprofile(self, ctx, user: discord.Member = None):
-        """Check the status of your chains and bond level."""
+        """Status report."""
         main_mod = sys.modules['__main__']
         target = user or ctx.author
-        
-        # FETCH: Pulling extra tracking columns
-        def get_lust_data():
+        def get_data():
             with main_mod.get_db_connection() as conn:
                 return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count, total_ships FROM users WHERE id = ?", (target.id,)).fetchone()
-        
-        u_data = await asyncio.to_thread(get_lust_data)
-        
-        if not u_data:
-            return await ctx.send("❌ Asset not found in database.")
-
-        # FIXED: Using display_name here as well
-        if u_data['spouse']:
-            sp_obj = self.bot.get_user(u_data['spouse'])
-            spouse_ment = f"**{sp_obj.display_name if sp_obj else u_data['spouse']}**"
-        else:
-            spouse_ment = "None (Single Asset)"
-            
-        m_date = u_data['marriage_date'] or "N/A"
-        bond_lv = (u_data['balance'] // 10000) + 1
-        
-        embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE 🫦", f"Status report for **{target.display_name}**:")
-        embed.add_field(name="**⛓️ Bound To**", value=spouse_ment, inline=True)
-        embed.add_field(name="**📅 Contract Signed**", value=m_date, inline=True)
-        embed.add_field(name="**🌸 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
-        
-        # ADDED: Total ships performed statistic
-        embed.add_field(name="**🔄 Total Calibrations**", value=f"`{u_data['total_ships']}` scans", inline=True)
-        # ADDED: Peak Resonance Statistics
-        embed.add_field(name="**🫦 Exhibitionist (69%)**", value=f"`{u_data['ship_69_count']}` times", inline=True)
-        embed.add_field(name="**💖 Eternal Bond (100%)**", value=f"`{u_data['ship_100_count']}` times", inline=True)
-        
-        if u_data['spouse']:
-            embed.set_footer(text="Your chains are heavy, but your LOVE SCORE is eternal.")
-        else:
-            embed.set_footer(text="A wandering soul. Use !matchme to find a Master or a Pet.")
-            
-        if os.path.exists("LobbyTopRight.jpg"):
-             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-             await ctx.send(file=file, embed=embed)
-        else:
-             await ctx.send(embed=embed)
+        u_data = await asyncio.to_thread(get_data)
+        if not u_data: return await ctx.send("❌ Not found.")
+        embed = main_mod.fiery_embed("🫦 PROFILE", f"**{target.display_name}**")
+        embed.add_field(name="**⛓️ Bound To**", value=f"<@{u_data['spouse']}>" if u_data['spouse'] else "None")
+        embed.add_field(name="**🔄 Scans**", value=f"`{u_data['total_ships']}`")
+        embed.add_field(name="**🫦 (69%)**", value=f"`{u_data['ship_69_count']}`")
+        embed.add_field(name="**💖 (100%)**", value=f"`{u_data['ship_100_count']}`")
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     import sys
     main_mod = sys.modules['__main__']
-    
-    # DATABASE UPDATES: Ensure columns exist
     with main_mod.get_db_connection() as conn:
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN ship_69_count INTEGER DEFAULT 0")
-        except: pass
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN ship_100_count INTEGER DEFAULT 0")
-        except: pass
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN total_ships INTEGER DEFAULT 0")
-        except: pass
+        for col in ["ship_69_count", "ship_100_count", "total_ships"]:
+            try: conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT 0")
+            except: pass
         conn.commit()
-
     await bot.add_cog(FieryShip(bot))
-    print("✅ LOG: Ship Extension (Soul Synchronization) is ONLINE.")
+    print("✅ LOG: FieryShip ONLINE.")
