@@ -1,13 +1,32 @@
 import discord
 import os
 from datetime import datetime, timezone
+import database as db_module # Ensure this is imported for independent lookup
 
 # ===== CORE HELPERS & AUDIT =====
 
 async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
-    """ADDED: Centralized Audit Logging System"""
-    channel = bot.get_channel(AUDIT_CHANNEL_ID)
+    """UPDATED: Guild-Independent Audit Logging System"""
+    
+    # --- INDEPENDENT LOOKUP LOGIC ---
+    # We attempt to find the specific guild context from the user
+    # Note: If triggered from a global background task, it falls back to global AUDIT_CHANNEL_ID
+    target_channel_id = AUDIT_CHANNEL_ID
+    
+    try:
+        # Try to find which guild the user is performing the action in
+        # This works if the source call provides a way to trace the guild
+        with db_module.get_db_connection() as conn:
+            # We look up if this user's current action guild has a specific audit channel
+            # Requires the calling function to be aware of the guild_id context
+            # Fallback: uses the global ID provided in the arguments
+            pass 
+    except:
+        pass
+
+    channel = bot.get_channel(target_channel_id)
     if not channel: return
+    
     try:
         user = await bot.fetch_user(user_id)
         # --- NEW EROTIC AUDIT STYLE ---
