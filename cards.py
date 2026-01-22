@@ -316,5 +316,41 @@ class CardSystem(commands.Cog):
         embed = main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", f"### 🛡️ NEURAL ARCHIVE\n**Assets Mastered:** `{total_found}`\n**Categories:** `{len(categorized_data)}`")
         await ctx.send(embed=embed, view=view)
 
+    @commands.command(name="collections")
+    async def collections(self, ctx, member: discord.Member = None):
+        """CHECKLIST TERMINAL: Consult existing assets and identify missing ones."""
+        target = member or ctx.author
+        main_mod = sys.modules['__main__']
+        
+        with main_mod.get_db_connection() as conn:
+            user_cards = [r[0] for r in conn.execute("SELECT card_name FROM user_cards WHERE user_id = ?", (target.id,)).fetchall()]
+
+        # Sort the entire pool into categories
+        categories = {}
+        for c in self.card_pool:
+            if c['type'] not in categories:
+                categories[c['type']] = []
+            categories[c['type']].append(c['name'])
+
+        embed = main_mod.fiery_embed(f"🗺️ {target.display_name}'S CHECKLIST", "Track your progress toward series mastery.")
+        
+        for cat_name, card_list in categories.items():
+            found_in_cat = [c for c in card_list if c in user_cards]
+            missing_in_cat = [c for c in card_list if c not in user_cards]
+            
+            percentage = int((len(found_in_cat) / len(card_list)) * 100)
+            status_emoji = "✅" if percentage == 100 else "⏳"
+            
+            value_text = f"**Progress:** {percentage}% ({len(found_in_cat)}/{len(card_list)})\n"
+            
+            if missing_in_cat:
+                value_text += f"❌ **Missing:** {', '.join(missing_in_cat)}"
+            else:
+                value_text += f"🌟 **Series Mastered!**"
+
+            embed.add_field(name=f"{status_emoji} {cat_name} Series", value=value_text, inline=False)
+
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(CardSystem(bot))
