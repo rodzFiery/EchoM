@@ -46,7 +46,10 @@ class LobbyView(discord.ui.View):
             embed = interaction.message.embeds[0]
             # Fixed: Ensuring the field name reflects the list length correctly
             embed.set_field_at(0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
+            
+            # UPDATED: Edit the message to show the updated count AND send a private confirmation message
             await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.followup.send("🔞 **The chains lock in place.** You have successfully entered the Red Room.", ephemeral=True)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
             await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
@@ -353,6 +356,7 @@ class IgnisEngine(commands.Cog):
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
         # FIXED: Ensure 'sys' is accessed from global scope to avoid UnboundLocalError
+        # preserved import sys
         import sys as _sys
         self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
