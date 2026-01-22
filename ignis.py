@@ -370,6 +370,10 @@ class IgnisEngine(commands.Cog):
             final_luck = {} 
             relationship_luck = {}
             target_streaks = {}
+            
+            # --- MASTERY PASSIVE TRACKERS ---
+            arena_shielding = {} # +10% HP (Dodge chance)
+            omni_protocol = {} # +20% Critical (Luck boost)
 
             for p_id in participants:
                 u_data = self.get_user(p_id) 
@@ -380,6 +384,17 @@ class IgnisEngine(commands.Cog):
                 fb_protection[p_id] = prot
                 final_luck[p_id] = luck
                 target_streaks[p_id] = u_data['current_win_streak']
+
+                # --- NEW: CARD MASTERY PASSIVE CHECKS ---
+                arena_shielding[p_id] = 0
+                omni_protocol[p_id] = 0
+                with self.get_db_connection() as conn:
+                    # Tier Masteries (+10% Arena Shielding)
+                    shield_count = conn.execute("SELECT COUNT(*) FROM card_mastery WHERE user_id = ? AND mastery_key LIKE 'tier_%'", (p_id,)).fetchone()[0]
+                    arena_shielding[p_id] = shield_count * 0.10
+                    # Absolute Master (+20% Critical/Luck)
+                    if conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = 'absolute_master'", (p_id,)).fetchone():
+                        omni_protocol[p_id] = 0.20
 
                 relationship_luck[p_id] = 0
                 try:
@@ -453,7 +468,8 @@ class IgnisEngine(commands.Cog):
                         temp_index = random.randrange(len(fighters))
                         potential_loser = fighters[temp_index]
                         
-                        dodge_chance = fb_protection.get(potential_loser['id'], 0) / 100
+                        # --- MODIFIED: Dodge chance now includes Arena Shielding Mastery ---
+                        dodge_chance = (fb_protection.get(potential_loser['id'], 0) / 100) + arena_shielding.get(potential_loser['id'], 0)
                         if random.random() < dodge_chance:
                             continue
 
@@ -490,11 +506,13 @@ class IgnisEngine(commands.Cog):
                 p1_win_chance = 0.5
                 
                 if not first_blood_recorded:
-                    p1_win_chance += (fb_protection.get(p1['id'], 0) - fb_protection.get(p2['id'], 0)) / 100
+                    # --- MODIFIED: First blood defense now includes Arena Shielding Mastery ---
+                    p1_win_chance += (fb_protection.get(p1['id'], 0) + (arena_shielding.get(p1['id'], 0)*100) - fb_protection.get(p2['id'], 0) - (arena_shielding.get(p2['id'], 0)*100)) / 100
 
                 if is_final_fight:
-                    p1_total_luck = (final_luck.get(p1['id'], 0) / 100) + relationship_luck.get(p1['id'], 0)
-                    p2_total_luck = (final_luck.get(p2['id'], 0) / 100) + relationship_luck.get(p2['id'], 0)
+                    # --- MODIFIED: Final luck now includes Omni-Protocol Mastery ---
+                    p1_total_luck = (final_luck.get(p1['id'], 0) / 100) + relationship_luck.get(p1['id'], 0) + omni_protocol.get(p1['id'], 0)
+                    p2_total_luck = (final_luck.get(p2['id'], 0) / 100) + relationship_luck.get(p2['id'], 0) + omni_protocol.get(p2['id'], 0)
                     p1_win_chance += (p1_total_luck - p2_total_luck)
 
                 p1_win_chance = max(0.1, min(0.9, p1_win_chance))
@@ -824,4 +842,3 @@ async def setup(bot):
 
     # Registrando StatusCheck
     await bot.add_cog(StatusCheck(bot))
-
