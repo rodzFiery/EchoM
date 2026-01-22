@@ -7,8 +7,18 @@ import sys
 import json
 import os
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio # ADDED: Required for to_thread logic
+
+# --- COMPATIBILITY SHIM FOR PYTHON 3.13+ ---
+# This prevents the Cog from failing to load due to the removal of audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        from aiohttp import audioop
+    except:
+        pass
 
 class FieryShip(commands.Cog):
     def __init__(self, bot):
@@ -770,17 +780,12 @@ async def setup(bot):
     import sys
     main_mod = sys.modules['__main__']
     
-    # DATABASE UPDATES: Ensure columns exist
+    # DATABASE UPDATES: Ensure columns exist without blocking startup
     with main_mod.get_db_connection() as conn:
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN ship_69_count INTEGER DEFAULT 0")
-        except: pass
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN ship_100_count INTEGER DEFAULT 0")
-        except: pass
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN total_ships INTEGER DEFAULT 0")
-        except: pass
+        for col in ["ship_69_count", "ship_100_count", "total_ships"]:
+            try:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT 0")
+            except: pass
         conn.commit()
 
     await bot.add_cog(FieryShip(bot))
