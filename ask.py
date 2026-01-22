@@ -140,7 +140,7 @@ class DungeonAsk(commands.Cog):
                             if inter.user.id != self.tar.id: return
                             success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", 
                                 f"**DM ACCEPTED.** {self.req.mention}, your request was **ACCEPTED** by {self.tar.mention}.\n\n"
-                                f"Proceed to the shadows. Be respectful ans share love.")
+                                f"Proceed to the shadows. Be respectful and share love.")
                             await inter.response.send_message(content=self.req.mention, embed=success_emb)
                             self.stop()
 
