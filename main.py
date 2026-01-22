@@ -211,7 +211,7 @@ async def on_guild_remove(guild):
     await topgg_poster()
 
 # ===== 5. REBUILT ECONOMY COMMANDS SYSTEM =====
-# FIXED: Native direct triggers to ensure no ghost character conflicts
+# FIXED: Cleaned and aligned handlers
 
 @bot.command()
 @commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
@@ -269,97 +269,7 @@ async def balance(ctx, member: discord.Member = None):
 @bot.command(name="me")
 async def me(ctx, member: discord.Member = None):
     """ULTIMATE ASSET DOSSIER: Comprehensive profile integration."""
-    target = member or ctx.author
-    u = get_user(target.id)
-    
-    with get_db_connection() as conn:
-        # Calculate Rankings
-        wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
-        kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
-        duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
-        
-        wins_rank = wins_row['r'] if wins_row else "?"
-        kills_rank = kills_row['r'] if kills_row else "?"
-        duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
-
-        # Fetch Victims from duel_history
-        victims = conn.execute("""
-            SELECT loser_id, win_count FROM duel_history 
-            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
-        """, (target.id,)).fetchall()
-
-    # Echo Rank Logic
-    lvl = u['fiery_level']
-    rank_name = RANKS[lvl-1] if lvl <= 100 else RANKS[-1]
-    
-    # Title/Badge Logic
-    try: 
-        titles = json.loads(u['titles'])
-    except: 
-        titles = []
-    
-    # Check for Last Hangrygames Winner Title
-    engine = bot.get_cog("IgnisEngine")
-    if nsfw_mode_active and engine and engine.last_winner_id == target.id:
-        titles.append("⛓️ HANGRYGAMES LEAD 🔞")
-
-    badge_display = " ".join(titles) if titles else "No badges yet."
-
-    # Ownership Logic
-    owner_text = "Free Soul"
-    if u['spouse']:
-        owner_text = f"Bound to <@{u['spouse']}> (Married)"
-    else:
-        with get_db_connection() as conn:
-            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
-            if contract_data:
-                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
-
-    # Embed Creation
-    embed = discord.Embed(title=f"😻 {target.display_name}'s Dossier", color=0xFF0000)
-    
-    # Visual Logic
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-    else:
-        embed.set_thumbnail(url=target.display_avatar.url)
-
-    embed.add_field(name="❤ Class", value=f"**{u['class']}**", inline=False)
-    embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
-    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u['balance']:,}\n**Global Level:** {u['level']} ({u['xp']:,} XP)", inline=True)
-    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']:,}", inline=True)
-    
-    combat_stats = (f"🏆 **Wins:** {u['wins']} (Rank #{wins_rank})\n"
-                    f"⚔️ **Kills:** {u['kills']} (Rank #{kills_rank})\n"
-                    f"🫦 **Duel Wins:** {u['duel_wins']} (Rank #{duel_rank})\n"
-                    f"💀 **Deaths:** {u['deaths']}\n"
-                    f"🎮 **Games Played:** {u['games_played']}")
-    embed.add_field(name="⚔️ Echo Hangrygames & Duels", value=combat_stats, inline=False)
-    
-    # Victim Field
-    if victims:
-        v_lines = []
-        for v in victims:
-            v_member = ctx.guild.get_member(v['loser_id'])
-            v_name = v_member.display_name if v_member else f"Unknown ({v['loser_id']})"
-            v_lines.append(f"• **{v_name}**: {v['win_count']} times")
-        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="\n".join(v_lines), inline=False)
-    else:
-        embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
-
-    embed.add_field(name="🔒 Ownership Status", value=f"**{owner_text}**", inline=False)
-
-    # Achievement Integration
-    ach_cog = bot.get_cog("Achievements")
-    if ach_cog:
-        summary = ach_cog.get_achievement_summary(target.id)
-        embed.add_field(name="🏅 Achievements", value=summary, inline=False)
-    
-    if os.path.exists("LobbyTopRight.jpg"):
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    await worknranks.handle_me_command(ctx, member, get_user, get_db_connection, fiery_embed, bot, RANKS, nsfw_mode_active)
 
 @bot.command()
 async def ranking(ctx):
