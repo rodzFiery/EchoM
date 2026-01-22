@@ -73,10 +73,10 @@ class PremiumShopView(discord.ui.View):
             
             desc += f"➤ **{key.upper()}**\n"
             desc += f"```ml\n"
-            desc += f" [ 30D ] : ${p30:,.2f} USD\n"
-            desc += f" [ 60D ] : ${p60:,.2f} USD\n"
-            desc += f" [ 90D ] : ${p90:,.2f} USD (HOT)\n"
-            desc += f" [ 180D] : ${p180:,.2f} USD (SAVINGS)\n"
+            desc += f" [ 30 Days ] : ${p30:,.2f} USD\n"
+            desc += f" [ 60 Days ] : ${p60:,.2f} USD\n"
+            desc += f" [ 90 Days ] : ${p90:,.2f} USD (HOT)\n"
+            desc += f" [ 180 Days] : ${p180:,.2f} USD (SAVINGS)\n"
             desc += f"```\n"
             desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n\n"
             
