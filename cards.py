@@ -6,6 +6,36 @@ import asyncio
 import sys
 import os
 
+# --- INTERACTIVE POKEDEX COMPONENTS ---
+
+class PokedexView(discord.ui.View):
+    def __init__(self, target, data, card_pool, fiery_embed_func):
+        super().__init__(timeout=60)
+        self.target = target
+        self.data = data # Dict: {collection_type: [cards]}
+        self.card_pool = card_pool
+        self.fiery_embed = fiery_embed_func
+        self.current_category = list(data.keys())[0] if data else None
+
+    @discord.ui.select(placeholder="📂 Filter by Collection Type...", custom_id="poke_filter")
+    async def select_category(self, interaction: discord.Interaction, select: discord.ui.Select):
+        if interaction.user.id != self.target.id:
+            return await interaction.response.send_message("This is not your archive, toy.", ephemeral=True)
+        
+        self.current_category = select.values[0]
+        await self.update_display(interaction)
+
+    async def update_display(self, interaction):
+        cards = self.data.get(self.current_category, [])
+        desc = f"### 🗂️ {self.current_category.upper()} COLLECTION\n"
+        
+        for c in cards:
+            desc += f"• **{c['name']}** (`{c['tier'].upper()}`) — x{c['count']}\n"
+        
+        embed = self.fiery_embed(f"📕 {self.target.display_name}'S ARCHIVE", desc)
+        embed.set_footer(text=f"Viewing {self.current_category} | Protocol V8.0")
+        await interaction.response.edit_message(embed=embed, view=self)
+
 class CardSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -199,10 +229,8 @@ class CardSystem(commands.Cog):
             conn.commit()
 
             # 2. Extract Statistics for the visual Dossier
-            # Total Card Count
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
             
-            # Tier Breakdown
             tiers = ["supreme", "legendary", "platine", "epic", "rare", "basic"]
             tier_stats = []
             for t in tiers:
@@ -210,7 +238,6 @@ class CardSystem(commands.Cog):
                 if count > 0:
                     tier_stats.append(f"• **{t.upper()}:** {count}")
             
-            # Collection Breakdown (Matching pool types)
             rows = conn.execute("SELECT card_name FROM user_cards WHERE user_id = ?", (user_id,)).fetchall()
             user_card_names = [r[0] for r in rows]
             
@@ -245,6 +272,7 @@ class CardSystem(commands.Cog):
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
+        """DYNAMIC & INTERACTIVE POKEDEX: Categorized browsing with Select Menus."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
         
@@ -252,13 +280,52 @@ class CardSystem(commands.Cog):
             rows = conn.execute("SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? GROUP BY card_name", (target.id,)).fetchall()
 
         if not rows:
-            return await ctx.send(f"📕 {target.display_name}'s Pokedex is empty.")
+            return await ctx.send(f"📕 {target.display_name}'s Pokedex is empty. Go catch something, toy.")
 
-        desc = ""
-        for r in rows:
-            desc += f"• **{r['card_name']}** ({r['tier']}) x{r['count']}\n"
+        # Organize user cards by their collection type (Matching with card_pool)
+        categorized_data = {}
+        total_found = 0
+        
+        for row in rows:
+            card_name = row[0]
+            # Find the type from card_pool
+            pool_data = next((c for c in self.card_pool if c['name'] == card_name), None)
+            if pool_data:
+                c_type = pool_data['type']
+                if c_type not in categorized_data:
+                    categorized_data[c_type] = []
+                categorized_data[c_type].append({'name': card_name, 'tier': row[1], 'count': row[2]})
+                total_found += row[2]
 
-        await ctx.send(embed=main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", desc))
+        # Create the Interactive View
+        view = PokedexView(target, categorized_data, self.card_pool, main_mod.fiery_embed)
+        
+        # Setup Initial Select Options
+        for category in categorized_data.keys():
+            view.select_category.add_option(
+                label=category, 
+                description=f"View your {len(categorized_data[category])} {category} assets",
+                emoji="🔞" if category == "Flirt" else "🔥",
+                value=category
+            )
+
+        # Build Intro Embed
+        intro_desc = (
+            f"### 🛡️ NEURAL ARCHIVE OF {target.display_name}\n"
+            f"**Total Mastered Assets:** `{total_found}`\n"
+            f"**Unique Collections:** `{len(categorized_data)}` categories detected.\n\n"
+            "*Use the terminal below to filter through your categorized captures.*"
+        )
+        
+        embed = main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", intro_desc)
+        
+        # Visual Decoration
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="pokedex_thumb.jpg")
+            embed.set_thumbnail(url="attachment://pokedex_thumb.jpg")
+            await ctx.send(file=file, embed=embed, view=view)
+        else:
+            await ctx.send(embed=embed, view=view)
 
 async def setup(bot):
     await bot.add_cog(CardSystem(bot))
