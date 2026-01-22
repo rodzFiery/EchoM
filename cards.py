@@ -15,6 +15,9 @@ class CardSystem(commands.Cog):
         self.required_activity = 10 # Messages needed to trigger spawn
         self._init_db()
         self.card_spawn_loop.start()
+        
+        # PERSISTENCE: Restore the spawn channel from the database
+        self._load_config()
 
         # COMPLETE CARD POOL (Including every single uploaded file)
         self.card_pool = [
@@ -101,7 +104,33 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
+            conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.commit()
+
+    def _load_config(self):
+        main_mod = sys.modules['__main__']
+        try:
+            with main_mod.get_db_connection() as conn:
+                row = conn.execute("SELECT value FROM card_config WHERE key = 'spawn_channel'").fetchone()
+                if row:
+                    self.spawn_channel_id = int(row['value'])
+        except:
+            pass
+
+    @commands.command(name="setcards")
+    @commands.has_permissions(administrator=True)
+    async def setcards(self, ctx, channel: discord.TextChannel):
+        """Admin command to bind the card spawn frequency to a channel."""
+        self.spawn_channel_id = channel.id
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO card_config (key, value) VALUES ('spawn_channel', ?)", (str(channel.id),))
+            conn.commit()
+        
+        embed = main_mod.fiery_embed("🛰️ COORDINATES SYNCHRONIZED", 
+            f"The Master has locked the card emergence point to {channel.mention}.\n\n"
+            f"**Status:** Emergence protocols are now active in this sector.", color=0x00FF00)
+        await ctx.send(embed=embed)
 
     def get_random_tier(self):
         roll = random.random() * 100
