@@ -43,12 +43,12 @@ class DiceInterface(discord.ui.View):
     @discord.ui.select(
         placeholder="💰 Set Tribute: Select your Bet Amount...",
         options=[
-            discord.SelectOption(label="1,000 Flames", value="1000", emoji="🫦"),
-            discord.SelectOption(label="5,000 Flames", value="5000", emoji="⛓️"),
-            discord.SelectOption(label="15,000 Flames", value="15000", emoji="💦"),
-            discord.SelectOption(label="35,000 Flames", value="35000", emoji="🔞"),
-            discord.SelectOption(label="55,000 Flames", value="55000", emoji="🍑"),
-            discord.SelectOption(label="75,000 Flames (MAX)", value="75000", emoji="🔥"),
+            discord.SelectOption(label="10,000 Flames", value="10000", emoji="🫦"),
+            discord.SelectOption(label="50,000 Flames", value="50000", emoji="⛓️"),
+            discord.SelectOption(label="100,000 Flames", value="100000", emoji="💦"),
+            discord.SelectOption(label="250,000 Flames", value="250000", emoji="🔞"),
+            discord.SelectOption(label="400,000 Flames", value="400000", emoji="🍑"),
+            discord.SelectOption(label="500,000 Flames (MAX)", value="500000", emoji="🔥"),
         ]
     )
     async def select_bet(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -79,11 +79,11 @@ class BJStakeInterface(discord.ui.View):
     @discord.ui.select(
         placeholder="🔞 Choose the weight of your surrender (Bet)...",
         options=[
-            discord.SelectOption(label="5,000 Flames", value="5000", emoji="⛓️"),
-            discord.SelectOption(label="15,000 Flames", value="15000", emoji="💦"),
-            discord.SelectOption(label="35,000 Flames", value="35000", emoji="🔞"),
-            discord.SelectOption(label="50,000 Flames", value="50000", emoji="🍑"),
-            discord.SelectOption(label="75,000 Flames (MAX)", value="75000", emoji="🔥"),
+            discord.SelectOption(label="25,000 Flames", value="25000", emoji="⛓️"),
+            discord.SelectOption(label="100,000 Flames", value="100000", emoji="💦"),
+            discord.SelectOption(label="250,000 Flames", value="250000", emoji="🔞"),
+            discord.SelectOption(label="400,000 Flames", value="400000", emoji="🍑"),
+            discord.SelectOption(label="500,000 Flames (MAX)", value="500000", emoji="🔥"),
         ]
     )
     async def select_bet(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -154,10 +154,10 @@ class RouletteInterface(discord.ui.View):
     @discord.ui.select(
         placeholder="💰 Set Tribute: Select your Bet Amount...",
         options=[
-            discord.SelectOption(label="5,000 Flames", value="5000", emoji="⛓️"),
-            discord.SelectOption(label="15,000 Flames", value="15000", emoji="💦"),
-            discord.SelectOption(label="35,000 Flames", value="35000", emoji="🔞"),
-            discord.SelectOption(label="75,000 Flames (MAX)", value="75000", emoji="🔥"),
+            discord.SelectOption(label="25,000 Flames", value="25000", emoji="⛓️"),
+            discord.SelectOption(label="100,000 Flames", value="100000", emoji="💦"),
+            discord.SelectOption(label="250,000 Flames", value="250000", emoji="🔞"),
+            discord.SelectOption(label="500,000 Flames (MAX)", value="500000", emoji="🔥"),
         ]
     )
     async def select_bet(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -187,12 +187,12 @@ class SlotsInterface(discord.ui.View):
     @discord.ui.select(
         placeholder="💰 Set Tribute: Choose your Bet amount...",
         options=[
-            discord.SelectOption(label="1,000 Flames", value="1000", emoji="🫦"),
-            discord.SelectOption(label="5,000 Flames", value="5000", emoji="⛓️"),
-            discord.SelectOption(label="10,000 Flames", value="10000", emoji="🔞"),
-            discord.SelectOption(label="25,000 Flames", value="25000", emoji="🍑"),
-            discord.SelectOption(label="50,000 Flames", value="50000", emoji="💦"),
-            discord.SelectOption(label="75,000 Flames (MAX)", value="75000", emoji="🔥"),
+            discord.SelectOption(label="5,000 Flames", value="5000", emoji="🫦"),
+            discord.SelectOption(label="25,000 Flames", value="25000", emoji="⛓️"),
+            discord.SelectOption(label="100,000 Flames", value="100000", emoji="🔞"),
+            discord.SelectOption(label="250,000 Flames", value="250000", emoji="🍑"),
+            discord.SelectOption(label="400,000 Flames", value="400000", emoji="💦"),
+            discord.SelectOption(label="500,000 Flames (MAX)", value="500000", emoji="🔥"),
         ]
     )
     async def select_bet(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -213,7 +213,7 @@ class SlotsInterface(discord.ui.View):
 class FieryCasino(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.max_bet = 75000
+        self.max_bet = 500000
 
     async def get_user_data(self, user_id):
         main_mod = sys.modules['__main__']
