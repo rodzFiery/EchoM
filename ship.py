@@ -351,6 +351,13 @@ class FieryShip(commands.Cog):
                     conn.commit()
             await asyncio.to_thread(track_100)
 
+        # ADDED: Global Total Increment for the initiator
+        def track_total():
+            with main_mod.get_db_connection() as conn:
+                conn.execute("UPDATE users SET total_ships = total_ships + 1 WHERE id = ?", (ctx.author.id,))
+                conn.commit()
+        await asyncio.to_thread(track_total)
+
         # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
             f"# **`{percent}%`**\n"
@@ -719,7 +726,7 @@ class FieryShip(commands.Cog):
         # FETCH: Pulling extra tracking columns
         def get_lust_data():
             with main_mod.get_db_connection() as conn:
-                return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count FROM users WHERE id = ?", (target.id,)).fetchone()
+                return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count, total_ships FROM users WHERE id = ?", (target.id,)).fetchone()
         
         u_data = await asyncio.to_thread(get_lust_data)
         
@@ -741,6 +748,8 @@ class FieryShip(commands.Cog):
         embed.add_field(name="**📅 Contract Signed**", value=m_date, inline=True)
         embed.add_field(name="**🌸 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
         
+        # ADDED: Total ships performed statistic
+        embed.add_field(name="**🔄 Total Calibrations**", value=f"`{u_data['total_ships']}` scans", inline=True)
         # ADDED: Peak Resonance Statistics
         embed.add_field(name="**🫦 Exhibitionist (69%)**", value=f"`{u_data['ship_69_count']}` times", inline=True)
         embed.add_field(name="**💖 Eternal Bond (100%)**", value=f"`{u_data['ship_100_count']}` times", inline=True)
@@ -768,6 +777,9 @@ async def setup(bot):
         except: pass
         try:
             conn.execute("ALTER TABLE users ADD COLUMN ship_100_count INTEGER DEFAULT 0")
+        except: pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN total_ships INTEGER DEFAULT 0")
         except: pass
         conn.commit()
 
