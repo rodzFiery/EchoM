@@ -61,6 +61,7 @@ class IgnisAuto(commands.Cog):
         # This prevents resets during deployment
         self.auto_channel_id = getattr(main_module, "AUTO_IGNIS_CHANNEL", AUTO_FIGHT_CHANNEL_ID)
         self.ping_role_id = getattr(main_module, "AUTO_IGNIS_ROLE", 0)
+        self.auto_enabled = True # Default state
         
         # Attempt to refresh from DB if main_module has a database connection helper
         try:
@@ -69,12 +70,17 @@ class IgnisAuto(commands.Cog):
                 if res: self.auto_channel_id = int(res[0])
                 res_role = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_role'").fetchone()
                 if res_role: self.ping_role_id = int(res_role[0])
+                # PERSISTENT STOP CHECK
+                res_enabled = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_enabled'").fetchone()
+                if res_enabled: self.auto_enabled = (res_enabled[0] == 'True')
         except: pass
 
         self.current_auto_lobby = None
         # NEW: Track the last processed window to prevent double-firing or missed-firing
         self.last_processed_window = None 
-        self.auto_loop.start() # Start the 30-minute cycle
+        
+        if self.auto_enabled:
+            self.auto_loop.start() # Start the 30-minute cycle
 
     def cog_unload(self):
         self.auto_loop.cancel()
@@ -86,6 +92,7 @@ class IgnisAuto(commands.Cog):
         now = datetime.now()
         
         # CALCULATE CURRENT WINDOW (:00 or :30)
+        # This identifies which 30-minute block we are currently in
         current_minute_block = 0 if now.minute < 30 else 30
         window_id = f"{now.hour}_{current_minute_block}"
 
@@ -191,12 +198,14 @@ class IgnisAuto(commands.Cog):
         main_module = sys.modules['__main__']
         
         self.auto_channel_id = ctx.channel.id
+        self.auto_enabled = True
         main_module.AUTO_IGNIS_CHANNEL = ctx.channel.id
         main_module.save_game_config()
         
         try:
             with main_module.get_db_connection() as conn:
                 conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(ctx.channel.id),))
+                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_enabled', 'True')")
                 conn.commit()
         except: pass
         
@@ -228,7 +237,10 @@ class IgnisAuto(commands.Cog):
         else:
             await ctx.send(embed=embed, view=self.current_auto_lobby)
         
-        self.auto_loop.restart()
+        if not self.auto_loop.is_running():
+            self.auto_loop.start()
+        else:
+            self.auto_loop.restart()
 
     @commands.command(name="autoignis")
     @commands.is_owner()
@@ -251,9 +263,20 @@ class IgnisAuto(commands.Cog):
     @commands.is_owner()
     async def stop_auto_ignis(self, ctx):
         """Stops the Automated Ignis cycle immediately."""
+        import sys
+        main_module = sys.modules['__main__']
+        
         self.auto_loop.cancel()
+        self.auto_enabled = False
         self.current_auto_lobby = None
-        embed = main.fiery_embed("Auto-Ignis Terminated", "🛑 **The Automated Cycle has been halted.**", color=0xFF0000)
+        
+        try:
+            with main_module.get_db_connection() as conn:
+                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_enabled', 'False')")
+                conn.commit()
+        except: pass
+
+        embed = main.fiery_embed("Auto-Ignis Terminated", "🛑 **The Automated Cycle has been halted.**\n\nThe gears have stopped turning and the registration ledger is cleared. The Master has revoked the automated protocol.", color=0xFF0000)
         await ctx.send(embed=embed)
 
     @commands.command(name="autolobby")
