@@ -7,7 +7,7 @@ import sys
 import json
 import os
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio # ADDED: Required for to_thread logic
 
 class FieryShip(commands.Cog):
