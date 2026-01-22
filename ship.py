@@ -333,6 +333,23 @@ class FieryShip(commands.Cog):
             await main_mod.update_user_stats_async(user1.id, amount=2500, source="Ship 69% Bonus")
             await main_mod.update_user_stats_async(user2.id, amount=2500, source="Ship 69% Bonus")
             result_msg += "\n\n**💰 EXHIBITION REWARD: The dungeon provides 2,500 Flames for the show!**"
+            
+            # TRACKING: Increment 69% counts
+            def track_69():
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("UPDATE users SET ship_69_count = ship_69_count + 1 WHERE id = ?", (user1.id,))
+                    conn.execute("UPDATE users SET ship_69_count = ship_69_count + 1 WHERE id = ?", (user2.id,))
+                    conn.commit()
+            await asyncio.to_thread(track_69)
+
+        if percent == 100:
+            # TRACKING: Increment 100% counts
+            def track_100():
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("UPDATE users SET ship_100_count = ship_100_count + 1 WHERE id = ?", (user1.id,))
+                    conn.execute("UPDATE users SET ship_100_count = ship_100_count + 1 WHERE id = ?", (user2.id,))
+                    conn.commit()
+            await asyncio.to_thread(track_100)
 
         # FIXED: RESULTS NOW VISUALLY DOMINANT
         embed.description = (
@@ -698,8 +715,17 @@ class FieryShip(commands.Cog):
         """Check the status of your chains and bond level."""
         main_mod = sys.modules['__main__']
         target = user or ctx.author
-        u_data = await asyncio.to_thread(main_mod.get_user, target.id)
         
+        # FETCH: Pulling extra tracking columns
+        def get_lust_data():
+            with main_mod.get_db_connection() as conn:
+                return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count FROM users WHERE id = ?", (target.id,)).fetchone()
+        
+        u_data = await asyncio.to_thread(get_lust_data)
+        
+        if not u_data:
+            return await ctx.send("❌ Asset not found in database.")
+
         # FIXED: Using display_name here as well
         if u_data['spouse']:
             sp_obj = self.bot.get_user(u_data['spouse'])
@@ -715,6 +741,10 @@ class FieryShip(commands.Cog):
         embed.add_field(name="**📅 Contract Signed**", value=m_date, inline=True)
         embed.add_field(name="**🌸 Lust Potency (Level)**", value=f"Level {bond_lv}", inline=False)
         
+        # ADDED: Peak Resonance Statistics
+        embed.add_field(name="**🫦 Exhibitionist (69%)**", value=f"`{u_data['ship_69_count']}` times", inline=True)
+        embed.add_field(name="**💖 Eternal Bond (100%)**", value=f"`{u_data['ship_100_count']}` times", inline=True)
+        
         if u_data['spouse']:
             embed.set_footer(text="Your chains are heavy, but your LOVE SCORE is eternal.")
         else:
@@ -728,5 +758,18 @@ class FieryShip(commands.Cog):
              await ctx.send(embed=embed)
 
 async def setup(bot):
+    import sys
+    main_mod = sys.modules['__main__']
+    
+    # DATABASE UPDATES: Ensure columns exist
+    with main_mod.get_db_connection() as conn:
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN ship_69_count INTEGER DEFAULT 0")
+        except: pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN ship_100_count INTEGER DEFAULT 0")
+        except: pass
+        conn.commit()
+
     await bot.add_cog(FieryShip(bot))
     print("✅ LOG: Ship Extension (Soul Synchronization) is ONLINE.")
