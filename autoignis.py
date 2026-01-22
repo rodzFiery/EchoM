@@ -61,6 +61,9 @@ class IgnisAuto(commands.Cog):
         self.ping_role_id = getattr(main_module, "AUTO_IGNIS_ROLE", 0)
         self.auto_enabled = True # Default state
         
+        # ADDED: Lock to prevent race conditions (multiple games)
+        self._lock = asyncio.Lock()
+
         # Attempt to refresh from DB if main_module has a database connection helper
         try:
             with main_module.get_db_connection() as conn:
@@ -87,106 +90,108 @@ class IgnisAuto(commands.Cog):
     async def auto_loop(self):
         await self.bot.wait_until_ready()
         
-        now = datetime.now()
-        
-        # CALCULATE CURRENT WINDOW (:00 or :30)
-        # This identifies which 30-minute block we are currently in
-        current_minute_block = 0 if now.minute < 30 else 30
-        window_id = f"{now.hour}_{current_minute_block}"
+        # APPLY LOCK: Only one execution of this block can happen at once
+        async with self._lock:
+            now = datetime.now()
+            
+            # CALCULATE CURRENT WINDOW (:00 or :30)
+            # This identifies which 30-minute block we are currently in
+            current_minute_block = 0 if now.minute < 30 else 30
+            window_id = f"{now.hour}_{current_minute_block}"
 
-        # If we have already triggered the start/reset for this specific window, skip
-        if self.last_processed_window == window_id:
-            return
+            # If we have already triggered the start/reset for this specific window, skip
+            if self.last_processed_window == window_id:
+                return
 
-        # UPDATE TRACKER
-        self.last_processed_window = window_id
+            # UPDATE TRACKER IMMEDIATELY INSIDE LOCK
+            self.last_processed_window = window_id
 
-        channel = self.bot.get_channel(self.auto_channel_id)
-        if not channel:
-            return
+            channel = self.bot.get_channel(self.auto_channel_id)
+            if not channel:
+                return
 
-        # 1. Process the previous lobby if it exists
-        if self.current_auto_lobby:
-            # FIX: Disable previous view buttons to stop users from joining a "ghost" lobby
-            for item in self.current_auto_lobby.children:
-                item.disabled = True
+            # 1. Process the previous lobby if it exists
+            if self.current_auto_lobby:
+                # FIX: Disable previous view buttons to stop users from joining a "ghost" lobby
+                for item in self.current_auto_lobby.children:
+                    item.disabled = True
 
-            if len(self.current_auto_lobby.participants) >= 2:
-                # INDEPENDENT TRIGGER: We no longer check if IgnisEngine is busy.
-                # Both manual and automatic games can run simultaneously.
-                ignis_engine = self.bot.get_cog("IgnisEngine")
+                if len(self.current_auto_lobby.participants) >= 2:
+                    # INDEPENDENT TRIGGER: We no longer check if IgnisEngine is busy.
+                    # Both manual and automatic games can run simultaneously.
+                    ignis_engine = self.bot.get_cog("IgnisEngine")
 
-                if ignis_engine:
-                    await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
-                    
-                    import sys
-                    main_module = sys.modules['__main__']
-                    edition = getattr(main_module, "game_edition", 1)
-                    
-                    # Capture the list to ensure no reference issues during lobby reset
-                    battle_participants = list(self.current_auto_lobby.participants)
-                    
-                    asyncio.create_task(ignis_engine.start_battle(
-                        channel, 
-                        battle_participants, 
-                        edition
-                    ))
-                    
-                    # Increment edition in main
-                    if hasattr(main_module, "game_edition"):
-                        main_module.game_edition += 1
-                        main_module.save_game_config()
+                    if ignis_engine:
+                        await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
+                        
+                        import sys
+                        main_module = sys.modules['__main__']
+                        edition = getattr(main_module, "game_edition", 1)
+                        
+                        # Capture the list to ensure no reference issues during lobby reset
+                        battle_participants = list(self.current_auto_lobby.participants)
+                        
+                        asyncio.create_task(ignis_engine.start_battle(
+                            channel, 
+                            battle_participants, 
+                            edition
+                        ))
+                        
+                        # Increment edition in main
+                        if hasattr(main_module, "game_edition"):
+                            main_module.game_edition += 1
+                            main_module.save_game_config()
+                    else:
+                        await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
                 else:
-                    await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
+                    await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+
+            # 2. Start NEW lobby for the next 30 minutes
+            self.current_auto_lobby = AutoLobbyView()
+            
+            # ENHANCED INFORMATIVE CONTENT
+            lobby_desc = (
+                "🔞 **The scent of worn leather and cold iron fills the air.**\n\n"
+                "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
+            )
+
+            embed = main.fiery_embed(
+                "🔞 AUTOMATED RED ROOM CYCLE", 
+                lobby_desc,
+                color=0x5865F2
+            )
+            
+            image_path = "LobbyTopRight.jpg"
+            # VISUAL UPDATE: High visibility Soul Counter
+            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
+            
+            # NEW INFORMATIVE CONCEPTS
+            embed.add_field(
+                name="⛓️ Dungeon Protocol",
+                value=(
+                    "• **The Execution:** Once the timer hits zero, the session begins automatically.\n"
+                ),
+                inline=False
+            )
+            
+            # UPDATED: Real-time footer calculation for 30m precision
+            next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
+            if now.minute >= 30:
+                next_run_time += timedelta(hours=1)
+
+            embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
+
+            # ADDED: HOURLY PING LOGIC (Every 1 hour at .00)
+            content = None
+            if now.minute < 5 and self.ping_role_id != 0: 
+                content = f"<@&{self.ping_role_id}>"
+
+            if os.path.exists(image_path):
+                file = discord.File(image_path, filename="auto_lobby.jpg")
+                embed.set_thumbnail(url="attachment://auto_lobby.jpg")
+                await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
             else:
-                await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
-
-        # 2. Start NEW lobby for the next 30 minutes
-        self.current_auto_lobby = AutoLobbyView()
-        
-        # ENHANCED INFORMATIVE CONTENT
-        lobby_desc = (
-            "🔞 **The scent of worn leather and cold iron fills the air.**\n\n"
-            "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
-        )
-
-        embed = main.fiery_embed(
-            "🔞 AUTOMATED RED ROOM CYCLE", 
-            lobby_desc,
-            color=0x5865F2
-        )
-        
-        image_path = "LobbyTopRight.jpg"
-        # VISUAL UPDATE: High visibility Soul Counter
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
-        
-        # NEW INFORMATIVE CONCEPTS
-        embed.add_field(
-            name="⛓️ Dungeon Protocol",
-            value=(
-                "• **The Execution:** Once the timer hits zero, the session begins automatically.\n"
-            ),
-            inline=False
-        )
-        
-        # UPDATED: Real-time footer calculation for 30m precision
-        next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
-        if now.minute >= 30:
-            next_run_time += timedelta(hours=1)
-
-        embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
-
-        # ADDED: HOURLY PING LOGIC (Every 1 hour at .00)
-        content = None
-        if now.minute < 5 and self.ping_role_id != 0: 
-            content = f"<@&{self.ping_role_id}>"
-
-        if os.path.exists(image_path):
-            file = discord.File(image_path, filename="auto_lobby.jpg")
-            embed.set_thumbnail(url="attachment://auto_lobby.jpg")
-            await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
-        else:
-            await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
+                await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
 
     @auto_loop.before_loop
     async def before_auto_loop(self):
