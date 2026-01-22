@@ -210,22 +210,37 @@ async def on_guild_remove(guild):
     """Trigger update when bot leaves a server."""
     await topgg_poster()
 
-# ===== 5. EXTENDED ECONOMY COMMANDS (WORK SYSTEM) =====
+# ===== 5. REBUILT ECONOMY COMMANDS SYSTEM =====
+# FIXED: Native direct triggers to ensure no ghost character conflicts
+
 @bot.command()
 @commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
-async def work(ctx): await worknranks.handle_work_command(ctx, bot, "work", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def work(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "work", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def beg(ctx): await worknranks.handle_work_command(ctx, bot, "beg", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def beg(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "beg", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def cumcleaner(ctx): await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def cumcleaner(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def pimp(ctx): await worknranks.handle_work_command(ctx, bot, "pimp", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def pimp(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "pimp", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def experiment(ctx): await worknranks.handle_work_command(ctx, bot, "experiment", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def experiment(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "experiment", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def mystery(ctx): await worknranks.handle_work_command(ctx, bot, "mystery", (100, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def mystery(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "mystery", (100, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
 @bot.command()
-async def flirt(ctx): await worknranks.handle_work_command(ctx, bot, "flirt", (700, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+async def flirt(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "flirt", (700, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 # ===== 6. CORE PERIODIC REWARDS SYSTEM (REMOVED TO daily.py) =====
 
