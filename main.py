@@ -743,6 +743,12 @@ async def on_ready():
             await bot.load_extension("helper")
             print("✅ LOG: Helper System (Refresh Protocol) is ONLINE.")
     except Exception as e: print(f"Helper fail: {e}")
+
+    try:
+        if not bot.get_cog("CardSystem"):
+            await bot.load_extension("cards")
+            print("✅ LOG: Card System is ONLINE.")
+    except Exception as e: print(f"Card System fail: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
