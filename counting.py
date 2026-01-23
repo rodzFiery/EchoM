@@ -23,16 +23,19 @@ class Counting(commands.Cog):
                 # Load all guild-specific channels
                 c_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'counting_channel_%'").fetchall()
                 for row in c_rows:
-                    guild_id = int(row['key'].split('_')[-1])
-                    self.counting_channel_ids[guild_id] = int(row['value'])
+                    guild_part = row['key'].split('_')[-1]
+                    if guild_part.isdigit():
+                        self.counting_channel_ids[int(guild_part)] = int(row['value'])
                 
                 # Load all guild-specific states
                 s_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'counting_state_%'").fetchall()
                 for row in s_rows:
-                    guild_id = int(row['key'].split('_')[-1])
-                    state = json.loads(row['value'])
-                    self.current_counts[guild_id] = state.get('count', 0)
-                    self.last_user_ids[guild_id] = state.get('last_user', None)
+                    guild_part = row['key'].split('_')[-1]
+                    if guild_part.isdigit():
+                        guild_id = int(guild_part)
+                        state = json.loads(row['value'])
+                        self.current_counts[guild_id] = state.get('count', 0)
+                        self.last_user_ids[guild_id] = state.get('last_user', None)
         except: pass
 
     def save_state(self, guild_id):
@@ -100,7 +103,7 @@ class Counting(commands.Cog):
                                         f"Asset {message.author.mention}, your numerical precision is efficient.\n\n"
                                         f"**Reward Granted:** `{reward:,} Flames` {'(2x Weekend Bonus!)' if is_weekend else ''}\n"
                                         f"**Status:** `Verified & Synchronized`\n\n"
-                                        f"*The Red Room appreciates your consistency.*", color=0xFF4500 if is_weekend else 0x00FF00)
+                                        f"f\"*The Red Room appreciates your consistency.*\"", color=0xFF4500 if is_weekend else 0x00FF00)
             await message.channel.send(embed=embed)
 
     async def check_community_milestone(self, message):
@@ -363,17 +366,15 @@ class Counting(commands.Cog):
             
         guild_id = message.guild.id
         
-        # CRITICAL RECOGNITION FIX: Ensure guild_id exists in cache before checking channel
+        # --- FIX: Ensure memory is updated if cache is empty for this guild ---
         if guild_id not in self.counting_channel_ids:
-            return
-            
-        if message.channel.id != self.counting_channel_ids[guild_id]:
+            self.load_config()
+
+        if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
-        # NEW: Auto-Cleanup Protocol - Deletes non-number messages in the channel
         content = message.content.strip()
         if not content.isdigit():
-            # Only delete if it's not a command for this bot
             ctx = await self.bot.get_context(message)
             if not ctx.valid:
                 try:
