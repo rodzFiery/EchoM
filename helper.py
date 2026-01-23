@@ -4,10 +4,32 @@ import sys
 import importlib
 import os
 import traceback
+import asyncio
 
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.command(name="echopurge")
+    @commands.has_permissions(manage_messages=True)
+    async def echopurge(self, ctx, amount: int):
+        """Deletes a specified number of messages from the channel."""
+        if amount < 1:
+            return await ctx.send("❌ **Neural error:** Minimum purge value is 1.", delete_after=5)
+        
+        # Limit to 100 to prevent API timeouts, adjust as needed
+        if amount > 100:
+            amount = 100
+
+        # We delete the trigger command itself + the requested amount
+        deleted = await ctx.channel.purge(limit=amount + 1)
+        
+        confirm = await ctx.send(f"🧹 **ECHO PURGE COMPLETE:** `{len(deleted)-1}` messages scrubbed from history.")
+        await asyncio.sleep(5)
+        try:
+            await confirm.delete()
+        except:
+            pass
 
     @commands.command(name="refresh")
     @commands.is_owner() # Secure override for the Master
@@ -17,7 +39,6 @@ class HelperSystem(commands.Cog):
         
         try:
             # 1. Clear internal cache for local modules
-            # This ensures that if you changed prizes.py or utilis.py, the bot sees it.
             local_modules = ['utilis', 'database', 'prizes', 'worknranks', 'daily', 'social']
             for mod in local_modules:
                 if mod in sys.modules:
@@ -28,7 +49,6 @@ class HelperSystem(commands.Cog):
             db_module.init_db() 
             
             # 3. Reload Cogs
-            # These names must match your .py filenames exactly
             extensions = [
                 "admin", "classes", "extensions", "ship", "shop", "collect", 
                 "fight", "casino", "ask", "premium", "audit", "thread", 
@@ -41,11 +61,9 @@ class HelperSystem(commands.Cog):
 
             for ext in extensions:
                 try:
-                    # Attempt to reload the extension
                     await self.bot.reload_extension(ext)
                     reloaded.append(f"✅ {ext}")
                 except commands.ExtensionNotLoaded:
-                    # If it wasn't loaded yet, load it now
                     try:
                         await self.bot.load_extension(ext)
                         reloaded.append(f"✅ {ext}")
@@ -54,13 +72,10 @@ class HelperSystem(commands.Cog):
                 except Exception as e:
                     failed.append(f"❌ {ext} (Reload Fail: {e})")
 
-            # Import fiery_embed from utilis or use local logic to match main.py style
             from utilis import fiery_embed
-            # Check for nsfw_mode_active in main
             main_mod = sys.modules['__main__']
             nsfw = getattr(main_mod, 'nsfw_mode_active', False)
             
-            # Formatting the Status Report
             status_report = "**Synchronized:**\n" + (", ".join(reloaded) if reloaded else "None")
             if failed:
                 status_report += "\n\n**Failed Protocols:**\n" + "\n".join(failed)
@@ -84,10 +99,7 @@ class HelperSystem(commands.Cog):
         if not cmd:
             return await ctx.send(f"❌ **Command `{command_name}` not found in the neural net.** It might not be loaded.")
         
-        # Check Cog association
         cog_name = cmd.cog_name if cmd.cog_name else "Main Core"
-        
-        # Check Permissions/Checks
         checks = cmd.checks
         
         report = [
