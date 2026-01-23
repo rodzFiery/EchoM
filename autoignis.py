@@ -103,22 +103,17 @@ class IgnisAuto(commands.Cog):
             if self.last_processed_window == window_id:
                 return
 
-            # UPDATE TRACKER IMMEDIATELY INSIDE LOCK
-            self.last_processed_window = window_id
-
             channel = self.bot.get_channel(self.auto_channel_id)
             if not channel:
                 return
 
-            # 1. Process the previous lobby if it exists
+            # 1. Process the previous lobby if it exists (BEFORE updating window tracker)
             if self.current_auto_lobby:
-                # FIX: Disable previous view buttons to stop users from joining a "ghost" lobby
+                # Disable previous view buttons
                 for item in self.current_auto_lobby.children:
                     item.disabled = True
 
                 if len(self.current_auto_lobby.participants) >= 2:
-                    # INDEPENDENT TRIGGER: We no longer check if IgnisEngine is busy.
-                    # Both manual and automatic games can run simultaneously.
                     ignis_engine = self.bot.get_cog("IgnisEngine")
 
                     if ignis_engine:
@@ -128,7 +123,6 @@ class IgnisAuto(commands.Cog):
                         main_module = sys.modules['__main__']
                         edition = getattr(main_module, "game_edition", 1)
                         
-                        # Capture the list to ensure no reference issues during lobby reset
                         battle_participants = list(self.current_auto_lobby.participants)
                         
                         asyncio.create_task(ignis_engine.start_battle(
@@ -137,19 +131,20 @@ class IgnisAuto(commands.Cog):
                             edition
                         ))
                         
-                        # Increment edition in main
                         if hasattr(main_module, "game_edition"):
                             main_module.game_edition += 1
                             main_module.save_game_config()
                     else:
-                        await channel.send("❌ Error: IgnisEngine not found. System failure - call dev.rodz.")
+                        await channel.send("❌ Error: IgnisEngine not found. System failure.")
                 else:
                     await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+
+            # UPDATE TRACKER IMMEDIATELY AFTER PROCESSING PREVIOUS GAME
+            self.last_processed_window = window_id
 
             # 2. Start NEW lobby for the next 30 minutes
             self.current_auto_lobby = AutoLobbyView()
             
-            # ENHANCED INFORMATIVE CONTENT
             lobby_desc = (
                 "🔞 **The scent of worn leather and cold iron fills the air.**\n\n"
                 "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
@@ -162,10 +157,8 @@ class IgnisAuto(commands.Cog):
             )
             
             image_path = "LobbyTopRight.jpg"
-            # VISUAL UPDATE: High visibility Soul Counter
             embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
             
-            # NEW INFORMATIVE CONCEPTS
             embed.add_field(
                 name="⛓️ Dungeon Protocol",
                 value=(
@@ -174,14 +167,12 @@ class IgnisAuto(commands.Cog):
                 inline=False
             )
             
-            # UPDATED: Real-time footer calculation for 30m precision
             next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
             if now.minute >= 30:
                 next_run_time += timedelta(hours=1)
 
             embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
-            # ADDED: HOURLY PING LOGIC (Every 1 hour at .00)
             content = None
             if now.minute < 5 and self.ping_role_id != 0: 
                 content = f"<@&{self.ping_role_id}>"
@@ -227,8 +218,6 @@ class IgnisAuto(commands.Cog):
             target_time = now + timedelta(hours=1)
         
         next_run_time = target_time.replace(minute=next_m, second=0, microsecond=0)
-
-        # Update last processed window so we don't double-trigger on initialization
         current_minute_block = 0 if now.minute < 30 else 30
         self.last_processed_window = f"{now.hour}_{current_minute_block}"
 
