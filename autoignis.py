@@ -125,6 +125,7 @@ class IgnisAuto(commands.Cog):
                         
                         battle_participants = list(self.current_auto_lobby.participants)
                         
+                        # Trigger the actual battle logic from IgnisEngine
                         asyncio.create_task(ignis_engine.start_battle(
                             channel, 
                             battle_participants, 
