@@ -185,6 +185,24 @@ class ConfessionSystem(commands.Cog):
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Secondary Post channel set to {(channel or ctx.channel).mention}")
 
+    @commands.command(name="confessstatus")
+    @commands.has_permissions(administrator=True)
+    async def confess_status(self, ctx):
+        """Displays the current confession configuration for this sector."""
+        self.load_config(ctx.guild.id)
+        main_mod = sys.modules['__main__']
+        
+        review = f"<#{self.review_channel_id}>" if self.review_channel_id else "`Not Set`"
+        post1 = f"<#{self.post_channel_id}>" if self.post_channel_id else f"`Not Set`"
+        post2 = f"<#{self.post_channel_id_2}>" if self.post_channel_id_2 else f"`Not Set`"
+        
+        desc = (f"### 📡 CONFESSION PROTOCOL STATUS\n"
+                f"**Review Channel:** {review}\n"
+                f"**Primary Post:** {post1}\n"
+                f"**Secondary Post:** {post2}\n\n"
+                f"**Total Echoed:** `{self.confession_count}`")
+        await ctx.send(embed=main_mod.fiery_embed("SYSTEM CONFIGURATION AUDIT", desc, color=0x3498DB))
+
     @commands.command(name="confesspanel")
     @commands.has_permissions(administrator=True)
     async def send_panel(self, ctx):
