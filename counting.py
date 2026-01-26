@@ -277,25 +277,39 @@ class Counting(commands.Cog):
         
         def fetch_stats():
             with main_mod.get_db_connection() as conn:
-                stats = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
-                local = conn.execute("SELECT count FROM local_counting WHERE user_id = ? AND guild_id = ?", (target.id, guild_id)).fetchone()
-                total_global = conn.execute("SELECT SUM(count_total) FROM users").fetchone()[0] or 1
-                # Scalable badge check: only fetch achieved milestones
-                milestones = conn.execute("SELECT milestone FROM global_milestone_history ORDER BY milestone DESC").fetchall()
-                user_badges = [f"`[Architect {m[0]:,}]`" for m in milestones if (stats['count_total'] if stats else 0) >= m[0]]
+                # FIX: Handle potential NoneType results with COALESCE or manual checks
+                stats_row = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
+                local_row = conn.execute("SELECT count FROM local_counting WHERE user_id = ? AND guild_id = ?", (target.id, guild_id)).fetchone()
+                total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
+                
+                # Default empty values if None
+                stats = stats_row if stats_row else {'count_total': 0, 'count_mistakes': 0}
+                local = local_row if local_row else {'count': 0}
+                total_global = total_global_row[0] if total_global_row and total_global_row[0] else 1
+                
+                # Scalable badge check
+                try:
+                    milestones = conn.execute("SELECT milestone FROM global_milestone_history ORDER BY milestone DESC").fetchall()
+                except:
+                    milestones = []
+                    
+                user_badges = [f"`[Architect {m[0]:,}]`" for m in milestones if (stats['count_total']) >= m[0]]
                 return stats, local, total_global, user_badges
 
-        data, local_data, total_global, badges = await asyncio.to_thread(fetch_stats)
-        total = data['count_total'] if data else 0
-        acc = (total / (total + (data['count_mistakes'] if data else 0)) * 100) if (total + (data['count_mistakes'] if data else 0)) > 0 else 100.0
-        
-        desc = (f"### 🧬 AUDIT: {target.display_name.upper()}\n"
-                f"**Clearance:** {' '.join(badges[:3]) or 'Standard'}\n\n"
-                f"• **Verified Numbers:** `{total:,}`\n"
-                f"• **Accuracy:** `{acc:.2f}%`\n"
-                f"• **Global Impact:** `{((total / total_global) * 100):.4f}%` of Echo\n\n"
-                f"• **Local Sector Contrib:** `{local_data['count'] if local_data else 0:,}`")
-        await ctx.send(embed=main_mod.fiery_embed("NEURAL AUDIT REPORT", desc, color=0x3498DB))
+        try:
+            data, local_data, total_global, badges = await asyncio.to_thread(fetch_stats)
+            total = data['count_total']
+            acc = (total / (total + data['count_mistakes']) * 100) if (total + data['count_mistakes']) > 0 else 100.0
+            
+            desc = (f"### 🧬 AUDIT: {target.display_name.upper()}\n"
+                    f"**Clearance:** {' '.join(badges[:3]) or 'Standard'}\n\n"
+                    f"• **Verified Numbers:** `{total:,}`\n"
+                    f"• **Accuracy:** `{acc:.2f}%`\n"
+                    f"• **Global Impact:** `{((total / total_global) * 100):.4f}%` of Echo\n\n"
+                    f"• **Local Sector Contrib:** `{local_data['count']:,}`")
+            await ctx.send(embed=main_mod.fiery_embed("NEURAL AUDIT REPORT", desc, color=0x3498DB))
+        except Exception as e:
+            await ctx.send(f"❌ **Neural Audit Failed:** Error in asset retrieval.")
 
     @commands.Cog.listener()
     async def on_message(self, message):
