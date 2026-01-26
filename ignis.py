@@ -65,7 +65,16 @@ class LobbyView(discord.ui.View):
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
         # Use getattr to safely check for roles attribute
-        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] for role in getattr(interaction.user, 'roles', []))
+        
+        # ADDED: Check for specific Ignis Admin Role
+        engine = interaction.client.get_cog("IgnisEngine")
+        ignis_admin_role_id = None
+        if engine:
+            with engine.get_db_connection() as conn:
+                row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+                if row: ignis_admin_role_id = row[0]
+
+        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] or role.id == ignis_admin_role_id for role in getattr(interaction.user, 'roles', []))
         
         # Checking if owner exists (owner is passed as ctx.author in echostart)
         # FIXED: Added safe check for template views (where owner is None)
@@ -116,6 +125,17 @@ class EngineControl(commands.Cog):
         self.fiery_embed = fiery_embed
         self.save_game_config = save_game_config
         self.get_db_connection = get_db_connection
+
+    # ADDED: Command to set the Ignis Admin Role
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def set_ignis_admin(self, ctx, role: discord.Role):
+        """Sets the specific role allowed to manage Ignis games."""
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
+            conn.execute("INSERT OR REPLACE INTO ignis_settings (guild_id, role_id) VALUES (?, ?)", (ctx.guild.id, role.id))
+            conn.commit()
+        await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as an **Ignis Admin**."))
 
     @commands.command()
     async def echostart(self, ctx):
