@@ -317,6 +317,11 @@ class Counting(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
         guild_id = message.guild.id
+
+        # --- RE-SYNC CACHE IF MISSING ---
+        if guild_id not in self.counting_channel_ids:
+            self.load_config()
+
         if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
@@ -328,19 +333,26 @@ class Counting(commands.Cog):
             return
 
         number = int(content)
+        # Ensure count exists in cache, default to 0 if still missing after load
         current_count = self.current_counts.get(guild_id, 0)
         expected = current_count + 1
         last_user_id = self.last_user_ids.get(guild_id)
 
+        # CHECK FOR WRONG NUMBER OR DOUBLE COUNT
         if number != expected or message.author.id == last_user_id:
-            await self.update_high_score(current_count, message.author.id, guild_id)
+            ruined_count = current_count
+            await self.update_high_score(ruined_count, message.author.id, guild_id)
             await self.update_member_stats(message.author.id, guild_id, is_mistake=True)
+            
+            # RESET CACHE AND STATE
             self.current_counts[guild_id] = 0
             self.last_user_ids[guild_id] = None
             await self.save_state(guild_id)
-            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 RUN RUINED", f"Failed at `{current_count}`. Reset to 0.", color=0xFF0000))
+            
+            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 RUN RUINED", f"Failed at `{ruined_count}`. Reset to 0.", color=0xFF0000))
             return
 
+        # UPDATE CACHE AND DATABASE
         self.current_counts[guild_id] = number
         self.last_user_ids[guild_id] = message.author.id
         await self.save_state(guild_id)
