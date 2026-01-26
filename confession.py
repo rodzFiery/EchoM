@@ -4,7 +4,7 @@ import sys
 import os
 import json
 
-class ConfessionModal(discord.ui.Modal, title="NEURAL CONFESSION SUBMISSION"):
+class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
     confession = discord.ui.TextInput(
         label="What is your frequency?",
         style=discord.TextStyle.paragraph,
@@ -50,13 +50,18 @@ class ConfessionReviewView(discord.ui.View):
         main_mod = sys.modules['__main__']
         cog = interaction.client.get_cog("ConfessionSystem")
         
+        # --- MODIFIED: LOADING GUILD CONFIG ON APPROVAL ---
+        cog.load_config(interaction.guild.id)
+
         post_channel = interaction.client.get_channel(cog.post_channel_id)
-        if not post_channel:
-            return await interaction.response.send_message("❌ Error: Post channel not found.", ephemeral=True)
+        post_channel_2 = interaction.client.get_channel(cog.post_channel_id_2)
+        
+        if not post_channel and not post_channel_2:
+            return await interaction.response.send_message("❌ Error: No post channels found.", ephemeral=True)
 
         # Get total confession count for the ID
         cog.confession_count += 1
-        cog.save_config()
+        cog.save_config(interaction.guild.id)
 
         embed = self.main_mod.fiery_embed(f"🌑 ANONYMOUS CONFESSION #{cog.confession_count}", 
                                         f"\"{self.confession_text}\"")
@@ -66,10 +71,12 @@ class ConfessionReviewView(discord.ui.View):
         view = ConfessionSubmissionView(self.main_mod, interaction.client, cog.review_channel_id)
         view.children[0].label = "SUBMIT ANOTHER"
         
-        await post_channel.send(embed=embed, view=view)
+        if post_channel:
+            await post_channel.send(embed=embed, view=view)
+        if post_channel_2:
+            await post_channel_2.send(embed=embed, view=view)
         
         # --- MODIFIED: AUDIT PERSISTENCE ---
-        # Instead of deleting, we update the review embed and remove buttons
         original_embed = interaction.message.embeds[0]
         original_embed.title = "✅ CONFESSION DISPATCHED"
         original_embed.color = discord.Color.green()
@@ -107,58 +114,79 @@ class ConfessionSubmissionView(discord.ui.View):
 
     @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑", custom_id="permanent_confess_btn")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.review_channel_id is None:
+        # --- MODIFIED: PER-GUILD LOAD ON CLICK ---
+        cog = self.bot.get_cog("ConfessionSystem")
+        cog.load_config(interaction.guild.id)
+        if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
-        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, self.review_channel_id))
+        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id))
 
 class ConfessionSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.review_channel_id = None
         self.post_channel_id = None
+        self.post_channel_id_2 = None
         self.confession_count = 0
-        self.load_config()
 
-    def load_config(self):
+    def load_config(self, guild_id):
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
-                row = conn.execute("SELECT value FROM config WHERE key = 'confession_config'").fetchone()
+                row = conn.execute("SELECT value FROM config WHERE key = ?", (f'confession_config_{guild_id}',)).fetchone()
                 if row:
                     data = json.loads(row['value'])
                     self.review_channel_id = data.get('review_id')
                     self.post_channel_id = data.get('post_id')
+                    self.post_channel_id_2 = data.get('post_id_2')
                     self.confession_count = data.get('count', 0)
+                else:
+                    self.review_channel_id = None
+                    self.post_channel_id = None
+                    self.post_channel_id_2 = None
+                    self.confession_count = 0
         except: pass
 
-    def save_config(self):
+    def save_config(self, guild_id):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            data = {'review_id': self.review_channel_id, 'post_id': self.post_channel_id, 'count': self.confession_count}
+            data = {'review_id': self.review_channel_id, 'post_id': self.post_channel_id, 'post_id_2': self.post_channel_id_2, 'count': self.confession_count}
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
-                         ('confession_config', json.dumps(data)))
+                         (f'confession_config_{guild_id}', json.dumps(data)))
             conn.commit()
 
     @commands.command(name="setconfessreview")
     @commands.has_permissions(administrator=True)
     async def set_review(self, ctx, channel: discord.TextChannel = None):
         """Sets the admin-only channel for approving confessions."""
+        self.load_config(ctx.guild.id)
         self.review_channel_id = (channel or ctx.channel).id
-        self.save_config()
+        self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Review channel set to {(channel or ctx.channel).mention}")
 
     @commands.command(name="setconfesspost")
     @commands.has_permissions(administrator=True)
     async def set_post(self, ctx, channel: discord.TextChannel = None):
-        """Sets the public channel where approved confessions are posted."""
+        """Sets the first public channel where approved confessions are posted."""
+        self.load_config(ctx.guild.id)
         self.post_channel_id = (channel or ctx.channel).id
-        self.save_config()
-        await ctx.send(f"✅ Post channel set to {(channel or ctx.channel).mention}")
+        self.save_config(ctx.guild.id)
+        await ctx.send(f"✅ Primary Post channel set to {(channel or ctx.channel).mention}")
+
+    @commands.command(name="setconfesspost2")
+    @commands.has_permissions(administrator=True)
+    async def set_post_2(self, ctx, channel: discord.TextChannel = None):
+        """Sets the second public channel where approved confessions are posted."""
+        self.load_config(ctx.guild.id)
+        self.post_channel_id_2 = (channel or ctx.channel).id
+        self.save_config(ctx.guild.id)
+        await ctx.send(f"✅ Secondary Post channel set to {(channel or ctx.channel).mention}")
 
     @commands.command(name="confesspanel")
     @commands.has_permissions(administrator=True)
     async def send_panel(self, ctx):
         """Sends the permanent button for members to submit confessions."""
+        self.load_config(ctx.guild.id)
         main_mod = sys.modules['__main__']
         embed = main_mod.fiery_embed("🌑 NEURAL CONFESSION HUB", 
                                     "Click the button below to submit your frequency anonymously.\n"
@@ -169,6 +197,7 @@ class ConfessionSystem(commands.Cog):
     @commands.command(name="confess")
     async def manual_confess(self, ctx, *, message: str):
         """Manually trigger an anonymous confession submission for review."""
+        self.load_config(ctx.guild.id)
         if self.review_channel_id is None:
             return await ctx.send("❌ The confession review channel is not configured.")
 
