@@ -235,7 +235,7 @@ class Counting(commands.Cog):
         """Emergency Override: Sets the current count manually."""
         guild_id = ctx.guild.id
         self.current_counts[guild_id] = new_count
-        # Preserve user chain security
+        self.last_user_ids[guild_id] = None
         await self.save_state(guild_id)
         main_mod = sys.modules['__main__']
         await ctx.send(embed=main_mod.fiery_embed("🔧 NEURAL RESYNC", f"Count set to **{new_count}**. Next asset types **{new_count + 1}**."))
@@ -338,6 +338,11 @@ class Counting(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
         guild_id = message.guild.id
+        
+        # Reload cache if guild is missing
+        if guild_id not in self.counting_channel_ids:
+            self.load_config()
+            
         if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
             return
 
@@ -353,37 +358,35 @@ class Counting(commands.Cog):
         expected = current_count + 1
         last_user_id = self.last_user_ids.get(guild_id)
 
-        # CRITICAL RESET LOGIC: Triggers if number is wrong OR user counts twice in a row
+        # TRIGGER RESET: Wrong number OR user counts twice in a row
         if number != expected or message.author.id == last_user_id:
-            # Determine reason for reset
+            # Determine logic for reset message
             reason = "Wrong number." if number != expected else "You cannot count twice in a row."
             
-            # Update scores and stats before resetting
+            # Update high score and member mistake stats
             await self.update_high_score(current_count, message.author.id, guild_id)
             await self.update_member_stats(message.author.id, guild_id, is_mistake=True)
             
-            # Reset local cache immediately
+            # Clear local cache and push state reset to DB
             self.current_counts[guild_id] = 0
             self.last_user_ids[guild_id] = None
-            
-            # Push reset to database
             await self.save_state(guild_id)
             
-            # Announcement of reset
+            # Send failure embed
             await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 SEQUENCE TERMINATED", 
                 f"Asset {message.author.mention} has failed the Echo.\n\n"
                 f"**Reason:** `{reason}`\n"
                 f"**Final Score:** `{current_count:,}`\n"
-                f"**Protocol:** Resetting to `0`.", color=0xFF0000))
+                f"**Protocol:** Resetting to `0`.\n\n"
+                f"*The Red Room demands a new start.*", color=0xFF0000))
             return
 
-        # SUCCESSFUL INPUT: Update cache and push to DB
+        # VALID INPUT: Update state and check goals
         self.current_counts[guild_id] = number
         self.last_user_ids[guild_id] = message.author.id
         await self.save_state(guild_id)
         await self.update_member_stats(message.author.id, guild_id)
         
-        # Check milestones
         await self.check_personal_milestone(message)
         await self.check_community_milestone(message)
         await self.check_global_goal(message)
