@@ -275,7 +275,8 @@ class FieryShip(commands.Cog):
             user1 = ctx.author
 
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        pair_key = f"{min(user1.id, user2.id)}-{max(user1.id, user2.id)}"
+        # UPDATED: Key now includes the command author's ID so scans are unique per user
+        pair_key = f"{ctx.author.id}-{min(user1.id, user2.id)}-{max(user1.id, user2.id)}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
             self.ship_attempts[pair_key] = {'count': 0, 'date': today}
@@ -288,7 +289,8 @@ class FieryShip(commands.Cog):
             percent = random.randint(0, 100)
             status_note = f"**⚠️ Unstable Vibration: Scan {attempt_count}/3. Results are fluctuating...**"
         else:
-            seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
+            # UPDATED: Final seed also includes author ID to ensure unique final resonance per user
+            seed_str = f"{ctx.author.id}{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
             status_note = "**🔒 Frequency Locked: Resonance has stabilized for the next cycle.**"
@@ -509,7 +511,8 @@ class FieryShip(commands.Cog):
         if not members: return await ctx.send("❌ No assets.")
         best, high, today = None, -1, datetime.now(timezone.utc).strftime("%Y-%m-%d")
         for m in members:
-            random.seed(f"{min(ctx.author.id, m.id)}{max(ctx.author.id, m.id)}{today}")
+            # Seed here also includes author ID to make best match unique per user
+            random.seed(f"{ctx.author.id}{min(ctx.author.id, m.id)}{max(ctx.author.id, m.id)}{today}")
             pct = random.randint(0, 100)
             if pct > high: high, best = pct, m
         # UPDATED: Pings the best match so they are notified
