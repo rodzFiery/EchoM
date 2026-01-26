@@ -110,21 +110,24 @@ class ConfessionReviewView(discord.ui.View):
 
 class ConfessionSubmissionView(discord.ui.View):
     def __init__(self, main_mod, bot, review_channel_id, target_slot=1):
-        # MANDATORY PERSISTENCE FIX: Views must have timeout=None and custom_id
+        # MANDATORY PERSISTENCE FIX: Unique custom_id per slot is required to distinguish views
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.bot = bot
         self.review_channel_id = review_channel_id
         self.target_slot = target_slot
+        
+        # Update the button custom_id dynamically based on slot
+        self.children[0].custom_id = f"confess_btn_slot_{target_slot}"
 
-    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑", custom_id="permanent_confess_btn")
+    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         # --- MODIFIED: PER-GUILD LOAD ON CLICK ---
         cog = self.bot.get_cog("ConfessionSystem")
         cog.load_config(interaction.guild.id)
         if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
-        # Modal now inherits the target_slot of the view it was launched from
+        # Modal now correctly inherits the target_slot from the unique button custom_id
         await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, self.target_slot))
 
 class ConfessionSystem(commands.Cog):
