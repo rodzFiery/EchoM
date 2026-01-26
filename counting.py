@@ -273,6 +273,27 @@ class Counting(commands.Cog):
         desc = "### 📊 SECTOR RANKINGS\n" + "".join([f"`#{i}` <@{r['user_id']}> — **{r['count']:,}**\n" for i, r in enumerate(data, 1)])
         await ctx.send(embed=main_mod.fiery_embed("LOCAL LEADERBOARD", desc))
 
+    @commands.command(name="serverstats")
+    async def server_stats(self, ctx):
+        """Displays full statistical audit for the current server."""
+        main_mod = sys.modules['__main__']
+        guild_id = ctx.guild.id
+        def fetch_guild_metrics():
+            with main_mod.get_db_connection() as conn:
+                record = conn.execute("SELECT MAX(score) FROM counting_runs WHERE guild_id = ?", (guild_id,)).fetchone()
+                total_local = conn.execute("SELECT SUM(count) FROM local_counting WHERE guild_id = ?", (guild_id,)).fetchone()
+                ruiner = conn.execute("SELECT ruiner_id, COUNT(*) as fails FROM counting_runs WHERE guild_id = ? GROUP BY ruiner_id ORDER BY fails DESC LIMIT 1", (guild_id,)).fetchone()
+                return record[0] or 0, total_local[0] or 0, ruiner
+        high_score, total_inputs, top_ruiner = await asyncio.to_thread(fetch_guild_metrics)
+        current = self.current_counts.get(guild_id, 0)
+        ruiner_mention = f"<@{top_ruiner[0]}> ({top_ruiner[1]} fails)" if top_ruiner else "None"
+        desc = (f"### 🏙️ SECTOR AUDIT: {ctx.guild.name.upper()}\n"
+                f"• **Current Sequence:** `{current:,}`\n"
+                f"• **Sector Record:** `{high_score:,}`\n"
+                f"• **Total Data Verified:** `{total_inputs:,} inputs`\n"
+                f"• **Primary Disruptor:** {ruiner_mention}")
+        await ctx.send(embed=main_mod.fiery_embed("SERVER COUNTING AUDIT", desc, color=0x9B59B6))
+
     @commands.command(name="countstats")
     async def countstats(self, ctx, member: discord.Member = None):
         """ULTIMATE NEURAL DOSSIER."""
@@ -317,13 +338,8 @@ class Counting(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
         guild_id = message.guild.id
-
-        # --- RE-SYNC CACHE IF MISSING ---
-        if guild_id not in self.counting_channel_ids:
-            self.load_config()
-
-        if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
-            return
+        if guild_id not in self.counting_channel_ids: return
+        if message.channel.id != self.counting_channel_ids[guild_id]: return
 
         content = message.content.strip()
         if not content.isdigit():
@@ -333,26 +349,19 @@ class Counting(commands.Cog):
             return
 
         number = int(content)
-        # Ensure count exists in cache, default to 0 if still missing after load
         current_count = self.current_counts.get(guild_id, 0)
         expected = current_count + 1
         last_user_id = self.last_user_ids.get(guild_id)
 
-        # CHECK FOR WRONG NUMBER OR DOUBLE COUNT
         if number != expected or message.author.id == last_user_id:
-            ruined_count = current_count
-            await self.update_high_score(ruined_count, message.author.id, guild_id)
+            await self.update_high_score(current_count, message.author.id, guild_id)
             await self.update_member_stats(message.author.id, guild_id, is_mistake=True)
-            
-            # RESET CACHE AND STATE
             self.current_counts[guild_id] = 0
             self.last_user_ids[guild_id] = None
             await self.save_state(guild_id)
-            
-            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 RUN RUINED", f"Failed at `{ruined_count}`. Reset to 0.", color=0xFF0000))
+            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 RUN RUINED", f"Failed at `{current_count}`. Reset to 0.", color=0xFF0000))
             return
 
-        # UPDATE CACHE AND DATABASE
         self.current_counts[guild_id] = number
         self.last_user_ids[guild_id] = message.author.id
         await self.save_state(guild_id)
