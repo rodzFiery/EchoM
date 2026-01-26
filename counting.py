@@ -338,8 +338,8 @@ class Counting(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
         guild_id = message.guild.id
-        if guild_id not in self.counting_channel_ids: return
-        if message.channel.id != self.counting_channel_ids[guild_id]: return
+        if guild_id not in self.counting_channel_ids or message.channel.id != self.counting_channel_ids[guild_id]:
+            return
 
         content = message.content.strip()
         if not content.isdigit():
@@ -353,22 +353,41 @@ class Counting(commands.Cog):
         expected = current_count + 1
         last_user_id = self.last_user_ids.get(guild_id)
 
+        # CRITICAL RESET LOGIC: Triggers if number is wrong OR user counts twice in a row
         if number != expected or message.author.id == last_user_id:
+            # Determine reason for reset
+            reason = "Wrong number." if number != expected else "You cannot count twice in a row."
+            
+            # Update scores and stats before resetting
             await self.update_high_score(current_count, message.author.id, guild_id)
             await self.update_member_stats(message.author.id, guild_id, is_mistake=True)
+            
+            # Reset local cache immediately
             self.current_counts[guild_id] = 0
             self.last_user_ids[guild_id] = None
+            
+            # Push reset to database
             await self.save_state(guild_id)
-            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 RUN RUINED", f"Failed at `{current_count}`. Reset to 0.", color=0xFF0000))
+            
+            # Announcement of reset
+            await message.channel.send(embed=sys.modules['__main__'].fiery_embed("🚫 SEQUENCE TERMINATED", 
+                f"Asset {message.author.mention} has failed the Echo.\n\n"
+                f"**Reason:** `{reason}`\n"
+                f"**Final Score:** `{current_count:,}`\n"
+                f"**Protocol:** Resetting to `0`.", color=0xFF0000))
             return
 
+        # SUCCESSFUL INPUT: Update cache and push to DB
         self.current_counts[guild_id] = number
         self.last_user_ids[guild_id] = message.author.id
         await self.save_state(guild_id)
         await self.update_member_stats(message.author.id, guild_id)
+        
+        # Check milestones
         await self.check_personal_milestone(message)
         await self.check_community_milestone(message)
         await self.check_global_goal(message)
+        
         try: await message.add_reaction("✅")
         except: pass
 
