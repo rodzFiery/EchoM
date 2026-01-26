@@ -71,10 +71,13 @@ class ConfessionReviewView(discord.ui.View):
         view = ConfessionSubmissionView(self.main_mod, interaction.client, cog.review_channel_id)
         view.children[0].label = "SUBMIT ANOTHER"
         
+        # FIX: Sending to both channels instead of just the last one set
         if post_channel:
-            await post_channel.send(embed=embed, view=view)
+            try: await post_channel.send(embed=embed, view=view)
+            except: pass
         if post_channel_2:
-            await post_channel_2.send(embed=embed, view=view)
+            try: await post_channel_2.send(embed=embed, view=view)
+            except: pass
         
         # --- MODIFIED: AUDIT PERSISTENCE ---
         original_embed = interaction.message.embeds[0]
