@@ -13,37 +13,40 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         max_length=2000,
     )
 
-    def __init__(self, main_mod, bot, review_channel_id):
+    def __init__(self, main_mod, bot, review_channel_id, target_slot=1):
         super().__init__()
         self.main_mod = main_mod
         self.bot = bot
         self.review_channel_id = review_channel_id
+        self.target_slot = target_slot
 
     async def on_submit(self, interaction: discord.Interaction):
         review_channel = self.bot.get_channel(self.review_channel_id)
         if not review_channel:
             return await interaction.response.send_message("❌ Error: Review channel not found.", ephemeral=True)
 
-        embed = self.main_mod.fiery_embed("🛰️ INCOMING CONFESSION FOR REVIEW", 
+        slot_label = "PRIMARY" if self.target_slot == 1 else "SECONDARY"
+        embed = self.main_mod.fiery_embed(f"🛰️ INCOMING CONFESSION [{slot_label}]", 
                                         f"**Submission:**\n{self.confession.value}")
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
         embed.set_footer(text="The Master must decide the fate of this frequency.")
         
-        # FIXED: Passing interaction.user.id to the review view
-        view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id)
+        # FIXED: Passing interaction.user.id and target_slot to the review view
+        view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id, self.target_slot)
         await review_channel.send(embed=embed, view=view)
         
         await interaction.response.send_message("✅ Your confession has been transmitted to the Master for review.", ephemeral=True)
 
 class ConfessionReviewView(discord.ui.View):
-    def __init__(self, main_mod, confession_text, submitter_id=None):
+    def __init__(self, main_mod, confession_text, submitter_id=None, target_slot=1):
         # MANDATORY PERSISTENCE FIX: Added custom_id bridge
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.confession_text = confession_text
         self.submitter_id = submitter_id
+        self.target_slot = target_slot
 
     @discord.ui.button(label="APPROVE", style=discord.ButtonStyle.success, emoji="✅", custom_id="confess_approve_btn")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -53,11 +56,14 @@ class ConfessionReviewView(discord.ui.View):
         # --- MODIFIED: LOADING GUILD CONFIG ON APPROVAL ---
         cog.load_config(interaction.guild.id)
 
-        post_channel = interaction.client.get_channel(cog.post_channel_id)
-        post_channel_2 = interaction.client.get_channel(cog.post_channel_id_2)
+        # Logic to select ONLY the specific target channel
+        if self.target_slot == 2:
+            post_channel = interaction.client.get_channel(cog.post_channel_id_2)
+        else:
+            post_channel = interaction.client.get_channel(cog.post_channel_id)
         
-        if not post_channel and not post_channel_2:
-            return await interaction.response.send_message("❌ Error: No post channels found.", ephemeral=True)
+        if not post_channel:
+            return await interaction.response.send_message("❌ Error: Target post channel not found.", ephemeral=True)
 
         # Get total confession count for the ID
         cog.confession_count += 1
@@ -68,22 +74,16 @@ class ConfessionReviewView(discord.ui.View):
         embed.set_footer(text="Frequency verified by the Red Room.")
         
         # --- ADDED: SUBMIT ANOTHER BUTTON PROTOCOL ---
-        view = ConfessionSubmissionView(self.main_mod, interaction.client, cog.review_channel_id)
+        view = ConfessionSubmissionView(self.main_mod, interaction.client, cog.review_channel_id, self.target_slot)
         view.children[0].label = "SUBMIT ANOTHER"
         
-        # FIX: Sending to both channels instead of just the last one set
-        if post_channel:
-            try: await post_channel.send(embed=embed, view=view)
-            except: pass
-        if post_channel_2:
-            try: await post_channel_2.send(embed=embed, view=view)
-            except: pass
+        await post_channel.send(embed=embed, view=view)
         
         # --- MODIFIED: AUDIT PERSISTENCE ---
         original_embed = interaction.message.embeds[0]
         original_embed.title = "✅ CONFESSION DISPATCHED"
         original_embed.color = discord.Color.green()
-        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}", inline=False)
+        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nDestination: {'Secondary' if self.target_slot == 2 else 'Primary'}", inline=False)
         
         await interaction.message.edit(embed=original_embed, view=None)
         await interaction.response.send_message("✅ Confession Approved and Dispatched.", ephemeral=True)
@@ -108,12 +108,13 @@ class ConfessionReviewView(discord.ui.View):
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
 
 class ConfessionSubmissionView(discord.ui.View):
-    def __init__(self, main_mod, bot, review_channel_id):
+    def __init__(self, main_mod, bot, review_channel_id, target_slot=1):
         # MANDATORY PERSISTENCE FIX: Views must have timeout=None and custom_id
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.bot = bot
         self.review_channel_id = review_channel_id
+        self.target_slot = target_slot
 
     @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑", custom_id="permanent_confess_btn")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -122,7 +123,8 @@ class ConfessionSubmissionView(discord.ui.View):
         cog.load_config(interaction.guild.id)
         if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
-        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id))
+        # Modal now knows if it's for Primary or Secondary
+        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, self.target_slot))
 
 class ConfessionSystem(commands.Cog):
     def __init__(self, bot):
@@ -178,7 +180,6 @@ class ConfessionSystem(commands.Cog):
         """Sets the first public channel where approved confessions are posted."""
         self.load_config(ctx.guild.id)
         self.post_channel_id = (channel or ctx.channel).id
-        # Keep current post2
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Primary Post channel set to {(channel or ctx.channel).mention}")
 
@@ -188,9 +189,17 @@ class ConfessionSystem(commands.Cog):
         """Sets the second public channel where approved confessions are posted."""
         self.load_config(ctx.guild.id)
         self.post_channel_id_2 = (channel or ctx.channel).id
-        # Keep current post1
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Secondary Post channel set to {(channel or ctx.channel).mention}")
+
+    @commands.command(name="setconfesscount")
+    @commands.has_permissions(administrator=True)
+    async def set_confess_count(self, ctx, count: int):
+        """Manually sets the confession counter to a specific number."""
+        self.load_config(ctx.guild.id)
+        self.confession_count = count
+        self.save_config(ctx.guild.id)
+        await ctx.send(f"✅ Confession counter adjusted. The next approved confession will be **#{count + 1}**.")
 
     @commands.command(name="confessstatus")
     @commands.has_permissions(administrator=True)
@@ -212,19 +221,21 @@ class ConfessionSystem(commands.Cog):
 
     @commands.command(name="confesspanel")
     @commands.has_permissions(administrator=True)
-    async def send_panel(self, ctx):
-        """Sends the permanent button for members to submit confessions."""
+    async def send_panel(self, ctx, slot: int = 1):
+        """Sends a button for members. Use !confesspanel 1 or !confesspanel 2."""
         self.load_config(ctx.guild.id)
         main_mod = sys.modules['__main__']
-        embed = main_mod.fiery_embed("🌑 NEURAL CONFESSION HUB", 
-                                    "Click the button below to submit your frequency anonymously.\n"
+        slot_text = "PRIMARY" if slot == 1 else "SECONDARY"
+        embed = main_mod.fiery_embed(f"🌑 NEURAL CONFESSION HUB [{slot_text}]", 
+                                    f"Click the button below to submit your frequency to the {slot_text} channel.\n"
                                     "Every submission is reviewed by the Master before being echoed.")
-        view = ConfessionSubmissionView(main_mod, self.bot, self.review_channel_id)
+        # Pass slot ID to the view so it knows where to route
+        view = ConfessionSubmissionView(main_mod, self.bot, self.review_channel_id, target_slot=slot)
         await ctx.send(embed=embed, view=view)
 
     @commands.command(name="confess")
     async def manual_confess(self, ctx, *, message: str):
-        """Manually trigger an anonymous confession submission for review."""
+        """Manually trigger an anonymous confession (defaults to Primary)."""
         self.load_config(ctx.guild.id)
         if self.review_channel_id is None:
             return await ctx.send("❌ The confession review channel is not configured.")
@@ -234,14 +245,14 @@ class ConfessionSystem(commands.Cog):
             return await ctx.send("❌ Error: Review channel not found.")
 
         main_mod = sys.modules['__main__']
-        embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION", f"**Submission:**\n{message}")
+        embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION [PRIMARY]", f"**Submission:**\n{message}")
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
         embed.set_footer(text="Submitted via command protocol.")
         
-        # FIXED: Passing ctx.author.id to the review view
-        view = ConfessionReviewView(main_mod, message, ctx.author.id)
+        # FIXED: Passing ctx.author.id to the review view (Defaults slot to 1)
+        view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1)
         await review_channel.send(embed=embed, view=view)
         
         try:
