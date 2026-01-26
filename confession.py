@@ -153,7 +153,12 @@ class ConfessionSystem(commands.Cog):
     def save_config(self, guild_id):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            data = {'review_id': self.review_channel_id, 'post_id': self.post_channel_id, 'post_id_2': self.post_channel_id_2, 'count': self.confession_count}
+            data = {
+                'review_id': self.review_channel_id, 
+                'post_id': self.post_channel_id, 
+                'post_id_2': self.post_channel_id_2, 
+                'count': self.confession_count
+            }
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
                          (f'confession_config_{guild_id}', json.dumps(data)))
             conn.commit()
@@ -173,6 +178,7 @@ class ConfessionSystem(commands.Cog):
         """Sets the first public channel where approved confessions are posted."""
         self.load_config(ctx.guild.id)
         self.post_channel_id = (channel or ctx.channel).id
+        # Keep current post2
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Primary Post channel set to {(channel or ctx.channel).mention}")
 
@@ -182,6 +188,7 @@ class ConfessionSystem(commands.Cog):
         """Sets the second public channel where approved confessions are posted."""
         self.load_config(ctx.guild.id)
         self.post_channel_id_2 = (channel or ctx.channel).id
+        # Keep current post1
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ Secondary Post channel set to {(channel or ctx.channel).mention}")
 
