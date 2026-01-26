@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 import random
@@ -16,7 +15,9 @@ try:
     import audioop
 except ImportError:
     try:
-        from aiohttp import audioop
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
     except:
         pass
 
@@ -511,6 +512,8 @@ class FieryShip(commands.Cog):
             random.seed(f"{min(ctx.author.id, m.id)}{max(ctx.author.id, m.id)}{today}")
             pct = random.randint(0, 100)
             if pct > high: high, best = pct, m
+        # UPDATED: Pings the best match so they are notified
+        await ctx.send(f"🔞 **The scanner has locked onto a target!** {best.mention}, prepare for assessment.")
         await ctx.invoke(self.ship, user1=ctx.author, user2=best)
 
     @commands.command(name="bondtrial", aliases=["kinkcheck"])
@@ -548,6 +551,7 @@ class FieryShip(commands.Cog):
         await ctx.send(embed=embed)
 
 async def setup(bot):
+    # MANDATORY: Access the main module to get DB connection
     import sys
     main_mod = sys.modules['__main__']
     with main_mod.get_db_connection() as conn:
