@@ -31,9 +31,9 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
-        embed.set_footer(text="The Master must decide the fate of this frequency.")
+        embed.set_footer(text=f"Target Destination: {slot_label} Channel")
         
-        # FIXED: Passing interaction.user.id and target_slot to the review view
+        # FIXED: Passing target_slot to the review view
         view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id, self.target_slot)
         await review_channel.send(embed=embed, view=view)
         
@@ -56,14 +56,14 @@ class ConfessionReviewView(discord.ui.View):
         # --- MODIFIED: LOADING GUILD CONFIG ON APPROVAL ---
         cog.load_config(interaction.guild.id)
 
-        # Logic to select ONLY the specific target channel
+        # Logic to select ONLY the specific target channel based on the submission slot
         if self.target_slot == 2:
             post_channel = interaction.client.get_channel(cog.post_channel_id_2)
         else:
             post_channel = interaction.client.get_channel(cog.post_channel_id)
         
         if not post_channel:
-            return await interaction.response.send_message("❌ Error: Target post channel not found.", ephemeral=True)
+            return await interaction.response.send_message("❌ Error: Target post channel not configured.", ephemeral=True)
 
         # Get total confession count for the ID
         cog.confession_count += 1
@@ -83,10 +83,11 @@ class ConfessionReviewView(discord.ui.View):
         original_embed = interaction.message.embeds[0]
         original_embed.title = "✅ CONFESSION DISPATCHED"
         original_embed.color = discord.Color.green()
-        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nDestination: {'Secondary' if self.target_slot == 2 else 'Primary'}", inline=False)
+        dest_name = "Secondary" if self.target_slot == 2 else "Primary"
+        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nSent to: {dest_name}", inline=False)
         
         await interaction.message.edit(embed=original_embed, view=None)
-        await interaction.response.send_message("✅ Confession Approved and Dispatched.", ephemeral=True)
+        await interaction.response.send_message(f"✅ Confession Approved and Dispatched to {dest_name}.", ephemeral=True)
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="confess_reject_btn")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -123,7 +124,7 @@ class ConfessionSubmissionView(discord.ui.View):
         cog.load_config(interaction.guild.id)
         if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
-        # Modal now knows if it's for Primary or Secondary
+        # Modal now inherits the target_slot of the view it was launched from
         await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, self.target_slot))
 
 class ConfessionSystem(commands.Cog):
@@ -229,7 +230,7 @@ class ConfessionSystem(commands.Cog):
         embed = main_mod.fiery_embed(f"🌑 NEURAL CONFESSION HUB [{slot_text}]", 
                                     f"Click the button below to submit your frequency to the {slot_text} channel.\n"
                                     "Every submission is reviewed by the Master before being echoed.")
-        # Pass slot ID to the view so it knows where to route
+        # Pass slot ID to the view so it knows where to route approved messages
         view = ConfessionSubmissionView(main_mod, self.bot, self.review_channel_id, target_slot=slot)
         await ctx.send(embed=embed, view=view)
 
@@ -249,9 +250,9 @@ class ConfessionSystem(commands.Cog):
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
-        embed.set_footer(text="Submitted via command protocol.")
+        embed.set_footer(text="Submitted via command protocol (Primary).")
         
-        # FIXED: Passing ctx.author.id to the review view (Defaults slot to 1)
+        # FIXED: Passing target_slot 1 for manual commands
         view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1)
         await review_channel.send(embed=embed, view=view)
         
