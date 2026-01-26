@@ -251,9 +251,14 @@ class Counting(commands.Cog):
                 return conn.execute("SELECT score, ruiner_id FROM counting_runs ORDER BY score DESC LIMIT 10").fetchall()
         
         data = await asyncio.to_thread(fetch_top)
-        if not data: return await ctx.send("No records.")
-        desc = "### 🏆 TOP NEURAL SEQUENCES\n" + "".join([f"`#{i}` **{r['score']:,}** — <@{r['ruiner_id']}>\n" for i, r in enumerate(data, 1)])
-        await ctx.send(embed=main_mod.fiery_embed(f"{scope.upper()} HALL OF FAME", desc))
+        if not data: return await ctx.send("No records found in the archives.")
+        
+        title = "GLOBAL HALL OF FAME" if scope.lower() == "global" else f"LOCAL SECTOR RECORDS: {ctx.guild.name}"
+        desc = f"### 🏆 {scope.upper()} NEURAL SEQUENCES\n"
+        for i, row in enumerate(data, 1):
+            desc += f"`#{i}` **{row[0]:,}** — Ruined by <@{row[1]}>\n"
+        
+        await ctx.send(embed=main_mod.fiery_embed(title, desc))
 
     @commands.command(name="countinglb")
     async def counting_lb(self, ctx):
@@ -277,17 +282,14 @@ class Counting(commands.Cog):
         
         def fetch_stats():
             with main_mod.get_db_connection() as conn:
-                # FIX: Handle potential NoneType results with COALESCE or manual checks
                 stats_row = conn.execute("SELECT count_total, count_mistakes FROM users WHERE id = ?", (target.id,)).fetchone()
                 local_row = conn.execute("SELECT count FROM local_counting WHERE user_id = ? AND guild_id = ?", (target.id, guild_id)).fetchone()
                 total_global_row = conn.execute("SELECT SUM(count_total) FROM users").fetchone()
                 
-                # Default empty values if None
                 stats = stats_row if stats_row else {'count_total': 0, 'count_mistakes': 0}
                 local = local_row if local_row else {'count': 0}
                 total_global = total_global_row[0] if total_global_row and total_global_row[0] else 1
                 
-                # Scalable badge check
                 try:
                     milestones = conn.execute("SELECT milestone FROM global_milestone_history ORDER BY milestone DESC").fetchall()
                 except:
