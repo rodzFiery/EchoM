@@ -7,6 +7,7 @@ import urllib.parse  # ADDED: To generate secure payment links
 from datetime import datetime, timedelta, timezone
 import asyncio
 import aiohttp # ADDED: For more stable asynchronous requests
+from aiohttp import web # ADDED: For Webhook Listener
 
 # --- PAYPAL CONFIGURATION (AUTOMATIC WEBHOOK INTEGRATION) ---
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
@@ -156,6 +157,35 @@ class PremiumSystem(commands.Cog):
         self.fiery_embed = fiery_embed
         self.update_user_stats = update_user_stats
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
+        self.webhook_task = self.bot.loop.create_task(self.start_webhook_server())
+
+    async def start_webhook_server(self):
+        """Starts the local web server to listen for PayPal Webhooks."""
+        app = web.Application()
+        app.router.add_post('/webhook', self.handle_paypal_webhook)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        port = int(os.environ.get("PORT", 8080))
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+
+    async def handle_paypal_webhook(self, request):
+        """Processes incoming PayPal signals and activates server premium."""
+        data = await request.post()
+        if data.get('payment_status') == 'Completed':
+            custom = data.get('custom', '')
+            if custom.startswith('G'):
+                parts = custom[1:].split('|')
+                if len(parts) >= 2:
+                    guild_id = int(parts[0])
+                    plan_name = parts[1]
+                    p_date = datetime.now().isoformat()
+                    with self.get_db_connection() as conn:
+                        conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)",
+                                     (guild_id, plan_name, p_date))
+                        conn.commit()
+                    await self.log_admin_action(f"Guild ID: {guild_id}", plan_name, "AUTOMATIC WEBHOOK ACTIVATION")
+        return web.Response(text="OK")
 
     async def log_admin_action(self, guild_name, plan_name, action):
         """Helper to log manual overrides to audit channel."""
@@ -260,22 +290,23 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="echoon")
     @commands.is_owner()
-    @commands.has_permissions(administrator=True)
     async def echo_on(self, ctx):
+        """Elevates all guilds the bot is currently in to Full Premium."""
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) SELECT id, '10. Full Premium', ? FROM guilds", (p_date,))
+            for guild in self.bot.guilds:
+                conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)", 
+                             (guild.id, '10. Full Premium', p_date))
             conn.commit()
-        await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", "👑 ALL SERVERS ELEVATED.", color=0xFFD700))
+        await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", f"👑 {len(self.bot.guilds)} SERVERS ELEVATED TO GOD MODE.", color=0xFFD700))
 
     @commands.command(name="echooff")
     @commands.is_owner()
-    @commands.has_permissions(administrator=True)
     async def echo_off(self, ctx):
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM server_premium")
             conn.commit()
-        await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", "🌑 ALL SERVERS RESET.", color=0x808080))
+        await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", "🌑 ALL SERVERS RESET TO STANDARD ACCESS.", color=0x808080))
 
     @staticmethod
     def is_premium():
