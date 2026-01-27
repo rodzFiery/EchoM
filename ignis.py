@@ -412,7 +412,7 @@ class IgnisEngine(commands.Cog):
                 prot, luck = await self.get_market_bonuses(inv)
                 fb_protection[p_id] = prot
                 final_luck[p_id] = luck
-                target_streaks[p_id] = u_data['current_win_streak']
+                target_streaks[p_id] = u_data.get('current_win_streak', 0)
 
                 # --- NEW: CARD MASTERY PASSIVE CHECKS ---
                 arena_shielding[p_id] = 0
@@ -626,10 +626,8 @@ class IgnisEngine(commands.Cog):
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
                 user_db = self.get_user(p_id)
-                # FIX: Added .get() check for 'class' column
                 u_class = user_db.get('class', 'None') if user_db else 'None'
                 
-                # FIXED: Extracting numeric values from description strings to fix KeyError
                 b_xp = 1.0
                 if u_class == "Submissive": b_xp = 1.25
                 elif u_class in ["Switch", "Exhibitionist"]: b_xp = 1.14 if u_class == "Switch" else 0.80
@@ -646,10 +644,8 @@ class IgnisEngine(commands.Cog):
                 processed_data[p_id] = final_fxp
 
             winner_user_db = self.get_user(winner_final['id'])
-            # FIX: Added .get() check for 'class' column
             winner_class_name = winner_user_db.get('class', 'None') if winner_user_db else 'None'
             
-            # FIXED: Extracting numeric values from description strings
             flame_multiplier = 1.0
             if winner_class_name == "Dominant": flame_multiplier = 1.20
             elif winner_class_name == "Exhibitionist": flame_multiplier = 1.40
@@ -660,7 +656,6 @@ class IgnisEngine(commands.Cog):
             await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
             
             f_u = self.get_user(winner_final['id'])
-            # FIX: Default to lvl 1 if data missing
             lvl = f_u.get('fiery_level', 1) if f_u else 1
             rank_name = self.ranks[lvl-1] if lvl <= 100 else self.ranks[-1]
             winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
@@ -670,7 +665,6 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # RE-SYNC: Ensure we have the absolute latest audit channel
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
             audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -729,9 +723,7 @@ class IgnisEngine(commands.Cog):
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
-            # Preserved u_class lookup
             winner_user_db = self.get_user(winner_final['id'])
-            # FIX: Added safety check for card winner class
             u_class_win = winner_user_db.get('class', 'None') if winner_user_db else 'None'
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
@@ -825,9 +817,8 @@ class StatusCheck(commands.Cog):
         if not engine: return
 
         if content in ["i am alive", "i am dead"]:
-            # Check if there is an active game in this channel
             if message.channel.id not in engine.active_battles:
-                return # Pit is silent in this specific channel
+                return 
             
             survivors = engine.current_survivors.get(message.channel.id, [])
             is_survivor = message.author.id in survivors
@@ -847,11 +838,9 @@ class StatusCheck(commands.Cog):
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 async def setup(bot):
-    # MANDATORY REGISTRY FIX: Ensuring absolute module access to avoid NoneType on first boot
     import sys as _sys_setup
     main = _sys_setup.modules['__main__']
     
-    # Registrando IgnisEngine
     ignis_engine = IgnisEngine(
         bot, 
         main.update_user_stats_async, 
@@ -864,7 +853,6 @@ async def setup(bot):
     )
     await bot.add_cog(ignis_engine)
     
-    # Registrando EngineControl
     engine_control = EngineControl(
         bot,
         main.fiery_embed,
@@ -873,5 +861,4 @@ async def setup(bot):
     )
     await bot.add_cog(engine_control)
 
-    # Registrando StatusCheck
     await bot.add_cog(StatusCheck(bot))
