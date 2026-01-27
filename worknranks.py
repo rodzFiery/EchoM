@@ -25,8 +25,9 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     cooldown = timedelta(hours=3)
     
     try:
-        last_val = u[last_key]
-    except KeyError:
+        # FIXED: Safety get to prevent KeyError on fresh accounts
+        last_val = u.get(last_key)
+    except (KeyError, AttributeError):
         last_val = None
 
     if last_val:
@@ -42,7 +43,8 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     base_xp = random.randint(50, 200)
 
     # CLASS BONUSES
-    user_class = u['class']
+    # FIXED: Added safety check for missing class data
+    user_class = u.get('class', 'None')
     if user_class == "Dominant": base_flames = int(base_flames * 1.20)
     elif user_class == "Exhibitionist": 
         base_flames = int(base_flames * 1.40)
@@ -107,13 +109,26 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
 async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embed, bot, RANKS, nsfw_mode_active):
     member = member or ctx.author
     u = get_user(member.id)
+    
+    # FIXED: Added safety getters for all user stats to prevent profile crashes
+    u_wins = u.get('wins', 0)
+    u_kills = u.get('kills', 0)
+    u_duel_wins = u.get('duel_wins', 0)
+    u_balance = u.get('balance', 0)
+    u_level = u.get('level', 1)
+    u_xp = u.get('xp', 0)
+    u_fiery_xp = u.get('fiery_xp', 0)
+    u_deaths = u.get('deaths', 0)
+    u_games_played = u.get('games_played', 0)
+    u_class = u.get('class', 'None')
+
     with get_db_connection() as conn:
-        wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
-        kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
+        wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u_wins,)).fetchone()
+        kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u_kills,)).fetchone()
         wins_rank = wins_row['r'] if wins_row else "?"
         kills_rank = kills_row['r'] if kills_row else "?"
         
-        duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
+        duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u_duel_wins,)).fetchone()
         duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
 
         victims = conn.execute("""
@@ -121,10 +136,10 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
             WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
         """, (member.id,)).fetchall()
     
-    lvl = u['fiery_level']
+    lvl = u.get('fiery_level', 1)
     rank_name = RANKS[lvl-1] if lvl <= 100 else RANKS[-1]
     
-    try: titles = json.loads(u['titles'])
+    try: titles = json.loads(u.get('titles', '[]'))
     except: titles = []
     
     engine = bot.get_cog("IgnisEngine")
@@ -141,16 +156,16 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
     else:
         embed.set_thumbnail(url=member.display_avatar.url)
 
-    embed.add_field(name="❤ Class", value=f"**{u['class']}**", inline=False)
+    embed.add_field(name="❤ Class", value=f"**{u_class}**", inline=False)
     embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
-    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u['balance']}\n**Global Level:** {u['level']} ({u['xp']} XP)", inline=True)
-    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']}", inline=True)
+    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u_balance}\n**Global Level:** {u_level} ({u_xp} XP)", inline=True)
+    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u_fiery_xp}", inline=True)
     
-    combat = (f"🏆 **Wins:** {u['wins']} (Rank #{wins_rank})\n"
-              f"⚔️ **Kills:** {u['kills']} (Rank #{kills_rank})\n"
-              f"🫦 **Duel Wins:** {u['duel_wins']} (Rank #{duel_rank})\n"
-              f"💀 **Deaths:** {u['deaths']}\n"
-              f"🎮 **Games Played:** {u['games_played']}")
+    combat = (f"🏆 **Wins:** {u_wins} (Rank #{wins_rank})\n"
+              f"⚔️ **Kills:** {u_kills} (Rank #{kills_rank})\n"
+              f"🫦 **Duel Wins:** {u_duel_wins} (Rank #{duel_rank})\n"
+              f"💀 **Deaths:** {u_deaths}\n"
+              f"🎮 **Games Played:** {u_games_played}")
     embed.add_field(name="⚔️ Echo Hangrygames & Duels", value=combat, inline=False)
     
     if victims:
@@ -164,7 +179,7 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
 
     owner_text = "Free Soul"
-    if u['spouse']:
+    if u.get('spouse'):
         owner_text = f"Bound to <@{u['spouse']}> (Married)"
     else:
         with get_db_connection() as conn:
