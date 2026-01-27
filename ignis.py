@@ -617,7 +617,7 @@ class IgnisEngine(commands.Cog):
                 await channel.send(file=file, embed=emb)
                 await asyncio.sleep(5)
 
-            # FIX START: Ensure winner_final is initialized and processed_data is populated correctly
+            # --- WINNER PROCESSING BLOCK ---
             winner_final = fighters[0]
             self.last_winner_id = winner_final['id']
             fxp_log[winner_final['id']]["placement"] = 5000 
@@ -627,13 +627,13 @@ class IgnisEngine(commands.Cog):
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
                 user_db = self.get_user(p_id)
-                # Safely get class, default to something if None
-                u_class = user_db['class'] if user_db and 'class' in user_db else "None"
+                # FIX: Added safety check if user_db is None or missing 'class'
+                u_class = user_db.get('class', 'None') if user_db else 'None'
                 
+                # FIXED: Extracting numeric values from description strings to fix KeyError
                 b_xp = 1.0
                 if u_class == "Submissive": b_xp = 1.25
-                elif u_class == "Switch": b_xp = 1.14
-                elif u_class == "Exhibitionist": b_xp = 0.80
+                elif u_class in ["Switch", "Exhibitionist"]: b_xp = 1.14 if u_class == "Switch" else 0.80
 
                 final_fxp = int(total_gain * b_xp)
                 
@@ -646,11 +646,11 @@ class IgnisEngine(commands.Cog):
                     conn.commit()
                 processed_data[p_id] = final_fxp
 
-            # FIX END
-            
             winner_user_db = self.get_user(winner_final['id'])
-            winner_class_name = winner_user_db['class'] if winner_user_db and 'class' in winner_user_db else "None"
+            # FIX: Added safety check for winner class
+            winner_class_name = winner_user_db.get('class', 'None') if winner_user_db else 'None'
             
+            # FIXED: Extracting numeric values from description strings
             flame_multiplier = 1.0
             if winner_class_name == "Dominant": flame_multiplier = 1.20
             elif winner_class_name == "Exhibitionist": flame_multiplier = 1.40
@@ -661,7 +661,7 @@ class IgnisEngine(commands.Cog):
             await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
             
             f_u = self.get_user(winner_final['id'])
-            lvl = f_u['fiery_level']
+            lvl = f_u.get('fiery_level', 1)
             rank_name = self.ranks[lvl-1] if lvl <= 100 else self.ranks[-1]
             winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
             
@@ -670,6 +670,7 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
+            # RE-SYNC: Ensure we have the absolute latest audit channel
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
             audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -693,6 +694,7 @@ class IgnisEngine(commands.Cog):
                             audit_file = discord.File("LobbyTopRight.jpg", filename="audit_logo.jpg")
                             audit_emb.set_thumbnail(url="attachment://audit_logo.jpg")
                         
+                        # FIX: Added .get() to prevent processed_data KeyError
                         breakdown = (
                             f"⛓️ **Member:** {member.mention}\n"
                             f"🔞 **Dungeon Rank:** #{rank}\n"
@@ -707,10 +709,10 @@ class IgnisEngine(commands.Cog):
                             breakdown += f"💰 **Winner's Prize:** +{total_flames_won} Flames\n"
 
                         new_totals = (
-                            f"🔥 **Total Flames in Vault:** {m_stats['balance']:,}\n"
-                            f"💀 **Total Lifetime Executions:** {m_stats['kills']}\n"
-                            f"💦 **Total Echo Experience:** {m_stats['fiery_xp']:,}\n"
-                            f"🔝 **Echo Level:** {m_stats['fiery_level']} ({self.ranks[m_stats['fiery_level']-1] if m_stats['fiery_level'] <= 100 else self.ranks[-1]})"
+                            f"🔥 **Total Flames in Vault:** {m_stats.get('balance', 0):,}\n"
+                            f"💀 **Total Lifetime Executions:** {m_stats.get('kills', 0)}\n"
+                            f"💦 **Total Echo Experience:** {m_stats.get('fiery_xp', 0):,}\n"
+                            f"🔝 **Echo Level:** {m_stats.get('fiery_level', 1)} ({self.ranks[m_stats.get('fiery_level', 1)-1] if m_stats.get('fiery_level', 1) <= 100 else self.ranks[-1]})"
                         )
 
                         audit_emb.description = breakdown
@@ -728,13 +730,15 @@ class IgnisEngine(commands.Cog):
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
+            # Preserved u_class lookup
             winner_user_db = self.get_user(winner_final['id'])
-            u_class_win = winner_user_db['class'] if winner_user_db and 'class' in winner_user_db else "None"
+            # FIX: Added safety check for winner card class
+            u_class_win = winner_user_db.get('class', 'None') if winner_user_db else 'None'
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win == "Switch": b_xp_win = 1.14
-            elif u_class_win == "Exhibitionist": b_xp_win = 0.80
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
 
+            # FIX: Safety check for winner XP gain
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
@@ -747,13 +751,13 @@ class IgnisEngine(commands.Cog):
             win_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=True)
             
             with self.get_db_connection() as conn:
-                w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u['wins'],)).fetchone()
+                w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u.get('wins', 0),)).fetchone()
                 w_rank = w_rank_query['r'] if w_rank_query else "N/A"
                 
-                k_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (f_u['kills'],)).fetchone()
+                k_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (f_u.get('kills', 0),)).fetchone()
                 k_rank = k_rank_query['r'] if k_rank_query else "N/A"
                 
-                g_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE games_played > ?", (f_u['games_played'],)).fetchone()
+                g_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE games_played > ?", (f_u.get('games_played', 0),)).fetchone()
                 g_rank = g_rank_query['r'] if g_rank_query else "N/A"
                 
                 conn.execute("UPDATE users SET current_win_streak = current_win_streak + 1 WHERE id = ?", (winner_final['id'],))
