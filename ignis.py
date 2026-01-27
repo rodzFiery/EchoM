@@ -405,8 +405,10 @@ class IgnisEngine(commands.Cog):
             omni_protocol = {} # +20% Critical (Luck boost)
 
             for p_id in participants:
-                u_data = self.get_user(p_id) 
-                if not u_data: continue
+                # FIXED: Row to Dict conversion to enable .get()
+                u_raw = self.get_user(p_id) 
+                if not u_raw: continue
+                u_data = dict(u_raw) 
 
                 inv = json.loads(u_data['titles']) if u_data['titles'] else []
                 prot, luck = await self.get_market_bonuses(inv)
@@ -625,8 +627,10 @@ class IgnisEngine(commands.Cog):
             processed_data = {}
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
-                user_db = self.get_user(p_id)
-                u_class = user_db.get('class', 'None') if user_db else 'None'
+                # FIXED: Row to Dict conversion
+                user_raw = self.get_user(p_id)
+                user_db = dict(user_raw) if user_raw else {}
+                u_class = user_db.get('class', 'None')
                 
                 b_xp = 1.0
                 if u_class == "Submissive": b_xp = 1.25
@@ -643,8 +647,10 @@ class IgnisEngine(commands.Cog):
                     conn.commit()
                 processed_data[p_id] = final_fxp
 
-            winner_user_db = self.get_user(winner_final['id'])
-            winner_class_name = winner_user_db.get('class', 'None') if winner_user_db else 'None'
+            # FIXED: Row to Dict conversion
+            winner_raw = self.get_user(winner_final['id'])
+            winner_user_db = dict(winner_raw) if winner_raw else {}
+            winner_class_name = winner_user_db.get('class', 'None')
             
             flame_multiplier = 1.0
             if winner_class_name == "Dominant": flame_multiplier = 1.20
@@ -655,8 +661,11 @@ class IgnisEngine(commands.Cog):
 
             await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
             
-            f_u = self.get_user(winner_final['id'])
-            lvl = f_u.get('fiery_level', 1) if f_u else 1
+            # FIXED: Row to Dict conversion
+            f_raw = self.get_user(winner_final['id'])
+            f_u = dict(f_raw) if f_raw else {}
+
+            lvl = f_u.get('fiery_level', 1)
             rank_name = self.ranks[lvl-1] if lvl <= 100 else self.ranks[-1]
             winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
             
@@ -677,7 +686,10 @@ class IgnisEngine(commands.Cog):
                     if rank > 5: continue 
 
                     try:
-                        m_stats = self.get_user(p_id)
+                        # FIXED: Row to Dict conversion
+                        m_raw = self.get_user(p_id)
+                        m_stats = dict(m_raw) if m_raw else {}
+
                         member = channel.guild.get_member(p_id) or await channel.guild.fetch_member(p_id)
                         
                         audit_title = f"🏆 TOP {rank} POSITION: MASTER'S LEDGER" if rank > 1 else "👑 SUPREME VICTOR: MASTER'S LEDGER"
@@ -723,8 +735,12 @@ class IgnisEngine(commands.Cog):
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
-            winner_user_db = self.get_user(winner_final['id'])
-            u_class_win = winner_user_db.get('class', 'None') if winner_user_db else 'None'
+            
+            # FIXED: Row to Dict conversion
+            winner_raw_fin = self.get_user(winner_final['id'])
+            winner_user_db_fin = dict(winner_raw_fin) if winner_raw_fin else {}
+
+            u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
             elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
