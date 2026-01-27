@@ -290,7 +290,7 @@ async def me(ctx, member: discord.Member = None):
             WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
         """, (target.id,)).fetchall()
 
-    # Echo Rank Logic - FIXED: Added boundary clamp to prevent IndexError
+    # Echo Rank Logic - FIXED: Boundary Check to prevent IndexError
     lvl = u['fiery_level']
     rank_name = RANKS[min(lvl-1, len(RANKS)-1)] if lvl > 0 else RANKS[0]
     
@@ -762,7 +762,7 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # Process regular commands immediately
+    # RESTORATION POINT: This allows the bot to process commands defined in this file
     await bot.process_commands(message)
 
     ctx = await bot.get_context(message)
