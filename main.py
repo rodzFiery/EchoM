@@ -290,9 +290,9 @@ async def me(ctx, member: discord.Member = None):
             WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
         """, (target.id,)).fetchall()
 
-    # Echo Rank Logic
+    # Echo Rank Logic - FIXED: Added boundary clamp to prevent IndexError
     lvl = u['fiery_level']
-    rank_name = RANKS[lvl-1] if lvl <= 100 else RANKS[-1]
+    rank_name = RANKS[min(lvl-1, len(RANKS)-1)] if lvl > 0 else RANKS[0]
     
     # Title/Badge Logic
     try: 
