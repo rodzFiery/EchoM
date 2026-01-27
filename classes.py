@@ -23,7 +23,10 @@ class ClassSystem(commands.Cog):
         
         # ADDED STAT OVERVIEW TO CLASS DESC
         u = self.get_user(ctx.author.id)
-        embed.add_field(name="⛓️ Current Standing", value=f"Balance: {u['balance']}F\nLevel: {u['level']}", inline=False)
+        # FIXED: Added .get() safety shims to prevent "Critical Dungeon Error" if stats are missing
+        u_balance = u.get('balance', 0)
+        u_level = u.get('level', 1)
+        embed.add_field(name="⛓️ Current Standing", value=f"Balance: {u_balance}F\nLevel: {u_level}", inline=False)
         
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
@@ -53,7 +56,9 @@ class ClassSystem(commands.Cog):
             conn.commit()
         
         u = self.get_user(ctx.author.id)
-        embed = self.fiery_embed("Class Claimed", f"✅ You are now bound to the **{choice.capitalize()}** path.\n\nYour submission level is currently **{u['level']}**.", color=0x00FF00)
+        # FIXED: Added .get() safety shim for submission level display
+        u_level = u.get('level', 1)
+        embed = self.fiery_embed("Class Claimed", f"✅ You are now bound to the **{choice.capitalize()}** path.\n\nYour submission level is currently **{u_level}**.", color=0x00FF00)
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
