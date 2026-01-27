@@ -617,6 +617,7 @@ class IgnisEngine(commands.Cog):
                 await channel.send(file=file, embed=emb)
                 await asyncio.sleep(5)
 
+            # FIX START: Ensure winner_final is initialized and processed_data is populated correctly
             winner_final = fighters[0]
             self.last_winner_id = winner_final['id']
             fxp_log[winner_final['id']]["placement"] = 5000 
@@ -626,12 +627,13 @@ class IgnisEngine(commands.Cog):
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
                 user_db = self.get_user(p_id)
-                u_class = user_db['class']
+                # Safely get class, default to something if None
+                u_class = user_db['class'] if user_db and 'class' in user_db else "None"
                 
-                # FIXED: Extracting numeric values from description strings to fix KeyError
                 b_xp = 1.0
                 if u_class == "Submissive": b_xp = 1.25
-                elif u_class in ["Switch", "Exhibitionist"]: b_xp = 1.14 if u_class == "Switch" else 0.80
+                elif u_class == "Switch": b_xp = 1.14
+                elif u_class == "Exhibitionist": b_xp = 0.80
 
                 final_fxp = int(total_gain * b_xp)
                 
@@ -644,10 +646,11 @@ class IgnisEngine(commands.Cog):
                     conn.commit()
                 processed_data[p_id] = final_fxp
 
-            winner_user_db = self.get_user(winner_final['id'])
-            winner_class_name = winner_user_db['class']
+            # FIX END
             
-            # FIXED: Extracting numeric values from description strings
+            winner_user_db = self.get_user(winner_final['id'])
+            winner_class_name = winner_user_db['class'] if winner_user_db and 'class' in winner_user_db else "None"
+            
             flame_multiplier = 1.0
             if winner_class_name == "Dominant": flame_multiplier = 1.20
             elif winner_class_name == "Exhibitionist": flame_multiplier = 1.40
@@ -667,7 +670,6 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # RE-SYNC: Ensure we have the absolute latest audit channel
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
             audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -698,7 +700,7 @@ class IgnisEngine(commands.Cog):
                             f"⚔️ **Match Executions:** {game_kills[p_id]} kills ({log['kills']} XP)\n"
                             f"🩸 **First Blood Bonus:** {log['first_kill']} XP\n"
                             f"🥇 **Placement Value:** {log['placement']} XP\n"
-                            f"💦 **Neural Imprint (XP) Gained:** +{processed_data[p_id]}\n"
+                            f"💦 **Neural Imprint (XP) Gained:** +{processed_data.get(p_id, 0)}\n"
                         )
                         
                         if rank == 1:
@@ -726,14 +728,14 @@ class IgnisEngine(commands.Cog):
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
-            # Preserved u_class lookup
             winner_user_db = self.get_user(winner_final['id'])
-            u_class_win = winner_user_db['class']
+            u_class_win = winner_user_db['class'] if winner_user_db and 'class' in winner_user_db else "None"
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
+            elif u_class_win == "Switch": b_xp_win = 1.14
+            elif u_class_win == "Exhibitionist": b_xp_win = 0.80
 
-            total_fxp_win = processed_data[winner_final['id']]
+            total_fxp_win = processed_data.get(winner_final['id'], 0)
             
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
                             f"⚔️ **Kills:** {log_win['kills']} XP\n"
