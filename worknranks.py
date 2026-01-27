@@ -14,6 +14,7 @@ CLASSES = {
 }
 
 # --- REBUILT ECONOMY HANDLER (ALIGNED) ---
+# FIXED: Added 'nsfw_mode_active' to the signature to match the 10 arguments sent by main.py
 async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
     """Universal handler for Work, Beg, Flirt, etc."""
     user_id = ctx.author.id
@@ -137,13 +138,15 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         """, (member.id,)).fetchall()
     
     lvl = u.get('fiery_level', 1)
-    rank_name = RANKS[lvl-1] if lvl <= 100 else RANKS[-1]
+    # FIXED: Boundary Check for RANKS list to prevent IndexError
+    rank_index = min(max(0, lvl - 1), len(RANKS) - 1)
+    rank_name = RANKS[rank_index]
     
     try: titles = json.loads(u.get('titles', '[]'))
     except: titles = []
     
     engine = bot.get_cog("IgnisEngine")
-    if nsfw_mode_active and engine and engine.last_winner_id == member.id:
+    if nsfw_mode_active and engine and getattr(engine, 'last_winner_id', None) == member.id:
         titles.append("⛓️ ECHOGAMES LEAD 🔞")
 
     badge_display = " ".join(titles) if titles else "No badges yet."
@@ -179,8 +182,9 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
 
     owner_text = "Free Soul"
-    if u.get('spouse'):
-        owner_text = f"Bound to <@{u['spouse']}> (Married)"
+    spouse_id = u.get('spouse')
+    if spouse_id:
+        owner_text = f"Bound to <@{spouse_id}> (Married)"
     else:
         with get_db_connection() as conn:
             contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (member.id,)).fetchone()
