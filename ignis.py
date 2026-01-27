@@ -405,7 +405,7 @@ class IgnisEngine(commands.Cog):
             omni_protocol = {} # +20% Critical (Luck boost)
 
             for p_id in participants:
-                # FIXED: Row to Dict conversion to enable .get()
+                # Convert Row to Dict conversion to enable .get()
                 u_raw = self.get_user(p_id) 
                 if not u_raw: continue
                 u_data = dict(u_raw) 
@@ -627,7 +627,7 @@ class IgnisEngine(commands.Cog):
             processed_data = {}
             for p_id, log in fxp_log.items():
                 total_gain = sum(log.values())
-                # FIXED: Row to Dict conversion
+                # Row to Dict conversion
                 user_raw = self.get_user(p_id)
                 user_db = dict(user_raw) if user_raw else {}
                 u_class = user_db.get('class', 'None')
@@ -647,7 +647,7 @@ class IgnisEngine(commands.Cog):
                     conn.commit()
                 processed_data[p_id] = final_fxp
 
-            # FIXED: Row to Dict conversion
+            # Row to Dict conversion
             winner_raw = self.get_user(winner_final['id'])
             winner_user_db = dict(winner_raw) if winner_raw else {}
             winner_class_name = winner_user_db.get('class', 'None')
@@ -661,12 +661,13 @@ class IgnisEngine(commands.Cog):
 
             await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
             
-            # FIXED: Row to Dict conversion
+            # Row to Dict conversion
             f_raw = self.get_user(winner_final['id'])
             f_u = dict(f_raw) if f_raw else {}
 
             lvl = f_u.get('fiery_level', 1)
-            rank_name = self.ranks[lvl-1] if lvl <= 100 else self.ranks[-1]
+            # FIXED: Added boundary check using min() to prevent IndexError
+            rank_name = self.ranks[min(lvl-1, len(self.ranks)-1)] if lvl > 0 else self.ranks[0]
             winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
             
             try:
@@ -686,7 +687,7 @@ class IgnisEngine(commands.Cog):
                     if rank > 5: continue 
 
                     try:
-                        # FIXED: Row to Dict conversion
+                        # Row to Dict conversion
                         m_raw = self.get_user(p_id)
                         m_stats = dict(m_raw) if m_raw else {}
 
@@ -713,11 +714,15 @@ class IgnisEngine(commands.Cog):
                         if rank == 1:
                             breakdown += f"💰 **Winner's Prize:** +{total_flames_won} Flames\n"
 
+                        lvl_m = m_stats.get('fiery_level', 1)
+                        # FIXED: Boundary check for audit ranks
+                        rank_m_name = self.ranks[min(lvl_m-1, len(self.ranks)-1)]
+
                         new_totals = (
                             f"🔥 **Total Flames in Vault:** {m_stats.get('balance', 0):,}\n"
                             f"💀 **Total Lifetime Executions:** {m_stats.get('kills', 0)}\n"
                             f"💦 **Total Echo Experience:** {m_stats.get('fiery_xp', 0):,}\n"
-                            f"🔝 **Echo Level:** {m_stats.get('fiery_level', 1)} ({self.ranks[m_stats.get('fiery_level', 1)-1] if m_stats.get('fiery_level', 1) <= 100 else self.ranks[-1]})"
+                            f"🔝 **Echo Level:** {lvl_m} ({rank_m_name})"
                         )
 
                         audit_emb.description = breakdown
@@ -736,7 +741,7 @@ class IgnisEngine(commands.Cog):
             
             log_win = fxp_log[winner_final['id']]
             
-            # FIXED: Row to Dict conversion
+            # Row to Dict conversion
             winner_raw_fin = self.get_user(winner_final['id'])
             winner_user_db_fin = dict(winner_raw_fin) if winner_raw_fin else {}
 
