@@ -11,12 +11,12 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     streak_col = f"{reward_type}_streak"
     
     # FIXED: Pulling dynamically from main module to support the !audit system
-    # This ensures that when update_user_stats_async is called, the correct ID is ready
     main_mod = sys.modules['__main__']
     
-    # FIX: Safe access to sqlite3.Row data
-    last_str = user[db_col] if db_col in user.keys() else None
-    current_streak = user[streak_col] if streak_col in user.keys() and user[streak_col] else 0
+    # FIX: Safe access to sqlite3.Row data using keys() list conversion
+    user_keys = user.keys() if user else []
+    last_str = user[db_col] if db_col in user_keys else None
+    current_streak = user[streak_col] if streak_col in user_keys and user[streak_col] else 0
     
     last_time = datetime.fromisoformat(last_str) if last_str else now - (cooldown_delta + timedelta(seconds=1))
     
@@ -33,9 +33,8 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
         return await ctx.send(embed=embed)
 
     # Streak Reset Logic (Broken Toy)
-    # If more than 2x cooldown has passed, user failed the discipline
     reset_limit = cooldown_delta * 2
-    if now - last_time > reset_limit and last_str is not None:
+    if last_str is not None and now - last_time > reset_limit:
         current_streak = 0
         reset_msg = f"⛓️ **STREAK RESET:** You failed your {reward_type} discipline. You have been punished; your streak is back to zero."
     else:
@@ -47,9 +46,23 @@ async def handle_periodic_reward(ctx, reward_type, min_amt, max_amt, xp_amt, coo
     base_reward = random.randint(min_amt, max_amt)
     streaked_reward = int(base_reward * streak_bonus)
     
-    # Using the async updater to handle multipliers and audit logs
-    # This automatically uses the live main_mod.AUDIT_CHANNEL_ID via the internal redirect
-    await update_user_stats_async(ctx.author.id, amount=streaked_reward, xp_gain=xp_amt, source=f"{reward_type.capitalize()} Streak")
+    # FIXED: Pass all 13 required arguments to match prizes.update_user_stats_async signature
+    # This prevents the TypeError that was killing the command
+    await update_user_stats_async(
+        ctx.author.id,           # 1: user_id
+        streaked_reward,         # 2: amount
+        xp_amt,                  # 3: xp_gain
+        0,                       # 4: wins
+        0,                       # 5: kills
+        0,                       # 6: deaths
+        f"{reward_type.capitalize()} Streak", # 7: source
+        get_user,                # 8: get_user_func
+        main_mod.bot,            # 9: bot_obj
+        get_db_connection,       # 10: db_func
+        main_mod.CLASSES,        # 11: class_dict
+        main_mod.nsfw_mode_active,# 12: nsfw_mode
+        main_mod.send_audit_log  # 13: audit_func
+    )
     
     with get_db_connection() as conn:
         conn.execute(f"UPDATE users SET {db_col} = ?, {streak_col} = ? WHERE id = ?", (now.isoformat(), current_streak, ctx.author.id))
