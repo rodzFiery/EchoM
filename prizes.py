@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 def calculate_item_bonuses(user_id, get_user, bot):
     """ADDED: Calculates total Protection and Luck from owned Black Market assets."""
     user = get_user(user_id)
+    if not user: return 0, 0
     try:
         titles = json.loads(user['titles'])
     except:
@@ -33,6 +34,7 @@ def calculate_item_bonuses(user_id, get_user, bot):
 async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, get_user, bot, get_db_connection, CLASSES, nsfw_mode_active, send_audit_log):
     # Fetch fresh user data at the start of the async call
     user = get_user(user_id)
+    if not user: return
     u_class = user['class']
     
     ext = bot.get_cog("FieryExtensions")
@@ -51,12 +53,11 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
         except: pass
 
     # MULTIPLIERS: Legendary Heat + NSFW Time Double Bonus
-    heat_mult = ext.heat_multiplier if ext else 1.0
+    heat_mult = ext.heat_multiplier if (ext and hasattr(ext, 'heat_multiplier')) else 1.0
     nsfw_mult = 2.0 if nsfw_mode_active else 1.0
-    xp_heat_mult = 3.0 if (ext and ext.master_present) else 1.0 
+    xp_heat_mult = 3.0 if (ext and hasattr(ext, 'master_present') and ext.master_present) else 1.0 
     
     # FIXED: Extracting numeric values from description strings in CLASSES
-    # This prevents the "float * string" crash
     b_flames = 1.0
     b_xp = 1.0
     if u_class == "Dominant": b_flames = 1.20
@@ -110,7 +111,7 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
             except: pass
         
         # --- LEGENDARY BLOOD BOUNTY ---
-        if kills > 0 and ext and ext.master_present:
+        if kills > 0 and ext and hasattr(ext, 'master_present') and ext.master_present:
              final_amount += 500 
 
         # --- QUEST REWARD INTEGRATION ---
@@ -175,7 +176,7 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
                 pending_rewards.append(("Weekly Reward", 2000, 1000))
 
         # --- UPDATE MAIN STATS ---
-        if ext and amount > 0:
+        if ext and hasattr(ext, 'add_heat') and amount > 0:
             ext.add_heat(0.5)
 
         new_xp = user['xp'] + final_xp
@@ -201,6 +202,7 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
 def update_user_stats(user_id, amount, xp_gain, wins, kills, deaths, get_user, CLASSES, get_db_connection):
     """Sync version for internal core calls."""
     user = get_user(user_id)
+    if not user: return
     u_class = user['class']
     
     # Matching the fixed logic above
