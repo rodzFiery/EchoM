@@ -211,9 +211,10 @@ async def on_guild_remove(guild):
     await topgg_poster()
 
 # ===== 5. REBUILT ECONOMY COMMANDS SYSTEM =====
-# FIXED: Removed check lambdas that were causing circular Cog dependency issues during startup
+# FIXED: Native direct triggers to ensure no ghost character conflicts
 
 @bot.command()
+@commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
 async def work(ctx): 
     await worknranks.handle_work_command(ctx, bot, "work", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
@@ -761,24 +762,28 @@ async def on_message(message):
     if message.author.bot: 
         return
 
+    # FIXED: Security and processing order adjustment
     ctx = await bot.get_context(message)
     
-    # FIXED: Check security BEFORE processing. If it's an admin cog command, verify staff status.
+    # Process security only if it is a valid command belonging to a Cog
     if ctx.valid and ctx.command and ctx.command.cog is not None:
-        command_cog = ctx.command.cog_name
-        admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
-        
-        if command_cog in admin_cogs:
-            admin_roles = ["Admin", "Moderator"]
-            is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+        try:
+            command_cog = ctx.command.cog_name
+            admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
             
-            if not is_staff and not await bot.is_owner(message.author):
-                denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                         f"Neural link signature rejected for {message.author.mention}.\n"
-                                         "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                return await message.reply(embed=denied_emb)
+            if command_cog in admin_cogs:
+                admin_roles = ["Admin", "Moderator"]
+                is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                
+                if not is_staff and not await bot.is_owner(message.author):
+                    denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                             f"Neural link signature rejected for {message.author.mention}.\n"
+                                             "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+                    return await message.reply(embed=denied_emb)
+        except Exception:
+            pass
 
-    # RESTORATION POINT: This allows the bot to process commands
+    # FIXED: Calling process_commands AFTER custom checks
     await bot.process_commands(message)
 
 async def main():
