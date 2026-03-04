@@ -762,9 +762,7 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # RESTORATION POINT: This allows the bot to process commands defined in this file
-    await bot.process_commands(message)
-
+    # RESTORATION POINT: First trigger security logic, then process commands
     ctx = await bot.get_context(message)
     
     # Process security only if it is a valid command belonging to a Cog
@@ -781,9 +779,12 @@ async def on_message(message):
                     denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                              f"Neural link signature rejected for {message.author.mention}.\n"
                                              "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                    await message.reply(embed=denied_emb)
+                    return await message.reply(embed=denied_emb)
         except Exception:
             pass
+
+    # Process all commands including those in this file
+    await bot.process_commands(message)
 
 async def main():
     try:
