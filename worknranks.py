@@ -203,5 +203,3 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         await ctx.send(file=file, embed=embed)
     else:
         await ctx.send(embed=embed)
-    else:
-        await ctx.send(embed=embed)
