@@ -9,7 +9,7 @@ class Achievements(commands.Cog):
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
         # FIXED: Pulled dynamically from main module to support the !audit system
-        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1482071248631758865)
 
     def generate_fiery_scale(self):
         """ADDED: Generates the specialized Master's Scale for all achievements."""
