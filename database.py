@@ -39,6 +39,16 @@ def get_user(user_id):
             return get_user(user_id)
         return user
 
+def massivereset():
+    """Wipes all player data and resets global statistics to zero."""
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM users")
+        conn.execute("DELETE FROM contracts")
+        conn.execute("DELETE FROM duel_history")
+        conn.execute("DELETE FROM quests")
+        conn.execute("UPDATE global_stats SET total_games = 0, total_kills = 0, total_deaths = 0, first_deaths = 0")
+        conn.commit()
+
 def init_db():
     with get_db_connection() as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)""")
