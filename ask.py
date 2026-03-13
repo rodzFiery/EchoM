@@ -14,7 +14,7 @@ class DungeonAsk(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # FIXED: Pulled dynamically from main module to support the !audit system
-        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1482071248631758865)
 
     async def create_ask_lobby(self, u1_url, u2_url, title="DM REQUEST"):
         """Generates visual for the request using square avatars and fiery theme."""
