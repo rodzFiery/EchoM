@@ -260,8 +260,8 @@ async def monthly(ctx):
 async def balance(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
-    # FIXED: Safety .get() added to prevent crash if class column is missing or None
-    user_class = u.get('class') if u.get('class') else "Unassigned"
+    # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
+    user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
@@ -327,8 +327,8 @@ async def me(ctx, member: discord.Member = None):
     else:
         embed.set_thumbnail(url=target.display_avatar.url)
 
-    # FIXED: Safety .get() added to prevent crash if class column is missing or None
-    user_class = u.get('class') if u.get('class') else "Unassigned"
+    # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
+    user_class = u['class'] if u['class'] else "Unassigned"
     embed.add_field(name="❤ Class", value=f"**{user_class}**", inline=False)
     embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
     embed.add_field(name="👜 Wallet", value=f"**Flames:** {u['balance']:,}\n**Global Level:** {u['level']} ({u['xp']:,} XP)", inline=True)
