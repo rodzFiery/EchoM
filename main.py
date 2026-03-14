@@ -762,29 +762,29 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # RESTORATION POINT: First trigger security logic, then process commands
+    # Process all commands first to ensure main.py triggers function
+    await bot.process_commands(message)
+
+    # RESTORATION POINT: Handle security logic for Cogs AFTER command processing attempt
     ctx = await bot.get_context(message)
     
-    # Process security only if it is a valid command belonging to a Cog
-    if ctx.valid and ctx.command and ctx.command.cog is not None:
-        try:
-            command_cog = ctx.command.cog_name
-            admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
-            
-            if command_cog in admin_cogs:
-                admin_roles = ["Admin", "Moderator"]
-                is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+    if ctx.valid and ctx.command:
+        if ctx.command.cog is not None:
+            try:
+                command_cog = ctx.command.cog_name
+                admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
                 
-                if not is_staff and not await bot.is_owner(message.author):
-                    denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                             f"Neural link signature rejected for {message.author.mention}.\n"
-                                             "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                    return await message.reply(embed=denied_emb)
-        except Exception:
-            pass
-
-    # Process all commands including those in this file
-    await bot.process_commands(message)
+                if command_cog in admin_cogs:
+                    admin_roles = ["Admin", "Moderator"]
+                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    
+                    if not is_staff and not await bot.is_owner(message.author):
+                        denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                                 f"Neural link signature rejected for {message.author.mention}.\n"
+                                                 "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+                        return await message.reply(embed=denied_emb)
+            except Exception:
+                pass
 
 async def main():
     try:
