@@ -26,9 +26,9 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     cooldown = timedelta(hours=3)
     
     try:
-        # FIXED: Safety get to prevent KeyError on fresh accounts
-        last_val = u.get(last_key) if u else None
-    except (KeyError, AttributeError):
+        # FIXED: Changed .get() to bracket access for sqlite3.Row compatibility
+        last_val = u[last_key] if (u and u[last_key]) else None
+    except (KeyError, IndexError, TypeError):
         last_val = None
 
     if last_val:
@@ -44,8 +44,8 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     base_xp = random.randint(50, 200)
 
     # CLASS BONUSES
-    # FIXED: Added safety check for missing class data
-    user_class = u.get('class', 'None') if u else 'None'
+    # FIXED: Changed .get() to bracket access
+    user_class = u['class'] if (u and u['class']) else 'None'
     if user_class == "Dominant": base_flames = int(base_flames * 1.20)
     elif user_class == "Exhibitionist": 
         base_flames = int(base_flames * 1.40)
@@ -97,7 +97,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     response_text = random.choice(getattr(FieryLexicon, lexicon_key, ["You performed your duties."]))
     
     embed = fiery_embed(f"PROTOCOL: {cmd_name.upper()}", 
-                        f"{response_text}\n\n"
+                        f"{response_text}\n\n" 
                         f"💰 **Earned:** {base_flames:,} Flames\n"
                         f"🔥 **Experience:** +{base_xp} XP")
     
@@ -113,17 +113,17 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
     member = member or ctx.author
     u = get_user(member.id)
     
-    # FIXED: Added safety getters for all user stats to prevent profile crashes
-    u_wins = u.get('wins', 0) if u else 0
-    u_kills = u.get('kills', 0) if u else 0
-    u_duel_wins = u.get('duel_wins', 0) if u else 0
-    u_balance = u.get('balance', 0) if u else 0
-    u_level = u.get('level', 1) if u else 1
-    u_xp = u.get('xp', 0) if u else 0
-    u_fiery_xp = u.get('fiery_xp', 0) if u else 0
-    u_deaths = u.get('deaths', 0) if u else 0
-    u_games_played = u.get('games_played', 0) if u else 0
-    u_class = u.get('class', 'None') if u else 'None'
+    # FIXED: Replaced all .get() with bracket access for sqlite3.Row
+    u_wins = u['wins'] if (u and u['wins']) else 0
+    u_kills = u['kills'] if (u and u['kills']) else 0
+    u_duel_wins = u['duel_wins'] if (u and u['duel_wins']) else 0
+    u_balance = u['balance'] if (u and u['balance']) else 0
+    u_level = u['level'] if (u and u['level']) else 1
+    u_xp = u['xp'] if (u and u['xp']) else 0
+    u_fiery_xp = u['fiery_xp'] if (u and u['fiery_xp']) else 0
+    u_deaths = u['deaths'] if (u and u['deaths']) else 0
+    u_games_played = u['games_played'] if (u and u['games_played']) else 0
+    u_class = u['class'] if (u and u['class']) else 'None'
 
     with get_db_connection() as conn:
         wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u_wins,)).fetchone()
@@ -139,12 +139,12 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
             WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
         """, (member.id,)).fetchall()
     
-    lvl = u.get('fiery_level', 1) if u else 1
+    lvl = u['fiery_level'] if (u and u['fiery_level']) else 1
     # FIXED: Boundary Check for RANKS list to prevent IndexError
     rank_index = min(max(0, lvl - 1), len(RANKS) - 1)
     rank_name = RANKS[rank_index]
     
-    try: titles = json.loads(u.get('titles', '[]')) if u else []
+    try: titles = json.loads(u['titles']) if (u and u['titles']) else []
     except: titles = []
     
     engine = bot.get_cog("IgnisEngine")
@@ -184,7 +184,7 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         embed.add_field(name="🎯 Top 5 Victims (Private Sessions)", value="No one has submitted yet.", inline=False)
 
     owner_text = "Free Soul"
-    spouse_id = u.get('spouse') if u else None
+    spouse_id = u['spouse'] if (u and u['spouse']) else None
     if spouse_id:
         owner_text = f"Bound to <@{spouse_id}> (Married)"
     else:
