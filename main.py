@@ -766,25 +766,22 @@ async def on_message(message):
     ctx = await bot.get_context(message)
     
     # Process security only if it is a valid command belonging to a Cog
-    if ctx.valid and ctx.command:
-        # FIXED: Only apply restricted access checks if the command belongs to an Admin Cog.
-        # This prevents commands in main.py (cog is None) from being blocked.
-        if ctx.command.cog is not None:
-            try:
-                command_cog = ctx.command.cog_name
-                admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
+    if ctx.valid and ctx.command and ctx.command.cog is not None:
+        try:
+            command_cog = ctx.command.cog_name
+            admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
+            
+            if command_cog in admin_cogs:
+                admin_roles = ["Admin", "Moderator"]
+                is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
                 
-                if command_cog in admin_cogs:
-                    admin_roles = ["Admin", "Moderator"]
-                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
-                    
-                    if not is_staff and not await bot.is_owner(message.author):
-                        denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                                 f"Neural link signature rejected for {message.author.mention}.\n"
-                                                 "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
-                        return await message.reply(embed=denied_emb)
-            except Exception:
-                pass
+                if not is_staff and not await bot.is_owner(message.author):
+                    denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                             f"Neural link signature rejected for {message.author.mention}.\n"
+                                             "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+                    return await message.reply(embed=denied_emb)
+        except Exception:
+            pass
 
     # Process all commands including those in this file
     await bot.process_commands(message)
