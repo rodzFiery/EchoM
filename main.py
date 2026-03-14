@@ -758,6 +758,17 @@ async def on_ready():
     print(f"✅ LOG: {bot.user} is ONLINE.")
 
 @bot.event
+async def on_command_error(ctx, error):
+    # This will print to your Railway/Console log why a command failed
+    print(f"⚠️ [COMMAND ERROR] {ctx.command} failed: {error}")
+    await ctx.send(f"❌ **System Error:** {error}")
+
+@bot.command()
+async def test(ctx):
+    """Emergency System Verification"""
+    await ctx.send("✅ **System Link Established.** The bot is hearing commands.")
+
+@bot.event
 async def on_message(message):
     if message.author.bot: 
         return
