@@ -1,6 +1,6 @@
 # FIX: Python 3.13 compatibility shim for audioop
 try:
-    import audioop
+import audioop
 except ImportError:
     try:
         import audioop_lts as audioop
