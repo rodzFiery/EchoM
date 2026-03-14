@@ -17,12 +17,9 @@ class FieryExtensions(commands.Cog):
         self.audit_channel_id = AUDIT_CHANNEL_ID
         self.pending_contracts = {}
         self.interaction_tracker = {} 
-        self.dungeon_heat = 0.0 
-        self.heat_multiplier = 1.0
         
-        # Legendary Heat States
+        # Legendary States
         self.is_blackout = False
-        self.master_present = False
         self.blackout_key_holder = None
         
         # Exhibition Tracker
@@ -31,11 +28,9 @@ class FieryExtensions(commands.Cog):
         
         # Start background loops
         self.quest_reset_loop.start()
-        self.random_interjection_loop.start()
 
     def cog_unload(self):
         self.quest_reset_loop.cancel()
-        self.random_interjection_loop.cancel()
 
     # ==========================================
     # 🔞 THE GRAND EXHIBITION (!nsfwtime)
@@ -64,7 +59,6 @@ class FieryExtensions(commands.Cog):
         if not main.nsfw_mode_active:
             return await ctx.send("The lights are normal. This level of exposure is forbidden right now.")
             
-        # --- VISUAL RECAP TEMPLATE ---
         embed = discord.Embed(title="🔞 THE ECHOGAMES RECAP 🔞", color=0xFF00FF)
         embed.set_author(name=f"Lead Echo Hangrygames: {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
         
@@ -72,7 +66,7 @@ class FieryExtensions(commands.Cog):
                 f"📸 **STAGE 1:** {victim1.mention}\n└ *Status:* **FLASH BABY**\n\n"
                 f"📸 **STAGE 2:** {victim2.mention}\n└ *Status:* **CLOTHES OFF**\n\n"
                 f"📸 **STAGE 3:** {victim3.mention}\n└ *Status:* **TEASE ME**\n\n"
-                f" f\"*'Look at them. Remember their name. This is the price of submission.'*\"")
+                f" \"*'Look at them. Remember their name. This is the price of submission.'*\"")
         
         embed.description = desc
         self.last_nsfw_recap = f"Last Lead: {ctx.author.name} | Victims: {victim1.name}, {victim2.name}, {victim3.name}"
@@ -84,7 +78,6 @@ class FieryExtensions(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-        # --- AUDIT LOG FOR FLASH ---
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
             log_emb = self.fiery_embed("📸 VOYEUR EXHIBITION AUDIT", f"A public exposure has been authorized by {ctx.author.mention}.")
@@ -119,7 +112,6 @@ class FieryExtensions(commands.Cog):
             f"**{member.mention}, type `!accept` to feel the click of the lock.**")
         
         await ctx.send(member.mention, embed=embed)
-        # Quests: Increment Offer a Collar (Daily d3)
         await self.increment_quest(ctx.author.id, "d3")
 
     @commands.command(name="accept")
@@ -148,13 +140,11 @@ class FieryExtensions(commands.Cog):
 
         dom_user = await self.bot.fetch_user(dom_id)
         await ctx.send(embed=self.fiery_embed("Ownership Sealed", 
-            f" f\"🔞 **THE LOCK CLICKS.** {ctx.author.mention} is now the legal property of {dom_user.mention} for the next 24 hours.\n\""
+            f"🔞 **THE LOCK CLICKS.** {ctx.author.mention} is now the legal property of {dom_user.mention} for the next 24 hours.\n"
             f"The payment has been transferred to the new member.", color=0xFF0000))
 
-        # Quests: Increment Soul Collector (Weekly w4)
         await self.increment_quest(ctx.author.id, "w4")
 
-        # --- AUDIT LOG FOR CONTRACT SEALING ---
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
             log_emb = self.fiery_embed("🕵️ VOYEUR CONTRACT AUDIT", f"A new soul has been collared.")
@@ -178,15 +168,10 @@ class FieryExtensions(commands.Cog):
     async def on_message(self, message):
         if message.author.bot: return
         
-        # Quests: Loud Toy (Daily d16) & Public Interest (Weekly w18)
         await self.increment_quest(message.author.id, "d16")
         if message.mentions:
             for m in message.mentions:
                 await self.increment_quest(m.id, "w18")
-
-        # Heat Logic: Random Silence/Degradation during Peak Heat
-        if self.master_present and random.random() < 0.02: # 2% chance per msg
-             await message.channel.send(f" f\"🤫 **SILENCE, {message.author.mention}!** You speak without permission while the Master is on the floor. Use `!beg` to apologize.\"")
 
         if not message.mentions: return
         for mentioned in message.mentions:
@@ -212,7 +197,6 @@ class FieryExtensions(commands.Cog):
         if not sorted_pairs:
             desc += "*The dungeon air is cold. No one is playing with others yet...*\n"
         else:
-            # --- REAL-TIME TENSION CALCULATION ---
             total_interactions = sum(count for _, count in self.interaction_tracker.items())
             for pair, count in sorted_pairs:
                 u1, u2 = ctx.guild.get_member(pair[0]), ctx.guild.get_member(pair[1])
@@ -228,42 +212,8 @@ class FieryExtensions(commands.Cog):
         else: await ctx.send(embed=embed)
 
     # ==========================================
-    # 🕯️ LEGENDARY DUNGEON HEAT & GLOBAL EVENTS
+    # 🌑 BLACKOUT & TRIAL SYSTEM (NO HEAT)
     # ==========================================
-
-    def add_heat(self, amount):
-        if not self.master_present:
-            self.dungeon_heat = min(100.0, self.dungeon_heat + amount)
-            if self.dungeon_heat >= 100.0:
-                asyncio.create_task(self.activate_heat_event())
-
-    async def activate_heat_event(self):
-        self.master_present = True
-        self.heat_multiplier = 2.0
-        
-        # Quests: Heat Chaser (Weekly w19)
-        
-        audit_chan = self.bot.get_channel(self.audit_channel_id)
-        if audit_chan:
-            msg = "🌋 **PROTOCOL: PEAK HEAT.** The Master has entered the floor! The Red Lights are on.\n🔥 **ALL REWARDS X2 | ALL XP X3** for 60 minutes!"
-            await audit_chan.send(msg)
-            
-        # 5% chance of Blackout
-        if random.random() < 0.05:
-            await self.trigger_blackout()
-            
-        await asyncio.sleep(3600)
-        self.master_present = False
-        self.heat_multiplier = 1.0
-        self.dungeon_heat = 0.0
-        self.is_blackout = False
-
-    async def trigger_blackout(self):
-        self.is_blackout = True
-        self.blackout_key_holder = random.randint(1, 20) # Secret key location
-        chan = self.bot.get_channel(self.audit_channel_id)
-        if chan:
-            await chan.send("🌑 **BLACKOUT.** The lights have been cut! Economy commands are locked. Someone find the Master's Keys with `!search`!")
 
     @commands.command(name="search")
     async def search(self, ctx):
@@ -276,11 +226,8 @@ class FieryExtensions(commands.Cog):
             self.is_blackout = False
             await self.update_user_stats(ctx.author.id, amount=100000, source="Found Master Keys")
             await ctx.send(embed=self.fiery_embed("KEY FOUND", f"🗝️ {ctx.author.mention} has found the Master's Keys in the dark! The lights flicker back on and they are rewarded with **100,000 Flames**!"))
-            
-            # Quests: Legendary Presence (Weekly w20)
             await self.increment_quest(ctx.author.id, "w20")
 
-            # --- AUDIT LOG FOR BLACKOUT RESOLUTION ---
             audit_chan = self.bot.get_channel(self.audit_channel_id)
             if audit_chan:
                 await audit_chan.send(f"💡 **BLACKOUT ENDED:** {ctx.author.display_name} found the Master Keys. Power restored.")
@@ -289,17 +236,14 @@ class FieryExtensions(commands.Cog):
 
     @commands.command(name="trial")
     async def trial(self, ctx):
-        """The Trial of the Masochist - High risk, peak heat only."""
-        if not self.master_present:
-            return await ctx.send("The Master is not here to judge your pain. Wait for Peak Heat.")
-        
+        """The Trial of the Masochist."""
         import sys
         main = sys.modules['__main__']
         user_data = main.get_user(ctx.author.id)
         if user_data['balance'] < 5000:
             return await ctx.send("You don't have enough Flames to stake your pride in this trial.")
             
-        await ctx.send(f" f\"⚖️ {ctx.author.mention}, the Trial begins. 5 waves of sensory overload. React with the emoji I show you within 2 seconds. **STAKE: 5,000 Flames.** Type `confirm` to bleed.\n\"")
+        await ctx.send(f"⚖️ {ctx.author.mention}, the Trial begins. 5 waves of sensory overload. React with the emoji I show you within 2 seconds. **STAKE: 5,000 Flames.** Type `confirm` to bleed.")
         
         def check(m): return m.author == ctx.author and m.content.lower() == 'confirm'
         try:
@@ -320,37 +264,29 @@ class FieryExtensions(commands.Cog):
                 await self.bot.wait_for('reaction_add', check=react_check, timeout=2.0)
             except asyncio.TimeoutError:
                 await main.update_user_stats_async(ctx.author.id, amount=-5000, source="Failed Trial")
-                
-                # --- AUDIT LOG FOR FAILED TRIAL ---
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
                     log_emb = self.fiery_embed("🕵️ VOYEUR TRIAL AUDIT: BROKEN", f"An asset has failed the Trial of the Masochist.")
                     log_emb.add_field(name="🫦 Failed Asset", value=ctx.author.mention, inline=True)
                     log_emb.add_field(name="📉 Penalty", value="5,000 Flames Extracted", inline=True)
-                    log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} reached Wave {i} before their mind shattered. The pit has claimed their stake."
                     await audit_chan.send(embed=log_emb)
-                return await ctx.send(f"❌ **BROKEN.** {ctx.author.mention} failed to react in time. 5,000 Flames lost to the pit.")
+                return await ctx.send(f"❌ **BROKEN.** {ctx.author.mention} failed to react in time. 5,000 Flames lost.")
 
         await main.update_user_stats_async(ctx.author.id, amount=10000, xp_gain=5000, source="Passed Trial")
-        await ctx.send(embed=self.fiery_embed("Trial Passed", f"🖤 {ctx.author.mention} has endured the Master's sensory Trial! They earn **10,000 Flames** and the Master's respect.", color=0x00FF00))
+        await ctx.send(embed=self.fiery_embed("Trial Passed", f"🖤 {ctx.author.mention} has endured the Master's sensory Trial! They earn **10,000 Flames**.", color=0x00FF00))
         
-        # --- AUDIT LOG FOR PASSED TRIAL ---
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
-            log_emb = self.fiery_embed("🕵️ VOYEUR TRIAL AUDIT: ENDURED", f"An asset has passed the Trial of the Masochist.")
-            log_emb.add_field(name="⛓️ Endured Asset", value=ctx.author.mention, inline=True)
-            log_emb.add_field(name="💰 Reward", value="10,000 Flames Added", inline=True)
-            log_emb.add_field(name="💦 Experience", value="5,000 XP Synchronized", inline=True)
-            log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} has successfully navigated all 5 waves of sensory overload. A rare display of mental fortitude."
+            log_emb = self.fiery_embed("🕵️ VOYEUR TRIAL AUDIT: ENDURED", f"An asset has passed the Trial.")
             await audit_chan.send(embed=log_emb)
 
     # ==========================================
-    # 📜 THE MASTER'S LEDGER (40 CLEAR DEMANDS)
+    # 📜 THE MASTER'S LEDGER (QUESTS)
     # ==========================================
 
     @commands.command(name="quests")
     async def quests(self, ctx):
-        """Check your progress on the daily and weekly demands of the Red Room."""
+        """Check your progress on the daily and weekly demands."""
         u_id = ctx.author.id
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (u_id,))
@@ -382,7 +318,7 @@ class FieryExtensions(commands.Cog):
             f"17. ⛓️ **Narcissist:** {q['d17']}/1 `!me` profile check", 
             f"18. 🔄 **Daily Dose:** {q['d18']}/1 `!daily` claimed",
             f"19. ⛓️ **Role Call:** {q['d19']}/1 Ping in a game lobby", 
-            f"20. 🔞 **Full Session:** {q['d20']}/1 Game played start to finish"
+            f"20. 🔞 **Full Session:** {q['d20']}/1 Game played"
         ]
         
         w_tasks = [
@@ -405,17 +341,13 @@ class FieryExtensions(commands.Cog):
             f"17. ⬆️ **Deepening Submission:** {q['w17']}/1 Level gained", 
             f"18. 👁️ **Public Interest:** {q['w18']}/50 Mentions in chat",
             f"19. 🌋 **Heat Chaser:** {q['w19']}/5 Heat Events triggered", 
-            f"20. 🔞 **Legendary Presence:** {q['w20']}/1 Legendary Event survive"
+            f"20. 🔞 **Legendary Presence:** {q['w20']}/1 Legendary Event"
         ]
 
-        embed.add_field(name="🫦 THE DAILY DEGRADATION (250F / 100XP)", value="\n".join(d_tasks[:10]), inline=True)
+        embed.add_field(name="🫦 THE DAILY DEGRADATION", value="\n".join(d_tasks[:10]), inline=True)
         embed.add_field(name="🫦 DAILY CONTINUED", value="\n".join(d_tasks[10:]), inline=True)
-        embed.add_field(name="⛓️ THE WEEKLY ORDEAL (2000F / 1000XP)", value="\n".join(w_tasks[:10]), inline=True)
+        embed.add_field(name="⛓️ THE WEEKLY ORDEAL", value="\n".join(w_tasks[:10]), inline=True)
         embed.add_field(name="⛓️ WEEKLY CONTINUED", value="\n".join(w_tasks[10:]), inline=True)
-        
-        heat_val = int(self.dungeon_heat / 10)
-        heat_bar = "🔥" * heat_val + "🌑" * (10 - heat_val)
-        embed.add_field(name="🌋 CURRENT DUNGEON HEAT", value=f"{heat_bar} **{self.dungeon_heat}%**", inline=False)
         embed.set_footer(text="🔞 THE MASTER IS ALWAYS WATCHING 🔞")
 
         if os.path.exists("LobbyTopRight.jpg"):
@@ -424,13 +356,12 @@ class FieryExtensions(commands.Cog):
 
     @commands.command(name="questboard")
     async def quest_leaderboard(self, ctx):
-        """Displays the Monthly Quest Leaderboard (Top 10)."""
+        """Displays the Monthly Quest Leaderboard."""
         with self.get_db_connection() as conn:
-            # ADDED: Logic to sum all daily and weekly completions per user
             query = "SELECT user_id, (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") as total FROM quests WHERE user_id != 0 ORDER BY total DESC LIMIT 10"
             top_ten = conn.execute(query).fetchall()
 
-        desc = "🏆 **MONTHLY SUBMISSION RANKINGS** 🏆\n*Assets with the most Ordeals satisfied this month.*\n\n"
+        desc = "🏆 **MONTHLY SUBMISSION RANKINGS** 🏆\n\n"
         for i, row in enumerate(top_ten, 1):
             member = ctx.guild.get_member(row['user_id'])
             name = member.display_name if member else f"Asset {row['user_id']}"
@@ -440,7 +371,7 @@ class FieryExtensions(commands.Cog):
         await ctx.send(embed=embed)
 
     # ==========================================
-    # 🕒 BACKGROUND LOOPS (RESETS & INTERJECTIONS)
+    # 🕒 BACKGROUND LOOPS (RESETS ONLY)
     # ==========================================
 
     @tasks.loop(minutes=30)
@@ -454,70 +385,44 @@ class FieryExtensions(commands.Cog):
                 return
             last_reset = datetime.fromisoformat(last_reset_row['last_reset'])
 
-            # --- MONTHLY RESET & PAYOUT (1st of the month) ---
             if now.month != last_reset.month:
-                # ADDED: Payout logic for Top 10 before reset
                 query = "SELECT user_id FROM quests WHERE user_id != 0 ORDER BY (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") DESC LIMIT 10"
                 winners = conn.execute(query).fetchall()
-                
-                # Distribution logic: 250k down to 50k
                 prizes = [250000, 220000, 200000, 180000, 150000, 120000, 100000, 80000, 60000, 50000]
-                
-                audit_chan = self.bot.get_channel(self.audit_channel_id)
                 recap = "🎊 **MONTHLY LEDGER PAYOUT!** 🎊\n\n"
-                
                 for idx, row in enumerate(winners):
                     prize = prizes[idx]
                     await self.update_user_stats(row['user_id'], amount=prize, source="Monthly Quest Leaderboard")
                     recap += f"Place #{idx+1}: <@{row['user_id']}> won {prize:,} Flames!\n"
                 
+                audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send(embed=self.fiery_embed("Monthly Payout Recap", recap, color=0xFFD700))
-                
-                # Wipe all stats for the new month
+                    await audit_chan.send(embed=self.fiery_embed("Monthly Payout Recap", recap))
                 conn.execute("UPDATE quests SET " + ", ".join([f"d{i}=0" for i in range(1, 21)]) + ", " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
 
             if now.date() > last_reset.date():
                 conn.execute("UPDATE quests SET " + ", ".join([f"d{i}=0" for i in range(1, 21)]))
                 conn.execute("UPDATE quests SET last_reset = ? WHERE user_id = 0", (now.isoformat(),))
-                
-                # --- AUDIT LOG FOR DAILY RESET ---
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send("⛓️ **LEDGER WIPE:** The Master has cleared the Daily Ordeals. New demands have been issued to all assets.")
+                    await audit_chan.send("⛓️ **LEDGER WIPE:** Daily Ordeals reset.")
 
-                if now.isoweekday() == 1 and now.isocalendar()[1] != last_reset.isocalendar()[1]:
-                    conn.execute("UPDATE quests SET " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
-                    # --- AUDIT LOG FOR WEEKLY RESET ---
-                    if audit_chan:
-                        await audit_chan.send("🚨 **WEEKLY PURGE:** All Weekly Ordeals have been reset. The long-term ledger is clean.")
-                conn.commit()
-
-    @tasks.loop(minutes=45)
-    async def random_interjection_loop(self):
-        """Random interjections to keep the dungeon atmosphere alive."""
-        messages = [
-            " f\"🫦 *The scent of leather and fear fills the air.*\"",
-            " f\"⛓️ *A chain rattles in the distance... Who is being punished?*\"",
-            " f\"🔞 *The Master is reviewing the ledger. Are you serving well?*\"",
-            " f\"🩸 *The arena floor is still warm from the last sacrifice.*\""
-        ]
-        audit_chan = self.bot.get_channel(self.audit_channel_id)
-        if audit_chan and random.random() < 0.3:
-            await audit_chan.send(random.choice(messages))
+            if now.isoweekday() == 1 and now.isocalendar()[1] != last_reset.isocalendar()[1]:
+                conn.execute("UPDATE quests SET " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
+                audit_chan = self.bot.get_channel(self.audit_channel_id)
+                if audit_chan:
+                    await audit_chan.send("🚨 **WEEKLY PURGE:** Weekly Ordeals reset.")
+            conn.commit()
 
     @quest_reset_loop.before_loop
-    @random_interjection_loop.before_loop
     async def before_loops(self):
         await self.bot.wait_until_ready()
 
     # ==========================================
-    # 🛠️ QUEST TRACKING LOGIC (ADDED FIX)
+    # 🛠️ QUEST TRACKING LOGIC
     # ==========================================
 
     async def increment_quest(self, user_id, quest_key, amount=1):
-        """Helper to increment specific quest values in DB and deliver prizes."""
-        # QUEST GOAL MAPPING
         goals = {
             "d1": 1, "d2": 3, "d3": 1, "d4": 5, "d5": 5, "d6": 1, "d7": 2, "d8": 3, "d9": 2, "d10": 2,
             "d11": 5, "d12": 10, "d13": 1, "d14": 2, "d15": 1000, "d16": 10, "d17": 1, "d18": 1, "d19": 1, "d20": 1,
@@ -526,80 +431,37 @@ class FieryExtensions(commands.Cog):
         }
         
         with self.get_db_connection() as conn:
-            conn.row_factory = sqlite3.Row # Ensure column-based access works reliably
+            conn.row_factory = sqlite3.Row
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (user_id,))
-            
             res = conn.execute(f"SELECT {quest_key} FROM quests WHERE user_id = ?", (user_id,)).fetchone()
             current = res[0] if res else 0
-            
             new_val = current + amount
             conn.execute(f"UPDATE quests SET {quest_key} = ? WHERE user_id = ?", (new_val, user_id))
             conn.commit()
 
-            # PRIZE DELIVERY LOGIC
             goal = goals.get(quest_key, 999999)
             if current < goal and new_val >= goal:
                 is_weekly = quest_key.startswith('w')
                 flames = 2000 if is_weekly else 250
                 xp = 1000 if is_weekly else 100
-                
-                await self.update_user_stats(user_id, amount=flames, xp_gain=xp, source=f"Quest Completion ({quest_key})")
-                
+                await self.update_user_stats(user_id, amount=flames, xp_gain=xp, source=f"Quest ({quest_key})")
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    user_mention = f"<@{user_id}>"
-                    type_label = "WEEKLY ORDEAL" if is_weekly else "DAILY DEGRADATION"
-                    emb = self.fiery_embed(f"📜 QUEST COMPLETED: {type_label}", 
-                        f"🫦 {user_mention} has satisfied a demand of the Ledger!\n\n"
-                        f"💰 **Reward:** {flames:,} Flames\n"
-                        f"✨ **Experience:** {xp:,} XP", color=0x00FF00)
-                    await audit_chan.send(embed=emb)
-
-                # --- DAILY COMPLETIONIST BONUS (100,000 FLAMES) ---
-                if not is_weekly:
-                    q_data = conn.execute("SELECT * FROM quests WHERE user_id = ?", (user_id,)).fetchone()
-                    if q_data:
-                        daily_all_done = True
-                        for i in range(1, 21):
-                            d_key = f"d{i}"
-                            # Support both row object and standard tuple access
-                            val = q_data[d_key] if hasattr(q_data, '__getitem__') else q_data[i]
-                            if val < goals[d_key]:
-                                daily_all_done = False
-                                break
-                        
-                        if daily_all_done:
-                            bonus = 100000
-                            await self.update_user_stats(user_id, amount=bonus, source="DAILY COMPLETIONIST BONUS")
-                            if audit_chan:
-                                bonus_emb = self.fiery_embed("🏆 THE ULTIMATE SUBMISSION", 
-                                    f"🔞 {user_mention} has completed **EVERY SINGLE DAILY DEMAND**!\n\n"
-                                    f"🔥 **ULTRA BONUS:** {bonus:,} Flames injected into vault.", color=0xFFD700)
-                                await audit_chan.send(embed=bonus_emb)
+                    await audit_chan.send(embed=self.fiery_embed("📜 QUEST COMPLETED", f"<@{user_id}> completed a demand!"))
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
-        """Global listener to track command-based quests."""
         user_id = ctx.author.id
-        # Use the base command name to ensure aliases also trigger quests
         cmd = ctx.command.name if ctx.command else None
         if not cmd: return
         
-        # General active asset tracking
-        await self.increment_quest(user_id, "d12") # Daily d12: 10 commands total
-        await self.increment_quest(user_id, "w6")  # Weekly w6: 50 commands used
+        await self.increment_quest(user_id, "d12")
+        await self.increment_quest(user_id, "w6")
 
-        # Specific Command Mapping
         mapping = {
-            "beg": ["d4", "w15"],
-            "work": ["d5", "w5"],
-            "experiment": ["d7", "w11"],
-            "cumcleaner": ["d8", "w12"],
-            "pimp": ["d9", "w13"],
-            "mystery": ["d10", "w14"],
-            "flirt": ["d11", "w10"],
-            "me": ["d17"],
-            "daily": ["d18", "w16"]
+            "beg": ["d4", "w15"], "work": ["d5", "w5"], "experiment": ["d7", "w11"],
+            "cumcleaner": ["d8", "w12"], "pimp": ["d9", "w13"], "mystery": ["d10", "w14"],
+            "flirt": ["d11", "w10"], "me": ["d17"], "daily": ["d18", "w16"]
         }
         
         if cmd in mapping:
@@ -609,15 +471,4 @@ class FieryExtensions(commands.Cog):
 async def setup(bot):
     import sys
     main = sys.modules['__main__']
-    # ADDED: Safety table verification during setup to prevent database errors on first load
-    with main.get_db_connection() as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS contracts (
-            dominant_id INTEGER, submissive_id INTEGER, expiry TEXT, tax_rate REAL DEFAULT 0.2, PRIMARY KEY (submissive_id))""")
-        cols = ["user_id INTEGER PRIMARY KEY"]
-        for i in range(1, 21): cols.append(f"d{i} INTEGER DEFAULT 0")
-        for i in range(1, 21): cols.append(f"w{i} INTEGER DEFAULT 0")
-        cols.append("last_reset TEXT")
-        conn.execute(f"CREATE TABLE IF NOT EXISTS quests ({', '.join(cols)})")
-        conn.execute("INSERT OR IGNORE INTO quests (user_id, last_reset) VALUES (0, ?)", (datetime.now(timezone.utc).isoformat(),))
-        conn.commit()
     await bot.add_cog(FieryExtensions(bot, main.get_db_connection, main.update_user_stats_async, main.fiery_embed, main.AUDIT_CHANNEL_ID))
