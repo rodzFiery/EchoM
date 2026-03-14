@@ -214,7 +214,6 @@ async def on_guild_remove(guild):
 # FIXED: Native direct triggers to ensure no ghost character conflicts
 
 @bot.command()
-@commands.check(lambda ctx: bot.get_cog("PremiumSystem").is_premium().predicate(ctx) if bot.get_cog("PremiumSystem") else True)
 async def work(ctx): 
     await worknranks.handle_work_command(ctx, bot, "work", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
