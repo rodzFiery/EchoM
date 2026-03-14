@@ -22,6 +22,10 @@ class FieryExtensions(commands.Cog):
         self.is_blackout = False
         self.blackout_key_holder = None
         
+        # ADDED: HEAT & MASTER PRESENCE (Fixes AttributeError in prizes.py)
+        self.master_present = False
+        self.heat_multiplier = 1.0
+
         # Exhibition Tracker
         self.last_nsfw_winner = None
         self.last_nsfw_recap = "No Hangrygames yet."
@@ -84,6 +88,23 @@ class FieryExtensions(commands.Cog):
             log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} has selected {victim1.display_name}, {victim2.display_name}, and {victim3.display_name} for total exposure. The cameras are recording their shame."
             log_emb.color = 0xFF00FF
             await audit_chan.send(embed=log_emb)
+
+    # ==========================================
+    # 🔥 HEAT SYSTEM (Used by !favor)
+    # ==========================================
+
+    async def activate_peak_heat(self, ctx):
+        """Logic for Peak Heat triggered by !favor."""
+        self.master_present = True
+        self.heat_multiplier = 2.0
+        await asyncio.sleep(3600) # Peak Heat lasts 1 hour
+        self.master_present = False
+        self.heat_multiplier = 1.0
+        await ctx.send("🔥 **PEAK HEAT HAS COOLED.** Multipliers returning to normal.")
+
+    def add_heat(self, amount):
+        """Internal helper for heat accumulation."""
+        pass
 
     # ==========================================
     # 💍 THE BINDING CONTRACT SYSTEM
