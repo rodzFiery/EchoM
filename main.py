@@ -2,12 +2,12 @@
 try:
 import audioop
 except ImportError:
-    try:
-        import audioop_lts as audioop
-        import sys
-        sys.modules['audioop'] = audioop
-    except ImportError:
-        pass 
+try:
+import audioop_lts as audioop
+import sys
+sys.modules['audioop'] = audioop
+except ImportError:
+pass 
 
 import discord
 from discord.ext import commands, tasks
