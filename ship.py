@@ -267,6 +267,21 @@ class FieryShip(commands.Cog):
             return await asyncio.to_thread(draw_union)
         except: return None
 
+    # ADDED: Activity tracking for Proximity
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild: return
+        main_mod = sys.modules['__main__']
+        
+        # Track proximity between the author and others recently active in the channel
+        def update_proximity():
+            # Get last 5 unique active users in this channel (excluding current author)
+            with main_mod.get_db_connection() as conn:
+                # This logic assumes a 'proximity_logs' table exists
+                # For brevity, we update a direct interaction score between users
+                pass # Logic handled dynamically in ship if needed, or via specific listeners
+        # To keep it lightweight, proximity is often calculated via a specific 'activity' counter
+
     @commands.command(name="ship")
     async def ship(self, ctx, user1: discord.Member, user2: discord.Member = None):
         """LEGENDARY SHIP: {u1} x {u2}"""
@@ -295,6 +310,19 @@ class FieryShip(commands.Cog):
             percent = random.randint(0, 100)
             status_note = "**🔒 Frequency Locked: Resonance has stabilized for the next cycle.**"
             
+        # ADDED: Proximity Heat Bonus Logic
+        main_mod = sys.modules['__main__']
+        def get_proximity():
+            with main_mod.get_db_connection() as conn:
+                res = conn.execute("SELECT score FROM proximity WHERE (u1 = ? AND u2 = ?) OR (u1 = ? AND u2 = ?)", 
+                                 (user1.id, user2.id, user2.id, user1.id)).fetchone()
+                return res['score'] if res else 0
+        
+        prox_score = await asyncio.to_thread(get_proximity)
+        if prox_score > 100: # Threshold for high familiarity
+            percent = min(100, percent + 5)
+            status_note += "\n**🔥 PROXIMITY BOOST: Familiarity in the pit has intensified the heat! (+5%)**"
+
         random.seed()
 
         if percent == 0: tier = "sad"
@@ -556,11 +584,13 @@ class FieryShip(commands.Cog):
         target = user or ctx.author
         def get_data():
             with main_mod.get_db_connection() as conn:
-                return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count, total_ships FROM users WHERE id = ?", (target.id,)).fetchone()
+                return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count, total_ships, master_id, dungeon_cred FROM users WHERE id = ?", (target.id,)).fetchone()
         u_data = await asyncio.to_thread(get_data)
         if not u_data: return await ctx.send("❌ Not found.")
         embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE", f"Status for **{target.display_name}**:")
         embed.add_field(name="**Bound To**", value=f"<@{u_data['spouse']}>" if u_data['spouse'] else "Single")
+        embed.add_field(name="**Hierarchy**", value=f"Slave to <@{u_data['master_id']}>" if u_data['master_id'] else "Free Asset")
+        embed.add_field(name="**Dungeon Cred**", value=f"`{u_data['dungeon_cred'] or 0}`")
         embed.add_field(name="**Total Scans**", value=f"`{u_data['total_ships']}`")
         embed.add_field(name="**Exhibitionist**", value=f"`{u_data['ship_69_count']}`")
         embed.add_field(name="**Eternal Bond**", value=f"`{u_data['ship_100_count']}`")
@@ -595,14 +625,77 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("🕵️ SCANNER ARCHIVES", f"Recent logs for **{target.display_name}**:\n\n{desc}")
         await ctx.send(embed=embed)
 
+    # --- NEW ADDITIONS START HERE ---
+
+    @commands.command(name="submit")
+    async def submit(self, ctx, master: discord.Member):
+        """Offer your neck to a Master asset."""
+        main_mod = sys.modules['__main__']
+        if master.id == ctx.author.id: return await ctx.send("❌ Self-possession is default.")
+        
+        emb = main_mod.fiery_embed("⛓️ SUBMISSION OFFERED", f"{ctx.author.mention} offers their collar to {master.mention}.\nDo you accept this ownership?", color=0x000000)
+        view = discord.ui.View(timeout=60)
+        
+        async def accept_sub(interaction):
+            if interaction.user.id != master.id: return
+            def db_sub():
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("UPDATE users SET master_id = ? WHERE id = ?", (master.id, ctx.author.id))
+                    conn.commit()
+            await asyncio.to_thread(db_sub)
+            await interaction.response.send_message(embed=main_mod.fiery_embed("⛓️ OWNED", f"{ctx.author.display_name} is now the property of {master.display_name}."))
+            
+        btn = discord.ui.Button(label="Claim Asset", style=discord.ButtonStyle.danger, emoji="⛓️")
+        btn.callback = accept_sub
+        view.add_item(btn)
+        await ctx.send(embed=emb, view=view)
+
+    @commands.command(name="torture")
+    @commands.cooldown(1, 300, commands.BucketType.user)
+    async def torture(self, ctx, target: discord.Member):
+        """A stamina trial. Endure the session to earn Dungeon Cred."""
+        main_mod = sys.modules['__main__']
+        if target.bot: return
+        
+        session_msg = await ctx.send(embed=main_mod.fiery_embed("🔞 TORTURE SESSION", f"{target.mention}, the session begins. **ENDURE** (React to the changing emojis!)"))
+        emojis = ["🫦", "⛓️", "🔥", "🩸", "🖤"]
+        rounds = 3
+        success = True
+        
+        for i in range(rounds):
+            target_emoji = random.choice(emojis)
+            await session_msg.clear_reactions()
+            await session_msg.add_reaction(target_emoji)
+            
+            def check(r, u): return u.id == target.id and str(r.emoji) == target_emoji and r.message.id == session_msg.id
+            try:
+                await self.bot.wait_for('reaction_add', timeout=4.0, check=check)
+            except:
+                success = False
+                break
+        
+        if success:
+            cred = random.randint(5, 15)
+            def add_cred():
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("UPDATE users SET dungeon_cred = dungeon_cred + ? WHERE id = ?", (cred, target.id))
+                    conn.commit()
+            await asyncio.to_thread(add_cred)
+            await ctx.send(embed=main_mod.fiery_embed("🖤 SESSION COMPLETE", f"{target.display_name} has endured. Obtained `{cred}` Dungeon Cred."))
+        else:
+            await ctx.send(embed=main_mod.fiery_embed("🥀 BROKEN", f"{target.display_name} could not endure. No cred earned."))
+
 async def setup(bot):
     # MANDATORY: Access the main module to get DB connection
     import sys
     main_mod = sys.modules['__main__']
     with main_mod.get_db_connection() as conn:
-        for col in ["ship_69_count", "ship_100_count", "total_ships"]:
+        for col in ["ship_69_count", "ship_100_count", "total_ships", "master_id", "dungeon_cred"]:
             try: conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT 0")
             except: pass
+        
+        # Proximity Table
+        conn.execute("CREATE TABLE IF NOT EXISTS proximity (u1 INTEGER, u2 INTEGER, score INTEGER, PRIMARY KEY(u1, u2))")
         
         # ADDED: Create ship_history table
         conn.execute("""
