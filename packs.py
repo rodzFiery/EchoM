@@ -84,13 +84,20 @@ class DungeonPacks(commands.Cog):
 
     @commands.command(name="buybox")
     async def buy_box(self, ctx, box_type: str = "basic"):
-        """Spend Flames to open a Gear Box (basic, premium, elite)."""
+        """Spend Flames to open a Gear Box (basic, premium, elite, tech, guardian, warlord)."""
         main_mod = sys.modules['__main__']
         box_type = box_type.lower()
         
-        prices = {"basic": 5000, "premium": 15000, "elite": 50000}
+        prices = {
+            "basic": 5000, 
+            "premium": 15000, 
+            "elite": 50000,
+            "tech": 25000,
+            "guardian": 25000,
+            "warlord": 100000
+        }
         if box_type not in prices:
-            return await ctx.send("❌ Valid boxes: `basic` (5k), `premium` (15k), `elite` (50k).")
+            return await ctx.send("❌ Valid boxes: `basic`, `premium`, `elite`, `tech`, `guardian`, `warlord`.")
 
         price = prices[box_type]
         user_data = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
@@ -98,16 +105,28 @@ class DungeonPacks(commands.Cog):
         if user_data['balance'] < price:
             return await ctx.send(f"❌ You lack the Flames. Opening a {box_type} box requires `{price:,}`.")
 
-        # Determine Rarity
-        if box_type == "basic":
-            weights = {"Common": 0.80, "Rare": 0.18, "Epic": 0.02, "Legendary": 0.00}
-        elif box_type == "premium":
-            weights = {"Common": 0.40, "Rare": 0.45, "Epic": 0.12, "Legendary": 0.03}
-        else: # Elite
-            weights = {"Common": 0.10, "Rare": 0.30, "Epic": 0.45, "Legendary": 0.15}
+        # Determine Rarity and Filtering
+        rarity_weights = {"Common": 0.80, "Rare": 0.18, "Epic": 0.02, "Legendary": 0.00}
+        
+        if box_type == "premium":
+            rarity_weights = {"Common": 0.40, "Rare": 0.45, "Epic": 0.12, "Legendary": 0.03}
+        elif box_type == "elite":
+            rarity_weights = {"Common": 0.10, "Rare": 0.30, "Epic": 0.45, "Legendary": 0.15}
+        elif box_type == "tech" or box_type == "guardian":
+            rarity_weights = {"Common": 0.30, "Rare": 0.50, "Epic": 0.20, "Legendary": 0.00}
+        elif box_type == "warlord":
+            rarity_weights = {"Common": 0.00, "Rare": 0.20, "Epic": 0.55, "Legendary": 0.25}
 
-        rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
-        item = random.choice(self.item_pool[rarity])
+        rarity = random.choices(list(rarity_weights.keys()), weights=list(rarity_weights.values()))[0]
+        
+        # Filter pool based on specialty boxes
+        pool = self.item_pool[rarity]
+        if box_type == "tech":
+            pool = [i for i in pool if i['spd'] >= i['atk']] or pool
+        elif box_type == "guardian":
+            pool = [i for i in pool if i['def'] >= i['atk']] or pool
+            
+        item = random.choice(pool)
         
         # Deduct money and add to inventory
         await main_mod.update_user_stats_async(ctx.author.id, amount=-price, source=f"Purchased {box_type} Gear Box")
@@ -315,6 +334,40 @@ class DungeonPacks(commands.Cog):
         embed = main_mod.fiery_embed("🕵️ TOP RUMBLE ASSETS", desc)
         embed.color = 0xFF4500
         await ctx.send(embed=embed)
+
+    @commands.command(name="dailygear", aliases=["scan"])
+    @commands.cooldown(1, 86400, commands.BucketType.user)
+    async def daily_gear(self, ctx):
+        """Perform a free daily Neural Scan for gear (Common, Rare, or Epic)."""
+        main_mod = sys.modules['__main__']
+        
+        # Rarity weights for free scan: No legendary, but chance for Epic.
+        weights = {"Common": 0.70, "Rare": 0.25, "Epic": 0.05}
+        rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
+        item = random.choice(self.item_pool[rarity])
+        
+        def add_item():
+            with self._get_db() as conn:
+                conn.execute("INSERT INTO dungeon_inventory (user_id, item_name, rarity, atk, def, spd) VALUES (?, ?, ?, ?, ?, ?)",
+                             (ctx.author.id, item['name'], rarity, item['atk'], item['def'], item['spd']))
+                conn.commit()
+        
+        await asyncio.to_thread(add_item)
+        img_buf = await self.create_pack_image(ctx.author.display_avatar.url, item, rarity)
+        
+        color = 0xCCCCCC if rarity == "Common" else 0x3498DB if rarity == "Rare" else 0x9B59B6
+        embed = main_mod.fiery_embed("📡 DAILY NEURAL SCAN COMPLETE", f"Asset {ctx.author.mention}, free gear has been materialized.")
+        embed.color = color
+        embed.set_image(url="attachment://pack.png")
+        
+        await ctx.send(file=discord.File(img_buf, filename="pack.png"), embed=embed)
+
+    @daily_gear.error
+    async def daily_gear_error(self, ctx, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            hours = int(error.retry_after // 3600)
+            minutes = int((error.retry_after % 3600) // 60)
+            await ctx.send(f"🥀 **SIGNAL INTERFERENCE:** Neural scanner is recharging. Try again in `{hours}h {minutes}m`.")
 
 async def setup(bot):
     main_mod = sys.modules['__main__']
