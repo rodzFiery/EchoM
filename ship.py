@@ -348,6 +348,12 @@ class FieryShip(commands.Cog):
         def track_total():
             with main_mod.get_db_connection() as conn:
                 conn.execute("UPDATE users SET total_ships = total_ships + 1 WHERE id = ?", (ctx.author.id,))
+                # ADDED: Ship History logging (Keep last 5)
+                target_id = user2.id if user1.id == ctx.author.id else user1.id
+                conn.execute("INSERT INTO ship_history (user_id, partner_id, percent, timestamp) VALUES (?, ?, ?, ?)", 
+                             (ctx.author.id, target_id, percent, datetime.now(timezone.utc).isoformat()))
+                conn.execute("DELETE FROM ship_history WHERE user_id = ? AND id NOT IN (SELECT id FROM ship_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 5)", 
+                             (ctx.author.id, ctx.author.id))
                 conn.commit()
         await asyncio.to_thread(track_total)
 
@@ -553,6 +559,32 @@ class FieryShip(commands.Cog):
         embed.add_field(name="**Eternal Bond**", value=f"`{u_data['ship_100_count']}`")
         await ctx.send(embed=embed)
 
+    # ADDED: Ship History command
+    @commands.command(name="shiphistory")
+    async def shiphistory(self, ctx, user: discord.Member = None):
+        """Review the last 5 scans recorded in the dungeon."""
+        main_mod = sys.modules['__main__']
+        target = user or ctx.author
+        
+        def fetch_history():
+            with main_mod.get_db_connection() as conn:
+                return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 5", (target.id,)).fetchall()
+        
+        history = await asyncio.to_thread(fetch_history)
+        if not history:
+            return await ctx.send(f"🥀 **{target.display_name}** has no recorded history in the scanner.")
+            
+        desc = ""
+        for row in history:
+            partner = self.bot.get_user(row['partner_id'])
+            p_name = partner.display_name if partner else f"Unknown Asset ({row['partner_id']})"
+            # Formatting ISO timestamp to readable date
+            dt = datetime.fromisoformat(row['timestamp']).strftime("%Y-%m-%d %H:%M")
+            desc += f"• **{p_name}**: `{row['percent']}%` Sync _({dt})_\n"
+            
+        embed = main_mod.fiery_embed("🕵️ SCANNER ARCHIVES", f"Recent logs for **{target.display_name}**:\n\n{desc}")
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     # MANDATORY: Access the main module to get DB connection
     import sys
@@ -561,6 +593,17 @@ async def setup(bot):
         for col in ["ship_69_count", "ship_100_count", "total_ships"]:
             try: conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT 0")
             except: pass
+        
+        # ADDED: Create ship_history table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ship_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                partner_id INTEGER,
+                percent INTEGER,
+                timestamp TEXT
+            )
+        """)
         conn.commit()
     await bot.add_cog(FieryShip(bot))
     print("✅ LOG: Ship Extension ONLINE.")
