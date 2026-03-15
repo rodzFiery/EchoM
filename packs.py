@@ -186,7 +186,7 @@ class DungeonPacks(commands.Cog):
         
         await ctx.send(file=discord.File(img_buf, filename="pack.png"), embed=embed)
 
-    @commands.command(name="dungeonbag", aliases=["inventory", "gear"])
+    @commands.command(name="dungeonbag", aliases=["dbag", "gear"])
     async def dungeon_bag(self, ctx):
         """View your collected Rumble gear."""
         main_mod = sys.modules['__main__']
