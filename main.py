@@ -388,10 +388,12 @@ async def echo(ctx):
 
     # Page 2: Social & Economy Extensions
     emb2 = fiery_embed("🫦 SOCIAL & WEALTH PROTOCOLS", 
-        "**Economy Extensions (shop.py & ship.py)**\n"
+        "**Economy Extensions (shop.py & ship.py & packs.py)**\n"
         "• `!shop`: Browse the Black Market for prestige items.\n"
         "• `!buy <item_id>`: Purchase asset upgrades or titles.\n"
-        "• `!inv`: View your current asset inventory.\n"
+        "• `!buybox <type>`: Acquire Neural Asset Gear Boxes.\n"
+        "• `!dungeonbag`: Review your current Rumble equipment.\n"
+        "• `!joinpit`: Entry into the high-stakes Rumble simulation.\n"
         "• `!ship`: Scan resonance between two assets.\n"
         "• `!marry`: Bind souls permanently for anniversary bonuses.\n"
         "• `!confess`: Send an anonymous link through the neural net.")
@@ -577,6 +579,28 @@ async def on_ready():
         with get_db_connection() as conn:
             # Garante que a tabela config existe
             conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+            # PERSISTENCE: Ensure Packs and Rumble tables exist
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS dungeon_inventory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    item_name TEXT,
+                    rarity TEXT,
+                    atk INTEGER,
+                    def INTEGER,
+                    spd INTEGER,
+                    is_equipped INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rumble_stats (
+                    user_id INTEGER PRIMARY KEY,
+                    wins INTEGER DEFAULT 0,
+                    kills INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    pit_master_count INTEGER DEFAULT 0
+                )
+            """)
             row = conn.execute("SELECT value FROM config WHERE key = 'audit_channel'").fetchone()
             if row:
                 global AUDIT_CHANNEL_ID
@@ -753,6 +777,12 @@ async def on_ready():
             await bot.load_extension("cards")
             print("✅ LOG: Card System is ONLINE.")
     except Exception as e: print(f"Card System fail: {e}")
+
+    try:
+        if not bot.get_cog("DungeonPacks"):
+            await bot.load_extension("packs")
+            print("✅ LOG: Dungeon Packs & Rumble System is ONLINE.")
+    except Exception as e: print(f"Packs fail: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
