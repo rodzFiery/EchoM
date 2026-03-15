@@ -369,6 +369,34 @@ class DungeonPacks(commands.Cog):
             minutes = int((error.retry_after % 3600) // 60)
             await ctx.send(f"🥀 **SIGNAL INTERFERENCE:** Neural scanner is recharging. Try again in `{hours}h {minutes}m`.")
 
+    @commands.command(name="scrap")
+    async def scrap_item(self, ctx, item_id: int):
+        """Deconstruct unwanted gear for Flames."""
+        main_mod = sys.modules['__main__']
+        
+        def do_scrap():
+            with self._get_db() as conn:
+                item = conn.execute("SELECT item_name, rarity FROM dungeon_inventory WHERE id = ? AND user_id = ?", (item_id, ctx.author.id)).fetchone()
+                if not item: return None
+                conn.execute("DELETE FROM dungeon_inventory WHERE id = ?", (item_id,))
+                conn.commit()
+                return item['item_name'], item['rarity']
+
+        result = await asyncio.to_thread(do_scrap)
+        if not result:
+            return await ctx.send("❌ Item not found in your inventory.")
+
+        name, rarity = result
+        scraps = {"Common": 1000, "Rare": 3000, "Epic": 10000, "Legendary": 25000}
+        payout = scraps.get(rarity, 500)
+
+        await main_mod.update_user_stats_async(ctx.author.id, amount=payout, source=f"Scrapped {name} ({rarity})")
+        
+        embed = main_mod.fiery_embed("♻️ NEURAL RECYCLING COMPLETE", 
+            f"Asset {ctx.author.mention}, **{name}** has been deconstructed.\n\n"
+            f"**Neural Scraps Recovered:** `{payout:,} Flames`.")
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     main_mod = sys.modules['__main__']
     with main_mod.get_db_connection() as conn:
