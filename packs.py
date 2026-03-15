@@ -44,42 +44,77 @@ class DungeonPacks(commands.Cog):
         return sys.modules['__main__'].get_db_connection()
 
     async def create_pack_image(self, user_avatar_url, item, rarity):
-        """Generates a visual 'Neural Dossier' for the item pull."""
+        """Generates a visual 'Neural Dossier' with enhanced glow and rarity effects."""
         def draw_task():
-            # Rarity Colors
+            # Enhanced Rarity Palette
             colors = {
-                "Common": (204, 204, 204),
-                "Rare": (52, 152, 219),
-                "Epic": (155, 89, 182),
-                "Legendary": (241, 196, 15)
+                "Common": {"main": (150, 150, 150), "glow": (50, 50, 50)},
+                "Rare": {"main": (52, 152, 219), "glow": (20, 70, 120)},
+                "Epic": {"main": (155, 89, 182), "glow": (80, 40, 100)},
+                "Legendary": {"main": (241, 196, 15), "glow": (120, 100, 10)}
             }
-            theme_color = colors.get(rarity, (255, 255, 255))
+            theme = colors.get(rarity, {"main": (255, 255, 255), "glow": (100, 100, 100)})
             
-            # Create Canvas
-            canvas = Image.new("RGBA", (600, 400), (15, 5, 20, 255))
+            # Create Background with slight gradient effect
+            canvas = Image.new("RGBA", (800, 450), (10, 2, 15, 255))
             draw = ImageDraw.Draw(canvas)
             
-            # Border
-            draw.rectangle([0, 0, 600, 400], outline=theme_color, width=10)
+            # Draw Outer Glow/Border
+            for i in range(15, 0, -1):
+                alpha = int(150 * (1 - i/15))
+                draw.rectangle([i, i, 800-i, 450-i], outline=(*theme['main'], alpha), width=2)
+
+            # Header Styling
+            draw.text((40, 30), "▣ NEURAL ASSET RECOVERY", fill=theme['main'])
+            draw.line([40, 60, 300, 60], fill=theme['main'], width=2)
             
-            # Header
-            draw.text((20, 20), "NEURAL ASSET ACQUIRED", fill=theme_color)
-            draw.text((20, 50), f"CLASSIFICATION: {rarity.upper()}", fill=(200, 200, 200))
-            
-            # Item Details
-            draw.text((250, 120), f"NAME: {item['name']}", fill=theme_color)
-            draw.text((250, 160), f"ATK: {item['atk']}", fill=(255, 100, 100))
-            draw.text((250, 190), f"DEF: {item['def']}", fill=(100, 150, 255))
-            draw.text((250, 220), f"SPD: {item['spd']}", fill=(100, 255, 100))
-            
-            # Desc
-            draw.text((20, 320), f"\"{item['desc']}\"", fill=(150, 150, 150))
+            # Rarity Badge
+            draw.rectangle([40, 80, 200, 110], fill=theme['main'])
+            draw.text((50, 85), rarity.upper(), fill=(0, 0, 0))
+
+            # Stats Visualization (Bar Style)
+            stats = [("ATK", item['atk'], (255, 80, 80)), ("DEF", item['def'], (80, 140, 255)), ("SPD", item['spd'], (80, 255, 140))]
+            for idx, (label, val, col) in enumerate(stats):
+                y_pos = 150 + (idx * 60)
+                draw.text((40, y_pos), f"{label}: {val}", fill=col)
+                # Draw Bar Background
+                draw.rectangle([140, y_pos + 5, 400, y_pos + 15], fill=(30, 30, 40))
+                # Draw Bar Fill
+                bar_width = int((val / 100) * 260)
+                draw.rectangle([140, y_pos + 5, 140 + bar_width, y_pos + 15], fill=col)
+
+            # Item Display Box (Right Side)
+            draw.rectangle([450, 80, 750, 350], outline=theme['main'], width=3)
+            draw.text((465, 365), f"ASSET: {item['name']}", fill=theme['main'])
+            draw.text((40, 400), f"DESCRIPTION: \"{item['desc']}\"", fill=(180, 180, 180))
             
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
             buf.seek(0)
             return buf
 
+        return await asyncio.to_thread(draw_task)
+
+    async def create_rumble_card(self, players):
+        """Generates a high-tension 'VERSUS' screen for the Rumble lobby."""
+        def draw_task():
+            canvas = Image.new("RGBA", (1000, 500), (20, 0, 5, 255))
+            draw = ImageDraw.Draw(canvas)
+            
+            # Central 'VS' text with glitch effect
+            draw.text((450, 200), "V S", fill=(255, 0, 40))
+            
+            # List first 3 players on each side
+            for idx, player in enumerate(players[:6]):
+                x = 50 if idx < 3 else 700
+                y = 100 + (idx % 3 * 100)
+                draw.text((x, y), f"► {player['user'].display_name[:15]}", fill=(255, 255, 255))
+                draw.text((x + 20, y + 30), f"EQUIP: {player['gear_name']}", fill=(180, 0, 0))
+
+            buf = io.BytesIO()
+            canvas.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
         return await asyncio.to_thread(draw_task)
 
     @commands.command(name="buybox")
@@ -255,9 +290,12 @@ class DungeonPacks(commands.Cog):
         bonus = 10000
         prize = total_pot + bonus
         
+        # NEW: Visual Intro Card
+        card_buf = await self.create_rumble_card(combatants)
         embed = main_mod.fiery_embed("🔞 RUMBLE INITIATED", "The gates lock. The voyeurs lean in. **BLOOD WILL FLOW.**")
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(2)
+        embed.set_image(url="attachment://vs.png")
+        msg = await ctx.send(file=discord.File(card_buf, filename="vs.png"), embed=embed)
+        await asyncio.sleep(4)
 
         history = []
         while len(combatants) > 1:
