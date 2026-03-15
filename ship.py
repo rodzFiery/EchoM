@@ -380,15 +380,22 @@ class FieryShip(commands.Cog):
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
 
+        # ADDED: History Archive button for the specific pair
+        hist_btn = discord.ui.Button(label="Archive", style=discord.ButtonStyle.secondary, emoji="📜")
+        async def hist_callback(interaction):
+            await self.shiphistory(ctx, user=user1 if user1.id != ctx.author.id else user2)
+        hist_btn.callback = hist_callback
+        view.add_item(hist_btn)
+
         if img_buf:
             file = discord.File(img_buf, filename="ship.png")
             embed.set_image(url="attachment://ship.png")
             files_to_send = [file]
             if os.path.exists("LobbyTopRight.jpg"):
                 files_to_send.append(discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg"))
-            await ctx.send(content=f"{user1.mention} {user2.mention}" if is_anni else None, files=files_to_send, embed=embed, view=view if attempt_count < 3 else None)
+            await ctx.send(content=f"{user1.mention} {user2.mention}" if is_anni else None, files=files_to_send, embed=embed, view=view if (attempt_count < 3 or True) else None)
         else:
-            await ctx.send(embed=embed, view=view if attempt_count < 3 else None)
+            await ctx.send(embed=embed, view=view if (attempt_count < 3 or True) else None)
 
         if percent in [0, 69, 100]:
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
@@ -568,6 +575,9 @@ class FieryShip(commands.Cog):
         
         def fetch_history():
             with main_mod.get_db_connection() as conn:
+                # UPDATED: If checking history via Button, target specific pair. Else show all.
+                if user and user.id != ctx.author.id:
+                   return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? AND partner_id = ? ORDER BY timestamp DESC LIMIT 5", (ctx.author.id, user.id)).fetchall()
                 return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 5", (target.id,)).fetchall()
         
         history = await asyncio.to_thread(fetch_history)
