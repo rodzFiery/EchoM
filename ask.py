@@ -144,10 +144,10 @@ class DungeonAsk(commands.Cog):
                             await inter.response.send_message(content=self.req.mention, embed=success_emb)
                             self.stop()
 
-                        @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="🥀")
+                        @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌")
                         async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
                             if inter.user.id != self.tar.id: return
-                            fail_emb = main_mod.fiery_embed("🥀 REQUEST DENIED", 
+                            fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", 
                                 f"**REQUEST DENIED.** {self.tar.mention} has rejected your advances.\n\n"
                                 f"Return to your cell, {self.req.mention}. Do not seek this asset again today.")
                             await inter.response.send_message(content=self.req.mention, embed=fail_emb)
