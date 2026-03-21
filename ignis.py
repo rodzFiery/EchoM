@@ -58,11 +58,18 @@ class LobbyView(discord.ui.View):
             await interaction.followup.send("🔞 **The chains lock in place.** You have successfully entered the Red Room.", ephemeral=True)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
-            await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+            # Fallback if the original message cannot be edited
+            if not interaction.response.is_done():
+                await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+            else:
+                await interaction.followup.send("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
 
     # ADDED: custom_id to make the interaction persistent
     @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # FIX: Immediate defer to prevent "Interaction Failed"
+        await interaction.response.defer(ephemeral=True)
+
         # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
         # Use getattr to safely check for roles attribute
         
@@ -81,10 +88,10 @@ class LobbyView(discord.ui.View):
         owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
-            return await interaction.response.send_message("Only the Masters or Staff start the games!", ephemeral=True)
+            return await interaction.followup.send("Only the Masters or Staff start the games!", ephemeral=True)
         
         if len(self.participants) < 2:
-            return await interaction.response.send_message("Need at least 2 sexy fucks !", ephemeral=True)
+            return await interaction.followup.send("Need at least 2 sexy fucks !", ephemeral=True)
         
         engine = interaction.client.get_cog("IgnisEngine")
         if engine: 
@@ -96,13 +103,10 @@ class LobbyView(discord.ui.View):
                     guild_games += 1
             
             if guild_games >= 2:
-                return await interaction.response.send_message("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
+                return await interaction.followup.send("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
 
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
             self.active = False
-
-            # MANDATORY: Defer to prevent "Interaction Failed" during battle setup
-            await interaction.response.defer(ephemeral=True)
 
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
