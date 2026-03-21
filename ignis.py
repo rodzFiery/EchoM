@@ -75,6 +75,9 @@ class LobbyView(discord.ui.View):
         
         # ADDED: Check for specific Ignis Admin Role
         engine = interaction.client.get_cog("IgnisEngine")
+        # --- ADDED: Debug print to console to verify engine detection ---
+        if not engine: print("DEBUG: IgnisEngine Cog NOT FOUND during button click.")
+        
         ignis_admin_role_id = None
         if engine:
             with engine.get_db_connection() as conn:
@@ -93,7 +96,9 @@ class LobbyView(discord.ui.View):
         if len(self.participants) < 2:
             return await interaction.followup.send("Need at least 2 sexy fucks !", ephemeral=True)
         
-        engine = interaction.client.get_cog("IgnisEngine")
+        # --- RE-FETCH ENGINE TO ENSURE FRESH REFERENCE ---
+        engine = engine or interaction.client.get_cog("IgnisEngine")
+        
         if engine: 
             # NEW: SERVER-SPECIFIC LIMIT CHECK - Max 2 games per Guild
             guild_games = 0
