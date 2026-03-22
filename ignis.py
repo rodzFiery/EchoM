@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -74,13 +75,22 @@ class LobbyView(discord.ui.View):
         # Use getattr to safely check for roles attribute
         
         # ADDED: Check for specific Ignis Admin Role
+        # FIX: Re-trying multiple ways to find the cog if the first fails
         engine = interaction.client.get_cog("IgnisEngine")
+        if not engine:
+            for name, cog in interaction.client.cogs.items():
+                if "ignisengine" in name.lower():
+                    engine = cog
+                    break
+
         # --- ADDED: Debug print to console to verify engine detection ---
         if not engine: print("DEBUG: IgnisEngine Cog NOT FOUND during button click.")
         
         ignis_admin_role_id = None
         if engine:
             with engine.get_db_connection() as conn:
+                # FIXED: Added table creation check here to ensure DB is ready
+                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
                 row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
                 if row: ignis_admin_role_id = row[0]
 
@@ -97,7 +107,8 @@ class LobbyView(discord.ui.View):
             return await interaction.followup.send("Need at least 2 sexy fucks !", ephemeral=True)
         
         # --- RE-FETCH ENGINE TO ENSURE FRESH REFERENCE ---
-        engine = engine or interaction.client.get_cog("IgnisEngine")
+        if not engine:
+            engine = interaction.client.get_cog("IgnisEngine")
         
         if engine: 
             # NEW: SERVER-SPECIFIC LIMIT CHECK - Max 2 games per Guild
@@ -125,7 +136,7 @@ class LobbyView(discord.ui.View):
             self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
-            return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded?", ephemeral=True)
+            return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded? Check bot logs.", ephemeral=True)
 
 # --- NOVO: ENGINE CONTROL INTEGRADO ---
 class EngineControl(commands.Cog):
