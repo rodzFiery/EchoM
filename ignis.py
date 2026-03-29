@@ -319,7 +319,7 @@ class IgnisEngine(commands.Cog):
         embed = self.fiery_embed("Exhibitionist Command", 
             f"📸 {ctx.author.mention} points a cold finger at {member.mention}...\n\n"
             f"**\"{sentence}\"**\n\n"
-            f"🔞 {member.mention}, you have been **FLASHED** by the Winner's decree!", color=0xFF00FF)
+            f"🔞 {member.mention}, you need to **FLASH** by the Winner's decree!", color=0xFF00FF)
         
         await ctx.send(content=member.mention, embed=embed)
 
