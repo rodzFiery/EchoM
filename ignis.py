@@ -302,10 +302,10 @@ class IgnisEngine(commands.Cog):
         self.current_survivors.clear()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
-    # POWER COMMAND !@user ( decree / flash decree )
-    @commands.command(name="@")
+    # POWER COMMAND !getnaked @user ( decree / flash decree )
+    @commands.command(name="getnaked")
     async def winner_power(self, ctx, member: discord.Member):
-        """Winner's Power: !@user to force a flash with a random sassy message."""
+        """Winner's Power: !getnaked @user to force a flash with a random sassy message."""
         import sys
         main = sys.modules['__main__']
         # MODIFIED: Checks for both full NSFW mode and the new Basic NSFW mode
@@ -716,7 +716,7 @@ class IgnisEngine(commands.Cog):
                     f"🔞 **NSFW PROTOCOL: LIMITED EXPOSURE SUMMARY**\n\n"
                     f"💀 **First Sacrifice:** {first_loser_member.mention if first_loser_member else 'Unknown'} was exposed first and must flash.\n"
                     f"👑 **Winner's Decree:** {winner_member.mention}, the Master grants you **ONE** flash command. "
-                    f"Use `!@user` to pick your victim now."
+                    f"Use `!getnaked @user` to pick your victim now."
                 )
                 basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
                 await channel.send(embed=basic_emb)
