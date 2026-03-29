@@ -71,6 +71,8 @@ class AdminSystem(commands.Cog):
         import sys
         main_module = sys.modules['__main__']
         main_module.nsfw_mode_active = True
+        # NEW: Ensure basic nsfw is off when full nsfw is on
+        main_module.basic_nsfw_active = False
         self.save_game_config()
         ext = self.bot.get_cog("FieryExtensions")
         if ext: await ext.trigger_nsfw_start(ctx)
@@ -90,6 +92,45 @@ class AdminSystem(commands.Cog):
         main_module.nsfw_mode_active = False
         self.save_game_config()
         embed = self.fiery_embed("NSFW Mode Ended", "The Echogames has closed. Returning to standard Red Room protocols.")
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+
+    # ===== NEW: BASIC NSFW MODE COMMANDS =====
+    @commands.command()
+    async def basicnsfw(self, ctx):
+        """Activates Basic NSFW: First death flashes, Winner picks one victim to flash."""
+        is_owner = await self.bot.is_owner(ctx.author)
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        
+        if not (is_owner or has_admin_role):
+            return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
+
+        import sys
+        main_module = sys.modules['__main__']
+        main_module.basic_nsfw_active = True
+        # Ensure full nsfw is off
+        main_module.nsfw_mode_active = False
+        self.save_game_config()
+        
+        embed = self.fiery_embed("Basic NSFW Mode Active", "🔞 **Protocol: Limited Exposure.**\n- First death will automatically flash.\n- The Winner will be granted ONE flash decree.")
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+
+    @commands.command()
+    async def nomorebasic(self, ctx):
+        """Deactivates Basic NSFW mode."""
+        is_owner = await self.bot.is_owner(ctx.author)
+        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        
+        if not (is_owner or has_admin_role):
+            return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
+
+        import sys
+        main_module = sys.modules['__main__']
+        main_module.basic_nsfw_active = False
+        self.save_game_config()
+        
+        embed = self.fiery_embed("Basic NSFW Mode Ended", "Standard Red Room protocols reinstated.")
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
