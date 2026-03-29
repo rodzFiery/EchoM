@@ -59,6 +59,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 # These will be updated from the database in on_ready
 game_edition = 1 
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
+basic_nsfw_active = False # ADDED: Flag for Basic NSFW Special Event
 AUTO_IGNIS_CHANNEL = 0 # ADDED: Persistence for Automated Pit
 AUTO_IGNIS_ROLE = 0    # ADDED: Persistence for Hourly Pings
 
@@ -73,20 +74,23 @@ def get_db_connection():
 
 # NEW PERSISTENCE HELPERS (Synced with database.py)
 def save_game_config():
-    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
+    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
     db_module.save_game_config(game_edition, nsfw_mode_active)
-    # ADDED: Save auto channel and role to config table
+    # ADDED: Save basic nsfw, auto channel and role to config table
     with get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('basic_nsfw_active', ?)", (str(basic_nsfw_active),))
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(AUTO_IGNIS_CHANNEL),))
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_role', ?)", (str(AUTO_IGNIS_ROLE),))
         conn.commit()
 
 def load_game_config():
-    global game_edition, nsfw_mode_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
+    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
     # FIXED: Load via db_module
     game_edition, nsfw_mode_active = db_module.load_game_config()
-    # ADDED: Load auto channel and role
+    # ADDED: Load basic nsfw, auto channel and role
     with get_db_connection() as conn:
+        row_bs = conn.execute("SELECT value FROM config WHERE key = 'basic_nsfw_active'").fetchone()
+        if row_bs: basic_nsfw_active = (row_bs['value'] == 'True')
         row_ch = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_channel'").fetchone()
         if row_ch: AUTO_IGNIS_CHANNEL = int(row_ch['value'])
         row_rl = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_role'").fetchone()
@@ -112,7 +116,7 @@ def get_user(user_id):
     return db_module.get_user(user_id)
 
 # --- REDIRECTED TO prizes.py ---
-# FIXED: Updated signature to ensure all 13 arguments from prizes.py are handled correctly
+# FIXED: Updated signature to ensure all positional arguments are handled
 async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0, source="System", 
                                   get_user_func=None, bot_obj=None, db_func=None, class_dict=None, nsfw=None, audit_func=None):
     
@@ -121,7 +125,8 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
     b_obj = bot_obj or bot
     d_func = db_func or get_db_connection
     c_dict = class_dict or CLASSES
-    n_mode = nsfw if nsfw is not None else nsfw_mode_active
+    # Logic: Full NSFW OR Basic NSFW triggers special prize pools/logic
+    n_mode = nsfw if nsfw is not None else (nsfw_mode_active or basic_nsfw_active)
     a_log = audit_func or send_audit_log
 
     await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, g_user, b_obj, d_func, c_dict, n_mode, a_log)
@@ -302,7 +307,7 @@ async def me(ctx, member: discord.Member = None):
     
     # Check for Last Hangrygames Winner Title
     engine = bot.get_cog("IgnisEngine")
-    if nsfw_mode_active and engine and engine.last_winner_id == target.id:
+    if (nsfw_mode_active or basic_nsfw_active) and engine and engine.last_winner_id == target.id:
         titles.append("⛓️ HANGRYGAMES LEAD 🔞")
 
     badge_display = " ".join(titles) if titles else "No badges yet."
@@ -432,6 +437,7 @@ async def echo(ctx):
     emb6 = fiery_embed("⚖️ MASTER OVERRIDES (ADMIN)", 
         "**Governance Protocols (admin.py & audit.py)**\n"
         "• `!nsfwtime`: Activate the Grand Exhibition (2x Multiplier).\n"
+        "• `!basicnsfw`: Activate Protocol: Limited Exposure.\n"
         "• `!masterpresence`: Force Peak Heat server-wide.\n"
         "• `!echoon`: Global free-premium override toggle.\n"
         "• `!audit <#ch>`: Rebind the Master's Ledger location.\n"
