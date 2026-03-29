@@ -302,14 +302,15 @@ class IgnisEngine(commands.Cog):
         self.current_survivors.clear()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
-    # POWER COMMAND !@user
+    # POWER COMMAND !@user ( decree / flash decree )
     @commands.command(name="@")
     async def winner_power(self, ctx, member: discord.Member):
         """Winner's Power: !@user to force a flash with a random sassy message."""
         import sys
         main = sys.modules['__main__']
-        if not main.nsfw_mode_active:
-            return await ctx.send("❌ **Access Denied.** This power is only active during `!nsfwtime`.")
+        # MODIFIED: Checks for both full NSFW mode and the new Basic NSFW mode
+        if not (main.nsfw_mode_active or main.basic_nsfw_active):
+            return await ctx.send("❌ **Access Denied.** This power is not active in this session.")
         
         if ctx.author.id != self.last_winner_id:
             return await ctx.send("🫦 **Only the Reigning Champion of the last match holds this power.**")
@@ -404,6 +405,8 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
+        # NEW: Track first loser for Basic NSFW protocol
+        first_loser_member = None
         import sys as _sys
         self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -526,6 +529,11 @@ class IgnisEngine(commands.Cog):
 
                         loser = fighters.pop(temp_index)
                         event_losers.append(loser)
+
+                        # NEW: Capture first loser for Basic NSFW protocol
+                        if not first_blood_recorded and not first_loser_member:
+                             first_loser_member = channel.guild.get_member(loser['id'])
+
                         # Update current survivors map
                         if channel.id in self.current_survivors:
                             if loser['id'] in self.current_survivors[channel.id]:
@@ -570,6 +578,10 @@ class IgnisEngine(commands.Cog):
                 winner, loser = (p1, p2) if random.random() < p1_win_chance else (p2, p1)
                 fighters.append(winner)
 
+                # NEW: Capture first loser for Basic NSFW protocol
+                if not first_blood_recorded:
+                    first_loser_member = channel.guild.get_member(loser['id'])
+
                 # Update current survivors map
                 if channel.id in self.current_survivors:
                     if loser['id'] in self.current_survivors[channel.id]:
@@ -603,7 +615,8 @@ class IgnisEngine(commands.Cog):
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
-                        if main.nsfw_mode_active:
+                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
+                        if main.nsfw_mode_active or main.basic_nsfw_active:
                             flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
@@ -694,6 +707,19 @@ class IgnisEngine(commands.Cog):
                 await channel.send(FieryLexicon.get_winner_announcement(winner_member.mention))
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
+
+            # NEW: Basic NSFW Protocol Summary Embed
+            import sys as _sys_end
+            main_end = _sys_end.modules['__main__']
+            if main_end.basic_nsfw_active:
+                basic_desc = (
+                    f"🔞 **NSFW PROTOCOL: LIMITED EXPOSURE SUMMARY**\n\n"
+                    f"💀 **First Sacrifice:** {first_loser_member.mention if first_loser_member else 'Unknown'} was exposed first and must flash.\n"
+                    f"👑 **Winner's Decree:** {winner_member.mention}, the Master grants you **ONE** flash command. "
+                    f"Use `!@user` to pick your victim now."
+                )
+                basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
+                await channel.send(embed=basic_emb)
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
