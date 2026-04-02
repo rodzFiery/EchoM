@@ -74,6 +74,53 @@ class CheerButtons(discord.ui.View):
         
         await interaction.response.send_message("Select which soul to support:", view=select_view, ephemeral=True)
 
+# --- NEW: GAUNTLET (FIGHTECHO) VIEW ---
+class GauntletView(discord.ui.View):
+    def __init__(self, p1, p2, fight_system):
+        super().__init__(timeout=60.0)
+        self.p1 = p1
+        self.p2 = p2
+        self.fight_system = fight_system
+        self.siphon_used = {p1.id: False, p2.id: False}
+        self.tributes = {p1.id: 0, p2.id: 0}
+
+    @discord.ui.button(label="SIPHON (BETRAYAL)", style=discord.ButtonStyle.danger, emoji="💉")
+    async def siphon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.p1.id, self.p2.id]:
+            return await interaction.response.send_message("Only the victims of the gauntlet can betray.", ephemeral=True)
+        if self.siphon_used[interaction.user.id]:
+            return await interaction.response.send_message("You have already exhausted your betrayal.", ephemeral=True)
+        
+        self.siphon_used[interaction.user.id] = True
+        # Logic is handled in the main loop by checking this flag
+        await interaction.response.send_message("🫦 You have chosen to sacrifice your own will to crush theirs!", ephemeral=True)
+
+    @discord.ui.button(label="TRIBUTE (100 Flames)", style=discord.ButtonStyle.secondary, emoji="💎")
+    async def tribute(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in [self.p1.id, self.p2.id]:
+            return await interaction.response.send_message("You cannot give tribute to yourself.", ephemeral=True)
+        
+        with main.get_db_connection() as conn:
+            user = conn.execute("SELECT balance FROM users WHERE id=?", (interaction.user.id,)).fetchone()
+            if not user or user['balance'] < 100:
+                return await interaction.response.send_message("You are too poor to influence this trial.", ephemeral=True)
+            conn.execute("UPDATE users SET balance = balance - 100 WHERE id=?", (interaction.user.id,))
+            conn.commit()
+
+        select_view = discord.ui.View(timeout=10.0)
+        async def give_p1(inter):
+            self.tributes[self.p1.id] += 10
+            await inter.response.send_message(f"💎 Tribute accepted! {self.p1.mention} feels a shot of adrenaline!", ephemeral=True)
+        async def give_p2(inter):
+            self.tributes[self.p2.id] += 10
+            await inter.response.send_message(f"💎 Tribute accepted! {self.p2.mention} feels a shot of adrenaline!", ephemeral=True)
+
+        b1 = discord.ui.Button(label=f"Help {self.p1.display_name}", style=discord.ButtonStyle.success)
+        b2 = discord.ui.Button(label=f"Help {self.p2.display_name}", style=discord.ButtonStyle.success)
+        b1.callback, b2.callback = give_p1, give_p2
+        select_view.add_item(b1); select_view.add_item(b2)
+        await interaction.response.send_message("Who shall receive your mercy?", view=select_view, ephemeral=True)
+
 class FightSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -149,6 +196,17 @@ class FightSystem(commands.Cog):
             "{winner} forces {loser} to breathe in the scent of worn leather and submission."
         ]
 
+        # GAUNTLET HAZARDS
+        self.gauntlet_hazards = [
+            "The room fills with thick, sweet incense. {player} loses focus, their Willpower slipping.",
+            "Heavy chains descend from the ceiling. {player} manages to dodge, but the effort is exhausting.",
+            "The Master increases the frequency of the vibration. {player}'s resolve is crumbling!",
+            "Freezing water sprays the floor. {player} is trembling under the sensory shock.",
+            "The Sensory Silence begins. {player} is trapped with only their thoughts and the sound of their heart.",
+            "A velvet bind tightens automatically. {player} struggles to remain upright.",
+            "The scent of iron and ozone fills the air. The dungeon demands a price in will."
+        ]
+
     # Helper: Fiery Visual HP Bar
     def get_fiery_bar(self, hp, max_hp=100):
         length = 10
@@ -168,7 +226,7 @@ class FightSystem(commands.Cog):
                     if pet['name'] == title:
                         if pet['luck'] > max_luck:
                             max_luck = pet['luck']
-                            best_pet = {"name": pet['name'], "tier": tier}
+                            best_pet = {"name": pet['name'], "tier": tier, "luck": pet['luck']}
         return best_pet
 
     async def create_duel_image(self, p1_url, p2_url):
@@ -396,6 +454,118 @@ class FightSystem(commands.Cog):
             
             await audit_channel.send(embed=audit_emb)
 
+        self.active_duels.remove(ctx.channel.id)
+
+    # ==========================================
+    # 🌑 GAUNTLET OF SHADOWS (!fightecho)
+    # ==========================================
+
+    @commands.command(name="fightecho", aliases=["gauntlet", "survive"])
+    async def gauntlet_shadows(self, ctx, member: discord.Member):
+        """A survival challenge against the Dungeon's hazards."""
+        if member.id == ctx.author.id: return await ctx.send("You cannot walk the shadows alone.")
+        if member.bot: return await ctx.send("The dungeon doesn't recognize cold metal.")
+        if ctx.channel.id in self.active_duels: return await ctx.send("The shadows are currently occupied.")
+
+        self.active_duels.add(ctx.channel.id)
+
+        # PRE-FIGHT SCAN
+        ignis_engine = self.bot.get_cog("IgnisEngine")
+        u1_inv = json.loads(main.get_user(ctx.author.id)['titles'])
+        u2_inv = json.loads(main.get_user(member.id)['titles'])
+        
+        pet1 = self.get_user_pet(u1_inv)
+        pet2 = self.get_user_pet(u2_inv)
+        p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
+        p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
+
+        p1_will, p2_will = 100, 100
+        view = GauntletView(ctx.author, member, self)
+        
+        embed = main.fiery_embed("🌑 THE GAUNTLET OF SHADOWS", 
+            f"⛓️ {ctx.author.mention} and {member.mention} have been cast into the deep pit.\n\n"
+            f"The Master is not here. Only the shadows and the chains remain.\n"
+            f"**STAKE:** 10,000 Flames Entry Fee (9,000 to winner, 1,000 to Vault).", color=0x2c2f33)
+        
+        with main.get_db_connection() as conn:
+            for uid in [ctx.author.id, member.id]:
+                bal = conn.execute("SELECT balance FROM users WHERE id=?", (uid,)).fetchone()['balance']
+                if bal < 10000:
+                    self.active_duels.remove(ctx.channel.id)
+                    return await ctx.send(f"❌ <@{uid}> cannot afford the toll of 10,000 Flames.")
+                conn.execute("UPDATE users SET balance = balance - 10000 WHERE id=?", (uid,))
+            conn.commit()
+
+        msg = await ctx.send(embed=embed, view=view)
+        await asyncio.sleep(5)
+
+        round_num = 0
+        while p1_will > 0 and p2_will > 0:
+            round_num += 1
+            hazard = random.choice(self.gauntlet_hazards)
+            
+            # --- PET GUARDIAN LOGIC ---
+            p1_round_prot = p1_prot
+            p2_round_prot = p2_prot
+            if pet1 and pet1['tier'] in ["Epic", "Legendary", "Supreme"]: p1_round_prot += 15
+            if pet2 and pet2['tier'] in ["Epic", "Legendary", "Supreme"]: p2_round_prot += 15
+
+            # --- HAZARD RESOLUTION ---
+            results = []
+            for p_info in [(ctx.author, p1_will, p1_round_prot, p1_luck), (member, p2_will, p2_round_prot, p2_luck)]:
+                player, will, prot, luck = p_info
+                
+                # Check for Siphon Betrayal
+                other_id = member.id if player.id == ctx.author.id else ctx.author.id
+                if view.siphon_used[player.id]:
+                    # Self take 20, other takes 40
+                    view.siphon_used[player.id] = "EXHAUSTED" # Mark as fully triggered
+                    damage = 20
+                    if player.id == ctx.author.id: p2_will -= 40
+                    else: p1_will -= 40
+                    results.append(f"💉 **BETRAYAL:** {player.name} siphoned their own soul to crush the other!")
+                else:
+                    # Normal Hazard damage
+                    if random.randint(1, 100) <= luck:
+                        will = min(100, will + 10)
+                        results.append(f"✨ {player.name} found pleasure in the pain! +10 Willpower.")
+                    else:
+                        damage = max(5, random.randint(15, 25) - (prot // 5))
+                        will -= damage
+                        results.append(f"🌑 {player.name} lost {damage} Willpower to the shadows.")
+                
+                # Apply Tributes
+                if view.tributes[player.id] > 0:
+                    will = min(100, will + view.tributes[player.id])
+                    results.append(f"💎 **TRIBUTE:** {player.name} received {view.tributes[player.id]} Willpower from the crowd!")
+                    view.tributes[player.id] = 0
+
+                if player.id == ctx.author.id: p1_will = max(0, will)
+                else: p2_will = max(0, will)
+
+            # --- UPDATE EMBED ---
+            g_emb = main.fiery_embed(f"ROUND {round_num}: THE SHADOWS STRIKE", 
+                f"📜 **DUNGEON EVENT:**\n*{hazard.format(player='Both assets')}*\n\n"
+                f"👤 **{ctx.author.name}**\n{self.get_fiery_bar(p1_will)}\n"
+                f"👤 **{member.name}**\n{self.get_fiery_bar(p2_will)}\n\n"
+                f"📢 **ROUND RECAP:**\n" + "\n".join(results), color=0x000000)
+            
+            await msg.edit(embed=g_emb)
+            await asyncio.sleep(5)
+
+        winner, loser = (ctx.author, member) if p1_will > p2_will else (member, ctx.author)
+        
+        # PAYOUT
+        await main.update_user_stats_async(winner.id, amount=19000, xp_gain=1000, source="Gauntlet Victory")
+        
+        end_emb = main.fiery_embed("🏆 GAUNTLET SURVIVOR", 
+            f"The shadows recede as {loser.mention} collapses. Their willpower is extinguished.\n\n"
+            f"🥇 **WINNER:** {winner.mention}\n"
+            f"💰 **PAYOUT:** 19,000 Flames\n"
+            f"🧬 **XP:** +1,000\n\n"
+            f"*The Vault claims 1,000 Flames as its tax for the blood spilled.*", color=0xFFD700)
+        
+        await ctx.send(embed=end_emb)
         self.active_duels.remove(ctx.channel.id)
 
 async def setup(bot):
