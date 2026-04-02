@@ -77,85 +77,57 @@ class CheerButtons(discord.ui.View):
 # --- NEW: GAUNTLET (FIGHTECHO) VIEW ---
 class GauntletView(discord.ui.View):
     def __init__(self, p1, p2, fight_system):
-        super().__init__(timeout=None) # Keep active for the whole game
+        super().__init__(timeout=None) 
         self.p1 = p1
         self.p2 = p2
         self.fight_system = fight_system
-        self.siphon_used = {p1.id: False, p2.id: False}
         self.tributes = {p1.id: 0, p2.id: 0}
         self.current_actions = {p1.id: None, p2.id: None}
-        self.permanent_modifiers = {"Siphon": 0, "Endure": 0, "Focus": 0} # Persistent across all rounds
-        self.used_actions = [] 
-        self.round_event = asyncio.Event() # Trigger for the next fight roll
+        self.permanent_modifiers = {"Siphon": 0, "Endure": 0, "Focus": 0} 
+        self.start_event = asyncio.Event() # Trigger for automatic fight start
 
-    def reset_round(self):
-        self.current_actions = {self.p1.id: None, self.p2.id: None}
-        self.used_actions = []
-        self.round_event.clear()
-        for child in self.children:
-            if isinstance(child, discord.ui.Button) and child.label != "TRIBUTE (100 Flames)":
-                child.disabled = False
-
-    def check_round_ready(self):
+    def check_start_ready(self):
         if self.current_actions[self.p1.id] and self.current_actions[self.p2.id]:
-            self.round_event.set()
+            # Remove strategy buttons to keep the view for Tributes only
+            for child in self.children[:3]:
+                self.remove_item(child)
+            self.start_event.set()
 
     @discord.ui.button(label="ENDURE (TEAM DEFENSE)", style=discord.ButtonStyle.primary, emoji="🛡️")
     async def endure_action(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in [self.p1.id, self.p2.id]: return
         if self.current_actions[interaction.user.id] is not None:
-            return await interaction.response.send_message("You have already acted this round.", ephemeral=True)
+            return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
         
         self.current_actions[interaction.user.id] = "Endure"
         self.permanent_modifiers["Endure"] += 1
-        self.used_actions.append("Endure")
-        button.disabled = True
+        await interaction.response.send_message(f"🛡️ {interaction.user.display_name} locked in **ENDURE**.", ephemeral=True)
+        self.check_start_ready()
         await interaction.message.edit(view=self)
-        
-        emb = main.fiery_embed("🛡️ STRATEGIC DEFENSE", 
-            f"👤 {interaction.user.mention} has chosen to **ENDURE**.\n\n"
-            f"🛡️ **Effect:** Permanent defense boost applied to ALL rounds.\n"
-            f"🚫 This action is now locked for the partner this round.", color=0x3498DB)
-        await interaction.response.send_message(embed=emb)
-        self.check_round_ready()
 
     @discord.ui.button(label="FOCUS (TEAM LUCK)", style=discord.ButtonStyle.success, emoji="🧘")
     async def focus_action(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in [self.p1.id, self.p2.id]: return
         if self.current_actions[interaction.user.id] is not None:
-            return await interaction.response.send_message("You have already acted this round.", ephemeral=True)
+            return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
             
         self.current_actions[interaction.user.id] = "Focus"
         self.permanent_modifiers["Focus"] += 1
-        self.used_actions.append("Focus")
-        button.disabled = True
+        await interaction.response.send_message(f"🧘 {interaction.user.display_name} locked in **FOCUS**.", ephemeral=True)
+        self.check_start_ready()
         await interaction.message.edit(view=self)
-        
-        emb = main.fiery_embed("🧘 VOID FOCUS", 
-            f"👤 {interaction.user.mention} has chosen to **FOCUS**.\n\n"
-            f"🧘 **Effect:** Permanent luck-to-power boost applied to ALL rounds.\n"
-            f"🚫 This action is now locked for the partner this round.", color=0x2ECC71)
-        await interaction.response.send_message(embed=emb)
-        self.check_round_ready()
 
     @discord.ui.button(label="SIPHON (ATTACK BOT)", style=discord.ButtonStyle.danger, emoji="💉")
     async def siphon(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id not in [self.p1.id, self.p2.id]: return
         if self.current_actions[interaction.user.id] is not None:
-            return await interaction.response.send_message("You have already acted this round.", ephemeral=True)
+            return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
             
         self.current_actions[interaction.user.id] = "Siphon"
         self.permanent_modifiers["Siphon"] += 1
-        self.used_actions.append("Siphon")
-        button.disabled = True
+        await interaction.response.send_message(f"💉 {interaction.user.display_name} locked in **SIPHON**.", ephemeral=True)
+        self.check_start_ready()
         await interaction.message.edit(view=self)
-        
-        emb = main.fiery_embed("💉 ESSENCE SIPHON", 
-            f"👤 {interaction.user.mention} has chosen to **SIPHON**.\n\n"
-            f"💉 **Effect:** Permanent damage siphon applied to ALL rounds.\n"
-            f"🚫 This action is now locked for the partner this round.", color=0xE74C3C)
-        await interaction.response.send_message(embed=emb)
-        self.check_round_ready()
 
     @discord.ui.button(label="TRIBUTE (100 Flames)", style=discord.ButtonStyle.secondary, emoji="💎")
     async def tribute(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -257,10 +229,10 @@ class FightSystem(commands.Cog):
 
     def get_fiery_bar(self, hp, max_hp=100):
         length = 10
-        filled = int(length * hp // max_hp)
+        filled = max(0, min(length, int(length * hp // max_hp)))
         symbol = "❤️" if hp > 70 else "🫦" if hp > 35 else "🩸"
         bar = symbol * filled + "🖤" * (length - filled)
-        return f"**{bar}** `{hp}%`"
+        return f"**{bar}** `{max(0, int(hp))}%`"
 
     def get_user_pet(self, titles):
         import shop
@@ -528,90 +500,87 @@ class FightSystem(commands.Cog):
         p2_prot += player_companions[member.id]['def']
         p2_luck += player_companions[member.id]['luck']
 
-        team_will = 300 # EASIER: Increased from 250 to 300
+        team_will = 300 
         max_will = 300
-        bot_essence = 350 # EASIER: Lowered from 400 to 350
+        bot_essence = 350 
         max_bot = 350
         view = GauntletView(ctx.author, member, self)
-        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. Coordinate your actions, {ctx.author.mention} & {member.mention} Team."), view=view)
-        await asyncio.sleep(3)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. **Pick your permanent strategy below.**\n\nOnce both select, the trial will proceed automatically.\n\n{ctx.author.mention} & {member.mention}"), view=view)
+        
+        # MANDATORY: Wait for both members to pick their style ONCE
+        await view.start_event.wait()
 
         round_num = 0
         while team_will > 0 and bot_essence > 0:
             round_num += 1
-            # Wait for BOTH players to select an action before proceeding
-            await view.round_event.wait()
-            
-            hazard = random.choice(self.gauntlet_hazards)
             results = []
             team_atk = 0
             team_def_buff = 0
             
             # THE CLUTCH MECHANIC: Players get much stronger when HP is low
             desperation_bonus = 1.0
-            if team_will < (max_will * 0.35): # EASIER: Trigger earlier (35% vs 25%)
-                desperation_bonus = 2.5 # EASIER: Increased from 2.0x to 2.5x
+            if team_will < (max_will * 0.35): 
+                desperation_bonus = 2.5 
                 results.append("🔥 **FINAL STAND:** The team's resolve is absolute! Damage & Defense massively boosted!")
 
-            # Apply PERMANENT Modifiers from all previous rounds
-            perm_atk_buff = view.permanent_modifiers["Siphon"] * 15 # EASIER: 15 per stack (was 10)
-            perm_luck_buff = view.permanent_modifiers["Focus"] * 12 # EASIER: 12 per stack (was 8)
-            perm_def_buff = view.permanent_modifiers["Endure"] * 15 # EASIER: 15 per stack (was 12)
+            perm_atk_buff = view.permanent_modifiers["Siphon"] * 15 
+            perm_luck_buff = view.permanent_modifiers["Focus"] * 12 
+            perm_def_buff = view.permanent_modifiers["Endure"] * 15 
 
-            # Process Actions for the CURRENT round
+            # Process the locked-in strategies automatically
             for p_id in [ctx.author.id, member.id]:
                 choice = view.current_actions[p_id]
                 comp = player_companions[p_id]
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    base_dmg = random.randint(45, 75) + comp['atk'] + perm_atk_buff # EASIER: Base range 45-75 (was 35-60)
+                    base_dmg = random.randint(45, 75) + comp['atk'] + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
-                    if random.random() < ((comp['luck'] + perm_luck_buff) / 180): # EASIER: Higher crit chance (denominator 180 vs 200)
-                        dmg = int(dmg * 2.0) # EASIER: Crit 2.0x (was 1.8x)
+                    if random.random() < ((comp['luck'] + perm_luck_buff) / 180): 
+                        dmg = int(dmg * 2.0) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} unleashed its true power!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((45 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) # EASIER: Base 45 (was 35)
+                    team_def_buff += int((45 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += (45 + ((comp['luck'] + perm_luck_buff) // 3)) # EASIER: Higher scaling (div 3 vs 4)
+                    team_atk += (45 + ((comp['luck'] + perm_luck_buff) // 3)) 
                     results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
-            # BOT SCALING: Nerfed scaling
-            bot_base = random.randint(20, 35) # EASIER: Range 20-35 (was 25-40)
-            if round_num > 6: # EASIER: Scaling starts later (Round 6 vs 5)
-                bot_base += int(round_num * 0.8) # EASIER: Lowered scaling (0.8x vs 1.2x)
+            bot_base = random.randint(20, 35) 
+            if round_num > 6: 
+                bot_base += int(round_num * 0.8) 
             
-            bot_dmg = max(5, int(bot_base - (team_def_buff // 2))) # EASIER: Min damage 5 (was 8)
+            bot_dmg = max(5, int(bot_base - (team_def_buff // 2))) 
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
-                team_will = min(max_will, team_will + (tribute_total * 3)) # EASIER: 3x tribute (was 2x)
+                team_will = min(max_will, team_will + (tribute_total * 3)) 
                 results.append(f"💎 **TEAM TRIBUTE:** The crowd roars! +{tribute_total * 3} Willpower.")
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
-            # EDIT: Showing results at the VERY BOTTOM after actions are chosen
+            # Progress update happens on the SAME embed, ensuring it stays at the bottom
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
                 f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, max_will)}\n"
                 f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, max_bot)}\n\n"
+                f"💥 Team dealt **{team_atk}** damage!\n"
                 + "\n".join(results)), view=view)
             
-            view.reset_round()
-            await asyncio.sleep(3)
+            await asyncio.sleep(4)
 
         if bot_essence <= 0:
-            await main.update_user_stats_async(ctx.author.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
-            await main.update_user_stats_async(member.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
-            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +15,000 Flames each."))
+            # Winners get 100,000 Flames as requested
+            await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
+            await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
+            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}."))
         else:
             await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
         
