@@ -500,8 +500,10 @@ class FightSystem(commands.Cog):
         p2_prot += player_companions[member.id]['def']
         p2_luck += player_companions[member.id]['luck']
 
-        team_will = 150 
-        bot_essence = 450 # SLIGHTLY INCREASED HP FOR REBALANCING
+        team_will = 250 # INCREASED WILLPOWER FOR LONGER FIGHTS
+        max_will = 250
+        bot_essence = 450
+        max_bot = 450
         view = GauntletView(ctx.author, member, self)
         msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions."), view=view)
         await asyncio.sleep(3)
@@ -515,6 +517,12 @@ class FightSystem(commands.Cog):
             results = []
             team_atk = 0
             team_def_buff = 0
+            
+            # THE CLUTCH MECHANIC: Players get stronger when HP is low
+            desperation_bonus = 1.0
+            if team_will < (max_will * 0.25):
+                desperation_bonus = 1.5
+                results.append("🔥 **FINAL STAND:** The team's resolve is absolute! Damage & Defense boosted!")
 
             # Process Actions
             for p_id in [ctx.author.id, member.id]:
@@ -523,34 +531,44 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    dmg = random.randint(25, 40) + comp['atk']
+                    base_dmg = random.randint(25, 45) + comp['atk']
+                    dmg = int(base_dmg * desperation_bonus)
+                    
+                    # Pet tier Overdrive chance
+                    if random.random() < (comp['luck'] / 200):
+                        dmg = int(dmg * 1.8)
+                        results.append(f"💥 **OVERDRIVE:** {comp['name']} unleashed its true power!")
+                        
                     team_atk += dmg
                     results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += 20 + (comp['def'] // 2)
+                    team_def_buff += int((25 + (comp['def'] // 2)) * desperation_bonus)
                     results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += (20 + (comp['luck'] // 4))
+                    team_atk += (25 + (comp['luck'] // 4))
                     results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
-            # BOT SCALING: Deals more damage as its health gets lower
-            scaling_factor = 1.0 + (1.2 - (bot_essence / 450))
-            bot_dmg = max(12, int((random.randint(30, 50) * scaling_factor) - (team_def_buff // 2)))
+            # BOT SCALING: Damage peaks mid-fight then stabilizes
+            bot_base = random.randint(25, 40)
+            if round_num > 5:
+                bot_base += (round_num * 2) # Slowly gets harder
+            
+            bot_dmg = max(8, int(bot_base - (team_def_buff // 2)))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
-                team_will = min(200, team_will + tribute_total)
-                results.append(f"💎 **TEAM TRIBUTE:** +{tribute_total} Willpower.")
+                team_will = min(max_will, team_will + (tribute_total * 2))
+                results.append(f"💎 **TEAM TRIBUTE:** The crowd roars! +{tribute_total * 2} Willpower.")
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"└ *Hazard:* {hazard.format(player='The Team')}\n\n"
-                f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, 150)}\n"
-                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, 450)}\n\n"
+                f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, max_will)}\n"
+                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, max_bot)}\n\n"
                 + "\n".join(results)))
             
             view.reset_round()
@@ -559,9 +577,9 @@ class FightSystem(commands.Cog):
         if bot_essence <= 0:
             await main.update_user_stats_async(ctx.author.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
-            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", "Victory! +15,000 Flames each."))
+            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +15,000 Flames each."))
         else:
-            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond."))
+            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
         
         self.active_duels.remove(ctx.channel.id)
 
