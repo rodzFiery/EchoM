@@ -112,9 +112,10 @@ class DungeonAsk(commands.Cog):
                     intent_display = " | ".join([f"**{val}**" for val in select.values])
                     
                     # RE-CODED: Requester Profile stats (lvl, flames, spouse) removed from this embed
-                    final_embed = main_mod.fiery_embed("📩 INCOMING REQUEST", 
+                    final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
                         f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
                         f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
+                        f"** **")
                     
                     final_embed.set_thumbnail(url=self.requester.display_avatar.url)
                     final_embed.color = 0x00BFFF 
