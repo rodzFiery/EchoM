@@ -511,34 +511,35 @@ class FightSystem(commands.Cog):
         await view.start_event.wait()
 
         round_num = 0
-        # BALANCED: Loop now checks for a maximum of 20 rounds
+        # BALANCED: Loop checks for max 20 rounds
         while team_will > 0 and bot_essence > 0 and round_num < 20:
             round_num += 1
             results = []
             team_atk = 0
             team_def_buff = 0
             
-            # THE CLUTCH MECHANIC: Players get much stronger when HP is low
+            # BALANCED: Damage adjusted to be less "swingy" to prevent fast ends
+            # THE CLUTCH MECHANIC: Players get stronger when HP is low
             desperation_bonus = 1.0
             if team_will < (max_will * 0.35): 
-                desperation_bonus = 2.5 
-                results.append("🔥 **FINAL STAND:** The team's resolve is absolute! Damage & Defense massively boosted!")
+                desperation_bonus = 1.8 # BALANCED: Lowered from 2.5 to make it less overwhelming
+                results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            perm_atk_buff = view.permanent_modifiers["Siphon"] * 15 
-            perm_luck_buff = view.permanent_modifiers["Focus"] * 12 
-            perm_def_buff = view.permanent_modifiers["Endure"] * 15 
+            perm_atk_buff = view.permanent_modifiers["Siphon"] * 10 # BALANCED: Lowered from 15
+            perm_luck_buff = view.permanent_modifiers["Focus"] * 8 # BALANCED: Lowered from 12
+            perm_def_buff = view.permanent_modifiers["Endure"] * 10 # BALANCED: Lowered from 15
 
-            # BALANCED: Team Heal Logic (15% chance)
+            # BALANCED: Team Heal Logic (15% chance) - Balanced range
             if random.random() < 0.15:
-                team_heal = random.randint(15, 30)
+                team_heal = random.randint(20, 40) # BALANCED: Higher heals to sustain 20 rounds
                 team_will = min(max_will, team_will + team_heal)
-                results.append(f"💚 **RESTORATION:** Team regained {team_heal} Willpower!")
+                results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
-            # BALANCED: Bot Heal Logic (10% chance)
+            # BALANCED: Bot Heal Logic (10% chance) - Balanced range
             if random.random() < 0.10:
-                bot_heal = random.randint(10, 20)
+                bot_heal = random.randint(15, 25)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
-                results.append(f"🌑 **VOID SIPHON:** Bot regained {bot_heal} Essence!")
+                results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
             # Process the locked-in strategies automatically
             for p_id in [ctx.author.id, member.id]:
@@ -547,27 +548,31 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    base_dmg = random.randint(45, 75) + comp['atk'] + perm_atk_buff 
+                    # BALANCED: Range 20-40 (Lowered from 45-75)
+                    base_dmg = random.randint(20, 40) + (comp['atk'] // 2) + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
-                    if random.random() < ((comp['luck'] + perm_luck_buff) / 180): 
-                        dmg = int(dmg * 2.0) 
-                        results.append(f"💥 **OVERDRIVE:** {comp['name']} unleashed its true power!")
+                    if random.random() < ((comp['luck'] + perm_luck_buff) / 200): 
+                        dmg = int(dmg * 1.5) # BALANCED: Crit 1.5x
+                        results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
-                    results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
+                    results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((45 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) 
-                    results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
+                    # BALANCED: Stronger defense to prolong fight
+                    team_def_buff += int((30 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) 
+                    results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    team_atk += (45 + ((comp['luck'] + perm_luck_buff) // 3)) 
-                    results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
+                    # BALANCED: Damage range 25-35
+                    team_atk += (25 + ((comp['luck'] + perm_luck_buff) // 4)) 
+                    results.append(f"🧘 {p_name} focused their spirit!")
 
-            bot_base = random.randint(20, 35) 
-            if round_num > 6: 
-                bot_base += int(round_num * 0.8) 
+            # BALANCED: Bot damage range 15-25 (Lowered from 20-35)
+            bot_base = random.randint(15, 25) 
+            if round_num > 10: # BALANCED: Scaling starts later
+                bot_base += int((round_num - 10) * 1.5) 
             
-            bot_dmg = max(5, int(bot_base - (team_def_buff // 2))) 
+            bot_dmg = max(8, int(bot_base - (team_def_buff // 3))) 
             
             team_will -= bot_dmg
             bot_essence -= team_atk
@@ -575,10 +580,10 @@ class FightSystem(commands.Cog):
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
                 team_will = min(max_will, team_will + (tribute_total * 3)) 
-                results.append(f"💎 **TEAM TRIBUTE:** The crowd roars! +{tribute_total * 3} Willpower.")
+                results.append(f"💎 **TEAM TRIBUTE:** Crowds roar! +{tribute_total * 3} Willpower.")
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
-            # Progress update happens on the SAME embed, ensuring it stays at the bottom
+            # Progress update happens on the SAME embed
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}/20", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
@@ -590,12 +595,11 @@ class FightSystem(commands.Cog):
             await asyncio.sleep(4)
 
         if bot_essence <= 0:
-            # Winners get 100,000 Flames as requested
             await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}."))
         elif round_num >= 20:
-            await ctx.send(embed=main.fiery_embed("⌛ TIME EXHAUSTED", "The 20-round limit has been reached. The Void has reclaimed the trial."))
+            await ctx.send(embed=main.fiery_embed("⌛ TIME EXHAUSTED", "The 20-round limit has been reached. The Void reclaimed the trial."))
         else:
             await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
         
