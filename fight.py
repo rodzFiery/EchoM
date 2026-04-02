@@ -103,7 +103,12 @@ class GauntletView(discord.ui.View):
         self.used_actions.append("Endure")
         button.disabled = True
         await interaction.message.edit(view=self)
-        await interaction.response.send_message("🛡️ You braced yourself to protect the team. This action is now locked for your partner.", ephemeral=True)
+        
+        emb = main.fiery_embed("🛡️ STRATEGIC DEFENSE", 
+            f"👤 {interaction.user.mention} has chosen to **ENDURE**.\n\n"
+            f"🛡️ **Effect:** Bracing the team to reduce incoming damage from the Bot.\n"
+            f"🚫 This action is now locked for the partner this round.", color=0x3498DB)
+        await interaction.response.send_message(embed=emb)
 
     @discord.ui.button(label="FOCUS (TEAM LUCK)", style=discord.ButtonStyle.success, emoji="🧘")
     async def focus_action(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -115,7 +120,12 @@ class GauntletView(discord.ui.View):
         self.used_actions.append("Focus")
         button.disabled = True
         await interaction.message.edit(view=self)
-        await interaction.response.send_message("🧘 You are focusing the team's luck. This action is now locked for your partner.", ephemeral=True)
+        
+        emb = main.fiery_embed("🧘 VOID FOCUS", 
+            f"👤 {interaction.user.mention} has chosen to **FOCUS**.\n\n"
+            f"🧘 **Effect:** Channeling luck into raw power to supplement the team's total damage.\n"
+            f"🚫 This action is now locked for the partner this round.", color=0x2ECC71)
+        await interaction.response.send_message(embed=emb)
 
     @discord.ui.button(label="SIPHON (ATTACK BOT)", style=discord.ButtonStyle.danger, emoji="💉")
     async def siphon(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -127,7 +137,12 @@ class GauntletView(discord.ui.View):
         self.used_actions.append("Siphon")
         button.disabled = True
         await interaction.message.edit(view=self)
-        await interaction.response.send_message("💉 You siphoned the Bot's essence! This action is now locked for your partner.", ephemeral=True)
+        
+        emb = main.fiery_embed("💉 ESSENCE SIPHON", 
+            f"👤 {interaction.user.mention} has chosen to **SIPHON**.\n\n"
+            f"💉 **Effect:** Draining the Bot's essence directly for massive damage.\n"
+            f"🚫 This action is now locked for the partner this round.", color=0xE74C3C)
+        await interaction.response.send_message(embed=emb)
 
     @discord.ui.button(label="TRIBUTE (100 Flames)", style=discord.ButtonStyle.secondary, emoji="💎")
     async def tribute(self, interaction: discord.Interaction, button: discord.ui.Button):
