@@ -518,24 +518,23 @@ class FightSystem(commands.Cog):
             team_atk = 0
             team_def_buff = 0
             
-            # BALANCED: Damage adjusted to be less "swingy" to prevent fast ends
             # THE CLUTCH MECHANIC: Players get stronger when HP is low
             desperation_bonus = 1.0
             if team_will < (max_will * 0.35): 
-                desperation_bonus = 1.8 # BALANCED: Lowered from 2.5 to make it less overwhelming
+                desperation_bonus = 1.8 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            perm_atk_buff = view.permanent_modifiers["Siphon"] * 10 # BALANCED: Lowered from 15
-            perm_luck_buff = view.permanent_modifiers["Focus"] * 8 # BALANCED: Lowered from 12
-            perm_def_buff = view.permanent_modifiers["Endure"] * 10 # BALANCED: Lowered from 15
+            perm_atk_buff = view.permanent_modifiers["Siphon"] * 10 
+            perm_luck_buff = view.permanent_modifiers["Focus"] * 8 
+            perm_def_buff = view.permanent_modifiers["Endure"] * 10 
 
-            # BALANCED: Team Heal Logic (15% chance) - Balanced range
+            # BALANCED: Team Heal Logic (15% chance)
             if random.random() < 0.15:
-                team_heal = random.randint(20, 40) # BALANCED: Higher heals to sustain 20 rounds
+                team_heal = random.randint(20, 40) 
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
-            # BALANCED: Bot Heal Logic (10% chance) - Balanced range
+            # BALANCED: Bot Heal Logic (10% chance)
             if random.random() < 0.10:
                 bot_heal = random.randint(15, 25)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
@@ -548,28 +547,24 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    # BALANCED: Range 20-40 (Lowered from 45-75)
                     base_dmg = random.randint(20, 40) + (comp['atk'] // 2) + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
                     if random.random() < ((comp['luck'] + perm_luck_buff) / 200): 
-                        dmg = int(dmg * 1.5) # BALANCED: Crit 1.5x
+                        dmg = int(dmg * 1.5) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    # BALANCED: Stronger defense to prolong fight
                     team_def_buff += int((30 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    # BALANCED: Damage range 25-35
                     team_atk += (25 + ((comp['luck'] + perm_luck_buff) // 4)) 
                     results.append(f"🧘 {p_name} focused their spirit!")
 
-            # BALANCED: Bot damage range 15-25 (Lowered from 20-35)
             bot_base = random.randint(15, 25) 
-            if round_num > 10: # BALANCED: Scaling starts later
+            if round_num > 10: 
                 bot_base += int((round_num - 10) * 1.5) 
             
             bot_dmg = max(8, int(bot_base - (team_def_buff // 3))) 
@@ -597,7 +592,41 @@ class FightSystem(commands.Cog):
         if bot_essence <= 0:
             await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
-            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}."))
+            
+            # --- NEW: GENERATE WINNERS IMAGE WITH 2 PROFILES ---
+            win_emb = main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}.")
+            
+            try:
+                async with aiohttp.ClientSession() as sess:
+                    async with sess.get(ctx.author.display_avatar.url) as r1, sess.get(member.display_avatar.url) as r2:
+                        d1 = io.BytesIO(await r1.read())
+                        d2 = io.BytesIO(await r2.read())
+                
+                canvas = Image.new("RGBA", (600, 300), (0, 0, 0, 0))
+                p1_img = Image.open(d1).convert("RGBA").resize((250, 250))
+                p2_img = Image.open(d2).convert("RGBA").resize((250, 250))
+                
+                # Simple circular mask
+                mask = Image.new("L", (250, 250), 0)
+                draw = ImageDraw.Draw(mask)
+                draw.ellipse((0, 0, 250, 250), fill=255)
+                
+                p1_img.putalpha(mask)
+                p2_img.putalpha(mask)
+                
+                canvas.paste(p1_img, (25, 25), p1_img)
+                canvas.paste(p2_img, (325, 25), p2_img)
+                
+                out = io.BytesIO()
+                canvas.save(out, format="PNG")
+                out.seek(0)
+                
+                file = discord.File(out, filename="winners.png")
+                win_emb.set_image(url="attachment://winners.png")
+                await ctx.send(file=file, embed=win_emb)
+            except:
+                await ctx.send(embed=win_emb)
+                
         elif round_num >= 20:
             await ctx.send(embed=main.fiery_embed("⌛ TIME EXHAUSTED", "The 20-round limit has been reached. The Void reclaimed the trial."))
         else:
