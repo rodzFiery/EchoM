@@ -20,7 +20,7 @@ import json
 import traceback
 import sqlite3 # ADDED: Necessary for database handling
 import sys
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from PIL import Image, ImageDraw, ImageOps
 from datetime import datetime, timezone
 
 # Accessing shared logic from main and ignis
@@ -84,64 +84,40 @@ class GauntletView(discord.ui.View):
         self.siphon_used = {p1.id: False, p2.id: False}
         self.tributes = {p1.id: 0, p2.id: 0}
         self.current_actions = {p1.id: "Endure", p2.id: "Endure"}
-        self.mercy_offered = False
-        self.mercy_accepted = False
 
-    def update_buttons(self, p1_will, p2_will, p1_status, p2_status, scramble=False):
-        self.clear_items()
+    @discord.ui.button(label="ENDURE (TEAM DEFENSE)", style=discord.ButtonStyle.primary, emoji="🛡️")
+    async def endure_action(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        self.current_actions[interaction.user.id] = "Endure"
+        await interaction.response.send_message("🛡️ You braced yourself to protect the team.", ephemeral=True)
+
+    @discord.ui.button(label="FOCUS (TEAM LUCK)", style=discord.ButtonStyle.success, emoji="🧘")
+    async def focus_action(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        self.current_actions[interaction.user.id] = "Focus"
+        await interaction.response.send_message("🧘 You are focusing to find an opening for your partner.", ephemeral=True)
+
+    @discord.ui.button(label="SIPHON (ATTACK BOT)", style=discord.ButtonStyle.danger, emoji="💉")
+    async def siphon(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        self.current_actions[interaction.user.id] = "Siphon"
+        await interaction.response.send_message("💉 You are siphoning the Echo Bot's essence!", ephemeral=True)
+
+    @discord.ui.button(label="TRIBUTE (100 Flames)", style=discord.ButtonStyle.secondary, emoji="💎")
+    async def tribute(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id in [self.p1.id, self.p2.id]:
+            return await interaction.response.send_message("You cannot give tribute to yourself.", ephemeral=True)
         
-        # Scramble Logic for Echo Events
-        labels = [("ENDURE", "🛡️", discord.ButtonStyle.primary, "Endure"), 
-                  ("FOCUS", "🧘", discord.ButtonStyle.success, "Focus"), 
-                  ("SIPHON", "💉", discord.ButtonStyle.danger, "Siphon")]
-        
-        if scramble:
-            random.shuffle(labels)
+        with main.get_db_connection() as conn:
+            user = conn.execute("SELECT balance FROM users WHERE id=?", (interaction.user.id,)).fetchone()
+            if not user or user['balance'] < 100:
+                return await interaction.response.send_message("You are too poor to influence this trial.", ephemeral=True)
+            conn.execute("UPDATE users SET balance = balance - 100 WHERE id=?", (interaction.user.id,))
+            conn.commit()
 
-        for label, emoji, style, action_val in labels:
-            btn = discord.ui.Button(label=label if not scramble else "???", style=style, emoji=emoji)
-            
-            async def callback(inter, val=action_val):
-                if inter.user.id not in [self.p1.id, self.p2.id]: return
-                # Status Effect Logic: Bound
-                status = p1_status if inter.user.id == self.p1.id else p2_status
-                if val == "Siphon" and "Bound" in status:
-                    return await inter.response.send_message("⛓️ You are BOUND and cannot siphon!", ephemeral=True)
-                
-                self.current_actions[inter.user.id] = val
-                await inter.response.send_message(f"Action locked: {val if not scramble else '???'}", ephemeral=True)
-            
-            btn.callback = callback
-            self.add_item(btn)
-
-        # Mercy Button (Visible if willpower is low)
-        if (p1_will < 10 or p2_will < 10) and not self.mercy_offered:
-            mercy_btn = discord.ui.Button(label="OFFER MERCY", style=discord.ButtonStyle.secondary, emoji="🏳️")
-            async def mercy_callback(inter):
-                if inter.user.id not in [self.p1.id, self.p2.id]: return
-                # Only the one winning can offer mercy
-                winner_id = self.p1.id if p1_will > p2_will else self.p2.id
-                if inter.user.id != winner_id: return await inter.response.send_message("Only the dominant soul can offer mercy.", ephemeral=True)
-                self.mercy_offered = True
-                self.mercy_accepted = True # Flag to loop
-                await inter.response.send_message("🏳️ You have offered a pity gift to your broken opponent.")
-            mercy_btn.callback = mercy_callback
-            self.add_item(mercy_btn)
-
-        # Tribute remains for crowd
-        tribute_btn = discord.ui.Button(label="TRIBUTE (100)", style=discord.ButtonStyle.secondary, emoji="💎")
-        async def trib_callback(inter):
-            if inter.user.id in [self.p1.id, self.p2.id]: return await inter.response.send_message("No self-mercy.", ephemeral=True)
-            # Check Balance
-            with main.get_db_connection() as conn:
-                user = conn.execute("SELECT balance FROM users WHERE id=?", (inter.user.id,)).fetchone()
-                if not user or user['balance'] < 100: return await inter.response.send_message("Too poor.", ephemeral=True)
-                conn.execute("UPDATE users SET balance = balance - 100 WHERE id=?", (inter.user.id,))
-                conn.commit()
-            self.tributes[self.p1.id if random.random() > 0.5 else self.p2.id] += 10
-            await inter.response.send_message("💎 Tribute cast into the pit!", ephemeral=True)
-        tribute_btn.callback = trib_callback
-        self.add_item(tribute_btn)
+        # In PvE, tribute helps the whole team
+        self.tributes[self.p1.id] += 10
+        await interaction.response.send_message(f"💎 Tribute accepted! The team feels a surge of power!", ephemeral=True)
 
 class FightSystem(commands.Cog):
     def __init__(self, bot):
@@ -251,33 +227,20 @@ class FightSystem(commands.Cog):
                             best_pet = {"name": pet['name'], "tier": tier, "luck": pet['luck']}
         return best_pet
 
-    async def create_duel_image(self, p1_url, p2_url, relic1=None, relic2=None):
+    async def create_duel_image(self, p1_url, p2_url):
         import aiohttp
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(p1_url) as r1, session.get(p2_url) as r2:
                     p1_data = io.BytesIO(await r1.read())
                     p2_data = io.BytesIO(await r2.read())
-            
             bg_path = "1v1Background.jpg"
             bg = Image.open(bg_path).convert("RGBA").resize((1000, 500)) if os.path.exists(bg_path) else Image.new("RGBA", (1000, 500), (40, 0, 0, 255))
-            
-            # --- CUSTOM BACKGROUNDS PER RELIC ---
-            if relic1 == "Void Blade" or relic2 == "Void Blade":
-                overlay_color = Image.new("RGBA", bg.size, (128, 0, 128, 60)) # Purple tint
-                bg = Image.alpha_composite(bg, overlay_color)
-            if relic1 == "Iron Will Cage" or relic2 == "Iron Will Cage":
-                # Simulated Chain Overlay (simplified)
-                draw_bg = ImageDraw.Draw(bg)
-                for x in range(0, 1000, 50): draw_bg.line((x, 0, x, 500), fill=(50,50,50,100), width=5)
-            if relic1 == "Abyssal Eye" or relic2 == "Abyssal Eye":
-                bg = bg.point(lambda p: p * 0.3) # Darken
-                draw_bg = ImageDraw.Draw(bg)
-                draw_bg.ellipse((450, 200, 550, 300), outline=(255,0,0,200), width=5) # Red eye
-
             av1 = Image.open(p1_data).convert("RGBA").resize((310, 310))
             av2 = Image.open(p2_data).convert("RGBA").resize((310, 310))
             
+            # --- 8K REALISTIC DRAGON OVERRIDE ---
+            # Using masks and composite layers to simulate a "Dragon Scale" frame
             mask = Image.new("L", (310, 310), 0)
             draw = ImageDraw.Draw(mask)
             draw.ellipse((0, 0, 310, 310), fill=255)
@@ -286,12 +249,14 @@ class FightSystem(commands.Cog):
             av2 = ImageOps.fit(av2, mask.size, centering=(0.5, 0.5))
             av2.putalpha(mask)
 
+            # Applying High-Contrast "Scale" Borders (Deep Orange/Black)
             av1 = ImageOps.expand(av1, border=10, fill=(255, 69, 0)) 
             av2 = ImageOps.expand(av2, border=10, fill=(139, 0, 0))
 
             bg.paste(av1, (70, 95), av1)
             bg.paste(av2, (620, 95), av2)
             
+            # Final 8K Detail Layer: Dragon Wings/Claws if DragonFrame.png exists
             if os.path.exists("DragonFrame.png"):
                 dragon = Image.open("DragonFrame.png").convert("RGBA").resize((1000, 500))
                 bg = Image.alpha_composite(bg, dragon)
@@ -369,6 +334,7 @@ class FightSystem(commands.Cog):
             actor = ctx.author if round_p1_acts else member
             target = member if round_p1_acts else ctx.author
             
+            # Pet Logic Check
             if round_counter == 3 and (pet1 or pet2):
                 active_pet_owner = ctx.author if random.random() < 0.5 and pet1 else member
                 if active_pet_owner:
@@ -463,6 +429,7 @@ class FightSystem(commands.Cog):
 
     @commands.command(name="fightecho", aliases=["gauntlet", "survive"])
     async def gauntlet_shadows(self, ctx, member: discord.Member):
+        """A survival challenge against the Dungeon's hazards."""
         if member.id == ctx.author.id: return await ctx.send("You cannot walk the shadows alone.")
         if member.bot: return await ctx.send("The dungeon doesn't recognize cold metal.")
         if ctx.channel.id in self.active_duels: return await ctx.send("The shadows are currently occupied.")
@@ -475,7 +442,7 @@ class FightSystem(commands.Cog):
                 bal = conn.execute("SELECT balance FROM users WHERE id=?", (uid,)).fetchone()['balance']
                 if bal < 10000:
                     self.active_duels.remove(ctx.channel.id)
-                    return await ctx.send(f"❌ <@{uid}> cannot afford the toll.")
+                    return await ctx.send(f"❌ <@{uid}> cannot afford the toll of 10,000 Flames.")
                 conn.execute("UPDATE users SET balance = balance - 10000 WHERE id=?", (uid,))
             conn.commit()
 
@@ -483,189 +450,138 @@ class FightSystem(commands.Cog):
         ready_players = {ctx.author.id: False, member.id: False}
         player_relics = {ctx.author.id: None, member.id: None}
         
-        init_emb = main.fiery_embed("🌑 VOID PACK INITIATION", "Type `!echopack` to draw your catalyst.")
+        init_emb = main.fiery_embed("🌑 VOID PACK INITIATION", 
+            f"The trial of the shadows requires a catalyst.\n\n"
+            f"Both {ctx.author.mention} and {member.mention} must type `!echopack` to draw their Void Relic.")
         init_msg = await ctx.send(embed=init_emb)
 
-        def pack_check(m): return m.channel == ctx.channel and m.content.lower() == "!echopack" and m.author.id in ready_players
+        def pack_check(m):
+            return m.channel == ctx.channel and m.content.lower() == "!echopack" and m.author.id in ready_players
 
         try:
             while not all(ready_players.values()):
                 m = await self.bot.wait_for("message", check=pack_check, timeout=45.0)
                 if not ready_players[m.author.id]:
+                    # Generate Relic
                     relic_pool = [
-                        {"name": "Void Blade", "atk_bonus": 15, "def_bonus": 0, "luck_bonus": 5, "desc": "Siphons Willpower more efficiently."},
-                        {"name": "Iron Will Cage", "atk_bonus": 0, "def_bonus": 20, "luck_bonus": 0, "desc": "Provides massive defense."},
-                        {"name": "Abyssal Eye", "atk_bonus": 5, "def_bonus": 0, "luck_bonus": 20, "desc": "Increases Luck."},
-                        {"name": "Mirror of Narcissus", "atk_bonus": 0, "def_bonus": 5, "luck_bonus": 5, "desc": "Reflects 50% Siphon damage."},
-                        {"name": "Leech's Collar", "atk_bonus": 0, "def_bonus": 0, "luck_bonus": 10, "desc": "Focus steals 5 Willpower."},
-                        {"name": "The Masochist's Rose", "atk_bonus": 0, "def_bonus": 10, "luck_bonus": 0, "desc": "Hazard damage -50%, but no healing."},
-                        {"name": "The Gambler's Coin", "atk_bonus": 0, "def_bonus": 0, "luck_bonus": 40, "desc": "Massive Luck, but double damage on fail."}
+                        {"name": "Void Blade", "atk_bonus": 25, "def_bonus": 0, "luck_bonus": 5, "desc": "Greatly increases damage against the Bot."},
+                        {"name": "Iron Will Cage", "atk_bonus": 0, "def_bonus": 30, "luck_bonus": 0, "desc": "Provides massive team protection."},
+                        {"name": "Abyssal Eye", "atk_bonus": 5, "def_bonus": 0, "luck_bonus": 25, "desc": "Increases chances of team critical focus."}
                     ]
                     relic = random.choice(relic_pool)
                     player_relics[m.author.id] = relic
                     ready_players[m.author.id] = True
-                    await ctx.send(embed=main.fiery_embed("📦 ECHOPACK OPENED", f"{m.author.mention} drawn **{relic['name']}**!"))
+                    
+                    pack_emb = main.fiery_embed("📦 ECHOPACK OPENED", 
+                        f"{m.author.mention} has drawn the **{relic['name']}**!\n"
+                        f"└ *Effect:* {relic['desc']}", color=0x9b59b6)
+                    await ctx.send(embed=pack_emb)
         except asyncio.TimeoutError:
             self.active_duels.remove(ctx.channel.id)
-            return await ctx.send("⌛ Abandoned.")
+            return await ctx.send("⌛ Trial abandoned. The shadows have swallowed your entry fees.")
 
         # PRE-FIGHT SCAN
         ignis_engine = self.bot.get_cog("IgnisEngine")
         u1_inv = json.loads(main.get_user(ctx.author.id)['titles'])
         u2_inv = json.loads(main.get_user(member.id)['titles'])
-        pet1, pet2 = self.get_user_pet(u1_inv), self.get_user_pet(u2_inv)
+        
+        pet1 = self.get_user_pet(u1_inv)
+        pet2 = self.get_user_pet(u2_inv)
         p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
         p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
 
-        # APPLY RELIC STATS
+        # Apply Relic Bonuses
         p1_prot += player_relics[ctx.author.id]['def_bonus']
         p1_luck += player_relics[ctx.author.id]['luck_bonus']
         p2_prot += player_relics[member.id]['def_bonus']
         p2_luck += player_relics[member.id]['luck_bonus']
 
-        p1_will, p2_will = 100, 100
-        p1_status, p2_status = [], []
+        # TEAM STATS VS BOT
+        team_will = 150 # Shared HP
+        bot_essence = 250 # Bot HP
         view = GauntletView(ctx.author, member, self)
         
-        # Initial Background
-        img_buf = await self.create_duel_image(ctx.author.display_avatar.url, member.display_avatar.url, player_relics[ctx.author.id]['name'], player_relics[member.id]['name'])
-        
-        msg = await ctx.send(file=discord.File(img_buf, "trial.png") if img_buf else None, 
-                             embed=main.fiery_embed("🌑 THE TRIAL BEGINS", "Select your actions."), view=view)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"👤 {ctx.author.mention} & {member.mention} **VS** 🤖 **ECHO BOT**\n\nWork together to destroy the Bot's essence before your shared Willpower is drained."), view=view)
+        await asyncio.sleep(3)
 
         round_num = 0
-        stash_item = None
-        hazard_modifier = 1.0
-
-        while p1_will > 0 and p2_will > 0:
+        while team_will > 0 and bot_essence > 0:
             round_num += 1
+            hazard = random.choice(self.gauntlet_hazards)
             
-            # --- CHOICE BASED HAZARD ---
-            if round_num % 3 == 0:
-                h_choice = random.choice(["Whip", "Cold"])
-                if h_choice == "Whip": 
-                    hazard_text = "The Master cracks the Whip! High damage incoming, but siphons will be stronger."
-                    hazard_modifier = 1.5
-                else: 
-                    hazard_text = "The Cold settles in. Low damage, but your next action is frozen to ENDURE."
-                    hazard_modifier = 0.5
-            else:
-                hazard_text = random.choice(self.gauntlet_hazards)
-                hazard_modifier = 1.0
-
-            # --- ECHO EVENTS ---
-            scramble = False
-            if (p1_will + p2_will) < 100:
-                echo_event = random.choice(["Blackout", "Voyeur", "FinalStand"])
-                if echo_event == "Blackout":
-                    hazard_text = "🌑 SUDDEN BLACKOUT! Actions are scrambled!"
-                    scramble = True
-                elif echo_event == "Voyeur":
-                    hazard_text = "👁️ THE VOYEUR'S GAZE! Damage doubled, crowd influence tripled!"
-                    hazard_modifier *= 2.0
-                elif echo_event == "FinalStand":
-                    hazard_text = "🩸 FINAL STAND! Protection is useless!"
-                    p1_prot = p2_prot = 0
-
-            # Update View Buttons
-            view.update_buttons(p1_will, p2_will, p1_status, p2_status, scramble)
-            await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", f"*{hazard_text}*"), view=view)
-
-            # --- MID-GAME STASH (!grab) ---
-            if round_num == 5:
-                stash_announcement = await ctx.send("🎁 **THE MASTER DROPPED A STASH! Type `!grab` first!**")
-                def grab_check(m): return m.channel == ctx.channel and m.content.lower() == "!grab" and m.author.id in [ctx.author.id, member.id]
-                try:
-                    grab_msg = await self.bot.wait_for("message", check=grab_check, timeout=5.0)
-                    items = ["Silk Gag", "Blindfold", "Restraint Keys"]
-                    stash_item = (grab_msg.author.id, random.choice(items))
-                    await ctx.send(f"✅ {grab_msg.author.display_name} grabbed **{stash_item[1]}**!")
-                except asyncio.TimeoutError:
-                    await ctx.send("💨 The stash vanished into the void.")
-
+            # Wait for player choice window
             await asyncio.sleep(8) 
 
-            # --- RESOLUTION ---
-            round_results = []
-            
-            # Status: Bleeding Will
-            if "Bleeding" in p1_status: p1_will -= 3; round_results.append("🩸 P1 Will bleeds.")
-            if "Bleeding" in p2_status: p2_will -= 3; round_results.append("🩸 P2 Will bleeds.")
+            # --- RESOLUTION PHASE ---
+            results = []
+            team_atk = 0
+            team_def_buff = 0
+            team_luck_buff = 0
 
-            for i, p_data in enumerate([{"u": ctx.author, "w": p1_will, "p": p1_prot, "l": p1_luck, "r": player_relics[ctx.author.id], "s": p1_status, "pet": pet1},
-                                        {"u": member, "w": p2_will, "p": p2_prot, "l": p2_luck, "r": player_relics[member.id], "s": p2_status, "pet": pet2}]):
-                
-                u, w, p, l, r, s, pet = p_data["u"], p_data["w"], p_data["p"], p_data["l"], p_data["r"], p_data["s"], p_data["pet"]
-                other_will = p2_will if u.id == ctx.author.id else p1_will
-                choice = view.current_actions[u.id]
-
-                # RELIC: Masochist Rose (Passive)
-                current_hazard_mod = 0.5 if r["name"] == "The Masochist's Rose" else hazard_modifier
+            for p_id in [ctx.author.id, member.id]:
+                choice = view.current_actions[p_id]
+                rel = player_relics[p_id]
+                p_name = ctx.author.name if p_id == ctx.author.id else member.name
 
                 if choice == "Siphon":
-                    dmg = (30 + r["atk_bonus"]) * (1.5 if "Whip" in hazard_text else 1.0)
-                    # RELIC: Mirror of Narcissus (Opponent Passive)
-                    other_relic = player_relics[member.id] if u.id == ctx.author.id else player_relics[ctx.author.id]
-                    if other_relic["name"] == "Mirror of Narcissus":
-                        w -= (dmg * 0.5)
-                        round_results.append(f"🪞 {u.name}'s siphon reflected!")
-                    
-                    w -= 15 # Cost
-                    if u.id == ctx.author.id: p2_will -= dmg
-                    else: p1_will -= dmg
-                    round_results.append(f"💉 {u.name} siphoned {dmg} will!")
-
-                elif choice == "Focus":
-                    if r["name"] == "The Masochist's Rose":
-                        round_results.append(f"🌹 {u.name} cannot focus (Relic penalty).")
-                    else:
-                        f_luck = l * (0.5 if "Deprived" in s else 1.0)
-                        if random.randint(1, 100) <= (f_luck + 25):
-                            w = min(100, w + 15)
-                            if "Bleeding" in s: s.remove("Bleeding")
-                            # RELIC: Leech Collar
-                            if r["name"] == "Leech's Collar":
-                                if u.id == ctx.author.id: p2_will -= 5
-                                else: p1_will -= 5
-                                round_results.append(f"🧛 {u.name} leeched 5 will!")
-                            round_results.append(f"🧘 {u.name} Focused.")
-                        else:
-                            penalty = 20 * (2.0 if r["name"] == "The Gambler's Coin" else 1.0)
-                            w -= penalty
-                            round_results.append(f"❌ {u.name} Focus failed.")
+                    dmg = random.randint(15, 25) + rel['atk_bonus']
+                    team_atk += dmg
+                    results.append(f"💉 {p_name} siphoned **{dmg}** essence from the Bot!")
                 
-                else: # Endure
-                    h_dmg = max(5, (random.randint(15, 25) * current_hazard_mod) - (p // 4))
-                    w -= h_dmg
-                    # Status chance: Exposed
-                    if random.random() < 0.2: s.append("Exposed"); round_results.append(f"👁️ {u.name} is EXPOSED!")
-                    round_results.append(f"🛡️ {u.name} Endured {h_dmg}.")
+                elif choice == "Endure":
+                    team_def_buff += 10 + (rel['def_bonus'] // 2)
+                    results.append(f"🛡️ {p_name} is shielding the team's connection!")
+                
+                elif choice == "Focus":
+                    team_luck_buff += 15 + rel['luck_bonus']
+                    results.append(f"🧘 {p_name} is focusing the team's energy!")
 
-                # Tributes
-                w = min(100, w + view.tributes[u.id])
-                view.tributes[u.id] = 0
+            # BOT PHASE
+            bot_dmg = random.randint(20, 35) - (team_def_buff // 2)
+            bot_dmg = max(5, bot_dmg)
+            team_will -= bot_dmg
+            
+            # TEAM DAMAGE PHASE
+            bot_essence -= team_atk
+            
+            # Apply Crowd Tributes to Team HP
+            tribute_total = view.tributes[ctx.author.id] + view.tributes[member.id]
+            if tribute_total > 0:
+                team_will = min(200, team_will + tribute_total)
+                results.append(f"💎 **TEAM TRIBUTE:** Adrenaline surge! +{tribute_total} Willpower.")
+                view.tributes[ctx.author.id] = 0
+                view.tributes[member.id] = 0
 
-                # Final update
-                if u.id == ctx.author.id: p1_will = max(0, w)
-                else: p2_will = max(0, w)
-
-            # Check Mercy Acceptance
-            if view.mercy_accepted: break
-
-            # Reset status countdowns (simplified)
+            # --- UPDATE EMBED ---
+            g_emb = main.fiery_embed(f"ROUND {round_num}: THE VOID CLASH", 
+                f"🤖 **BOT ACTION:**\n*{hazard.format(player='The Team')}*\n└ The Bot deals {bot_dmg} damage to your bond!\n\n"
+                f"🤝 **TEAM WILLPOWER**\n{self.get_fiery_bar(team_will, 150)}\n\n"
+                f"🤖 **BOT ESSENCE**\n{self.get_fiery_bar(bot_essence, 250)}\n\n"
+                f"📢 **BATTLE RECAP:**\n" + "\n".join(results), color=0x000000)
+            
+            await msg.edit(embed=g_emb)
+            await asyncio.sleep(5)
+            
+            # Reset actions
             view.current_actions = {ctx.author.id: "Endure", member.id: "Endure"}
-            await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", f"Recap:\n" + "\n".join(round_results)))
-            await asyncio.sleep(4)
 
-        winner, loser = (ctx.author, member) if p1_will > p2_will else (member, ctx.author)
-        payout = 19000
-        if view.mercy_accepted:
-            payout = 7000
-            await ctx.send(f"🏳️ {winner.name} showed MERCY. {loser.name} keeps 2,000 Flames as a pity gift.")
-            await main.update_user_stats_async(loser.id, amount=2000)
-
-        await main.update_user_stats_async(winner.id, amount=payout, xp_gain=1000, source="Gauntlet")
-        await ctx.send(embed=main.fiery_embed("🏆 TRIAL OVER", f"{winner.mention} survived."))
+        if bot_essence <= 0:
+            # TEAM WIN
+            await main.update_user_stats_async(ctx.author.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
+            await main.update_user_stats_async(member.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
+            
+            end_emb = main.fiery_embed("🏆 VOID CONQUERORS", 
+                f"The Echo Bot shatters into thousands of glowing fragments! {ctx.author.mention} and {member.mention} stand victorious!\n\n"
+                f"💰 **TEAM PAYOUT:** 15,000 Flames each\n"
+                f"🧬 **XP:** +1,000 each\n\n"
+                f"*The shadows respect your unity. For now.*", color=0xFFD700)
+        else:
+            # TEAM LOSS
+            end_emb = main.fiery_embed("🌑 CONSUMED BY VOID", 
+                f"The Echo Bot has broken your bond. {ctx.author.mention} and {member.mention} collapse as the shadows claim their willpower.\n\n"
+                f"Better luck next time, assets.", color=0xFF0000)
+        
+        await ctx.send(embed=end_emb)
         self.active_duels.remove(ctx.channel.id)
 
 async def setup(bot):
