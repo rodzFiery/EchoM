@@ -204,14 +204,17 @@ class FieryExtensions(commands.Cog):
     async def gallery(self, ctx):
         """A peek into the most used toys and the highest tension in the pit."""
         with self.get_db_connection() as conn:
-            recent_winners = conn.execute("SELECT id, wins, kills FROM users WHERE wins > 0 ORDER BY wins DESC LIMIT 5").fetchall()
+            # RESTRICTION: Only fetch users who are actually in the current server
+            guild_member_ids = [m.id for m in ctx.guild.members]
+            placeholders = ','.join(['?'] * len(guild_member_ids))
+            recent_winners = conn.execute(f"SELECT id, wins, kills FROM users WHERE id IN ({placeholders}) AND wins > 0 ORDER BY wins DESC LIMIT 5", guild_member_ids).fetchall()
         
         # Sassy Intro
-        desc = "The voyeur cameras are live. Some assets are performing... *exquisitely*.\n\n"
+        desc = f"The voyeur cameras in **{ctx.guild.name}** are live. Some assets are performing... *exquisitely*.\n\n"
         
         embed = self.fiery_embed("💎 THE MASTER'S PRIVATE GALLERY", desc, color=0x800080)
 
-        # Organized Leaders
+        # Organized Leaders (Filtered by Guild)
         favorites = ""
         for i, row in enumerate(recent_winners, 1):
             m = ctx.guild.get_member(row['id'])
@@ -225,14 +228,16 @@ class FieryExtensions(commands.Cog):
             inline=False
         )
         
-        # Tension Meter Visuals
+        # Tension Meter Visuals (Filtered by Guild)
         tension_list = ""
-        sorted_pairs = sorted(self.interaction_tracker.items(), key=lambda x: x[1], reverse=True)[:5]
+        # Only keep pairs where both members are in the current guild
+        guild_pairs = {k: v for k, v in self.interaction_tracker.items() if k[0] in guild_member_ids and k[1] in guild_member_ids}
+        sorted_pairs = sorted(guild_pairs.items(), key=lambda x: x[1], reverse=True)[:5]
         
         if not sorted_pairs:
             tension_list = "*The dungeon air is thin. No one is playing with others yet...*"
         else:
-            total_interactions = sum(count for _, count in self.interaction_tracker.items())
+            total_interactions = sum(count for _, count in guild_pairs.items())
             for pair, count in sorted_pairs:
                 u1, u2 = ctx.guild.get_member(pair[0]), ctx.guild.get_member(pair[1])
                 tension_pct = int((count / total_interactions) * 100) if total_interactions > 0 else 0
@@ -251,7 +256,7 @@ class FieryExtensions(commands.Cog):
             inline=False
         )
 
-        embed.set_footer(text="🔞 THE CAMERAS ARE ALWAYS RECORDING 🔞")
+        embed.set_footer(text=f"🔞 RECORDED IN {ctx.guild.name.upper()} 🔞")
 
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="gallery.jpg")
