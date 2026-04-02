@@ -501,7 +501,7 @@ class FightSystem(commands.Cog):
         p2_prot = (p2_prot + player_companions[member.id]['def']) // 4
         p2_luck = (p2_luck + player_companions[member.id]['luck']) // 5
 
-        # --- UPDATED: Starting health pools set to 150 ---
+        # Starting health pools set to 150
         team_will = 150 
         max_will = 150
         bot_essence = 150 
@@ -520,28 +520,40 @@ class FightSystem(commands.Cog):
             team_atk = 0
             team_def_buff = 0
             
+            # TETHERED PACING: Rubber-band mechanic to keep it "CLUTCH"
+            hp_diff = (team_will / max_will) - (bot_essence / max_bot)
+            rubber_band_atk = 1.0
+            rubber_band_def = 1.0
+            
+            if hp_diff > 0.15: # Team is winning too much
+                rubber_band_atk = 0.8
+                rubber_band_def = 0.9
+            elif hp_diff < -0.15: # Bot is winning too much
+                rubber_band_atk = 1.25
+                rubber_band_def = 1.2
+            
             # SUDDEN DEATH: Acceleration tuned for 150 HP pool
             sudden_death_mult = 1.0
             if round_num >= 15:
-                sudden_death_mult = 1.6 + ((round_num - 15) * 0.3)
+                sudden_death_mult = 1.5 + ((round_num - 15) * 0.25)
                 results.append("⚠️ **SUDDEN DEATH:** The Void is collapsing! Damage significantly increased.")
 
             desperation_bonus = 1.0
             if team_will < (max_will * 0.35): 
-                desperation_bonus = 1.8 
+                desperation_bonus = 1.6 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
             perm_atk_buff = view.permanent_modifiers["Siphon"] * 2 
             perm_luck_buff = view.permanent_modifiers["Focus"] * 2 
             perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
-            if random.random() < 0.15:
-                team_heal = random.randint(10, 15)
+            if random.random() < 0.12: # Slightly lowered frequency to keep pressure up
+                team_heal = random.randint(8, 12)
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
-            if random.random() < 0.10:
-                bot_heal = random.randint(8, 12)
+            if random.random() < 0.08:
+                bot_heal = random.randint(6, 10)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
                 results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
@@ -554,29 +566,30 @@ class FightSystem(commands.Cog):
                 p_p_atk = (comp['atk'] // 10)
 
                 if choice == "Siphon":
-                    # BALANCED: Damage range adjusted for 150 HP pacing
-                    base_dmg = random.randint(5, 9) + p_p_atk + perm_atk_buff 
-                    dmg = int(base_dmg * desperation_bonus * sudden_death_mult)
+                    base_dmg = random.randint(6, 10) + p_p_atk + perm_atk_buff 
+                    dmg = int(base_dmg * desperation_bonus * sudden_death_mult * rubber_band_atk)
                     
-                    if random.random() < ((p_p_luck + perm_luck_buff) / 500): 
-                        dmg = int(dmg * 1.3) 
+                    if random.random() < ((p_p_luck + perm_luck_buff) / 450): 
+                        dmg = int(dmg * 1.35) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((6 + (comp['def'] // 15) + perm_def_buff) * desperation_bonus) 
+                    team_def_buff += int((6 + (comp['def'] // 14) + perm_def_buff) * desperation_bonus * rubber_band_def) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    team_atk += int((5 + ((p_p_luck + perm_luck_buff) // 12)) * sudden_death_mult)
+                    team_atk += int((6 + ((p_p_luck + perm_luck_buff) // 10)) * sudden_death_mult * rubber_band_atk)
                     results.append(f"🧘 {p_name} focused their spirit!")
 
-            # PACING: Bot damage adjusted for 150 HP pool
-            bot_base = random.randint(10, 15) 
+            # PACING: Bot damage adjusted to match rubber-band flow
+            bot_base = random.randint(11, 16) 
             if round_num > 10: 
-                bot_base += int((round_num - 10) * 1.1) 
+                bot_base += int((round_num - 10) * 1.15) 
             
-            bot_dmg = max(7, int((bot_base - (team_def_buff // 6)) * sudden_death_mult))
+            # Bot damage also scales inversly to rubber-band to keep it clutch
+            bot_dmg_mult = 1.2 if hp_diff > 0.1 else 0.85 if hp_diff < -0.1 else 1.0
+            bot_dmg = max(8, int((bot_base - (team_def_buff // 6)) * sudden_death_mult * bot_dmg_mult))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
