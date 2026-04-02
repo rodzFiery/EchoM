@@ -525,20 +525,21 @@ class FightSystem(commands.Cog):
                 desperation_bonus = 1.8 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            # REDUCED IMPACT: Permanent modifiers impact cut even further
+            # PACING: Synchronized damage modifiers for both sides
+            # Tend to reach 40 HP at roughly the same time (~Round 12-14)
             perm_atk_buff = view.permanent_modifiers["Siphon"] * 2 
             perm_luck_buff = view.permanent_modifiers["Focus"] * 2 
             perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
             # BALANCED: Team Heal Logic (15% chance)
             if random.random() < 0.15:
-                team_heal = random.randint(20, 40) 
+                team_heal = random.randint(15, 25) # Slightly lowered for tighter pacing
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
             # BALANCED: Bot Heal Logic (10% chance)
             if random.random() < 0.10:
-                bot_heal = random.randint(15, 25)
+                bot_heal = random.randint(10, 20) # Slightly lowered for tighter pacing
                 bot_essence = min(max_bot, bot_essence + bot_heal)
                 results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
@@ -548,45 +549,44 @@ class FightSystem(commands.Cog):
                 comp = player_companions[p_id]
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
-                # Use reduced stats for player calculation
+                # PACING: Scaled stats for "Slow Burn"
                 p_p_luck = p1_luck if p_id == ctx.author.id else p2_luck
-                p_p_atk = (comp['atk'] // 8) # Heavily reduced baseline impact
+                p_p_atk = (comp['atk'] // 10) # Minimal baseline impact
 
                 if choice == "Siphon":
-                    # BALANCED: Lower base damage per strike (12-18)
-                    base_dmg = random.randint(12, 18) + p_p_atk + perm_atk_buff 
+                    # PACING: Consistent Team damage (9-13 range)
+                    base_dmg = random.randint(9, 13) + p_p_atk + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
-                    # REDUCED IMPACT: Luck threshold much harder to hit for crit
-                    if random.random() < ((p_p_luck + perm_luck_buff) / 450): 
-                        dmg = int(dmg * 1.3) # Crit multiplier lowered to 1.3
+                    if random.random() < ((p_p_luck + perm_luck_buff) / 500): 
+                        dmg = int(dmg * 1.25) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    # REDUCED IMPACT: Defense scaling toned down
-                    team_def_buff += int((10 + (comp['def'] // 12) + perm_def_buff) * desperation_bonus) 
+                    team_def_buff += int((8 + (comp['def'] // 15) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    # BALANCED: Lowered Focus damage contribution (10-14)
-                    team_atk += (10 + ((p_p_luck + perm_luck_buff) // 10)) 
+                    # PACING: Lower Focus damage (8-11 range)
+                    team_atk += (8 + ((p_p_luck + perm_luck_buff) // 12)) 
                     results.append(f"🧘 {p_name} focused their spirit!")
 
-            bot_base = random.randint(15, 25) 
+            # PACING: Bot damage scales to match team capacity (14-20 range)
+            bot_base = random.randint(14, 20) 
             if round_num > 10: 
-                bot_base += int((round_num - 10) * 1.5) 
+                bot_base += int((round_num - 10) * 1.2) 
             
-            # REDUCED IMPACT: Defensive buff mitigation reduced
-            bot_dmg = max(8, int(bot_base - (team_def_buff // 5))) 
+            # PACING: Mitigation ensures gradual loss
+            bot_dmg = max(10, int(bot_base - (team_def_buff // 6))) 
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
-                team_will = min(max_will, team_will + (tribute_total * 3)) 
-                results.append(f"💎 **TEAM TRIBUTE:** Crowds roar! +{tribute_total * 3} Willpower.")
+                team_will = min(max_will, team_will + (tribute_total * 2)) 
+                results.append(f"💎 **TEAM TRIBUTE:** Crowds roar! +{tribute_total * 2} Willpower.")
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
             # Progress update happens on the SAME embed
@@ -617,7 +617,6 @@ class FightSystem(commands.Cog):
                 p1_img = Image.open(d1).convert("RGBA").resize((250, 250))
                 p2_img = Image.open(d2).convert("RGBA").resize((250, 250))
                 
-                # Simple circular mask
                 mask = Image.new("L", (250, 250), 0)
                 draw = ImageDraw.Draw(mask)
                 draw.ellipse((0, 0, 250, 250), fill=255)
