@@ -505,7 +505,7 @@ class FightSystem(commands.Cog):
         bot_essence = 450
         max_bot = 450
         view = GauntletView(ctx.author, member, self)
-        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions."), view=view)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. Coordinate your actions, {ctx.author.mention} & {member.mention} Team."), view=view)
         await asyncio.sleep(3)
 
         round_num = 0
@@ -566,7 +566,7 @@ class FightSystem(commands.Cog):
 
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
-                f"└ *Hazard:* {hazard.format(player='The Team')}\n\n"
+                f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
                 f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, max_will)}\n"
                 f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, max_bot)}\n\n"
                 + "\n".join(results)))
