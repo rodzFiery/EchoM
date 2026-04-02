@@ -511,7 +511,8 @@ class FightSystem(commands.Cog):
         await view.start_event.wait()
 
         round_num = 0
-        while team_will > 0 and bot_essence > 0:
+        # BALANCED: Loop now checks for a maximum of 20 rounds
+        while team_will > 0 and bot_essence > 0 and round_num < 20:
             round_num += 1
             results = []
             team_atk = 0
@@ -526,6 +527,18 @@ class FightSystem(commands.Cog):
             perm_atk_buff = view.permanent_modifiers["Siphon"] * 15 
             perm_luck_buff = view.permanent_modifiers["Focus"] * 12 
             perm_def_buff = view.permanent_modifiers["Endure"] * 15 
+
+            # BALANCED: Team Heal Logic (15% chance)
+            if random.random() < 0.15:
+                team_heal = random.randint(15, 30)
+                team_will = min(max_will, team_will + team_heal)
+                results.append(f"💚 **RESTORATION:** Team regained {team_heal} Willpower!")
+
+            # BALANCED: Bot Heal Logic (10% chance)
+            if random.random() < 0.10:
+                bot_heal = random.randint(10, 20)
+                bot_essence = min(max_bot, bot_essence + bot_heal)
+                results.append(f"🌑 **VOID SIPHON:** Bot regained {bot_heal} Essence!")
 
             # Process the locked-in strategies automatically
             for p_id in [ctx.author.id, member.id]:
@@ -566,7 +579,7 @@ class FightSystem(commands.Cog):
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
             # Progress update happens on the SAME embed, ensuring it stays at the bottom
-            await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", 
+            await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}/20", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
                 f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, max_will)}\n"
@@ -581,6 +594,8 @@ class FightSystem(commands.Cog):
             await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}."))
+        elif round_num >= 20:
+            await ctx.send(embed=main.fiery_embed("⌛ TIME EXHAUSTED", "The 20-round limit has been reached. The Void has reclaimed the trial."))
         else:
             await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
         
