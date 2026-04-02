@@ -115,7 +115,6 @@ class DungeonAsk(commands.Cog):
                     final_embed = main_mod.fiery_embed("📩 INCOMING REQUEST", 
                         f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
                         f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
-                        f"**Do you accept these terms, or shall the request burn in the furnace?**")
                     
                     final_embed.set_thumbnail(url=self.requester.display_avatar.url)
                     final_embed.color = 0x00BFFF 
