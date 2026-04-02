@@ -430,8 +430,8 @@ class FightSystem(commands.Cog):
 
         with main.get_db_connection() as conn:
             for uid in [ctx.author.id, member.id]:
-                bal = conn.execute("SELECT balance FROM users WHERE id=?", (uid,)).fetchone()['balance']
-                if bal < 10000:
+                bal_row = conn.execute("SELECT balance FROM users WHERE id=?", (uid,)).fetchone()
+                if not bal_row or bal_row['balance'] < 10000:
                     self.active_duels.remove(ctx.channel.id)
                     return await ctx.send(f"❌ <@{uid}> cannot afford the toll of 10,000 Flames.")
                 conn.execute("UPDATE users SET balance = balance - 10000 WHERE id=?", (uid,))
@@ -450,27 +450,25 @@ class FightSystem(commands.Cog):
 
         try:
             while not all(ready_players.values()):
-                # 5 Minute Timeout window
                 m = await self.bot.wait_for("message", check=pack_check, timeout=300.0)
                 if not ready_players[m.author.id]:
                     
-                    # DROP RATIOS: Basic (50%), Rare (25%), Epic (15%), Legendary (8%), Supreme (2%)
                     roll = random.random()
-                    if roll <= 0.02:
-                        tier, color, bonus = "Supreme", 0xFFD700, {"atk": 50, "def": 50, "luck": 50}
-                        names = ["God-Eater Fenrir", "Reality-Warper Void"]
-                    elif roll <= 0.10:
-                        tier, color, bonus = "Legendary", 0xFF8C00, {"atk": 35, "def": 35, "luck": 35}
-                        names = ["Shadow Monarch", "Infernal Drake"]
-                    elif roll <= 0.25:
-                        tier, color, bonus = "Epic", 0x9932CC, {"atk": 20, "def": 20, "luck": 20}
-                        names = ["Void Sentinel", "Abyssal Stalker"]
-                    elif roll <= 0.50:
-                        tier, color, bonus = "Rare", 0x1E90FF, {"atk": 10, "def": 10, "luck": 10}
-                        names = ["Grave Hound", "Wraith Bat"]
-                    else:
-                        tier, color, bonus = "Basic", 0x808080, {"atk": 5, "def": 5, "luck": 5}
-                        names = ["Scavenger Imp", "Dungeon Rat"]
+                    if roll <= 0.02: # SUPREME (2%)
+                        tier, color, bonus = "Supreme", 0xFFD700, {"atk": 65, "def": 65, "luck": 65}
+                        names = ["God-Eater Fenrir", "Reality-Warper Void", "The Unbound Eye", "Star-Devouring Wyrm"]
+                    elif roll <= 0.10: # LEGENDARY (8%)
+                        tier, color, bonus = "Legendary", 0xFF8C00, {"atk": 45, "def": 45, "luck": 45}
+                        names = ["Shadow Monarch", "Infernal Drake", "Soul-Stalker Chimera", "Void-Heart Golem"]
+                    elif roll <= 0.25: # EPIC (15%)
+                        tier, color, bonus = "Epic", 0x9932CC, {"atk": 30, "def": 30, "luck": 30}
+                        names = ["Void Sentinel", "Abyssal Stalker", "Phase-Shift Panther", "Terror Bloom"]
+                    elif roll <= 0.50: # RARE (25%)
+                        tier, color, bonus = "Rare", 0x1E90FF, {"atk": 18, "def": 18, "luck": 18}
+                        names = ["Grave Hound", "Wraith Bat", "Cursed Scarecrow", "Ebony Serpent"]
+                    else: # BASIC (50%)
+                        tier, color, bonus = "Basic", 0x808080, {"atk": 10, "def": 10, "luck": 10}
+                        names = ["Scavenger Imp", "Dungeon Rat", "Shadow Mite", "Blight Weevil"]
 
                     companion = {
                         "name": random.choice(names),
@@ -489,7 +487,7 @@ class FightSystem(commands.Cog):
                     await ctx.send(embed=p_emb)
         except asyncio.TimeoutError:
             self.active_duels.remove(ctx.channel.id)
-            return await ctx.send("⌛ The Void connection timed out. Both members failed to open their packs in time.")
+            return await ctx.send("⌛ The Void connection timed out.")
 
         ignis_engine = self.bot.get_cog("IgnisEngine")
         u1_inv = json.loads(main.get_user(ctx.author.id)['titles'])
@@ -497,16 +495,15 @@ class FightSystem(commands.Cog):
         p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
         p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
 
-        # Apply Companion Stats (Cumulative with player stats)
         p1_prot += player_companions[ctx.author.id]['def']
         p1_luck += player_companions[ctx.author.id]['luck']
         p2_prot += player_companions[member.id]['def']
         p2_luck += player_companions[member.id]['luck']
 
         team_will = 150 
-        bot_essence = 250 
+        bot_essence = 400 # INCREASED HP FOR BALANCE
         view = GauntletView(ctx.author, member, self)
-        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions to destroy the Echo Bot."), view=view)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions."), view=view)
         await asyncio.sleep(3)
 
         round_num = 0
@@ -526,17 +523,20 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    dmg = random.randint(15, 25) + comp['atk']
+                    dmg = random.randint(20, 35) + comp['atk']
                     team_atk += dmg
                     results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += 10 + (comp['def'] // 2)
+                    team_def_buff += 15 + (comp['def'] // 2)
                     results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += (10 + (comp['luck'] // 5))
+                    team_atk += (15 + (comp['luck'] // 4))
                     results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
-            bot_dmg = max(5, random.randint(20, 35) - (team_def_buff // 2))
+            # BOT SCALING: Deals more damage as its health gets lower
+            scaling_factor = 1.0 + (1.0 - (bot_essence / 400))
+            bot_dmg = max(10, int((random.randint(25, 45) * scaling_factor) - (team_def_buff // 2)))
+            
             team_will -= bot_dmg
             bot_essence -= team_atk
             
@@ -547,9 +547,10 @@ class FightSystem(commands.Cog):
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}", 
-                f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n\n"
+                f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
+                f"└ *Hazard:* {hazard.format(player='The Team')}\n\n"
                 f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, 150)}\n"
-                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, 250)}\n\n"
+                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, 400)}\n\n"
                 + "\n".join(results)))
             
             view.reset_round()
@@ -558,9 +559,9 @@ class FightSystem(commands.Cog):
         if bot_essence <= 0:
             await main.update_user_stats_async(ctx.author.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
-            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", "You stand victorious! The Bot shatters. +15,000 Flames each."))
+            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", "Victory! +15,000 Flames each."))
         else:
-            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond and your companions have fled."))
+            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond."))
         
         self.active_duels.remove(ctx.channel.id)
 
