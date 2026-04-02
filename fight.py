@@ -495,10 +495,11 @@ class FightSystem(commands.Cog):
         p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
         p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
 
-        p1_prot += player_companions[ctx.author.id]['def']
-        p1_luck += player_companions[ctx.author.id]['luck']
-        p2_prot += player_companions[member.id]['def']
-        p2_luck += player_companions[member.id]['luck']
+        # REDUCED IMPACT: Bonuses from inventory and companions significantly dampened
+        p1_prot = (p1_prot + player_companions[ctx.author.id]['def']) // 4
+        p1_luck = (p1_luck + player_companions[ctx.author.id]['luck']) // 5
+        p2_prot = (p2_prot + player_companions[member.id]['def']) // 4
+        p2_luck = (p2_luck + player_companions[member.id]['luck']) // 5
 
         team_will = 300 
         max_will = 300
@@ -524,9 +525,10 @@ class FightSystem(commands.Cog):
                 desperation_bonus = 1.8 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            perm_atk_buff = view.permanent_modifiers["Siphon"] * 10 
-            perm_luck_buff = view.permanent_modifiers["Focus"] * 8 
-            perm_def_buff = view.permanent_modifiers["Endure"] * 10 
+            # REDUCED IMPACT: Permanent modifiers impact cut in half
+            perm_atk_buff = view.permanent_modifiers["Siphon"] * 5 
+            perm_luck_buff = view.permanent_modifiers["Focus"] * 4 
+            perm_def_buff = view.permanent_modifiers["Endure"] * 5 
 
             # BALANCED: Team Heal Logic (15% chance)
             if random.random() < 0.15:
@@ -546,28 +548,36 @@ class FightSystem(commands.Cog):
                 comp = player_companions[p_id]
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
+                # Use reduced stats for player calculation
+                p_p_luck = p1_luck if p_id == ctx.author.id else p2_luck
+                p_p_atk = (comp['atk'] // 5) # Reduced baseline impact
+
                 if choice == "Siphon":
-                    base_dmg = random.randint(20, 40) + (comp['atk'] // 2) + perm_atk_buff 
+                    base_dmg = random.randint(20, 40) + p_p_atk + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
-                    if random.random() < ((comp['luck'] + perm_luck_buff) / 200): 
+                    # REDUCED IMPACT: Luck threshold much harder to hit for crit
+                    if random.random() < ((p_p_luck + perm_luck_buff) / 400): 
                         dmg = int(dmg * 1.5) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((30 + (comp['def'] // 2) + perm_def_buff) * desperation_bonus) 
+                    # REDUCED IMPACT: Defense scaling toned down
+                    team_def_buff += int((15 + (comp['def'] // 10) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    team_atk += (25 + ((comp['luck'] + perm_luck_buff) // 4)) 
+                    # REDUCED IMPACT: Focus damage toned down
+                    team_atk += (15 + ((p_p_luck + perm_luck_buff) // 6)) 
                     results.append(f"🧘 {p_name} focused their spirit!")
 
             bot_base = random.randint(15, 25) 
             if round_num > 10: 
                 bot_base += int((round_num - 10) * 1.5) 
             
-            bot_dmg = max(8, int(bot_base - (team_def_buff // 3))) 
+            # REDUCED IMPACT: Defensive buff mitigation reduced
+            bot_dmg = max(8, int(bot_base - (team_def_buff // 5))) 
             
             team_will -= bot_dmg
             bot_essence -= team_atk
@@ -593,7 +603,7 @@ class FightSystem(commands.Cog):
             await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             
-            # --- NEW: GENERATE WINNERS IMAGE WITH 2 PROFILES ---
+            # Winners image profile profile
             win_emb = main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}.")
             
             try:
