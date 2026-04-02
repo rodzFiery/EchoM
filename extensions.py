@@ -32,6 +32,20 @@ class FieryExtensions(commands.Cog):
         
         # Start background loops
         self.quest_reset_loop.start()
+        
+        # Ensure the tension table exists for persistence
+        self._prepare_tension_db()
+
+    def _prepare_tension_db(self):
+        with self.get_db_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS tension (
+                    pair_key TEXT PRIMARY KEY,
+                    count INTEGER DEFAULT 0,
+                    last_interaction TIMESTAMP
+                )
+            """)
+            conn.commit()
 
     def cog_unload(self):
         self.quest_reset_loop.cancel()
@@ -197,24 +211,38 @@ class FieryExtensions(commands.Cog):
         if not message.mentions: return
         for mentioned in message.mentions:
             if mentioned.id == message.author.id: continue
-            pair = tuple(sorted((message.author.id, mentioned.id)))
-            self.interaction_tracker[pair] = self.interaction_tracker.get(pair, 0) + 1
+            
+            # Persistent Tension Logic
+            pair_ids = sorted([message.author.id, mentioned.id])
+            pair_key = f"{pair_ids[0]}_{pair_ids[1]}"
+            
+            with self.get_db_connection() as conn:
+                conn.execute("""
+                    INSERT INTO tension (pair_key, count, last_interaction) 
+                    VALUES (?, 1, ?)
+                    ON CONFLICT(pair_key) DO UPDATE SET 
+                        count = count + 1,
+                        last_interaction = ?
+                """, (pair_key, datetime.now().isoformat(), datetime.now().isoformat()))
+                conn.commit()
 
     @commands.command(name="gallery")
     async def gallery(self, ctx):
         """A peek into the most used toys and the highest tension in the pit."""
         with self.get_db_connection() as conn:
-            # RESTRICTION: Only fetch users who are actually in the current server
+            # Fetch winners
             guild_member_ids = [m.id for m in ctx.guild.members]
             placeholders = ','.join(['?'] * len(guild_member_ids))
             recent_winners = conn.execute(f"SELECT id, wins, kills FROM users WHERE id IN ({placeholders}) AND wins > 0 ORDER BY wins DESC LIMIT 5", guild_member_ids).fetchall()
+            
+            # Fetch Top Tension Pairs from DB
+            tension_data = conn.execute("SELECT pair_key, count FROM tension ORDER BY count DESC LIMIT 5").fetchall()
+            total_sum_row = conn.execute("SELECT SUM(count) as total FROM tension").fetchone()
+            total_global_pulses = total_sum_row['total'] if total_sum_row and total_sum_row['total'] else 1
         
-        # Sassy Intro
         desc = f"The voyeur cameras in **{ctx.guild.name}** are live. Some assets are performing... *exquisitely*.\n\n"
-        
         embed = self.fiery_embed("💎 THE MASTER'S PRIVATE GALLERY", desc, color=0x800080)
 
-        # Organized Leaders (Filtered by Guild)
         favorites = ""
         for i, row in enumerate(recent_winners, 1):
             m = ctx.guild.get_member(row['id'])
@@ -222,40 +250,31 @@ class FieryExtensions(commands.Cog):
             medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, "🔹")
             favorites += f"{medal} **{name}**\n└ *{row['wins']} Echo Wins | {row['kills']} Echo Kills*\n"
         
-        embed.add_field(
-            name="🏆 THE MASTER'S FAVORITES", 
-            value=favorites if favorites else "*The podium is cold. No one is winning.*", 
-            inline=False
-        )
+        embed.add_field(name="🏆 THE MASTER'S FAVORITES", value=favorites if favorites else "*The podium is cold.*", inline=False)
         
-        # Tension Meter Visuals (Filtered by Guild)
         tension_list = ""
-        # Only keep pairs where both members are in the current guild
-        guild_pairs = {k: v for k, v in self.interaction_tracker.items() if k[0] in guild_member_ids and k[1] in guild_member_ids}
-        sorted_pairs = sorted(guild_pairs.items(), key=lambda x: x[1], reverse=True)[:5]
-        
-        if not sorted_pairs:
+        if not tension_data:
             tension_list = "*The dungeon air is thin. No one is playing with others yet...*"
         else:
-            total_interactions = sum(count for _, count in guild_pairs.items())
-            for pair, count in sorted_pairs:
-                u1, u2 = ctx.guild.get_member(pair[0]), ctx.guild.get_member(pair[1])
-                tension_pct = int((count / total_interactions) * 100) if total_interactions > 0 else 0
+            for row in tension_data:
+                u1_id, u2_id = map(int, row['pair_key'].split('_'))
+                u1, u2 = ctx.guild.get_member(u1_id), ctx.guild.get_member(u2_id)
                 
-                # Visual Tension Meter [■■■□□□]
-                filled = "■" * (tension_pct // 10)
-                empty = "□" * (10 - (tension_pct // 10))
-                meter = f"[`{filled}{empty}`]"
-                
-                if u1 and u2: 
-                    tension_list += f"💞 **{u1.display_name}** 🔗 **{u2.display_name}**\n└ {meter} **{tension_pct}% TENSION** ({count} pulses)\n"
+                if u1 and u2:
+                    count = row['count']
+                    tension_pct = int((count / total_global_pulses) * 100)
+                    
+                    # Interesting State Logic
+                    if count > 100: state = "⚡ **DANGEROUS**"
+                    elif count > 50: state = "🔥 **ELECTRIC**"
+                    elif count > 20: state = "🫦 **SIMMERING**"
+                    else: state = "☁️ **MISTY**"
 
-        embed.add_field(
-            name="🫦 VOYEUR'S LIVE FEED", 
-            value=tension_list, 
-            inline=False
-        )
+                    filled = "■" * (min(tension_pct, 100) // 10)
+                    empty = "□" * (10 - len(filled))
+                    tension_list += f"{state} **{u1.display_name}** 🔗 **{u2.display_name}**\n└ [`{filled}{empty}`] **{count} Pulses**\n"
 
+        embed.add_field(name="🫦 VOYEUR'S LIVE FEED (SERVER TENSION)", value=tension_list if tension_list else "*Static on the screen...*", inline=False)
         embed.set_footer(text=f"🔞 RECORDED IN {ctx.guild.name.upper()} 🔞")
 
         if os.path.exists("LobbyTopRight.jpg"):
