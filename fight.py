@@ -456,19 +456,19 @@ class FightSystem(commands.Cog):
                     roll = random.random()
                     if roll <= 0.02: # SUPREME (2%)
                         tier, color, bonus = "Supreme", 0xFFD700, {"atk": 65, "def": 65, "luck": 65}
-                        names = ["God-Eater Fenrir", "Reality-Warper Void", "The Unbound Eye", "Star-Devouring Wyrm"]
+                        names = ["God-Eater Fenrir", "Reality-Warper Void", "The Unbound Eye", "Star-Devouring Wyrm", "Cosmic Jester", "Abyssal Singularity"]
                     elif roll <= 0.10: # LEGENDARY (8%)
                         tier, color, bonus = "Legendary", 0xFF8C00, {"atk": 45, "def": 45, "luck": 45}
-                        names = ["Shadow Monarch", "Infernal Drake", "Soul-Stalker Chimera", "Void-Heart Golem"]
+                        names = ["Shadow Monarch", "Infernal Drake", "Soul-Stalker Chimera", "Void-Heart Golem", "Titan of Grief", "Hellfire Cerberus"]
                     elif roll <= 0.25: # EPIC (15%)
                         tier, color, bonus = "Epic", 0x9932CC, {"atk": 30, "def": 30, "luck": 30}
-                        names = ["Void Sentinel", "Abyssal Stalker", "Phase-Shift Panther", "Terror Bloom"]
+                        names = ["Void Sentinel", "Abyssal Stalker", "Phase-Shift Panther", "Terror Bloom", "Nightmare Weaver", "Gloom Colossus"]
                     elif roll <= 0.50: # RARE (25%)
                         tier, color, bonus = "Rare", 0x1E90FF, {"atk": 18, "def": 18, "luck": 18}
-                        names = ["Grave Hound", "Wraith Bat", "Cursed Scarecrow", "Ebony Serpent"]
+                        names = ["Grave Hound", "Wraith Bat", "Cursed Scarecrow", "Ebony Serpent", "Mist Spirit", "Echo Raven"]
                     else: # BASIC (50%)
                         tier, color, bonus = "Basic", 0x808080, {"atk": 10, "def": 10, "luck": 10}
-                        names = ["Scavenger Imp", "Dungeon Rat", "Shadow Mite", "Blight Weevil"]
+                        names = ["Scavenger Imp", "Dungeon Rat", "Shadow Mite", "Blight Weevil", "Stone Gargoyle", "Dust Sprite"]
 
                     companion = {
                         "name": random.choice(names),
@@ -501,7 +501,7 @@ class FightSystem(commands.Cog):
         p2_luck += player_companions[member.id]['luck']
 
         team_will = 150 
-        bot_essence = 400 # INCREASED HP FOR BALANCE
+        bot_essence = 450 # SLIGHTLY INCREASED HP FOR REBALANCING
         view = GauntletView(ctx.author, member, self)
         msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions."), view=view)
         await asyncio.sleep(3)
@@ -523,19 +523,19 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    dmg = random.randint(20, 35) + comp['atk']
+                    dmg = random.randint(25, 40) + comp['atk']
                     team_atk += dmg
                     results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += 15 + (comp['def'] // 2)
+                    team_def_buff += 20 + (comp['def'] // 2)
                     results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += (15 + (comp['luck'] // 4))
+                    team_atk += (20 + (comp['luck'] // 4))
                     results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
             # BOT SCALING: Deals more damage as its health gets lower
-            scaling_factor = 1.0 + (1.0 - (bot_essence / 400))
-            bot_dmg = max(10, int((random.randint(25, 45) * scaling_factor) - (team_def_buff // 2)))
+            scaling_factor = 1.0 + (1.2 - (bot_essence / 450))
+            bot_dmg = max(12, int((random.randint(30, 50) * scaling_factor) - (team_def_buff // 2)))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
@@ -550,7 +550,7 @@ class FightSystem(commands.Cog):
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"└ *Hazard:* {hazard.format(player='The Team')}\n\n"
                 f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, 150)}\n"
-                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, 400)}\n\n"
+                f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, 450)}\n\n"
                 + "\n".join(results)))
             
             view.reset_round()
@@ -564,6 +564,11 @@ class FightSystem(commands.Cog):
             await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond."))
         
         self.active_duels.remove(ctx.channel.id)
+
+    @commands.command(name="echopack")
+    async def echopack_dummy(self, ctx):
+        """Dummy command to prevent 'Command not found' error during gauntlet setup."""
+        pass
 
 async def setup(bot):
     await bot.add_cog(FightSystem(bot))
