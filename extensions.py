@@ -206,26 +206,53 @@ class FieryExtensions(commands.Cog):
         with self.get_db_connection() as conn:
             recent_winners = conn.execute("SELECT id, wins, kills FROM users WHERE wins > 0 ORDER BY wins DESC LIMIT 5").fetchall()
         
-        desc = "🔞 **THE MASTER'S FAVORITES (RECENT CHAMPIONS)**\n"
-        for row in recent_winners:
+        # Sassy Intro
+        desc = "The voyeur cameras are live. Some assets are performing... *exquisitely*.\n\n"
+        
+        embed = self.fiery_embed("💎 THE MASTER'S PRIVATE GALLERY", desc, color=0x800080)
+
+        # Organized Leaders
+        favorites = ""
+        for i, row in enumerate(recent_winners, 1):
             m = ctx.guild.get_member(row['id'])
             name = m.display_name if m else f"Asset {row['id']}"
-            desc += f"• **{name}**: {row['wins']} Peaks | {row['kills']} Submissions forced\n"
+            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, "🔹")
+            favorites += f"{medal} **{name}**\n└ *{row['wins']} Peaks reached | {row['kills']} Forced submissions*\n"
         
-        desc += "\n🫦 **THE VOYEUR'S FEED (SERVER TENSION)**\n"
+        embed.add_field(
+            name="🏆 THE MASTER'S FAVORITES", 
+            value=favorites if favorites else "*The podium is cold. No one is winning.*", 
+            inline=False
+        )
+        
+        # Tension Meter Visuals
+        tension_list = ""
         sorted_pairs = sorted(self.interaction_tracker.items(), key=lambda x: x[1], reverse=True)[:5]
         
         if not sorted_pairs:
-            desc += "*The dungeon air is cold. No one is playing with others yet...*\n"
+            tension_list = "*The dungeon air is thin. No one is playing with others yet...*"
         else:
             total_interactions = sum(count for _, count in self.interaction_tracker.items())
             for pair, count in sorted_pairs:
                 u1, u2 = ctx.guild.get_member(pair[0]), ctx.guild.get_member(pair[1])
                 tension_pct = int((count / total_interactions) * 100) if total_interactions > 0 else 0
+                
+                # Visual Tension Meter [■■■□□□]
+                filled = "■" * (tension_pct // 10)
+                empty = "□" * (10 - (tension_pct // 10))
+                meter = f"[`{filled}{empty}`]"
+                
                 if u1 and u2: 
-                    desc += f"• {u1.display_name} 🔗 {u2.display_name}: {count} exchanges. **[{tension_pct}% TENSION]**\n"
+                    tension_list += f"💞 **{u1.display_name}** 🔗 **{u2.display_name}**\n└ {meter} **{tension_pct}% TENSION** ({count} pulses)\n"
 
-        embed = self.fiery_embed("The Voyeur's Gallery", desc, color=0x800080)
+        embed.add_field(
+            name="🫦 VOYEUR'S LIVE FEED", 
+            value=tension_list, 
+            inline=False
+        )
+
+        embed.set_footer(text="🔞 THE CAMERAS ARE ALWAYS RECORDING 🔞")
+
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="gallery.jpg")
             embed.set_thumbnail(url="attachment://gallery.jpg")
