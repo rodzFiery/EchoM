@@ -267,18 +267,20 @@ class FightSystem(commands.Cog):
 
         pet_used = False
         pet_owner_name = ""
+        round_counter = 0
 
         # --- ACTION LOOP ---
-        for i in range(1, 11): 
-            if p1_hp <= 0 or p2_hp <= 0: break
-
+        # CHANGED: Using while loop to ensure someone hits 0 HP
+        while p1_hp > 0 and p2_hp > 0:
+            round_counter += 1
+            
             is_heal = random.random() < 0.20
             round_p1_acts = random.random() < p1_win_chance
             actor = ctx.author if round_p1_acts else member
             target = member if round_p1_acts else ctx.author
             
-            # Pet Logic Check inside loop for assistance tracking
-            if i == 3 and (pet1 or pet2):
+            # Pet Logic Check inside loop for assistance tracking (occurs once on round 3)
+            if round_counter == 3 and (pet1 or pet2):
                 active_pet_owner = ctx.author if random.random() < 0.5 and pet1 else member
                 if active_pet_owner:
                     pet_used = True
@@ -309,7 +311,7 @@ class FightSystem(commands.Cog):
                 f"{change_msg}\n\n" 
                 f"👤 **{ctx.author.display_name}**\n{self.get_fiery_bar(p1_hp)}\n\n" 
                 f"👤 **{member.display_name}**\n{self.get_fiery_bar(p2_hp)}", 
-                color=0x8B0000 if i % 2 == 0 else 0xFF4500)
+                color=0x8B0000 if round_counter % 2 == 0 else 0xFF4500)
             
             if file_buf: action_embed.set_image(url="attachment://fight.png")
             await main_msg.edit(embed=action_embed, view=None if p1_hp == 0 or p2_hp == 0 else cheer_view)
