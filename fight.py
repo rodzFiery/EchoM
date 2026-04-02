@@ -438,10 +438,11 @@ class FightSystem(commands.Cog):
             conn.commit()
 
         ready_players = {ctx.author.id: False, member.id: False}
-        player_relics = {ctx.author.id: None, member.id: None}
+        player_companions = {ctx.author.id: None, member.id: None}
+        
         init_emb = main.fiery_embed("🌑 VOID PACK INITIATION", 
             f"The trial of the shadows requires a catalyst.\n\n"
-            f"Both {ctx.author.mention} and {member.mention} must type `!echopack` to draw their Void Relic.")
+            f"Both {ctx.author.mention} and {member.mention} must type `!echopack` within 5 minutes to draw their Void Companion.")
         await ctx.send(embed=init_emb)
 
         def pack_check(m):
@@ -449,20 +450,46 @@ class FightSystem(commands.Cog):
 
         try:
             while not all(ready_players.values()):
-                m = await self.bot.wait_for("message", check=pack_check, timeout=45.0)
+                # 5 Minute Timeout window
+                m = await self.bot.wait_for("message", check=pack_check, timeout=300.0)
                 if not ready_players[m.author.id]:
-                    relic_pool = [
-                        {"name": "Void Blade", "atk_bonus": 25, "def_bonus": 0, "luck_bonus": 5, "desc": "Greatly increases damage against the Bot."},
-                        {"name": "Iron Will Cage", "atk_bonus": 0, "def_bonus": 30, "luck_bonus": 0, "desc": "Provides massive team protection."},
-                        {"name": "Abyssal Eye", "atk_bonus": 5, "def_bonus": 0, "luck_bonus": 25, "desc": "Increases chances of team critical focus."}
-                    ]
-                    relic = random.choice(relic_pool)
-                    player_relics[m.author.id] = relic
+                    
+                    # DROP RATIOS: Basic (50%), Rare (25%), Epic (15%), Legendary (8%), Supreme (2%)
+                    roll = random.random()
+                    if roll <= 0.02:
+                        tier, color, bonus = "Supreme", 0xFFD700, {"atk": 50, "def": 50, "luck": 50}
+                        names = ["God-Eater Fenrir", "Reality-Warper Void"]
+                    elif roll <= 0.10:
+                        tier, color, bonus = "Legendary", 0xFF8C00, {"atk": 35, "def": 35, "luck": 35}
+                        names = ["Shadow Monarch", "Infernal Drake"]
+                    elif roll <= 0.25:
+                        tier, color, bonus = "Epic", 0x9932CC, {"atk": 20, "def": 20, "luck": 20}
+                        names = ["Void Sentinel", "Abyssal Stalker"]
+                    elif roll <= 0.50:
+                        tier, color, bonus = "Rare", 0x1E90FF, {"atk": 10, "def": 10, "luck": 10}
+                        names = ["Grave Hound", "Wraith Bat"]
+                    else:
+                        tier, color, bonus = "Basic", 0x808080, {"atk": 5, "def": 5, "luck": 5}
+                        names = ["Scavenger Imp", "Dungeon Rat"]
+
+                    companion = {
+                        "name": random.choice(names),
+                        "tier": tier,
+                        "atk": bonus["atk"],
+                        "def": bonus["def"],
+                        "luck": bonus["luck"]
+                    }
+                    
+                    player_companions[m.author.id] = companion
                     ready_players[m.author.id] = True
-                    await ctx.send(embed=main.fiery_embed("📦 ECHOPACK OPENED", f"{m.author.mention} has drawn the **{relic['name']}**!"))
+                    
+                    p_emb = main.fiery_embed(f"📦 ECHOPACK OPENED: {tier}", 
+                        f"✨ {m.author.mention} has summoned a **{companion['name']}**!\n"
+                        f"📈 **Stats:** +{bonus['atk']} ATK, +{bonus['def']} DEF, +{bonus['luck']} LUCK", color=color)
+                    await ctx.send(embed=p_emb)
         except asyncio.TimeoutError:
             self.active_duels.remove(ctx.channel.id)
-            return await ctx.send("⌛ Trial abandoned.")
+            return await ctx.send("⌛ The Void connection timed out. Both members failed to open their packs in time.")
 
         ignis_engine = self.bot.get_cog("IgnisEngine")
         u1_inv = json.loads(main.get_user(ctx.author.id)['titles'])
@@ -470,15 +497,16 @@ class FightSystem(commands.Cog):
         p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
         p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
 
-        p1_prot += player_relics[ctx.author.id]['def_bonus']
-        p1_luck += player_relics[ctx.author.id]['luck_bonus']
-        p2_prot += player_relics[member.id]['def_bonus']
-        p2_luck += player_relics[member.id]['luck_bonus']
+        # Apply Companion Stats (Cumulative with player stats)
+        p1_prot += player_companions[ctx.author.id]['def']
+        p1_luck += player_companions[ctx.author.id]['luck']
+        p2_prot += player_companions[member.id]['def']
+        p2_luck += player_companions[member.id]['luck']
 
         team_will = 150 
         bot_essence = 250 
         view = GauntletView(ctx.author, member, self)
-        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "Choose your actions together."), view=view)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", "The companions have manifested. Coordinate your actions to destroy the Echo Bot."), view=view)
         await asyncio.sleep(3)
 
         round_num = 0
@@ -494,19 +522,19 @@ class FightSystem(commands.Cog):
             # Process Actions
             for p_id in [ctx.author.id, member.id]:
                 choice = view.current_actions[p_id]
-                rel = player_relics[p_id]
+                comp = player_companions[p_id]
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    dmg = random.randint(15, 25) + rel['atk_bonus']
+                    dmg = random.randint(15, 25) + comp['atk']
                     team_atk += dmg
-                    results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
+                    results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += 10 + (rel['def_bonus'] // 2)
-                    results.append(f"🛡️ {p_name} shielded the team!")
+                    team_def_buff += 10 + (comp['def'] // 2)
+                    results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += 10 # Focus increases output for the partner
-                    results.append(f"🧘 {p_name} focused the team's energy!")
+                    team_atk += (10 + (comp['luck'] // 5))
+                    results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
             bot_dmg = max(5, random.randint(20, 35) - (team_def_buff // 2))
             team_will -= bot_dmg
@@ -530,9 +558,9 @@ class FightSystem(commands.Cog):
         if bot_essence <= 0:
             await main.update_user_stats_async(ctx.author.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=15000, xp_gain=1000, source="Gauntlet Victory")
-            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", "You stand victorious! +15,000 Flames each."))
+            await ctx.send(embed=main.fiery_embed("🏆 VOID CONQUERORS", "You stand victorious! The Bot shatters. +15,000 Flames each."))
         else:
-            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond."))
+            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", "The Bot has broken your bond and your companions have fled."))
         
         self.active_duels.remove(ctx.channel.id)
 
