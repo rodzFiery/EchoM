@@ -170,9 +170,32 @@ class Achievements(commands.Cog):
         top = self.get_tier(top_total, t_high)
         if top: ach_msg.append(f"Finalist: {top}")
 
-        embed = self.fiery_embed(f"{member.name} Achievement Room", 
+        # --- NEW VISUAL ADDITIONS ---
+        # Initialize original embed structure
+        embed = self.fiery_embed(f"🏆 {member.display_name}'s Achievement Vault", 
                                   "\n".join(ach_msg) if ach_msg else "No milestones reached yet.")
+        
+        # ADDED: Organized Stat Fields
+        embed.add_field(name="⚔️ Combat Records", 
+                        value=f"Kills: **{kills}**\nWins: **{wins}**", inline=True)
+        
+        embed.add_field(name="🩸 Blood Ties", 
+                        value=f"Killer: **{fb}**\nVictim: **{fbd}**", inline=True)
+        
+        if top or gp:
+            embed.add_field(name="🛡️ Battle History", 
+                            value=f"Matches: **{gp}**\nFinalist: **{top}**", inline=True)
+
+        # ADDED: Large Centerpiece Photo (Member's Avatar)
+        embed.set_image(url=member.display_avatar.with_size(1024).url)
+        
+        # ADDED: Side Profile Photo (Thumbnail)
         embed.set_thumbnail(url=member.display_avatar.url)
+        
+        # ADDED: Official Ledger Footer
+        embed.set_footer(text=f"Tribute ID: {member.id} • Authenticated by the Master", 
+                         icon_url=self.bot.user.display_avatar.url)
+        
         await ctx.send(embed=embed)
 
 async def setup(bot):
