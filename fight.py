@@ -500,10 +500,10 @@ class FightSystem(commands.Cog):
         p2_prot += player_companions[member.id]['def']
         p2_luck += player_companions[member.id]['luck']
 
-        team_will = 250 # INCREASED WILLPOWER FOR LONGER FIGHTS
+        team_will = 250 # Base Willpower
         max_will = 250
-        bot_essence = 450
-        max_bot = 450
+        bot_essence = 400 # NERFED: Lowered from 450 to 400
+        max_bot = 400
         view = GauntletView(ctx.author, member, self)
         msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. Coordinate your actions, {ctx.author.mention} & {member.mention} Team."), view=view)
         await asyncio.sleep(3)
@@ -518,11 +518,11 @@ class FightSystem(commands.Cog):
             team_atk = 0
             team_def_buff = 0
             
-            # THE CLUTCH MECHANIC: Players get stronger when HP is low
+            # THE CLUTCH MECHANIC: Players get much stronger when HP is low
             desperation_bonus = 1.0
             if team_will < (max_will * 0.25):
-                desperation_bonus = 1.5
-                results.append("🔥 **FINAL STAND:** The team's resolve is absolute! Damage & Defense boosted!")
+                desperation_bonus = 2.0 # BUFFED: increased from 1.5x to 2.0x
+                results.append("🔥 **FINAL STAND:** The team's resolve is absolute! Damage & Defense doubled!")
 
             # Process Actions
             for p_id in [ctx.author.id, member.id]:
@@ -531,10 +531,9 @@ class FightSystem(commands.Cog):
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
                 if choice == "Siphon":
-                    base_dmg = random.randint(25, 45) + comp['atk']
+                    base_dmg = random.randint(35, 60) + comp['atk'] # BUFFED: base range increased
                     dmg = int(base_dmg * desperation_bonus)
                     
-                    # Pet tier Overdrive chance
                     if random.random() < (comp['luck'] / 200):
                         dmg = int(dmg * 1.8)
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} unleashed its true power!")
@@ -542,16 +541,16 @@ class FightSystem(commands.Cog):
                     team_atk += dmg
                     results.append(f"💉 {p_name} & {comp['name']} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((25 + (comp['def'] // 2)) * desperation_bonus)
+                    team_def_buff += int((35 + (comp['def'] // 2)) * desperation_bonus) # BUFFED: base shield increased
                     results.append(f"🛡️ {p_name} & {comp['name']} shielded the team!")
                 elif choice == "Focus":
-                    team_atk += (25 + (comp['luck'] // 4))
+                    team_atk += (35 + (comp['luck'] // 4)) # BUFFED: focus damage increased
                     results.append(f"🧘 {p_name} & {comp['name']} focused the team's energy!")
 
-            # BOT SCALING: Damage peaks mid-fight then stabilizes
+            # BOT SCALING: Nerfed the rate at which the bot gets harder
             bot_base = random.randint(25, 40)
             if round_num > 5:
-                bot_base += (round_num * 2) # Slowly gets harder
+                bot_base += int(round_num * 1.2) # NERFED: reduced scaling from 2x round to 1.2x
             
             bot_dmg = max(8, int(bot_base - (team_def_buff // 2)))
             
