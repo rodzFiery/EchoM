@@ -232,7 +232,7 @@ class FightSystem(commands.Cog):
         filled = max(0, min(length, int(length * hp // max_hp)))
         symbol = "❤️" if hp > 70 else "🫦" if hp > 35 else "🩸"
         bar = symbol * filled + "🖤" * (length - filled)
-        return f"**{bar}** `{max(0, int(hp))}%`"
+        return f"**{bar}** `{max(0, int(hp))}`"
 
     def get_user_pet(self, titles):
         import shop
@@ -495,16 +495,17 @@ class FightSystem(commands.Cog):
         p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
         p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
 
-        # REDUCED IMPACT: Bonuses from inventory and companions significantly dampened
+        # REDUCED IMPACT: Bonuses from inventory and companions dampened
         p1_prot = (p1_prot + player_companions[ctx.author.id]['def']) // 4
         p1_luck = (p1_luck + player_companions[ctx.author.id]['luck']) // 5
         p2_prot = (p2_prot + player_companions[member.id]['def']) // 4
         p2_luck = (p2_luck + player_companions[member.id]['luck']) // 5
 
-        team_will = 300 
-        max_will = 300
-        bot_essence = 350 
-        max_bot = 350
+        # --- UPDATED: Starting health pools set to 150 ---
+        team_will = 150 
+        max_will = 150
+        bot_essence = 150 
+        max_bot = 150
         view = GauntletView(ctx.author, member, self)
         msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. **Pick your permanent strategy below.**\n\nOnce both select, the trial will proceed automatically.\n\n{ctx.author.mention} & {member.mention}"), view=view)
         
@@ -519,10 +520,10 @@ class FightSystem(commands.Cog):
             team_atk = 0
             team_def_buff = 0
             
-            # SUDDEN DEATH: Accelerate damage after round 15 to ensure a finish
+            # SUDDEN DEATH: Acceleration tuned for 150 HP pool
             sudden_death_mult = 1.0
             if round_num >= 15:
-                sudden_death_mult = 1.5 + ((round_num - 15) * 0.2)
+                sudden_death_mult = 1.6 + ((round_num - 15) * 0.3)
                 results.append("⚠️ **SUDDEN DEATH:** The Void is collapsing! Damage significantly increased.")
 
             desperation_bonus = 1.0
@@ -535,12 +536,12 @@ class FightSystem(commands.Cog):
             perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
             if random.random() < 0.15:
-                team_heal = random.randint(15, 25)
+                team_heal = random.randint(10, 15)
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
             if random.random() < 0.10:
-                bot_heal = random.randint(10, 20)
+                bot_heal = random.randint(8, 12)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
                 results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
@@ -553,32 +554,34 @@ class FightSystem(commands.Cog):
                 p_p_atk = (comp['atk'] // 10)
 
                 if choice == "Siphon":
-                    base_dmg = random.randint(9, 13) + p_p_atk + perm_atk_buff 
+                    # BALANCED: Damage range adjusted for 150 HP pacing
+                    base_dmg = random.randint(5, 9) + p_p_atk + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus * sudden_death_mult)
                     
                     if random.random() < ((p_p_luck + perm_luck_buff) / 500): 
-                        dmg = int(dmg * 1.25) 
+                        dmg = int(dmg * 1.3) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((8 + (comp['def'] // 15) + perm_def_buff) * desperation_bonus) 
+                    team_def_buff += int((6 + (comp['def'] // 15) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    team_atk += int((8 + ((p_p_luck + perm_luck_buff) // 12)) * sudden_death_mult)
+                    team_atk += int((5 + ((p_p_luck + perm_luck_buff) // 12)) * sudden_death_mult)
                     results.append(f"🧘 {p_name} focused their spirit!")
 
-            bot_base = random.randint(14, 20) 
+            # PACING: Bot damage adjusted for 150 HP pool
+            bot_base = random.randint(10, 15) 
             if round_num > 10: 
-                bot_base += int((round_num - 10) * 1.2) 
+                bot_base += int((round_num - 10) * 1.1) 
             
-            bot_dmg = max(10, int((bot_base - (team_def_buff // 6)) * sudden_death_mult))
+            bot_dmg = max(7, int((bot_base - (team_def_buff // 6)) * sudden_death_mult))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
-            # FINAL ROUND CHECK: If it's Round 20 and no one has hit 0, force a conclusion based on lowest %
+            # FINAL ROUND CHECK: If it's Round 20, force a conclusion
             if round_num == 20 and team_will > 0 and bot_essence > 0:
                 results.append("⚠️ **VOID COLLAPSE:** The trial reaches its absolute limit!")
                 if (team_will / max_will) < (bot_essence / max_bot):
