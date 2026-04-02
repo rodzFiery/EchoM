@@ -109,21 +109,12 @@ class DungeonAsk(commands.Cog):
                 async def select_callback(sel_interaction: discord.Interaction):
                     if sel_interaction.user.id != self.requester.id: return
                     
-                    u_data = await asyncio.to_thread(main_mod.get_user, self.requester.id)
-                    lvl = (u_data['balance'] // 5000) + 1
-                    
                     intent_display = " | ".join([f"**{val}**" for val in select.values])
                     
-                    stats_str = (
-                        f"📊 **Member Level:** {lvl}\n"
-                        f"💰 **Flames:** {u_data['balance']:,}\n"
-                        f"🔗 **Bound:** {'Yes' if u_data['spouse'] else 'No'}"
-                    )
-
+                    # RE-CODED: Requester Profile stats (lvl, flames, spouse) removed from this embed
                     final_embed = main_mod.fiery_embed("📩 INCOMING DM CONTRACT 📩", 
                         f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
                         f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
-                        f"### 🔞 REQUESTER PROFILE :\n{stats_str}\n\n"
                         f"**Do you accept these terms, or shall the request burn in the furnace?**")
                     
                     final_embed.set_thumbnail(url=self.requester.display_avatar.url)
@@ -197,4 +188,4 @@ class DungeonAsk(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(DungeonAsk(bot))
-    print("✅ LOG: Ask Extension (Dungeon Intent) is ONLINE.") 
+    print("✅ LOG: Ask Extension (Dungeon Intent) is ONLINE.")
