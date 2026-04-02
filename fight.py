@@ -519,44 +519,42 @@ class FightSystem(commands.Cog):
             team_atk = 0
             team_def_buff = 0
             
-            # THE CLUTCH MECHANIC: Players get stronger when HP is low
+            # SUDDEN DEATH: Accelerate damage after round 15 to ensure a finish
+            sudden_death_mult = 1.0
+            if round_num >= 15:
+                sudden_death_mult = 1.5 + ((round_num - 15) * 0.2)
+                results.append("⚠️ **SUDDEN DEATH:** The Void is collapsing! Damage significantly increased.")
+
             desperation_bonus = 1.0
             if team_will < (max_will * 0.35): 
                 desperation_bonus = 1.8 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            # PACING: Synchronized damage modifiers for both sides
-            # Tend to reach 40 HP at roughly the same time (~Round 12-14)
             perm_atk_buff = view.permanent_modifiers["Siphon"] * 2 
             perm_luck_buff = view.permanent_modifiers["Focus"] * 2 
             perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
-            # BALANCED: Team Heal Logic (15% chance)
             if random.random() < 0.15:
-                team_heal = random.randint(15, 25) # Slightly lowered for tighter pacing
+                team_heal = random.randint(15, 25)
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
-            # BALANCED: Bot Heal Logic (10% chance)
             if random.random() < 0.10:
-                bot_heal = random.randint(10, 20) # Slightly lowered for tighter pacing
+                bot_heal = random.randint(10, 20)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
                 results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
-            # Process the locked-in strategies automatically
             for p_id in [ctx.author.id, member.id]:
                 choice = view.current_actions[p_id]
                 comp = player_companions[p_id]
                 p_name = ctx.author.name if p_id == ctx.author.id else member.name
                 
-                # PACING: Scaled stats for "Slow Burn"
                 p_p_luck = p1_luck if p_id == ctx.author.id else p2_luck
-                p_p_atk = (comp['atk'] // 10) # Minimal baseline impact
+                p_p_atk = (comp['atk'] // 10)
 
                 if choice == "Siphon":
-                    # PACING: Consistent Team damage (9-13 range)
                     base_dmg = random.randint(9, 13) + p_p_atk + perm_atk_buff 
-                    dmg = int(base_dmg * desperation_bonus)
+                    dmg = int(base_dmg * desperation_bonus * sudden_death_mult)
                     
                     if random.random() < ((p_p_luck + perm_luck_buff) / 500): 
                         dmg = int(dmg * 1.25) 
@@ -568,28 +566,32 @@ class FightSystem(commands.Cog):
                     team_def_buff += int((8 + (comp['def'] // 15) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    # PACING: Lower Focus damage (8-11 range)
-                    team_atk += (8 + ((p_p_luck + perm_luck_buff) // 12)) 
+                    team_atk += int((8 + ((p_p_luck + perm_luck_buff) // 12)) * sudden_death_mult)
                     results.append(f"🧘 {p_name} focused their spirit!")
 
-            # PACING: Bot damage scales to match team capacity (14-20 range)
             bot_base = random.randint(14, 20) 
             if round_num > 10: 
                 bot_base += int((round_num - 10) * 1.2) 
             
-            # PACING: Mitigation ensures gradual loss
-            bot_dmg = max(10, int(bot_base - (team_def_buff // 6))) 
+            bot_dmg = max(10, int((bot_base - (team_def_buff // 6)) * sudden_death_mult))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
+            # FINAL ROUND CHECK: If it's Round 20 and no one has hit 0, force a conclusion based on lowest %
+            if round_num == 20 and team_will > 0 and bot_essence > 0:
+                results.append("⚠️ **VOID COLLAPSE:** The trial reaches its absolute limit!")
+                if (team_will / max_will) < (bot_essence / max_bot):
+                    team_will = 0
+                else:
+                    bot_essence = 0
+
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
                 team_will = min(max_will, team_will + (tribute_total * 2)) 
                 results.append(f"💎 **TEAM TRIBUTE:** Crowds roar! +{tribute_total * 2} Willpower.")
                 view.tributes = {ctx.author.id: 0, member.id: 0}
 
-            # Progress update happens on the SAME embed
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}/20", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
                 f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
@@ -604,7 +606,6 @@ class FightSystem(commands.Cog):
             await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
             
-            # Winners image profile profile
             win_emb = main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}.")
             
             try:
@@ -637,8 +638,6 @@ class FightSystem(commands.Cog):
             except:
                 await ctx.send(embed=win_emb)
                 
-        elif round_num >= 20:
-            await ctx.send(embed=main.fiery_embed("⌛ TIME EXHAUSTED", "The 20-round limit has been reached. The Void reclaimed the trial."))
         else:
             await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
         
