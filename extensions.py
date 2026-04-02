@@ -220,7 +220,7 @@ class FieryExtensions(commands.Cog):
             m = ctx.guild.get_member(row['id'])
             name = m.display_name if m else f"Asset {row['id']}"
             medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, "🔹")
-            favorites += f"{medal} **{name}**\n└ *{row['wins']} Peaks reached | {row['kills']} Forced submissions*\n"
+            favorites += f"{medal} **{name}**\n└ *{row['wins']} Echo Wins | {row['kills']} Echo Kills*\n"
         
         embed.add_field(
             name="🏆 THE MASTER'S FAVORITES", 
