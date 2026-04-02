@@ -525,10 +525,10 @@ class FightSystem(commands.Cog):
                 desperation_bonus = 1.8 
                 results.append("🔥 **FINAL STAND:** Resolve rising! Defense and Damage boosted.")
 
-            # REDUCED IMPACT: Permanent modifiers impact cut in half
-            perm_atk_buff = view.permanent_modifiers["Siphon"] * 5 
-            perm_luck_buff = view.permanent_modifiers["Focus"] * 4 
-            perm_def_buff = view.permanent_modifiers["Endure"] * 5 
+            # REDUCED IMPACT: Permanent modifiers impact cut even further
+            perm_atk_buff = view.permanent_modifiers["Siphon"] * 2 
+            perm_luck_buff = view.permanent_modifiers["Focus"] * 2 
+            perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
             # BALANCED: Team Heal Logic (15% chance)
             if random.random() < 0.15:
@@ -550,26 +550,27 @@ class FightSystem(commands.Cog):
                 
                 # Use reduced stats for player calculation
                 p_p_luck = p1_luck if p_id == ctx.author.id else p2_luck
-                p_p_atk = (comp['atk'] // 5) # Reduced baseline impact
+                p_p_atk = (comp['atk'] // 8) # Heavily reduced baseline impact
 
                 if choice == "Siphon":
-                    base_dmg = random.randint(20, 40) + p_p_atk + perm_atk_buff 
+                    # BALANCED: Lower base damage per strike (12-18)
+                    base_dmg = random.randint(12, 18) + p_p_atk + perm_atk_buff 
                     dmg = int(base_dmg * desperation_bonus)
                     
                     # REDUCED IMPACT: Luck threshold much harder to hit for crit
-                    if random.random() < ((p_p_luck + perm_luck_buff) / 400): 
-                        dmg = int(dmg * 1.5) 
+                    if random.random() < ((p_p_luck + perm_luck_buff) / 450): 
+                        dmg = int(dmg * 1.3) # Crit multiplier lowered to 1.3
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
                         
                     team_atk += dmg
                     results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
                     # REDUCED IMPACT: Defense scaling toned down
-                    team_def_buff += int((15 + (comp['def'] // 10) + perm_def_buff) * desperation_bonus) 
+                    team_def_buff += int((10 + (comp['def'] // 12) + perm_def_buff) * desperation_bonus) 
                     results.append(f"🛡️ {p_name} shielded the bond!")
                 elif choice == "Focus":
-                    # REDUCED IMPACT: Focus damage toned down
-                    team_atk += (15 + ((p_p_luck + perm_luck_buff) // 6)) 
+                    # BALANCED: Lowered Focus damage contribution (10-14)
+                    team_atk += (10 + ((p_p_luck + perm_luck_buff) // 10)) 
                     results.append(f"🧘 {p_name} focused their spirit!")
 
             bot_base = random.randint(15, 25) 
