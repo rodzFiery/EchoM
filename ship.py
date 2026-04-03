@@ -140,7 +140,7 @@ class FieryShip(commands.Cog):
             "low": [
                 "{u1} tried to wink at {u2}, but it looked more like a facial tic. Tragic.",
                 "The tension between {u1} and {u2} is as thick as a single sheet of paper.",
-                "A lukewarm flirtation. {u1} is barely a blip on {u2}'s radar.",
+                "A lukewarm touch. {u1} is barely a blip on {u2}'s radar.",
                 "Safe for work. Extremely safe. Boringly safe."
             ],
             "mid": [
@@ -171,7 +171,10 @@ class FieryShip(commands.Cog):
                 # --- RESETTING LAYOUT ---
                 canvas_width = 1200
                 canvas_height = 700
-                if os.path.exists("shipbg.jpg"):
+                # UPDATED: Use shipf.jpg as requested
+                if os.path.exists("shipf.jpg"):
+                    canvas = Image.open("shipf.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                elif os.path.exists("shipbg.jpg"):
                     canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
                 else:
                     canvas = Image.new("RGBA", (canvas_width, canvas_height), (25, 5, 35, 255))
