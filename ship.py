@@ -135,6 +135,27 @@ class FieryShip(commands.Cog):
                 "There are no more users, only {u1} and {u2} One."
             ]
         }
+        # ADDED: FLIRTY LEXICON (Sassy & Playful NSFW-themed)
+        self.flirty_lexicon = {
+            "low": [
+                "{u1} tried to wink at {u2}, but it looked more like a facial tic. Tragic.",
+                "The tension between {u1} and {u2} is as thick as a single sheet of paper.",
+                "A lukewarm flirtation. {u1} is barely a blip on {u2}'s radar.",
+                "Safe for work. Extremely safe. Boringly safe."
+            ],
+            "mid": [
+                "{u1} is making {u2} blush in the darker corners of the lobby.",
+                "Playful bites and sharp tongues. {u1} and {u2} are playing a dangerous game.",
+                "A little bit of sass, a little bit of ass. They're getting somewhere.",
+                "The asset logs show a significant spike in heart rates when they whisper."
+            ],
+            "high": [
+                "🔞 **CLANDESTINE ENCOUNTER.** {u1} has {u2} pinned against the cage bars.",
+                "Sweat, sass, and absolute scandals. These two are a violation waiting to happen.",
+                "Their hands are wandering where the Master can't see... or can he?",
+                "The exhibitionist levels are rising. {u1} wants {u2} loud and proud."
+            ]
+        }
         # FIXED: Pulled dynamically from main module to support the !audit system
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
 
@@ -315,7 +336,7 @@ class FieryShip(commands.Cog):
         def get_proximity():
             with main_mod.get_db_connection() as conn:
                 res = conn.execute("SELECT score FROM proximity WHERE (u1 = ? AND u2 = ?) OR (u1 = ? AND u2 = ?)", 
-                                 (user1.id, user2.id, user2.id, user1.id)).fetchone()
+                                   (user1.id, user2.id, user2.id, user1.id)).fetchone()
                 return res['score'] if res else 0
         
         prox_score = await asyncio.to_thread(get_proximity)
@@ -441,6 +462,38 @@ class FieryShip(commands.Cog):
                     log_embed.description = "💖 **ABSOLUTE POSSESSION:** Souls have merged."
                     log_embed.color = 0xFFD700 
                 await audit_channel.send(embed=log_embed)
+
+    # ADDED: FLIRTY SHIP COMMAND (!flirtyship)
+    @commands.command(name="flirtyship")
+    async def flirtyship(self, ctx, target: discord.Member):
+        """🔞 SCAN FOR SASSY PLAYFUL HEAT: {u1} x {target}"""
+        main_mod = sys.modules['__main__']
+        user1 = ctx.author
+        user2 = target
+
+        # Generate seed based on users and hour to keep it playful yet consistent briefly
+        seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{datetime.now().hour}"
+        random.seed(seed_str)
+        percent = random.randint(10, 100) # Flirtyship starts higher to be playful
+        random.seed()
+
+        if percent < 40: tier = "low"
+        elif percent < 80: tier = "mid"
+        else: tier = "high"
+
+        result_msg = random.choice(self.flirty_lexicon[tier]).format(u1=user1.display_name, u2=user2.display_name)
+        
+        embed = main_mod.fiery_embed("🫦 **FLIRTY SCAN**", f"**Initiator:** {user1.mention}\n**Target:** {user2.mention}")
+        embed.description = f"# **`{percent}%`**\n**FLIRT TIER: `{tier.upper()}`**\n\n**💬 *\"{result_msg}\"* **"
+        embed.color = 0xFF1493 # Deep Pink for Flirty theme
+
+        img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
+        if img_buf:
+            file = discord.File(img_buf, filename="flirty.png")
+            embed.set_image(url="attachment://flirty.png")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="marry", aliases=["propose"])
     async def marry(self, ctx, member: discord.Member):
