@@ -76,26 +76,25 @@ class CheerButtons(discord.ui.View):
 
 # --- NEW: GAUNTLET (FIGHTECHO) VIEW ---
 class GauntletView(discord.ui.View):
-    def __init__(self, p1, p2, fight_system):
+    def __init__(self, players, fight_system):
         super().__init__(timeout=None) 
-        self.p1 = p1
-        self.p2 = p2
+        self.players = players
         self.fight_system = fight_system
-        self.tributes = {p1.id: 0, p2.id: 0}
-        self.current_actions = {p1.id: None, p2.id: None}
+        self.tributes = {p.id: 0 for p in players}
+        self.current_actions = {p.id: None for p in players}
         self.permanent_modifiers = {"Siphon": 0, "Endure": 0, "Focus": 0} 
         self.start_event = asyncio.Event() # Trigger for automatic fight start
 
     def check_start_ready(self):
-        if self.current_actions[self.p1.id] and self.current_actions[self.p2.id]:
+        if all(self.current_actions[p.id] is not None for p in self.players):
             # Remove strategy buttons to keep the view for Tributes only
             for child in self.children[:3]:
                 self.remove_item(child)
             self.start_event.set()
 
-    @discord.ui.button(label="ENDURE (TEAM DEFENSE)", style=discord.ButtonStyle.primary, emoji="🛡️")
+    @discord.ui.button(label="DEFENSE", style=discord.ButtonStyle.primary, emoji="🛡️")
     async def endure_action(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        if interaction.user.id not in [p.id for p in self.players]: return
         if self.current_actions[interaction.user.id] is not None:
             return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
         
@@ -105,9 +104,9 @@ class GauntletView(discord.ui.View):
         self.check_start_ready()
         await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="FOCUS (TEAM LUCK)", style=discord.ButtonStyle.success, emoji="🧘")
+    @discord.ui.button(label="LUCK", style=discord.ButtonStyle.success, emoji="🧘")
     async def focus_action(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        if interaction.user.id not in [p.id for p in self.players]: return
         if self.current_actions[interaction.user.id] is not None:
             return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
             
@@ -117,9 +116,9 @@ class GauntletView(discord.ui.View):
         self.check_start_ready()
         await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="SIPHON (ATTACK BOT)", style=discord.ButtonStyle.danger, emoji="💉")
+    @discord.ui.button(label="ATTACK", style=discord.ButtonStyle.danger, emoji="💉")
     async def siphon(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id not in [self.p1.id, self.p2.id]: return
+        if interaction.user.id not in [p.id for p in self.players]: return
         if self.current_actions[interaction.user.id] is not None:
             return await interaction.response.send_message("Strategy already locked.", ephemeral=True)
             
@@ -131,7 +130,7 @@ class GauntletView(discord.ui.View):
 
     @discord.ui.button(label="TRIBUTE (100 Flames)", style=discord.ButtonStyle.secondary, emoji="💎")
     async def tribute(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id in [self.p1.id, self.p2.id]:
+        if interaction.user.id in [p.id for p in self.players]:
             return await interaction.response.send_message("You cannot give tribute to yourself.", ephemeral=True)
         
         with main.get_db_connection() as conn:
@@ -141,7 +140,9 @@ class GauntletView(discord.ui.View):
             conn.execute("UPDATE users SET balance = balance - 100 WHERE id=?", (interaction.user.id,))
             conn.commit()
 
-        self.tributes[self.p1.id] += 10
+        # Spread tribute across all players
+        for p in self.players:
+            self.tributes[p.id] += 5
         await interaction.response.send_message(f"💎 Tribute accepted! The team feels a surge of power!", ephemeral=True)
 
 class FightSystem(commands.Cog):
@@ -421,28 +422,39 @@ class FightSystem(commands.Cog):
     # ==========================================
 
     @commands.command(name="fightecho", aliases=["gauntlet", "survive"])
-    async def gauntlet_shadows(self, ctx, member: discord.Member):
-        if member.id == ctx.author.id: return await ctx.send("You cannot walk the shadows alone.")
-        if member.bot: return await ctx.send("The dungeon doesn't recognize cold metal.")
+    async def gauntlet_shadows(self, ctx, members: commands.Greedy[discord.Member]):
+        # Filter out duplicates and the author, then add the author back for a clean list
+        all_players = list(dict.fromkeys([ctx.author] + members))
+        
+        if len(all_players) < 2:
+            return await ctx.send("You cannot walk the shadows alone. Invite up to 3 others.")
+        if len(all_players) > 4:
+            return await ctx.send("The Void can only sustain 4 souls at once.")
+        
+        for m in all_players:
+            if m.bot: return await ctx.send(f"{m.display_name} has no soul to gamble.")
+
         if ctx.channel.id in self.active_duels: return await ctx.send("The shadows are currently occupied.")
 
         self.active_duels.add(ctx.channel.id)
 
+        # Toll verification
         with main.get_db_connection() as conn:
-            for uid in [ctx.author.id, member.id]:
-                bal_row = conn.execute("SELECT balance FROM users WHERE id=?", (uid,)).fetchone()
+            for p in all_players:
+                bal_row = conn.execute("SELECT balance FROM users WHERE id=?", (p.id,)).fetchone()
                 if not bal_row or bal_row['balance'] < 10000:
                     self.active_duels.remove(ctx.channel.id)
-                    return await ctx.send(f"❌ <@{uid}> cannot afford the toll of 10,000 Flames.")
-                conn.execute("UPDATE users SET balance = balance - 10000 WHERE id=?", (uid,))
+                    return await ctx.send(f"❌ {p.mention} cannot afford the toll of 10,000 Flames.")
+                conn.execute("UPDATE users SET balance = balance - 10000 WHERE id=?", (p.id,))
             conn.commit()
 
-        ready_players = {ctx.author.id: False, member.id: False}
-        player_companions = {ctx.author.id: None, member.id: None}
+        ready_players = {p.id: False for p in all_players}
+        player_companions = {p.id: None for p in all_players}
         
+        player_mentions = ", ".join([p.mention for p in all_players])
         init_emb = main.fiery_embed("🌑 VOID PACK INITIATION", 
             f"The trial of the shadows requires a catalyst.\n\n"
-            f"Both {ctx.author.mention} and {member.mention} must type `!echopack` within 5 minutes to draw their Void Companion.")
+            f"All participants: {player_mentions} must type `!echopack` within 5 minutes to draw their Void Companion.")
         await ctx.send(embed=init_emb)
 
         def pack_check(m):
@@ -490,49 +502,58 @@ class FightSystem(commands.Cog):
             return await ctx.send("⌛ The Void connection timed out.")
 
         ignis_engine = self.bot.get_cog("IgnisEngine")
-        u1_inv = json.loads(main.get_user(ctx.author.id)['titles'])
-        u2_inv = json.loads(main.get_user(member.id)['titles'])
-        p1_prot, p1_luck = await ignis_engine.get_market_bonuses(u1_inv)
-        p2_prot, p2_luck = await ignis_engine.get_market_bonuses(u2_inv)
-
-        # REDUCED IMPACT: Bonuses from inventory and companions dampened
-        p1_prot = (p1_prot + player_companions[ctx.author.id]['def']) // 4
-        p1_luck = (p1_luck + player_companions[ctx.author.id]['luck']) // 5
-        p2_prot = (p2_prot + player_companions[member.id]['def']) // 4
-        p2_luck = (p2_luck + player_companions[member.id]['luck']) // 5
-
-        # Starting health pools set to 150
-        team_will = 150 
-        max_will = 150
-        bot_essence = 150 
-        max_bot = 150
-        view = GauntletView(ctx.author, member, self)
-        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. **Pick your permanent strategy below.**\n\nOnce both select, the trial will proceed automatically.\n\n{ctx.author.mention} & {member.mention}"), view=view)
         
-        # MANDATORY: Wait for both members to pick their style ONCE
+        # Aggregate stats
+        total_p_prot = 0
+        total_p_luck = 0
+        
+        for p in all_players:
+            u_inv = json.loads(main.get_user(p.id)['titles'])
+            p_prot, p_luck = await ignis_engine.get_market_bonuses(u_inv)
+            total_p_prot += (p_prot + player_companions[p.id]['def']) // 4
+            total_p_luck += (p_luck + player_companions[p.id]['luck']) // 5
+
+        # DYNAMIC DIFFICULTY: Scaling health based on player count
+        # 2 players: 150/150
+        # 3 players: 225/240
+        # 4 players: 300/340
+        team_size = len(all_players)
+        team_will = 75 * team_size
+        max_will = 75 * team_size
+        
+        # Boss Difficulty Scaling
+        if team_size == 2:
+            bot_essence = 150
+        elif team_size == 3:
+            bot_essence = 240 # "A little harder"
+        else:
+            bot_essence = 340 # "A little more more harder but not so much"
+            
+        max_bot = bot_essence
+        
+        view = GauntletView(all_players, self)
+        msg = await ctx.send(embed=main.fiery_embed("🌑 THE TRIAL OF UNITY", f"The companions have manifested. **All members pick your permanent strategy.**\n\nOnce everyone selects, the trial will proceed.\n\n{player_mentions}"), view=view)
+        
         await view.start_event.wait()
 
         round_num = 0
-        # BALANCED: Loop checks for max 20 rounds
         while team_will > 0 and bot_essence > 0 and round_num < 20:
             round_num += 1
             results = []
             team_atk = 0
             team_def_buff = 0
             
-            # TETHERED PACING: Rubber-band mechanic to keep it "CLUTCH"
             hp_diff = (team_will / max_will) - (bot_essence / max_bot)
             rubber_band_atk = 1.0
             rubber_band_def = 1.0
             
-            if hp_diff > 0.15: # Team is winning too much
+            if hp_diff > 0.15: 
                 rubber_band_atk = 0.8
                 rubber_band_def = 0.9
-            elif hp_diff < -0.15: # Bot is winning too much
+            elif hp_diff < -0.15: 
                 rubber_band_atk = 1.25
                 rubber_band_def = 1.2
             
-            # SUDDEN DEATH: Acceleration tuned for 150 HP pool
             sudden_death_mult = 1.0
             if round_num >= 15:
                 sudden_death_mult = 1.5 + ((round_num - 15) * 0.25)
@@ -547,115 +568,108 @@ class FightSystem(commands.Cog):
             perm_luck_buff = view.permanent_modifiers["Focus"] * 2 
             perm_def_buff = view.permanent_modifiers["Endure"] * 3 
 
-            if random.random() < 0.12: # Slightly lowered frequency to keep pressure up
-                team_heal = random.randint(8, 12)
+            if random.random() < 0.12: 
+                team_heal = random.randint(10, 20)
                 team_will = min(max_will, team_will + team_heal)
                 results.append(f"💚 **RESTORATION:** The team stabilized! +{team_heal} Willpower.")
 
             if random.random() < 0.08:
-                bot_heal = random.randint(6, 10)
+                bot_heal = random.randint(10, 15)
                 bot_essence = min(max_bot, bot_essence + bot_heal)
                 results.append(f"🌑 **VOID SIPHON:** The Bot absorbed shadows! +{bot_heal} Essence.")
 
-            for p_id in [ctx.author.id, member.id]:
-                choice = view.current_actions[p_id]
-                comp = player_companions[p_id]
-                p_name = ctx.author.name if p_id == ctx.author.id else member.name
+            for p in all_players:
+                choice = view.current_actions[p.id]
+                comp = player_companions[p.id]
+                p_name = p.display_name
                 
-                p_p_luck = p1_luck if p_id == ctx.author.id else p2_luck
+                # Fetch fresh luck for logic
+                u_inv_tmp = json.loads(main.get_user(p.id)['titles'])
+                _, p_p_luck = await ignis_engine.get_market_bonuses(u_inv_tmp)
                 p_p_atk = (comp['atk'] // 10)
 
                 if choice == "Siphon":
-                    base_dmg = random.randint(6, 10) + p_p_atk + perm_atk_buff 
+                    base_dmg = random.randint(6, 10) + p_p_atk + (perm_atk_buff // team_size)
                     dmg = int(base_dmg * desperation_bonus * sudden_death_mult * rubber_band_atk)
                     
                     if random.random() < ((p_p_luck + perm_luck_buff) / 450): 
                         dmg = int(dmg * 1.35) 
                         results.append(f"💥 **OVERDRIVE:** {comp['name']} struck deep!")
-                        
+                    
                     team_atk += dmg
-                    results.append(f"💉 {p_name} siphoned **{dmg}** essence!")
                 elif choice == "Endure":
-                    team_def_buff += int((6 + (comp['def'] // 14) + perm_def_buff) * desperation_bonus * rubber_band_def) 
-                    results.append(f"🛡️ {p_name} shielded the bond!")
+                    team_def_buff += int((6 + (comp['def'] // 14) + (perm_def_buff // team_size)) * desperation_bonus * rubber_band_def) 
                 elif choice == "Focus":
                     team_atk += int((6 + ((p_p_luck + perm_luck_buff) // 10)) * sudden_death_mult * rubber_band_atk)
-                    results.append(f"🧘 {p_name} focused their spirit!")
 
-            # PACING: Bot damage adjusted to match rubber-band flow
-            bot_base = random.randint(11, 16) 
+            # Bot damage scales with team size and difficulty
+            bot_base = random.randint(12, 18) + (team_size * 5)
             if round_num > 10: 
-                bot_base += int((round_num - 10) * 1.15) 
+                bot_base += int((round_num - 10) * 1.5) 
             
-            # Bot damage also scales inversly to rubber-band to keep it clutch
-            bot_dmg_mult = 1.2 if hp_diff > 0.1 else 0.85 if hp_diff < -0.1 else 1.0
-            bot_dmg = max(8, int((bot_base - (team_def_buff // 6)) * sudden_death_mult * bot_dmg_mult))
+            bot_dmg_mult = 1.25 if hp_diff > 0.1 else 0.8 if hp_diff < -0.1 else 1.0
+            bot_dmg = max(10, int((bot_base - (team_def_buff // 4)) * sudden_death_mult * bot_dmg_mult))
             
             team_will -= bot_dmg
             bot_essence -= team_atk
             
-            # FINAL ROUND CHECK: If it's Round 20, force a conclusion
             if round_num == 20 and team_will > 0 and bot_essence > 0:
-                results.append("⚠️ **VOID COLLAPSE:** The trial reaches its absolute limit!")
-                if (team_will / max_will) < (bot_essence / max_bot):
-                    team_will = 0
-                else:
-                    bot_essence = 0
+                results.append("⚠️ **VOID COLLAPSE:** Absolute limit reached!")
+                if (team_will / max_will) < (bot_essence / max_bot): team_will = 0
+                else: bot_essence = 0
 
             tribute_total = sum(view.tributes.values())
             if tribute_total > 0:
                 team_will = min(max_will, team_will + (tribute_total * 2)) 
                 results.append(f"💎 **TEAM TRIBUTE:** Crowds roar! +{tribute_total * 2} Willpower.")
-                view.tributes = {ctx.author.id: 0, member.id: 0}
+                view.tributes = {p.id: 0 for p in all_players}
 
             await msg.edit(embed=main.fiery_embed(f"ROUND {round_num}/20", 
                 f"🤖 **BOT ACTION:** deals {bot_dmg} damage!\n"
-                f"🤝 **{ctx.author.mention} & {member.mention} Team**\n"
-                f"🤝 **TEAM WILL:** {self.get_fiery_bar(team_will, max_will)}\n"
+                f"🤝 **THE BOND:** {self.get_fiery_bar(team_will, max_will)}\n"
                 f"🤖 **BOT ESSENCE:** {self.get_fiery_bar(bot_essence, max_bot)}\n\n"
-                f"💥 Team dealt **{team_atk}** damage!\n"
-                + "\n".join(results)), view=view)
+                f"💥 Team dealt **{team_atk}** damage!"
+                + ("\n" + "\n".join(results[-4:]) if results else "")), view=view)
             
             await asyncio.sleep(4)
 
         if bot_essence <= 0:
-            await main.update_user_stats_async(ctx.author.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
-            await main.update_user_stats_async(member.id, amount=100000, xp_gain=1000, source="Gauntlet Victory")
+            # Scaling Rewards based on player count
+            if team_size == 2:
+                reward_amt = 100000
+            elif team_size == 3:
+                reward_amt = 150000
+            else:
+                reward_amt = 250000
+
+            for p in all_players:
+                await main.update_user_stats_async(p.id, amount=reward_amt, xp_gain=1000, source="Gauntlet Victory")
             
-            win_emb = main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Total Rounds survived: {round_num}. +100,000 Flames each granted to {ctx.author.mention} and {member.mention}.")
+            win_emb = main.fiery_embed("🏆 VOID CONQUERORS", f"Victory! Rounds survived: {round_num}. +{reward_amt:,} Flames each granted to the survivors.")
             
             try:
-                async with aiohttp.ClientSession() as sess:
-                    async with sess.get(ctx.author.display_avatar.url) as r1, sess.get(member.display_avatar.url) as r2:
-                        d1 = io.BytesIO(await r1.read())
-                        d2 = io.BytesIO(await r2.read())
-                
-                canvas = Image.new("RGBA", (600, 300), (0, 0, 0, 0))
-                p1_img = Image.open(d1).convert("RGBA").resize((250, 250))
-                p2_img = Image.open(d2).convert("RGBA").resize((250, 250))
-                
-                mask = Image.new("L", (250, 250), 0)
-                draw = ImageDraw.Draw(mask)
-                draw.ellipse((0, 0, 250, 250), fill=255)
-                
-                p1_img.putalpha(mask)
-                p2_img.putalpha(mask)
-                
-                canvas.paste(p1_img, (25, 25), p1_img)
-                canvas.paste(p2_img, (325, 25), p2_img)
+                canvas = Image.new("RGBA", (250 * team_size, 250), (0, 0, 0, 0))
+                for i, p in enumerate(all_players):
+                    async with aiohttp.ClientSession() as sess:
+                        async with sess.get(p.display_avatar.url) as r:
+                            d = io.BytesIO(await r.read())
+                    p_img = Image.open(d).convert("RGBA").resize((220, 220))
+                    mask = Image.new("L", (220, 220), 0)
+                    draw = ImageDraw.Draw(mask)
+                    draw.ellipse((0, 0, 220, 220), fill=255)
+                    p_img.putalpha(mask)
+                    canvas.paste(p_img, (250 * i + 15, 15), p_img)
                 
                 out = io.BytesIO()
                 canvas.save(out, format="PNG")
                 out.seek(0)
-                
                 file = discord.File(out, filename="winners.png")
                 win_emb.set_image(url="attachment://winners.png")
                 await ctx.send(file=file, embed=win_emb)
             except:
                 await ctx.send(embed=win_emb)
-                
         else:
-            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. Better luck next time."))
+            await ctx.send(embed=main.fiery_embed("🌑 CONSUMED BY VOID", f"The Bot broke your bond on Round {round_num}. The shadows claim their prize."))
         
         self.active_duels.remove(ctx.channel.id)
 
