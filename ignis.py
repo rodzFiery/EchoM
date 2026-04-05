@@ -161,7 +161,7 @@ class EngineControl(commands.Cog):
     async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
-        image_path = "LobbyTopRight.jpg"
+        # Removed image_path logic to stop sending files and thumbnails
         embed = discord.Embed(
             title=f"Echo's Hangrygames Edition # {main.game_edition}", 
             description="The hellgates are about to open, little pets. Submit to the registration.", 
@@ -174,15 +174,9 @@ class EngineControl(commands.Cog):
             # Assign lobby to the guild ID
             engine.current_lobbies[ctx.guild.id] = view
 
-        if os.path.exists(image_path):
-            file = discord.File(image_path, filename="lobby_thumb.jpg")
-            embed.set_thumbnail(url="attachment://lobby_thumb.jpg")
-            embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
-            await ctx.send(file=file, embed=embed, view=view)
-        else:
-            embed.set_thumbnail(url="https://i.imgur.com/Gis6f9V.gif")
-            embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="\u200b", inline=False)
-            await ctx.send(embed=embed, view=view)
+        # Removed thumbnail and file logic, sending only embed and view
+        embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
+        await ctx.send(embed=embed, view=view)
         
         main.game_edition += 1
         self.save_game_config()
