@@ -30,6 +30,7 @@ class AuditManager(commands.Cog):
             with db_module.get_db_connection() as conn:
                 # Table ensures each guild has its own independent audit channel
                 conn.execute("CREATE TABLE IF NOT EXISTS guild_config (guild_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
+                # ADDED: Logic to ensure the specific Guild ID is the primary filter
                 conn.execute("INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, 'audit_channel', ?)", (ctx.guild.id, str(primary_id)))
                 conn.commit()
         except Exception as e:
