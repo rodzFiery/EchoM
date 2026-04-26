@@ -191,9 +191,10 @@ class AdminSystem(commands.Cog):
     # ===== MAINTENANCE & RELOAD =====
     @commands.command()
     async def backup(self, ctx):
-        # ADDED: Manual Check for owner bypass
+        # FIXED: Removed decorator and replaced with single manual check to prevent double response
         if not await self.is_master_owner(ctx):
-            return await ctx.send("❌ Access Denied: Owner only.")
+            embed = self.fiery_embed("Access Denied", "❌ This command is reserved for the Bot Owner.")
+            return await ctx.send(embed=embed)
             
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{self.DATABASE_PATH}.backup_{timestamp}"
@@ -208,9 +209,10 @@ class AdminSystem(commands.Cog):
 
     @commands.command()
     async def reload(self, ctx, cog_name: str):
-        # ADDED: Manual Check for owner bypass
+        # FIXED: Removed decorator and replaced with single manual check to prevent double response
         if not await self.is_master_owner(ctx):
-            return await ctx.send("❌ Access Denied: Owner only.")
+            embed = self.fiery_embed("Access Denied", "❌ This command is reserved for the Bot Owner.")
+            return await ctx.send(embed=embed)
             
         try:
             if cog_name.lower() == "achievements":
