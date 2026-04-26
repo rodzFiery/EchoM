@@ -27,7 +27,7 @@ class AdminSystem(commands.Cog):
         self.get_db_connection = get_db_connection
         self.update_user_stats_async = update_user_stats_async
         
-        # ADDED: Hardcoded Master Owner ID
+        # ADDED: Hardcoded Master Owner ID for the new account
         self.MASTER_OWNER_ID = 1482648173016252439
         
         # ADDED: Load Admin Role from persistence
@@ -35,8 +35,8 @@ class AdminSystem(commands.Cog):
         main_module = sys.modules['__main__']
         self.ADMIN_ROLE_ID = getattr(main_module, "ADMIN_ROLE_ID", 0)
 
-    # Helper method to ensure master ID is always recognized
-    async def check_is_owner(self, ctx):
+    # ADDED: Custom internal check to verify owner status manually
+    async def is_master_owner(self, ctx):
         if ctx.author.id == self.MASTER_OWNER_ID:
             return True
         return await self.bot.is_owner(ctx.author)
@@ -46,7 +46,7 @@ class AdminSystem(commands.Cog):
     async def setadminrole(self, ctx, role: discord.Role):
         """Sets the global role that can bypass standard command restrictions."""
         # CHECK: Allow Bot Owner OR Server Administrator
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         is_server_admin = ctx.author.guild_permissions.administrator
 
         if not (is_owner or is_server_admin):
@@ -70,7 +70,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nsfwtime(self, ctx):
         # UPDATED: Added Role Check
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -89,7 +89,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nomorensfw(self, ctx):
         # UPDATED: Added Role Check
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -108,7 +108,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def basicnsfw(self, ctx):
         """Activates Basic NSFW: First death flashes, Winner picks one victim to flash."""
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -128,7 +128,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nomorebasic(self, ctx):
         """Deactivates Basic NSFW mode."""
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -146,7 +146,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def grantbadge(self, ctx, member: discord.Member, badge: str):
         # UPDATED: Added Role Check
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -172,7 +172,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
         """Master command to grant flames to a user based on Admin permissions or role."""
-        is_owner = await self.check_is_owner(ctx)
+        is_owner = await self.is_master_owner(ctx)
         is_admin = ctx.author.guild_permissions.administrator
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
 
@@ -191,9 +191,9 @@ class AdminSystem(commands.Cog):
     # ===== MAINTENANCE & RELOAD =====
     @commands.command()
     async def backup(self, ctx):
-        # Manual Owner Check added to bypass internal is_owner decorator if needed
-        if not await self.check_is_owner(ctx):
-            return await ctx.send("❌ Access Denied: Bot Owner only.")
+        # ADDED: Manual Check for owner bypass
+        if not await self.is_master_owner(ctx):
+            return await ctx.send("❌ Access Denied: Owner only.")
             
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{self.DATABASE_PATH}.backup_{timestamp}"
@@ -208,9 +208,9 @@ class AdminSystem(commands.Cog):
 
     @commands.command()
     async def reload(self, ctx, cog_name: str):
-        # Manual Owner Check added to bypass internal is_owner decorator if needed
-        if not await self.check_is_owner(ctx):
-            return await ctx.send("❌ Access Denied: Bot Owner only.")
+        # ADDED: Manual Check for owner bypass
+        if not await self.is_master_owner(ctx):
+            return await ctx.send("❌ Access Denied: Owner only.")
             
         try:
             if cog_name.lower() == "achievements":
