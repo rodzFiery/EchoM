@@ -191,7 +191,7 @@ class AdminSystem(commands.Cog):
     # ===== MAINTENANCE & RELOAD =====
     @commands.command()
     async def backup(self, ctx):
-        # FIXED: Removed decorator and replaced with single manual check to prevent double response
+        # UPDATED: Changed from @commands.is_owner() decorator to manual master check
         if not await self.is_master_owner(ctx):
             embed = self.fiery_embed("Access Denied", "❌ This command is reserved for the Bot Owner.")
             return await ctx.send(embed=embed)
@@ -209,7 +209,7 @@ class AdminSystem(commands.Cog):
 
     @commands.command()
     async def reload(self, ctx, cog_name: str):
-        # FIXED: Removed decorator and replaced with single manual check to prevent double response
+        # UPDATED: Changed from @commands.is_owner() decorator to manual master check
         if not await self.is_master_owner(ctx):
             embed = self.fiery_embed("Access Denied", "❌ This command is reserved for the Bot Owner.")
             return await ctx.send(embed=embed)
