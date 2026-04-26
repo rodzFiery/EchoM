@@ -27,6 +27,9 @@ class AdminSystem(commands.Cog):
         self.get_db_connection = get_db_connection
         self.update_user_stats_async = update_user_stats_async
         
+        # ADDED: Explicitly defined Bot Owner ID
+        self.OWNER_ID = 1482648173016252439
+        
         # ADDED: Load Admin Role from persistence
         import sys
         main_module = sys.modules['__main__']
@@ -37,7 +40,7 @@ class AdminSystem(commands.Cog):
     async def setadminrole(self, ctx, role: discord.Role):
         """Sets the global role that can bypass standard command restrictions."""
         # CHECK: Allow Bot Owner OR Server Administrator
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         is_server_admin = ctx.author.guild_permissions.administrator
 
         if not (is_owner or is_server_admin):
@@ -61,7 +64,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nsfwtime(self, ctx):
         # UPDATED: Added Role Check
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -80,7 +83,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nomorensfw(self, ctx):
         # UPDATED: Added Role Check
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -99,7 +102,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def basicnsfw(self, ctx):
         """Activates Basic NSFW: First death flashes, Winner picks one victim to flash."""
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -119,7 +122,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def nomorebasic(self, ctx):
         """Deactivates Basic NSFW mode."""
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -137,7 +140,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def grantbadge(self, ctx, member: discord.Member, badge: str):
         # UPDATED: Added Role Check
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
         
         if not (is_owner or has_admin_role):
@@ -163,7 +166,7 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
         """Master command to grant flames to a user based on Admin permissions or role."""
-        is_owner = await self.bot.is_owner(ctx.author)
+        is_owner = await self.bot.is_owner(ctx.author) or ctx.author.id == self.OWNER_ID
         is_admin = ctx.author.guild_permissions.administrator
         has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
 
