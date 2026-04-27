@@ -249,7 +249,7 @@ class ConfessionSystem(commands.Cog):
             return await ctx.send("❌ Error: Review channel not found.")
 
         main_mod = sys.modules['__main__']
-        embed = main_mod.fiery_embed("🛰️ INCOMING MANUAL CONFESSION [PRIMARY]", f"**Submission:**\n{message}")
+        embed = main_mod.fiery_embed("🛰️ CONFESSION [SFW]", f"**Submission:**\n{message}")
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
