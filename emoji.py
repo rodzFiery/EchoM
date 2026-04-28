@@ -2,82 +2,79 @@ import discord
 from discord.ext import commands
 import sys
 import aiohttp
-import datetime
 import re
-import asyncio
+import datetime
 
-class EmojiStealButton(discord.ui.Button):
-    def __init__(self, emoji_obj, main_mod):
-        # We use a static custom_id prefix + the emoji ID to make it persistent
-        super().__init__(
-            style=discord.ButtonStyle.secondary, 
-            emoji=emoji_obj, 
-            custom_id=f"fiery_steal:{emoji_obj.id}:{emoji_obj.animated}:{emoji_obj.name}"
-        )
-        self.emoji_obj = emoji_obj
-        self.main_mod = main_mod
+class EmojiSystem(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
 
-    async def callback(self, interaction: discord.Interaction):
-        # Master authorization check
-        if not await self.main_mod.bot.is_owner(interaction.user):
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Global listener that catches any 'steal' button click regardless of when it was sent."""
+        if interaction.type != discord.InteractionType.component:
+            return
+        
+        custom_id = interaction.data.get("custom_id", "")
+        if not custom_id.startswith("fiery_steal:"):
+            return
+
+        # 1. Access Main Module for Embeds
+        main_mod = sys.modules['__main__']
+        
+        # 2. Authorization Check (Master Only)
+        if not await self.bot.is_owner(interaction.user):
             return await interaction.response.send_message("❌ **Neural Lock:** Access restricted to the Master.", ephemeral=True)
 
         await interaction.response.defer(ephemeral=True)
-        
-        # Extract data from the button's own emoji object
-        emoji_url = self.emoji_obj.url
-        emoji_name = self.emoji_obj.name
 
+        # 3. Parse Data from Custom ID (Format: fiery_steal:ID:IS_ANIMATED:NAME)
+        try:
+            parts = custom_id.split(":")
+            emoji_id = parts[1]
+            is_animated = parts[2] == "1"
+            emoji_name = parts[3]
+            
+            ext = "gif" if is_animated else "png"
+            emoji_url = f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}"
+        except Exception as e:
+            return await interaction.followup.send(f"❌ **Data Corruption:** `{e}`", ephemeral=True)
+
+        # 4. Processing Protocol
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(str(emoji_url)) as resp:
+                async with session.get(emoji_url) as resp:
                     if resp.status != 200:
                         return await interaction.followup.send("❌ Failed to download asset from Discord CDN.", ephemeral=True)
                     emoji_bytes = await resp.read()
 
+            # Upload to the current server
             new_emoji = await interaction.guild.create_custom_emoji(
                 name=emoji_name, 
                 image=emoji_bytes, 
                 reason=f"Neural Harvest by {interaction.user}"
             )
             
-            await interaction.followup.send(embed=self.main_mod.fiery_embed(
+            await interaction.followup.send(embed=main_mod.fiery_embed(
                 "💎 ASSET ASSIMILATED", 
-                f"Successfully added {new_emoji} (`{new_emoji.name}`) to the server's database."
+                f"Successfully added {new_emoji} (`{emoji_name}`) to the server's database."
             ), ephemeral=True)
             
         except discord.Forbidden:
-            await interaction.followup.send("❌ **Access Denied:** The Red Room lacks `Manage Emojis` permissions.", ephemeral=True)
+            await interaction.followup.send("❌ **Access Denied:** The bot needs `Manage Emojis` permissions in this server.", ephemeral=True)
         except discord.HTTPException as e:
             if e.code == 30008:
-                await interaction.followup.send("❌ **Vault Full:** This sector has reached its emoji limit.", ephemeral=True)
+                await interaction.followup.send("❌ **Vault Full:** This server has reached its emoji limit.", ephemeral=True)
             else:
                 await interaction.followup.send(f"❌ **HTTP Error:** `{e}`", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ **System Error:** `{e}`", ephemeral=True)
 
-class EmojiPickerView(discord.ui.View):
-    def __init__(self, emojis, main_mod):
-        super().__init__(timeout=None) # Mandatory for persistence
-        for emoji in emojis:
-            self.add_item(EmojiStealButton(emoji, main_mod))
-
-class EmojiSystem(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        # Register the view listener on initialization
-        self.bot.loop.create_task(self.prepare_persistence())
-
-    async def prepare_persistence(self):
-        """Prepares the bot to listen for any steal buttons across the network."""
-        self.bot.add_view(discord.ui.View(timeout=None))
-
     @commands.command(name="stealemoji")
     @commands.is_owner()
     async def harvest_recent(self, ctx):
-        """Scans the last 15 minutes of traffic for extractable emojis."""
+        """Scans the last 15 minutes of traffic for extractable custom emojis."""
         main_mod = sys.modules['__main__']
-        
         status_msg = await ctx.send("🛰️ **Scanning frequencies for custom assets...**")
         
         time_limit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=15)
@@ -85,32 +82,43 @@ class EmojiSystem(commands.Cog):
         seen_ids = set()
 
         try:
-            # Scanning last 150 messages for accuracy
+            # Scanning last 150 messages
             async for message in ctx.channel.history(limit=150, after=time_limit):
                 if message.author.bot and message.author.id == self.bot.user.id:
                     continue
                 
-                # Regex captures: <(animated):name:ID>
+                # Regex to find <:name:ID> or <a:name:ID>
                 custom_emojis = re.findall(r'<(a?):(\w+):(\d+)>', message.content)
                 
                 for animated, name, e_id in custom_emojis:
                     if e_id not in seen_ids:
-                        is_animated = bool(animated)
-                        partial = discord.PartialEmoji(animated=is_animated, name=name, id=int(e_id))
-                        found_emojis.append(partial)
+                        is_animated = "1" if animated == "a" else "0"
+                        # We store a dict to help build buttons
+                        found_emojis.append({
+                            "id": e_id,
+                            "name": name,
+                            "anim": is_animated,
+                            "raw": f"<{animated}:{name}:{e_id}>"
+                        })
                         seen_ids.add(e_id)
 
             if not found_emojis:
-                return await status_msg.edit(content=None, embed=main_mod.fiery_embed("📡 SCAN COMPLETE", "No unique custom frequencies detected in the recent stream.", color=0xFFFF00))
+                return await status_msg.edit(content=None, embed=main_mod.fiery_embed("📡 SCAN COMPLETE", "No unique custom frequencies detected recently.", color=0xFFFF00))
 
-            # Limit to 25 buttons per Discord UI limits
-            found_emojis = found_emojis[:25]
-            view = EmojiPickerView(found_emojis, main_mod)
+            # UI Construction (Max 25 buttons per message)
+            view = discord.ui.View(timeout=None)
+            for e in found_emojis[:25]:
+                # We build a PartialEmoji just for the button icon
+                btn_emoji = discord.PartialEmoji(name=e['name'], id=int(e['id']), animated=(e['anim']=="1"))
+                
+                btn = discord.ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    emoji=btn_emoji,
+                    custom_id=f"fiery_steal:{e['id']}:{e['anim']}:{e['name']}"
+                )
+                view.add_item(btn)
             
-            # This registers this specific instance of the view
-            self.bot.add_view(view)
-            
-            embed = main_mod.fiery_embed("🛰️ NEURAL HARVESTER", f"Found **{len(found_emojis)}** unique assets.\n\nSelect a frequency below to assimilate it into this server.")
+            embed = main_mod.fiery_embed("🛰️ NEURAL HARVESTER", f"Found **{len(found_emojis[:25])}** unique assets in the stream.\n\nSelect a frequency below to assimilate it into this sector.")
             await status_msg.edit(content=None, embed=embed, view=view)
 
         except Exception as e:
