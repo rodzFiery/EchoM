@@ -4,14 +4,21 @@ import sys
 import aiohttp
 import datetime
 import re
+import asyncio
 
 class EmojiStealButton(discord.ui.Button):
     def __init__(self, emoji_obj, main_mod):
-        super().__init__(style=discord.ButtonStyle.secondary, emoji=emoji_obj)
+        # Unique custom_id is MANDATORY for persistent buttons to work after restart
+        super().__init__(
+            style=discord.ButtonStyle.secondary, 
+            emoji=emoji_obj, 
+            custom_id=f"steal_{emoji_obj.id}"
+        )
         self.emoji_obj = emoji_obj
         self.main_mod = main_mod
 
     async def callback(self, interaction: discord.Interaction):
+        # Authorization check
         if not await self.main_mod.bot.is_owner(interaction.user):
             return await interaction.response.send_message("❌ **Neural Lock:** Access restricted to the Master.", ephemeral=True)
 
@@ -38,8 +45,8 @@ class EmojiStealButton(discord.ui.Button):
         except discord.Forbidden:
             await interaction.followup.send("❌ **Access Denied:** Bot needs `Manage Emojis` permissions.", ephemeral=True)
         except discord.HTTPException as e:
-            if e.code == 30008: # Maximum emojis reached
-                await interaction.followup.send("❌ **Vault Full:** This server has reached its maximum emoji limit.", ephemeral=True)
+            if e.code == 30008:
+                await interaction.followup.send("❌ **Vault Full:** Maximum emoji limit reached.", ephemeral=True)
             else:
                 await interaction.followup.send(f"❌ **HTTP Error:** `{e}`", ephemeral=True)
         except Exception as e:
@@ -47,16 +54,11 @@ class EmojiStealButton(discord.ui.Button):
 
 class EmojiPickerView(discord.ui.View):
     def __init__(self, emojis, main_mod):
-        super().__init__(timeout=120) # Increased timeout to 2 minutes
+        # timeout=None makes the view stay active until the bot restarts
+        super().__init__(timeout=None)
         self.main_mod = main_mod
         for emoji in emojis:
             self.add_item(EmojiStealButton(emoji, main_mod))
-
-    async def on_timeout(self):
-        # Disable all buttons when the view expires so people don't click "dead" buttons
-        for item in self.children:
-            item.disabled = True
-        # Note: We can't edit the message here easily without saving the message object
 
 class EmojiSystem(commands.Cog):
     def __init__(self, bot):
@@ -68,15 +70,17 @@ class EmojiSystem(commands.Cog):
         """Scans the last 10 minutes of traffic for extractable emojis."""
         main_mod = sys.modules['__main__']
         
-        # ADDED: Feedback so you know the bot is actually working
-        status_msg = await ctx.send("🛰️ **Scanning frequencies...**")
+        status_msg = await ctx.send("🛰️ **Scanning frequencies for assets...**")
         
-        time_limit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=10)
+        # Increase the time window slightly to be safe
+        time_limit = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=15)
         found_emojis = []
         seen_ids = set()
 
         try:
-            async for message in ctx.channel.history(limit=100, after=time_limit):
+            # We search the last 200 messages with no limit on the loop itself
+            async for message in ctx.channel.history(limit=200, after=time_limit):
+                # Improved RegEx to catch all custom emojis accurately
                 custom_emojis = re.findall(r'<(a?):(\w+):(\d+)>', message.content)
                 
                 for animated, name, e_id in custom_emojis:
@@ -87,12 +91,16 @@ class EmojiSystem(commands.Cog):
                         seen_ids.add(e_id)
 
             if not found_emojis:
-                return await status_msg.edit(content=None, embed=main_mod.fiery_embed("📡 SCAN COMPLETE", "No unique neural frequencies (emojis) detected in the last 10 minutes.", color=0xFFFF00))
+                return await status_msg.edit(content=None, embed=main_mod.fiery_embed("📡 SCAN COMPLETE", "No unique neural frequencies (custom emojis) detected recently.", color=0xFFFF00))
 
+            # Limit to 25 to stay within Discord's button-per-row limit
             found_emojis = found_emojis[:25]
             view = EmojiPickerView(found_emojis, main_mod)
             
-            embed = main_mod.fiery_embed("🛰️ NEURAL HARVESTER", f"Found **{len(found_emojis)}** assets in the recent stream.\n\nSelect a frequency below to assimilate it into this server.")
+            # This registers the view so it handles interactions permanently
+            self.bot.add_view(view)
+            
+            embed = main_mod.fiery_embed("🛰️ NEURAL HARVESTER", f"Found **{len(found_emojis)}** assets.\n\nSelect a frequency below to assimilate it.")
             await status_msg.edit(content=None, embed=embed, view=view)
 
         except Exception as e:
