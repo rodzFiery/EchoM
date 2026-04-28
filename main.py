@@ -789,6 +789,12 @@ async def on_ready():
             await bot.load_extension("packs")
             print("✅ LOG: Dungeon Packs & Rumble System is ONLINE.")
     except Exception as e: print(f"Packs fail: {e}")
+
+    try:
+        if not bot.get_cog("EmojiSystem"):
+            await bot.load_extension("emoji")
+            print("✅ LOG: Emoji Extraction System is ONLINE.")
+    except Exception as e: print(f"Emoji fail: {e}")
     
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
