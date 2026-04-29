@@ -11,23 +11,23 @@ import database as db_module
 DATABASE_PATH = db_module.DATABASE_PATH
 
 # Configuration (This acts as the default if not changed by !audit)
-DEFAULT_AUDIT_CHANNEL_ID = 1482071248631758865
+DEFAULT_AUDIT_CHANNEL_ID = 1498445812823490580
 
 # Channel Mapping: ChannelID -> (XP, Flames)
 SELFIE_CHANNELS = {
-    1482071250192044041: (3000, 5000),
-    1482071250497962086: (3000, 5000),
-    1482071250497962087: (3000, 5000),
-    1482071250497962088: (3000, 5000),
-    1482071250497962092: (3000, 5000),
-    1482071250497962089: (3000, 5000),
-    1482071250497962090: (3000, 5000),
-    1482071250497962091: (3000, 5000),
-    1482071251592937567: (3000, 5000),
-    1482071251592937565: (3000, 5000),
-    1482071251592937568: (3000, 5000),
-    1482071251592937569: (3000, 5000),
-    1482071251592937570: (3000, 5000)
+    1498251137164247042: (30000, 50000),
+    1498251226943324193: (3000, 5000),
+    1498251273709948978: (3000, 5000),
+    1498251451510689812: (3000, 5000),
+    1498251498579296256: (3000, 5000),
+    1498291545357418556: (30000, 50000),
+    1498598774300475483: (30000, 50000),
+    1498253401744740363: (30000, 50000),
+    1498253651922259998: (30000, 50000),
+    1498253678019350649: (30000, 50000),
+    1498253716388712619: (30000, 50000),
+    1498253749246889985: (30000, 50000),
+    1498253587099160626: (3000, 5000)
 }
 
 class Collect(commands.Cog):
@@ -76,7 +76,7 @@ class Collect(commands.Cog):
         embed.add_field(name="📍 Location", value=target_info, inline=True)
         embed.add_field(name="💰 Harvest", value=f"+{flames} Flames | +{xp} XP", inline=False)
         
-        embed.set_footer(text="🔞 THE MASTER'S EYES ARE EVERYWHERE 🔞")
+        embed.set_footer(text="🔞 Velvet'S EYES ARE EVERYWHERE 🔞")
         
         embed.add_field(name="📝 VOYEUR NOTE", value=f"Asset {user.display_name} has yielded to the exhibition protocol. Their submission is being monetized.", inline=False)
         
@@ -326,7 +326,7 @@ class Collect(commands.Cog):
             except: return
         
         embed = discord.Embed(
-            title="🕵️ VOYEUR FEED: MASS VIBRATION REPORT",
+            title="🕵️ VELVET FEED: MASS REACTIONS REPORT",
             description="The internal sensors have reached capacity. Reaction display report follows.",
             color=0x800080, timestamp=datetime.now(timezone.utc)
         )
@@ -338,7 +338,7 @@ class Collect(commands.Cog):
         for user_id, count in self.reaction_buffer.items():
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
             total_flames, total_xp = count * 25, count * 25
-            report_lines.append(f"• {user.mention}: **{count} Vibrations** (Harvested: {total_flames}F / {total_xp}XP)")
+            report_lines.append(f"• {user.mention}: **{count} REACTIONS** (Harvested: {total_flames}F / {total_xp}XP)")
         embed.description += "\n\n" + "\n".join(report_lines)
         embed.set_footer(text="🔞 YOUR WATCHFUL EYES ARE NOTED 🔞")
         if os.path.exists(image_path): await audit_channel.send(file=file, embed=embed)
