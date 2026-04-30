@@ -107,7 +107,12 @@ def init_db():
             ("daily_streak", "INTEGER DEFAULT 0"), ("weekly_streak", "INTEGER DEFAULT 0"), ("monthly_streak", "INTEGER DEFAULT 0"), # ADDED: STREAK COLUMNS
             ("streak_alerts", "INTEGER DEFAULT 1"), # ADDED: TOGGLE ALERT COLUMN
             ("premium_type", "TEXT DEFAULT 'Free'"), # ADDED: Required for Webhook
-            ("premium_date", "TEXT") # ADDED: Required for Webhook
+            ("premium_date", "TEXT"), # ADDED: Required for Webhook
+            ("last_slut", "TEXT"), # ADDED: For win.py
+            ("last_cuckhold", "TEXT"), # ADDED: For win.py
+            ("last_deepthroat", "TEXT"), # ADDED: For win.py
+            ("last_spit", "TEXT"), # ADDED: For win.py
+            ("last_tease", "TEXT") # ADDED: For win.py
         ]
 
         cursor = conn.execute("PRAGMA table_info(users)")
