@@ -466,6 +466,58 @@ class FieryShip(commands.Cog):
                     log_embed.color = 0xFFD700 
                 await audit_channel.send(embed=log_embed)
 
+    @commands.command(name="match3some")
+    async def match3some(self, ctx):
+        """🔞 SCAN FOR A TRIAD RESONANCE: Author + 2 Random Assets"""
+        main_mod = sys.modules['__main__']
+        members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
+        if len(members) < 2:
+            return await ctx.send("❌ Not enough assets in the pit for a triad scan.")
+        
+        target1, target2 = random.sample(members, 2)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        
+        # Key includes author and the two targets
+        ids = sorted([ctx.author.id, target1.id, target2.id])
+        pair_key = f"3some-{ids[0]}-{ids[1]}-{ids[2]}"
+        
+        if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
+            
+        self.ship_attempts[pair_key]['count'] += 1
+        attempt_count = self.ship_attempts[pair_key]['count']
+        
+        if attempt_count < 3:
+            random.seed(f"{pair_key}{datetime.now().timestamp()}")
+            percent = random.randint(0, 100)
+            status_note = f"**⚠️ Triad Vibration: Scan {attempt_count}/3. Results are fluctuating...**"
+        else:
+            seed_str = f"{ids[0]}{ids[1]}{ids[2]}{today}"
+            random.seed(seed_str)
+            percent = random.randint(0, 100)
+            status_note = "**🔒 Triad Frequency Locked: Resonance has stabilized.**"
+        
+        random.seed()
+        
+        embed = main_mod.fiery_embed("🫦 **THREESOME SCAN**", 
+                                     f"**Initiator:** {ctx.author.mention}\n**Asset 1:** {target1.mention}\n**Asset 2:** {target2.mention}\n\n{status_note}")
+        embed.description = f"# **`{percent}%`**\n**TRIAD SYNC: `{'LOW' if percent < 40 else 'STABLE' if percent < 80 else 'VOLCANIC'}`**"
+        embed.color = 0x9400D3 # Dark Violet for Triad theme
+        
+        view = discord.ui.View(timeout=60)
+        if attempt_count < 3:
+            reroll_btn = discord.ui.Button(label=f"Reroll Triad ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
+            async def reroll_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
+                await interaction.response.defer()
+                await ctx.invoke(self.match3some)
+                view.stop()
+            reroll_btn.callback = reroll_callback
+            view.add_item(reroll_btn)
+
+        await ctx.send(content=f"{ctx.author.mention} {target1.mention} {target2.mention}", embed=embed, view=view)
+
     # ADDED: FLIRTY SHIP COMMAND (!flirtyship)
     @commands.command(name="flirtyship")
     async def flirtyship(self, ctx, target: discord.Member):
@@ -473,11 +525,25 @@ class FieryShip(commands.Cog):
         main_mod = sys.modules['__main__']
         user1 = ctx.author
         user2 = target
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        # Generate seed based on users and hour to keep it playful yet consistent briefly
-        seed_str = f"{min(user1.id, user2.id)}{max(user1.id, user2.id)}{datetime.now().hour}"
-        random.seed(seed_str)
-        percent = random.randint(10, 100) # Flirtyship starts higher to be playful
+        # Reroll key logic integrated
+        pair_key = f"flirty-{ctx.author.id}-{min(user1.id, user2.id)}-{max(user1.id, user2.id)}"
+        if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
+            
+        self.ship_attempts[pair_key]['count'] += 1
+        attempt_count = self.ship_attempts[pair_key]['count']
+
+        if attempt_count < 3:
+            random.seed(f"{pair_key}{datetime.now().timestamp()}")
+            percent = random.randint(10, 100) # Flirtyship starts higher to be playful
+            status_note = f"**⚠️ Unstable Heat: Scan {attempt_count}/3. Recalibrating sass levels...**"
+        else:
+            seed_str = f"flirty-{ctx.author.id}{min(user1.id, user2.id)}{max(user1.id, user2.id)}{today}"
+            random.seed(seed_str)
+            percent = random.randint(10, 100)
+            status_note = "**🔒 Heat Frequency Locked: The scandal is permanent for today.**"
         random.seed()
 
         if percent < 40: tier = "low"
@@ -486,17 +552,29 @@ class FieryShip(commands.Cog):
 
         result_msg = random.choice(self.flirty_lexicon[tier]).format(u1=user1.display_name, u2=user2.display_name)
         
-        embed = main_mod.fiery_embed("🫦 **FLIRTY SCAN**", f"**Initiator:** {user1.mention}\n**Target:** {user2.mention}")
+        embed = main_mod.fiery_embed("🫦 **FLIRTY SCAN**", f"**Initiator:** {user1.mention}\n**Target:** {user2.mention}\n\n{status_note}")
         embed.description = f"# **`{percent}%`**\n**FLIRT TIER: `{tier.upper()}`**\n\n**💬 *\"{result_msg}\"* **"
         embed.color = 0xFF1493 # Deep Pink for Flirty theme
+
+        view = discord.ui.View(timeout=60)
+        if attempt_count < 3:
+            reroll_btn = discord.ui.Button(label=f"Reroll Heat ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
+            async def reroll_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    return await interaction.response.send_message("❌ Only the initiator can recalibrate the heat.", ephemeral=True)
+                await interaction.response.defer()
+                await ctx.invoke(self.flirtyship, target=user2)
+                view.stop()
+            reroll_btn.callback = reroll_callback
+            view.add_item(reroll_btn)
 
         img_buf = await self.create_ship_image(user1.display_avatar.url, user2.display_avatar.url, percent)
         if img_buf:
             file = discord.File(img_buf, filename="flirty.png")
             embed.set_image(url="attachment://flirty.png")
-            await ctx.send(file=file, embed=embed)
+            await ctx.send(file=file, embed=embed, view=view)
         else:
-            await ctx.send(embed=embed)
+            await ctx.send(embed=embed, view=view)
 
     @commands.command(name="marry", aliases=["propose"])
     async def marry(self, ctx, member: discord.Member):
