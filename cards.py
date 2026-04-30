@@ -44,7 +44,7 @@ class CardSystem(commands.Cog):
         
         # ACTIVITY LOGIC: restored and tied to member-spawns
         self.activity_pool = 0
-        self.required_activity = 15 # Messages needed to trigger a spawn
+        self.required_activity = 25 # Increased from 15 to slow down initial threshold
         
         self._init_db()
         
@@ -145,8 +145,8 @@ class CardSystem(commands.Cog):
         self.activity_pool += 1
         
         if self.activity_pool >= self.required_activity:
-            # Chance check so it's not exactly every 15 messages (more addictive)
-            if random.random() < 0.40: 
+            # Chance check lowered to 0.25 (25%) to slow down the high-frequency drops
+            if random.random() < 0.25: 
                 self.activity_pool = 0
                 await self.spawn_card(message.guild)
 
