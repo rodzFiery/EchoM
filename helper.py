@@ -5,15 +5,34 @@ import importlib
 import os
 import traceback
 import asyncio
+import json
 from datetime import datetime, timedelta
 
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.data_file = "ping_limits.json"
         # Storage for ping cooldowns: {role_id: cooldown_minutes}
-        self.ping_cooldowns = {}
+        self.ping_cooldowns = self.load_persistent_limits()
         # Storage for the last time a role was successfully pinged: {role_id: last_ping_datetime}
         self.last_ping_time = {}
+
+    def load_persistent_limits(self):
+        """Loads limits from the JSON file on startup."""
+        if os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, "r") as f:
+                    data = json.load(f)
+                    # Convert string keys from JSON back to integers
+                    return {int(k): v for k, v in data.items()}
+            except:
+                return {}
+        return {}
+
+    def save_persistent_limits(self):
+        """Saves current limits to the JSON file."""
+        with open(self.data_file, "w") as f:
+            json.dump(self.ping_cooldowns, f)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -181,13 +200,14 @@ class HelperSystem(commands.Cog):
             return await ctx.send("❌ **Neural error:** Timer cannot be negative.")
         
         self.ping_cooldowns[role.id] = minutes
+        self.save_persistent_limits()
         
         try:
             # Force the role to be unmentionable by default
             await role.edit(mentionable=False)
-            await ctx.send(f"🛡️ **COOLDOWN SECURED:** {role.mention} is now locked. Pings only allowed every `{minutes}`m.")
+            await ctx.send(f"🛡️ **COOLDOWN SECURED:** {role.mention} is now locked. Pings only allowed every `{minutes}`m. (Saved Forever)")
         except:
-            await ctx.send("⚠️ **Note:** Limit set, but I couldn't change the role permissions. Check my role hierarchy.")
+            await ctx.send("⚠️ **Note:** Limit set and saved, but I couldn't change the role permissions.")
 
     @commands.command(name="unlimit")
     @commands.has_permissions(manage_guild=True)
@@ -195,6 +215,7 @@ class HelperSystem(commands.Cog):
         """Removes the ping cooldown."""
         if role.id in self.ping_cooldowns:
             del self.ping_cooldowns[role.id]
+            self.save_persistent_limits()
             if role.id in self.last_ping_time:
                 del self.last_ping_time[role.id]
             await ctx.send(f"🔓 **COOLDOWN DEACTIVATED:** {role.mention} restored to normal.")
