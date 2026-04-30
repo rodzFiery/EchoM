@@ -15,15 +15,16 @@ CLASSES = {
 
 # --- REBUILT ECONOMY HANDLER (ALIGNED) ---
 # FIXED: Added 'nsfw_mode_active' to the signature to match the 10 arguments sent by main.py
-async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active):
+# ADDED: 'xp_override' and 'custom_cooldown' to support high-yield win.py commands
+async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active, xp_override=None, custom_cooldown=None):
     """Universal handler for Work, Beg, Flirt, etc."""
     user_id = ctx.author.id
     u = get_user(user_id)
     now = datetime.now(timezone.utc)
     
-    # COOLDOWN CHECK (3 Hours)
+    # COOLDOWN CHECK (3 Hours Default or Custom)
     last_key = f"last_{cmd_name}"
-    cooldown = timedelta(hours=3)
+    cooldown = custom_cooldown or timedelta(hours=3)
     
     try:
         # FIXED: Changed .get() to bracket access for sqlite3.Row compatibility
@@ -35,13 +36,18 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
         last_time = datetime.fromisoformat(last_val)
         if now - last_time < cooldown:
             remaining = cooldown - (now - last_time)
-            mins = int(remaining.total_seconds() / 60)
-            return await ctx.send(embed=fiery_embed("COOLDOWN ACTIVE", f"❌ Your body requires rest. Return in **{mins} minutes**."))
+            total_secs = int(remaining.total_seconds())
+            hours, remainder = divmod(total_secs, 3600)
+            mins, secs = divmod(remainder, 60)
+            
+            time_str = f"{mins} minutes" if hours == 0 else f"{hours}h {mins}m"
+            return await ctx.send(embed=fiery_embed("COOLDOWN ACTIVE", f"❌ Your body requires rest. Return in **{time_str}**."))
 
     # PAYOUT CALCULATION
     min_f, max_f = range_tuple
     base_flames = random.randint(min_f, max_f)
-    base_xp = random.randint(50, 200)
+    # Use override if provided (for win.py) otherwise random
+    base_xp = xp_override if xp_override else random.randint(50, 200)
 
     # CLASS BONUSES
     # FIXED: Changed .get() to bracket access
@@ -99,7 +105,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     embed = fiery_embed(f"PROTOCOL: {cmd_name.upper()}", 
                         f"{response_text}\n\n" 
                         f"💰 **Earned:** {base_flames:,} Flames\n"
-                        f"🔥 **Experience:** +{base_xp} XP")
+                        f"🔥 **Experience:** +{base_xp:,} XP")
     
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="work.jpg")
@@ -163,8 +169,8 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
 
     embed.add_field(name="❤ Class", value=f"**{u_class}**", inline=False)
     embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
-    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u_balance}\n**Global Level:** {u_level} ({u_xp} XP)", inline=True)
-    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u_fiery_xp}", inline=True)
+    embed.add_field(name="👜 Wallet", value=f"**Flames:** {u_balance:,}\n**Global Level:** {u_level} ({u_xp:,} XP)", inline=True)
+    embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u_fiery_xp:,}", inline=True)
     
     combat = (f"🏆 **Wins:** {u_wins} (Rank #{wins_rank})\n"
               f"⚔️ **Kills:** {u_kills} (Rank #{kills_rank})\n"
