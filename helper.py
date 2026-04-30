@@ -6,7 +6,7 @@ import os
 import traceback
 import asyncio
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
@@ -45,6 +45,7 @@ class HelperSystem(commands.Cog):
             try:
                 with open(self.purge_file, "r") as f:
                     data = json.load(f)
+                    # Convert keys back to int IDs
                     return {int(k): v for k, v in data.items()}
             except:
                 return {}
@@ -53,20 +54,28 @@ class HelperSystem(commands.Cog):
     def save_purge_configs(self):
         """Saves auto-purge configurations to JSON."""
         with open(self.purge_file, "w") as f:
-            json.dump(self.purge_configs, f)
+            # Convert keys to strings for JSON compliance
+            json.dump({str(k): v for k, v in self.purge_configs.items()}, f)
 
     @tasks.loop(minutes=1)
     async def auto_purge_loop(self):
         """Background task to scrub channels based on set timers."""
-        for channel_id, minutes in self.purge_configs.items():
+        for channel_id, minutes in list(self.purge_configs.items()):
             channel = self.bot.get_channel(channel_id)
             if not channel:
                 continue
             
             try:
-                cutoff = datetime.now(timezone.utc if hasattr(datetime, 'now') else None) - timedelta(minutes=minutes)
-                # Purge messages older than the specified minutes
-                await channel.purge(before=cutoff, check=lambda m: not m.pinned)
+                # Use timezone.utc to align with Discord's snowflake timestamps
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+                
+                # Check permissions before purging to avoid error spam
+                if channel.permissions_for(channel.guild.me).manage_messages:
+                    deleted = await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True)
+                    if len(deleted) > 0:
+                        print(f"🧹 [AUTO-PURGE] Scrubbed {len(deleted)} messages from {channel.name}")
+                else:
+                    print(f"⚠️ [AUTO-PURGE] Missing Manage Messages in {channel.name}")
             except Exception as e:
                 print(f"⚠️ Auto-Purge Fail in {channel_id}: {e}")
 
@@ -290,7 +299,6 @@ class HelperSystem(commands.Cog):
     async def unlimit(self, ctx, role: discord.Role):
         """Removes the ping cooldown."""
         if role.id in self.ping_cooldowns:
-            # Logic stays line by line as requested
             del self.ping_cooldowns[role.id]
             self.save_persistent_limits()
             if role.id in self.last_ping_time:
