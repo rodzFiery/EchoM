@@ -14,7 +14,14 @@ class WinSystem(commands.Cog):
             "cuckold": ((30000, 60000), 1000),
             "deepthroat": ((30000, 60000), 2500),
             "spit": ((30000, 60000), 1200),
-            "tease": ((30000, 60000), 1800)
+            "tease": ((30000, 60000), 1800),
+            "spank": ((30000, 60000), 1500),
+            "slap": ((30000, 60000), 1200),
+            "makemedirty": ((30000, 60000), 2000),
+            "3some": ((30000, 60000), 2500),
+            "dp": ((30000, 60000), 2500),
+            "anal": ((30000, 60000), 2200),
+            "bendover": ((30000, 60000), 1800)
         }
         self.cooldown = timedelta(hours=3)
 
@@ -61,6 +68,34 @@ class WinSystem(commands.Cog):
     @commands.command(name="tease")
     async def tease(self, ctx):
         await self.execute_win_command(ctx, "tease")
+
+    @commands.command(name="spank")
+    async def spank(self, ctx):
+        await self.execute_win_command(ctx, "spank")
+
+    @commands.command(name="slap")
+    async def slap(self, ctx):
+        await self.execute_win_command(ctx, "slap")
+
+    @commands.command(name="makemedirty")
+    async def makemedirty(self, ctx):
+        await self.execute_win_command(ctx, "makemedirty")
+
+    @commands.command(name="3some")
+    async def threesome(self, ctx):
+        await self.execute_win_command(ctx, "3some")
+
+    @commands.command(name="dp")
+    async def dp(self, ctx):
+        await self.execute_win_command(ctx, "dp")
+
+    @commands.command(name="anal")
+    async def anal(self, ctx):
+        await self.execute_win_command(ctx, "anal")
+
+    @commands.command(name="bendover")
+    async def bendover(self, ctx):
+        await self.execute_win_command(ctx, "bendover")
 
 async def setup(bot):
     await bot.add_cog(WinSystem(bot))
