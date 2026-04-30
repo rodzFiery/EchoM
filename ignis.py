@@ -34,16 +34,6 @@ class LobbyView(discord.ui.View):
         self.edition = edition
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
-        self.load_participants_from_db()
-
-    def load_participants_from_db(self):
-        """ADDED: Pulls participants from the database to survive reboots."""
-        engine = discord.utils.get(sys.modules['__main__'].bot.cogs.values(), name="IgnisEngine")
-        if engine:
-            with engine.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (user_id INTEGER PRIMARY KEY)")
-                rows = conn.execute("SELECT user_id FROM lobby_persistence").fetchall()
-                self.participants = [row[0] for row in rows]
 
     # ADDED: custom_id to make the interaction persistent and stop "Interaction Failed"
     @discord.ui.button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
@@ -57,13 +47,6 @@ class LobbyView(discord.ui.View):
             return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
         
         self.participants.append(interaction.user.id)
-        
-        # ADDED: Persistence saving
-        engine = interaction.client.get_cog("IgnisEngine")
-        if engine:
-            with engine.get_db_connection() as conn:
-                conn.execute("INSERT OR IGNORE INTO lobby_persistence (user_id) VALUES (?)", (interaction.user.id,))
-                conn.commit()
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
         try:
@@ -141,11 +124,7 @@ class LobbyView(discord.ui.View):
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
             self.active = False
 
-            # Clear lobby and database persistence for THIS guild specifically
-            with engine.get_db_connection() as conn:
-                conn.execute("DELETE FROM lobby_persistence")
-                conn.commit()
-
+            # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
             
@@ -182,14 +161,7 @@ class EngineControl(commands.Cog):
     async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
-        # Clear database persistence for new game
-        engine = self.bot.get_cog("IgnisEngine")
-        if engine:
-            with engine.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (user_id INTEGER PRIMARY KEY)")
-                conn.execute("DELETE FROM lobby_persistence")
-                conn.commit()
-
+        # Removed image_path logic to stop sending files and thumbnails
         embed = discord.Embed(
             title=f"Echo's Hangrygames Edition # {main.game_edition}", 
             description="The hellgates are about to open, little pets. Submit to the registration.", 
@@ -197,6 +169,7 @@ class EngineControl(commands.Cog):
         )
         
         view = LobbyView(ctx.author, main.game_edition)
+        engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
             engine.current_lobbies[ctx.guild.id] = view
@@ -321,9 +294,6 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
-        with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM lobby_persistence")
-            conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
     # POWER COMMAND !getnaked @user ( decree / flash decree )
@@ -540,7 +510,8 @@ class IgnisEngine(commands.Cog):
                     await asyncio.sleep(5)
 
                 if random.random() < 0.035 and len(fighters) > 3:
-                    kill_count = random.randint(2, min(5, len(fighters) - 1))
+                    # MODIFIED: Reduced legendary event kill count to 2 members max
+                    kill_count = random.randint(2, min(2, len(fighters) - 1))
                     event_losers = []
                     for _ in range(kill_count):
                         temp_index = random.randrange(len(fighters))
