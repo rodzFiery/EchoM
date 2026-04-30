@@ -15,6 +15,66 @@ class HelperSystem(commands.Cog):
         # Storage for the last time a role was successfully pinged: {role_id: last_ping_datetime}
         self.last_ping_time = {}
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """Enforcement listener: Handles pings without deleting messages."""
+        if message.author.bot:
+            return
+
+        # Check if the message contains any role mentions (even if not pinging yet)
+        # We use content check because if the role is unmentionable, 
+        # message.role_mentions might be empty.
+        for role_id, cooldown_mins in self.ping_cooldowns.items():
+            role_tag = f"<@&{role_id}>"
+            
+            if role_tag in message.content:
+                role = message.guild.get_role(role_id)
+                if not role:
+                    continue
+
+                last_ping = self.last_ping_time.get(role_id)
+                allowed = False
+
+                if last_ping is None:
+                    allowed = True
+                else:
+                    elapsed = datetime.now() - last_ping
+                    if elapsed >= timedelta(minutes=cooldown_mins):
+                        allowed = True
+
+                if allowed:
+                    # THE FLASH PING PROTOCOL
+                    try:
+                        # 1. Make role mentionable
+                        await role.edit(mentionable=True)
+                        
+                        # 2. Send a temporary "Flash" message to trigger the notification
+                        # This ensures the ping actually 'hits' the members
+                        flash = await message.channel.send(f"🔔 **{role.name} Notification Requested**")
+                        
+                        # 3. Update the timer
+                        self.last_ping_time[role_id] = datetime.now()
+                        
+                        # 4. Wait a split second and lock it back
+                        await asyncio.sleep(1)
+                        await role.edit(mentionable=False)
+                        await flash.delete()
+                        
+                    except discord.Forbidden:
+                        await message.channel.send("❌ **System Error:** I need 'Manage Roles' to toggle ping status.")
+                else:
+                    # NOT ALLOWED: We do nothing. 
+                    # The message stays, but since the role is unmentionable, 
+                    # it appears as text and pings NO ONE.
+                    remaining = timedelta(minutes=cooldown_mins) - (datetime.now() - last_ping)
+                    mins, secs = divmod(int(remaining.total_seconds()), 60)
+                    
+                    await message.channel.send(
+                        f"⏳ {message.author.mention}, {role.name} is on cooldown. "
+                        f"Message sent without notification. Wait `{mins}m {secs}s` for a full ping.",
+                        delete_after=7
+                    )
+
     @commands.command(name="echopurge")
     @commands.has_permissions(manage_messages=True)
     async def echopurge(self, ctx, amount: int):
@@ -113,28 +173,31 @@ class HelperSystem(commands.Cog):
         
         await ctx.send("\n".join(report))
 
-    # --- REWORKED COMMANDS START HERE ---
-
     @commands.command(name="limit")
     @commands.has_permissions(manage_guild=True)
     async def limit(self, ctx, role: discord.Role, minutes: int):
-        """Sets a cooldown timer for a role ping. Use: !limit @role 15"""
+        """Sets a cooldown timer and forces role to be unmentionable."""
         if minutes < 0:
             return await ctx.send("❌ **Neural error:** Timer cannot be negative.")
         
         self.ping_cooldowns[role.id] = minutes
-        await ctx.send(f"⏳ **COOLDOWN ACTIVATED:** {role.mention} pings now have a `{minutes}` minute interval requirement.")
+        
+        try:
+            # Force the role to be unmentionable by default
+            await role.edit(mentionable=False)
+            await ctx.send(f"🛡️ **COOLDOWN SECURED:** {role.mention} is now locked. Pings only allowed every `{minutes}`m.")
+        except:
+            await ctx.send("⚠️ **Note:** Limit set, but I couldn't change the role permissions. Check my role hierarchy.")
 
     @commands.command(name="unlimit")
     @commands.has_permissions(manage_guild=True)
     async def unlimit(self, ctx, role: discord.Role):
-        """Removes the ping cooldown for a specific role. Use: !unlimit @role"""
+        """Removes the ping cooldown."""
         if role.id in self.ping_cooldowns:
             del self.ping_cooldowns[role.id]
-            # Also clean up history
             if role.id in self.last_ping_time:
                 del self.last_ping_time[role.id]
-            await ctx.send(f"🔓 **COOLDOWN DEACTIVATED:** Constraints for {role.mention} have been purged.")
+            await ctx.send(f"🔓 **COOLDOWN DEACTIVATED:** {role.mention} restored to normal.")
         else:
             await ctx.send(f"ℹ️ **Notice:** No active timer found for {role.mention}.")
 
@@ -147,8 +210,8 @@ class HelperSystem(commands.Cog):
         lines = []
         for r_id, mins in self.ping_cooldowns.items():
             role = ctx.guild.get_role(r_id)
-            role_name = role.mention if role else f"Unknown ID: {r_id}"
-            lines.append(f"• {role_name}: `{mins}m` cooldown")
+            role_name = role.name if role else f"Unknown ID: {r_id}"
+            lines.append(f"• **{role_name}**: `{mins}m` interval")
         
         await ctx.send("**CURRENT PING CONSTRAINTS:**\n" + "\n".join(lines))
 
