@@ -11,7 +11,7 @@ class WinSystem(commands.Cog):
         # Configuration: (Min Flames, Max Flames), XP
         self.payouts = {
             "slut": ((30000, 60000), 1500),
-            "cuckhold": ((30000, 60000), 1000),
+            "cuckold": ((30000, 60000), 1000),
             "deepthroat": ((30000, 60000), 2500),
             "spit": ((30000, 60000), 1200),
             "tease": ((30000, 60000), 1800)
@@ -46,9 +46,9 @@ class WinSystem(commands.Cog):
     async def slut(self, ctx):
         await self.execute_win_command(ctx, "slut")
 
-    @commands.command(name="cuckhold")
-    async def cuckhold(self, ctx):
-        await self.execute_win_command(ctx, "cuckhold")
+    @commands.command(name="cuckold")
+    async def cuckold(self, ctx):
+        await self.execute_win_command(ctx, "cuckold")
 
     @commands.command(name="deepthroat")
     async def deepthroat(self, ctx):
