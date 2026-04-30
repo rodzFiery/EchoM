@@ -261,6 +261,50 @@ class FieryShip(commands.Cog):
             print(f"Fiery Ship Error: {e}")
             return None
 
+    async def create_triad_image(self, u1_url, u2_url, u3_url, percent):
+        """Generates visual match for THREE avatars."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(u1_url) as r1, session.get(u2_url) as r2, session.get(u3_url) as r3:
+                    p1_data = io.BytesIO(await r1.read())
+                    p2_data = io.BytesIO(await r2.read())
+                    p3_data = io.BytesIO(await r3.read())
+
+            def draw_triad():
+                canvas_width, canvas_height = 1400, 700
+                if os.path.exists("shipf.jpg"):
+                    canvas = Image.open("shipf.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                else:
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (20, 0, 30, 255))
+                
+                av_size = 320
+                av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
+                av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
+                av3 = Image.open(p3_data).convert("RGBA").resize((av_size, av_size))
+                
+                # Positions
+                canvas.paste(av1, (50, 190), av1)
+                canvas.paste(av2, (canvas_width - av_size - 50, 190), av2)
+                canvas.paste(av3, (canvas_width // 2 - av_size // 2, 350), av3)
+                
+                draw = ImageDraw.Draw(canvas)
+                pillar_w, pillar_h = 80, 200
+                pillar_x = (canvas_width // 2) - (pillar_w // 2)
+                pillar_y = 100
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], outline=(255, 182, 193), width=3)
+                fill = int((percent / 100) * pillar_h)
+                if fill > 0:
+                    draw.rectangle([pillar_x+4, (pillar_y + pillar_h) - fill, pillar_x + pillar_w - 4, pillar_y + pillar_h - 4], fill=(255, 105, 180, 200))
+                
+                draw.text((pillar_x + 15, pillar_y - 40), f"{percent}%", fill=(255, 182, 193))
+                
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+            return await asyncio.to_thread(draw_triad)
+        except: return None
+
     async def create_union_image(self, u1_url, u2_url, bond_type="Marriage"):
         try:
             async with aiohttp.ClientSession() as session:
@@ -516,7 +560,13 @@ class FieryShip(commands.Cog):
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
 
-        await ctx.send(content=f"{ctx.author.mention} {target1.mention} {target2.mention}", embed=embed, view=view)
+        img_buf = await self.create_triad_image(ctx.author.display_avatar.url, target1.display_avatar.url, target2.display_avatar.url, percent)
+        if img_buf:
+            file = discord.File(img_buf, filename="triad.png")
+            embed.set_image(url="attachment://triad.png")
+            await ctx.send(content=f"{ctx.author.mention} {target1.mention} {target2.mention}", file=file, embed=embed, view=view)
+        else:
+            await ctx.send(content=f"{ctx.author.mention} {target1.mention} {target2.mention}", embed=embed, view=view)
 
     # ADDED: FLIRTY SHIP COMMAND (!flirtyship)
     @commands.command(name="flirtyship")
