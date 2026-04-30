@@ -110,8 +110,6 @@ class HelperSystem(commands.Cog):
         
         await ctx.send("\n".join(report))
 
-    # --- NEW ADDITIONS START HERE ---
-
     @commands.command(name="limitflash")
     @commands.has_permissions(manage_guild=True)
     async def limitflash(self, ctx, role: discord.Role, amount: int):
@@ -119,9 +117,7 @@ class HelperSystem(commands.Cog):
         if amount < 0:
             return await ctx.send("❌ **Neural error:** Limit cannot be negative.")
         
-        # Store the limit in the cog's dictionary
         self.ping_limits[role.id] = amount
-        
         await ctx.send(f"⚡ **FLASH LIMIT SET:** Role {role.mention} is now capped at `{amount}` pings per cycle.")
 
     @commands.command(name="checklimits")
@@ -137,6 +133,18 @@ class HelperSystem(commands.Cog):
             lines.append(f"• {role_name}: `{amt}`")
         
         await ctx.send("**CURRENT PING CONSTRAINTS:**\n" + "\n".join(lines))
+
+    # --- NEW COMMAND ADDED HERE ---
+
+    @commands.command(name="unlimitflash")
+    @commands.has_permissions(manage_guild=True)
+    async def unlimitflash(self, ctx, role: discord.Role):
+        """Removes the ping limit for a specific role. Use: !unlimitflash @role"""
+        if role.id in self.ping_limits:
+            del self.ping_limits[role.id]
+            await ctx.send(f"🔓 **FLASH LIMIT REMOVED:** Constraints for {role.mention} have been purged.")
+        else:
+            await ctx.send(f"ℹ️ **Notice:** No active limit found for {role.mention} in the neural net.")
 
 async def setup(bot):
     await bot.add_cog(HelperSystem(bot))
