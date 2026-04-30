@@ -5,12 +5,15 @@ import importlib
 import os
 import traceback
 import asyncio
+from datetime import datetime, timedelta
 
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Added storage for ping limits: {role_id: limit_count}
-        self.ping_limits = {}
+        # Storage for ping cooldowns: {role_id: cooldown_minutes}
+        self.ping_cooldowns = {}
+        # Storage for the last time a role was successfully pinged: {role_id: last_ping_datetime}
+        self.last_ping_time = {}
 
     @commands.command(name="echopurge")
     @commands.has_permissions(manage_messages=True)
@@ -110,41 +113,44 @@ class HelperSystem(commands.Cog):
         
         await ctx.send("\n".join(report))
 
-    @commands.command(name="limitflash")
+    # --- REWORKED COMMANDS START HERE ---
+
+    @commands.command(name="limit")
     @commands.has_permissions(manage_guild=True)
-    async def limitflash(self, ctx, role: discord.Role, amount: int):
-        """Sets a ping limit for a specific role. Use: !limitflash @role 15"""
-        if amount < 0:
-            return await ctx.send("❌ **Neural error:** Limit cannot be negative.")
+    async def limit(self, ctx, role: discord.Role, minutes: int):
+        """Sets a cooldown timer for a role ping. Use: !limit @role 15"""
+        if minutes < 0:
+            return await ctx.send("❌ **Neural error:** Timer cannot be negative.")
         
-        self.ping_limits[role.id] = amount
-        await ctx.send(f"⚡ **FLASH LIMIT SET:** Role {role.mention} is now capped at `{amount}` pings per cycle.")
+        self.ping_cooldowns[role.id] = minutes
+        await ctx.send(f"⏳ **COOLDOWN ACTIVATED:** {role.mention} pings now have a `{minutes}` minute interval requirement.")
+
+    @commands.command(name="unlimit")
+    @commands.has_permissions(manage_guild=True)
+    async def unlimit(self, ctx, role: discord.Role):
+        """Removes the ping cooldown for a specific role. Use: !unlimit @role"""
+        if role.id in self.ping_cooldowns:
+            del self.ping_cooldowns[role.id]
+            # Also clean up history
+            if role.id in self.last_ping_time:
+                del self.last_ping_time[role.id]
+            await ctx.send(f"🔓 **COOLDOWN DEACTIVATED:** Constraints for {role.mention} have been purged.")
+        else:
+            await ctx.send(f"ℹ️ **Notice:** No active timer found for {role.mention}.")
 
     @commands.command(name="checklimits")
     async def checklimits(self, ctx):
-        """Displays all active role ping limits."""
-        if not self.ping_limits:
-            return await ctx.send("📡 **No active ping limits found in the neural net.**")
+        """Displays all active role ping timers."""
+        if not self.ping_cooldowns:
+            return await ctx.send("📡 **No active timers found in the neural net.**")
         
         lines = []
-        for r_id, amt in self.ping_limits.items():
+        for r_id, mins in self.ping_cooldowns.items():
             role = ctx.guild.get_role(r_id)
             role_name = role.mention if role else f"Unknown ID: {r_id}"
-            lines.append(f"• {role_name}: `{amt}`")
+            lines.append(f"• {role_name}: `{mins}m` cooldown")
         
         await ctx.send("**CURRENT PING CONSTRAINTS:**\n" + "\n".join(lines))
-
-    # --- NEW COMMAND ADDED HERE ---
-
-    @commands.command(name="unlimitflash")
-    @commands.has_permissions(manage_guild=True)
-    async def unlimitflash(self, ctx, role: discord.Role):
-        """Removes the ping limit for a specific role. Use: !unlimitflash @role"""
-        if role.id in self.ping_limits:
-            del self.ping_limits[role.id]
-            await ctx.send(f"🔓 **FLASH LIMIT REMOVED:** Constraints for {role.mention} have been purged.")
-        else:
-            await ctx.send(f"ℹ️ **Notice:** No active limit found for {role.mention} in the neural net.")
 
 async def setup(bot):
     await bot.add_cog(HelperSystem(bot))
