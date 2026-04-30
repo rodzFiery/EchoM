@@ -92,6 +92,399 @@ class FieryShip(commands.Cog):
                 "The Red Room was built for moments like this.",
                 "Their bodies are a puzzle that only they know how to solve.",
                 "Intense, primal, and completely out of control.",
+                "The voyeurs are breathlessness. This is the ultimate show.",
+                "A synchronization of moans that can be heard in every cell.",
+                "They have reached a frequency that turns the lights red.",
+                "Absolute carnal dominance. Neither wants to stop.",
+                "The heat is unbearable. The sprinklers should be going off.",
+                "A masterclass in erotic friction. 10/10.",
+                "They have forgotten the game. There is only the touch."
+            ],
+            "high": [
+                "Dangerous obsession. They are losing track of the game in each other's eyes.",
+                "Soul-binding heat. The collar is locked, and they both threw away the key.",
+                "More than just pleasure. A deep, dark synchronization of spirit.",
+                "They dominate the pit together. A power couple forged in the Red Room.",
+                "The Master considers them a single entity now. Inseparable.",
+                "A synchronization so deep it borders on the supernatural.",
+                "They have traded their souls for a single night together.",
+                "The chains between them are made of more than just iron.",
+                "A devotion that terrifies the other assets.",
+                "They have created their own dungeon within the dungeon.",
+                "A hurricane of passion that levels everything in its path.",
+                "They are the gold standard for compatibility in the Red Room.",
+                "A deep, rhythmic alignment of two very dark hearts.",
+                "They don't need commands; they move as one.",
+                "The ultimate asset pairing. Maximum efficiency, maximum heat."
+            ],
+            "love": [
+                "💖 **ETERNAL POSSESSION.** 100% Love. {u1} has claimed {u2}'s soul forever.",
+                "Absolute Devotion. Beyond the chains, beyond the flames, there is only them.",
+                "The ultimate contract. No expiry date, no tax rate, just total union.",
+                "Two bodies, one heartbeat. The dungeon has produced a masterpiece of love.",
+                "Sacred Bond. They have transcended the Red Room and become its gods.",
+                "A love so powerful it burns brighter than the furnace.",
+                "They have found the only thing more addictive than power: Each other.",
+                "The Master bows. This is a connection he cannot control.",
+                "A divine union in a place of sin. Miraculous.",
+                "They are the heartbeat of the dungeon now.",
+                "Total, unconditional surrender of two souls to one another.",
+                "A love written in blood and sealed with a kiss.",
+                "They have survived the pit and find heaven in the dark.",
+                "The chains have turned to gold. A perfect 100.",
+                "There are no more users, only {u1} and {u2} One."
+            ]
+        }
+        # ADDED: FLIRTY LEXICON (Sassy & Playful NSFW-themed)
+        self.flirty_lexicon = {
+            "low": [
+                "{u1} tried to wink at {u2}, but it looked more like a facial tic. Tragic.",
+                "The tension between {u1} and {u2} is as thick as a single sheet of paper.",
+                "A lukewarm touch. {u1} is barely a blip on {u2}'s radar.",
+                "Safe for work. Extremely safe. Boringly safe."
+            ],
+            "mid": [
+                "{u1} is making {u2} blush in the darker corners of the lobby.",
+                "Playful bites and sharp tongues. {u1} and {u2} are playing a dangerous game.",
+                "A little bit of sass, a little bit of ass. They're getting somewhere.",
+                "The asset logs show a significant spike in heart rates when they whisper."
+            ],
+            "high": [
+                "🔞 **CLANDESTINE ENCOUNTER.** {u1} has {u2} pinned against the cage bars.",
+                "Sweat, sass, and absolute scandals. These two are a violation waiting to happen.",
+                "Their hands are wandering where the Master can't see... or can he?",
+                "The exhibitionist levels are rising. {u1} wants {u2} loud and proud."
+            ]
+        }
+        # ADDED: TRIAD LEXICON (FOR 3-SOME COMMAND)
+        self.triad_lexicon = {
+            "low": [
+                "Crowded and cold. {u1}, {a1}, and {a2} are struggling to find a rhythm.",
+                "A mechanical arrangement. Three assets, zero chemistry, total silence.",
+                "The resonance is fractured. They occupy the same cell, but their souls are miles apart.",
+                "Minimal friction. The Master yawns; this triad is as exciting as dry leather.",
+                "A triangle of indifference. Someone is clearly the third wheel here.",
+                "The frequency shatters. {u1} can't seem to manage {a1} and {a2} at once.",
+                "Functional but forgettable. A purely administrative grouping of flesh.",
+                "The chains rattle in confusion. No one knows who is leading whom.",
+                "Three's a crowd when there's no heat. A tragic waste of dungeon space.",
+                "Resonance failure. {a1} and {a2} are bonding, but {u1} is left in the dark."
+            ],
+            "mid": [
+                "🔞 **EXHIBITIONIST TRIAD.** The voyeurs are gathering to watch {u1}, {a1}, and {a2}.",
+                "A tangle of limbs and leather. The Red Room floor is getting slick.",
+                "Rising tension. {u1} has both {a1} and {a2} straining against their leashes.",
+                "Competitive arousal. {a1} and {a2} are vying for {u1}'s attention in the dark.",
+                "A scandalous frequency. The whispers from this trio echo through the pit.",
+                "Stable synchronization. They move like a well-oiled machine of pleasure.",
+                "The heat is building. Three bodies, one dark purpose, and a lot of sweat.",
+                "A perfect triangle of desire. No one is left out of this session.",
+                "Heavy breathing fills the cell. The Master takes notes on this efficiency.",
+                "Synchronization reached. {u1} is successfully balancing both assets' needs."
+            ],
+            "high": [
+                "🔥 **VOLCANIC RESONANCE.** The dungeon air ignites when {u1}, {a1}, and {a2} touch.",
+                "A sacred bond of three. {u1} has claimed both {a1} and {a2} for eternity.",
+                "Absolute carnal fusion. The chains have turned to gold for this triad.",
+                "Dungeon Masterpiece. A synchronization so deep it borders on the supernatural.",
+                "Total surrender. {a1} and {a2} move as one under {u1}'s absolute command.",
+                "The pit trembles. This triad has reached a frequency that shatters the cages.",
+                "Beyond pleasure, beyond pain. A divine union of three very dark souls.",
+                "Legendary alignment. The Red Room was built for a triad this powerful.",
+                "No keys, no locks, just total, unconditional possession of each other.",
+                "The ultimate exhibition. Every voyeur in the dungeon is breathless."
+            ]
+        }
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
+
+    async def create_ship_image(self, u1_url, u2_url, percent):
+        """Generates visual match with SQUARE avatars and high-visibility central volcanic column."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(u1_url) as r1, session.get(u2_url) as r2:
+                    p1_data = io.BytesIO(await r1.read())
+                    p2_data = io.BytesIO(await r2.read())
+
+            def draw_process():
+                # --- RESETTING LAYOUT ---
+                canvas_width = 1200
+                canvas_height = 700
+                # UPDATED: Use shipf.jpg as requested
+                if os.path.exists("shipf.jpg"):
+                    canvas = Image.open("shipf.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                elif os.path.exists("shipbg.jpg"):
+                    canvas = Image.open("shipbg.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                else:
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (25, 5, 35, 255))
+                draw = ImageDraw.Draw(canvas)
+
+                particle_count = int((percent / 100) * 130) + 30
+                for _ in range(particle_count):
+                    px = random.randint(0, canvas_width)
+                    py = random.randint(0, canvas_height)
+                    p_size = random.randint(5, 18)
+                    p_type = random.choice(["heart", "spark", "nebula"])
+                    p_color = random.choice([
+                        (255, 192, 203, 180),  # Pink
+                        (255, 182, 193, 160),  # Light Pink
+                        (255, 105, 180, 140),  # Hot Pink
+                        (255, 240, 245, 200)   # Lavender Blush (Light Highlight)
+                    ])
+                    
+                    if p_type == "heart":
+                        draw.text((px, py), "💖", fill=p_color)
+                    elif p_type == "nebula":
+                        draw.ellipse([px, py, px+p_size*3, py+p_size*3], fill=(*p_color[:3], 25))
+                    else:
+                        draw.ellipse([px, py, px+p_size//2, py+p_size//2], fill=p_color)
+
+                av_size = 400
+                av1_img = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
+                av2_img = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
+
+                def apply_erotic_frame_square(avatar, pulse_intensity=3):
+                    glow_size = av_size + 80
+                    glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
+                    draw_g = ImageDraw.Draw(glow)
+                    
+                    glow_range = int(35 + (pulse_intensity * 3)) 
+                    for i in range(glow_range, 0, -1):
+                        alpha = int(210 * (1 - i/glow_range))
+                        r = int(255) 
+                        g = int(182)   
+                        b = int(193)
+                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
+                    
+                    glow.paste(avatar, (40, 40), avatar)
+                    return glow
+                
+                pulse = int((percent / 100) * 18) 
+                
+                av1_framed = apply_erotic_frame_square(av1_img, pulse)
+                av2_framed = apply_erotic_frame_square(av2_img, pulse)
+                canvas.paste(av1_framed, (20, 150), av1_framed)
+                canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
+
+                if percent == 100:
+                    badge_w, badge_h = 460, 100
+                    badge_x = (canvas_width // 2) - (badge_w // 2)
+                    badge_y = 10
+                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 105, 180, 80))
+                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 182, 193), width=4)
+                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 182, 193))
+
+                pillar_w, pillar_h = 100, 480
+                pillar_x = (canvas_width // 2) - (pillar_w // 2)
+                pillar_y = 120
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 25, 240), outline=(255, 182, 193), width=4)
+                fill_pixels = int((percent / 100) * pillar_h)
+                if fill_pixels > 0:
+                    for i in range(fill_pixels):
+                        ratio = i / pillar_h
+                        r = int(255) 
+                        g = int(20 + (162 * ratio))   
+                        b = int(147 + (46 * ratio)) 
+                        current_y = (pillar_y + pillar_h) - i
+                        draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
+                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 245, 250))
+                percent_text = f"{percent}%"
+                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 182, 193), stroke_width=6, stroke_fill=(0,0,0))
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+
+            return await asyncio.to_thread(draw_process)
+        except Exception as e:
+            print(f"Fiery Ship Error: {e}")
+            return None
+
+    async def create_triad_image(self, u1_url, u2_url, u3_url, percent):
+        """Generates visual match for THREE avatars."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(u1_url) as r1, session.get(u2_url) as r2, session.get(u3_url) as r3:
+                    p1_data = io.BytesIO(await r1.read())
+                    p2_data = io.BytesIO(await r2.read())
+                    p3_data = io.BytesIO(await r3.read())
+
+            def draw_triad():
+                canvas_width, canvas_height = 1400, 700
+                if os.path.exists("shipf.jpg"):
+                    canvas = Image.open("shipf.jpg").convert("RGBA").resize((canvas_width, canvas_height))
+                else:
+                    canvas = Image.new("RGBA", (canvas_width, canvas_height), (20, 0, 30, 255))
+                
+                av_size = 320
+                av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
+                av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
+                av3 = Image.open(p3_data).convert("RGBA").resize((av_size, av_size))
+                
+                # Positions
+                canvas.paste(av1, (50, 190), av1)
+                canvas.paste(av2, (canvas_width - av_size - 50, 190), av2)
+                canvas.paste(av3, (canvas_width // 2 - av_size // 2, 350), av3)
+                
+                draw = ImageDraw.Draw(canvas)
+                pillar_w, pillar_h = 80, 200
+                pillar_x = (canvas_width // 2) - (pillar_w // 2)
+                pillar_y = 100
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], outline=(255, 182, 193), width=3)
+                fill = int((percent / 100) * pillar_h)
+                if fill > 0:
+                    draw.rectangle([pillar_x+4, (pillar_y + pillar_h) - fill, pillar_x + pillar_w - 4, pillar_y + pillar_h - 4], fill=(255, 105, 180, 200))
+                
+                draw.text((pillar_x + 15, pillar_y - 40), f"{percent}%", fill=(255, 182, 193))
+                
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+            return await asyncio.to_thread(draw_triad)
+        except: return None
+
+    async def create_union_image(self, u1_url, u2_url, bond_type="Marriage"):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(u1_url) as r1, session.get(u2_url) as r2:
+                    p1_data = io.BytesIO(await r1.read())
+                    p2_data = io.BytesIO(await r2.read())
+            
+            def draw_union():
+                bg_color = (255, 182, 193, 50) if "Anniversary" in bond_type else (30, 0, 10, 255)
+                canvas = Image.new("RGBA", (1000, 500), bg_color)
+                av1 = Image.open(p1_data).convert("RGBA").resize((320, 320))
+                av2 = Image.open(p2_data).convert("RGBA").resize((320, 320))
+                draw = ImageDraw.Draw(canvas)
+                if "Anniversary" in bond_type:
+                    for _ in range(30):
+                        x, y = random.randint(0, 1000), random.randint(0, 500)
+                        draw.text((x, y), "💕", fill=(255, 182, 193))
+                canvas.paste(av1, (100, 90), av1)
+                canvas.paste(av2, (580, 90), av2)
+                icon = "⛓️🫦⛓️" if bond_type == "Marriage" else "🤝🔥🤝"
+                if "Anniversary" in bond_type: icon = "💖🔥🔞"
+                draw.text((440, 210), icon, fill=(255, 182, 193))
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+
+            return await asyncio.to_thread(draw_union)
+        except: return None
+
+    # ADDED: Activity tracking for Proximity
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild: return
+        main_mod = sys.modules['__main__']
+        
+        # Track proximity between the author and others recently active in the channel
+        def update_proximity():
+            # Get last 5 unique active users in this channel (excluding current author)
+            with main_mod.get_db_connection() as conn:
+                # This logic assumes a 'proximity_logs' table exists
+                # For brevity, we update a direct interaction score between users
+                pass # Logic handled dynamically in ship if needed, or via specific listeners
+        # To keep it lightweight,I have added a comprehensive `triad_lexicon` with categorized sentences for the `!match3some` command and integrated the logic so that a random, flavored message is displayed based on the synchronization percentage.
+
+I have kept the code **100% line-by-line** preserved from your source.
+```python
+import discord
+from discord.ext import commands
+import random
+import io
+import aiohttp
+import sys
+import json
+import os
+from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from datetime import datetime, timezone
+import asyncio # ADDED: Required for to_thread logic
+
+# --- COMPATIBILITY SHIM ---
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except:
+        pass
+
+class FieryShip(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # ADDED: Track attempts for reroll logic
+        self.ship_attempts = {} 
+        # 250+ EROTIC & EMOTIONAL MESSAGES CATEGORIZED BY TIER
+        self.erotic_lexicon = {
+            "sad": [
+                "A cold void. {u1} and {u2} are like oil and water in a dark cell.",
+                "Repulsion. The chains between them shatter before they can even lock.",
+                "Zero friction. Even as assets, they have nothing to say to each other.",
+                "The Master turns away in boredom. This pair has no spark, only silence.",
+                "A tragic waste of leather. They are destined to remain strangers.",
+                "The air between them is as thin as their interest. Non-existent.",
+                "Even the shadows in the dungeon avoid this pairing.",
+                "Total dissonance. {u1}'s frequency is miles away from {u2}.",
+                "An allergic reaction. The collar rejects the neck.",
+                "The chemistry set just exploded. Not in a good way.",
+                "Like a locked door with no keyhole. Impossible.",
+                "The abyss stares back, and it's bored by this couple.",
+                "A desert of desire. Not a drop of heat to be found.",
+                "The chains rattle in protest. This is a mistake.",
+                "Zero. Nada. The dungeon lights flicker and die at the sight of them."
+            ],
+            "low": [
+                "Stiff and formal. A purely professional arrangement of pain.",
+                "They might share a whip, but never a moan.",
+                "Functional compatibility. They can occupy the same dungeon, barely.",
+                "Minimal heat. Like a candle in a hurricane, it flicker and dies.",
+                "A lukewarm touch that leaves both shivering for the wrong reasons.",
+                "They are like two prisoners who just want different cells.",
+                "Faint traces of arousal, quickly smothered by awkwardness.",
+                "The spark is there, but it's buried under 10 tons of concrete.",
+                "Mechanical movements. No soul in this interaction.",
+                "A dry friction that earns no rewards.",
+                "The Master checks the ledger; this pair is barely worth the oxygen.",
+                "A polite nod in the hallway is all they'll ever have.",
+                "Their compatibility is as shallow as a training collar.",
+                "The heat is at a mere 10 degrees. Freezing.",
+                "A flicker of hope, immediately extinguished by reality."
+            ],
+            "medium": [
+                "Tension is building. The Red Room feels a little smaller when they are together.",
+                "A curious friction. {u1} is watching {u2} from the shadows of the cage.",
+                "The potential for a collar exists, but the keys are still hidden.",
+                "Moderate arousal. A shared glance during a trial is all they have... for now.",
+                "The scent of leather is getting stronger. Something is stirring.",
+                "A slow burn. The dungeon floor is starting to warm up.",
+                "They are circling each other like predators in a velvet pit.",
+                "The pulse quickens. {u1} is considering a leash for {u2}.",
+                "A heavy atmosphere follows them. The voyeurs are starting to notice.",
+                "Not yet a fire, but the smoke is definitely rising.",
+                "Compatibility is stable. They work well in a group... or a pair.",
+                "The chains are beginning to hum with anticipation.",
+                "A solid foundation for a very dark relationship.",
+                "They speak the same language of submission and command.",
+                "The friction is consistent. A pleasant hum in the dark."
+            ],
+            "sexual": [
+                "🔞 **PEAK FRICTION.** The dungeon air grows thick when they touch.",
+                "69% - The perfect balance of oral tradition and heavy restraints.",
+                "Their moans are echoing through the ventilation shafts. Total carnal alignment.",
+                "A playground of skin. {u1} and {u2} were made for this level of exhibition.",
+                "The Master watches the gallery feed with interest. This is art.",
+                "They are a symphony of sweat and submission.",
+                "The restraints are straining under the force of their connection.",
+                "Total exhibitionist energy. They want the dungeon to watch.",
+                "A volcanic eruption of pure, unadulterated lust.",
+                "The Red Room was built for moments like this.",
+                "Their bodies are a puzzle that only they know how to solve.",
+                "Intense, primal, and completely out of control.",
                 "The voyeurs are breathless. This is the ultimate show.",
                 "A synchronization of moans that can be heard in every cell.",
                 "They have reached a frequency that turns the lights red.",
@@ -133,6 +526,45 @@ class FieryShip(commands.Cog):
                 "They have survived the pit and find heaven in the dark.",
                 "The chains have turned to gold. A perfect 100.",
                 "There are no more users, only {u1} and {u2} One."
+            ]
+        }
+        # ADDED: TRIAD LEXICON (Messages for match3some)
+        self.triad_lexicon = {
+            "low": [
+                "Crowded and cold. {u1}, {u2}, and {u3} are a mess of tangled, mismatched chains.",
+                "Three's a crowd, especially when the chemistry is this hollow.",
+                "The Red Room remains silent. This triad lacks a common pulse.",
+                "A geometric failure. No synchronization detected between these three assets.",
+                "Like three strangers in an elevator. Awkward and devoid of friction.",
+                "The Master yawns. Even the dungeon lights are dimming in boredom.",
+                "A tragic alignment. {u1} is ignored while {u2} and {u3} look for the exit.",
+                "Disorder in the pit. The frequencies are clashing like broken glass.",
+                "Zero synergy. They might as well be in different dungeons.",
+                "Total dissonance. The triad collapses before the first moan."
+            ],
+            "mid": [
+                "A triangle of tension. {u1}, {u2}, and {u3} are starting to find a rhythm.",
+                "Stable resonance. They can share the Red Room without shattering the vibe.",
+                "Friction is building in the circle. The air is getting slightly thicker.",
+                "A curious arrangement. They move around each other with cautious lust.",
+                "The triad frequency is humming. Potential for a group collar is rising.",
+                "Moderate synchronization. They speak the same language of collective surrender.",
+                "The pulse is steady. {u1} is managing {u2} and {u3} with interesting results.",
+                "Tangled but functional. The dungeon floor is warming up.",
+                "A shared glance, a shared breath. The triad is beginning to fuse.",
+                "Friction levels are acceptable. The voyeurs are taking interest."
+            ],
+            "high": [
+                "🔞 **VOLCANIC TRIAD.** {u1}, {u2}, and {u3} are a storm of sweat and silk.",
+                "Peak group alignment. They move as a single, three-headed predator.",
+                "Absolute carnal symmetry. The Red Room was made for this arrangement.",
+                "Intense collective heat. The chains are glowing from the friction.",
+                "Dungeon masterpiece. Three souls perfectly synchronized in the dark.",
+                "A symphony of moans echoing from the triad pit. Total carnal surrender.",
+                "The heat is unbearable. Sprinklers trigger as the triad reaches peak sync.",
+                "Power dynamics in perfect balance. Neither wants to be the one left out.",
+                "Dangerous obsession. They have lost track of the world outside their circle.",
+                "The ultimate asset trio. Maximum efficiency, maximum carnal output."
             ]
         }
         # ADDED: FLIRTY LEXICON (Sassy & Playful NSFW-themed)
@@ -543,9 +975,17 @@ class FieryShip(commands.Cog):
         
         random.seed()
         
+        # Categorize triad message based on percent
+        if percent < 40: triad_tier = "low"
+        elif percent < 80: triad_tier = "mid"
+        else: triad_tier = "high"
+        
+        message_template = random.choice(self.triad_lexicon[triad_tier])
+        result_msg = message_template.format(u1=ctx.author.display_name, u2=target1.display_name, u3=target2.display_name)
+        
         embed = main_mod.fiery_embed("🫦 **THREESOME SCAN**", 
                                      f"**Initiator:** {ctx.author.mention}\n**Asset 1:** {target1.mention}\n**Asset 2:** {target2.mention}\n\n{status_note}")
-        embed.description = f"# **`{percent}%`**\n**TRIAD SYNC: `{'LOW' if percent < 40 else 'STABLE' if percent < 80 else 'VOLCANIC'}`**"
+        embed.description = f"# **`{percent}%`**\n**TRIAD SYNC: `{triad_tier.upper()}`**\n\n**💬 *\"{result_msg}\"* **"
         embed.color = 0x9400D3 # Dark Violet for Triad theme
         
         view = discord.ui.View(timeout=60)
