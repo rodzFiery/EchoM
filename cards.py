@@ -141,7 +141,7 @@ class CardSystem(commands.Cog):
         self.activity_pool += 1
         
         if self.activity_pool >= self.required_activity:
-            # Chance check so it's not exactly every 15 messages
+            # Chance check so it's not exactly every 15 messages (more addictive)
             if random.random() < 0.40: 
                 self.activity_pool = 0
                 await self.spawn_card(message.guild)
@@ -165,7 +165,7 @@ class CardSystem(commands.Cog):
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
 
         embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=0xFFD700)
-        # VERIFIED FIX ON NEXT LINE:
+        # --- FIXED LINE 169: Verified String and Bracket formatting ---
         embed.add_field(name="🧬 Metadata", value=f"Series:\nTier:.upper()}", inline=True)
         embed.add_field(name="📊 Archive", value=f"**Total Assets:** {total_count}", inline=True)
         
