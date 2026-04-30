@@ -796,6 +796,12 @@ async def on_ready():
             print("✅ LOG: Emoji Extraction System is ONLINE.")
     except Exception as e: print(f"Emoji fail: {e}")
     
+    try:
+        if not bot.get_cog("WinSystem"):
+            await bot.load_extension("win")
+            print("✅ LOG: High-Yield Extraction (win.py) is ONLINE.")
+    except Exception as e: print(f"Win System fail: {e}")
+
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
 
