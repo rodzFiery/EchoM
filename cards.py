@@ -44,7 +44,7 @@ class CardSystem(commands.Cog):
         
         # ACTIVITY LOGIC: restored and tied to member-spawns
         self.activity_pool = 0
-        self.required_activity = 25 # Increased from 15 to slow down initial threshold
+        self.required_activity = 25 
         
         self._init_db()
         
@@ -134,7 +134,7 @@ class CardSystem(commands.Cog):
         await channel.send(embed=embed)
         
         # Send ONLY the command block for clean copy-paste
-        await channel.send(f"`!catch {target_member.display_name}`")
+        await channel.send(f"!catch {target_member.display_name}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -185,17 +185,41 @@ class CardSystem(commands.Cog):
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
+        """Displays the neural archive sorted by rarity and user identity."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
+        
         with main_mod.get_db_connection() as conn:
-            rows = conn.execute("SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? GROUP BY card_name, tier", (target.id,)).fetchall()
-        if not rows: return await ctx.send(f"📕 {target.display_name}'s Archive is empty.")
+            rows = conn.execute(
+                "SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? "
+                "GROUP BY card_name, tier ORDER BY "
+                "CASE tier WHEN 'supreme' THEN 1 WHEN 'legendary' THEN 2 WHEN 'platine' THEN 3 "
+                "WHEN 'epic' THEN 4 WHEN 'rare' THEN 5 ELSE 6 END", 
+                (target.id,)
+            ).fetchall()
+
+        if not rows:
+            return await ctx.send(f"📕 {target.display_name}'s Archive is empty. No neural patterns recorded.")
+
+        # Organize by rarity for the embed fields
+        tiers_data = {}
+        for name, tier, count in rows:
+            if tier not in tiers_data: tiers_data[tier] = []
+            tiers_data[tier].append(f"• **{name}** x{count}")
+
+        embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
+                                     "The archive holds the following digitized signatures:")
         
-        desc = "### 🛡️ NEURAL ARCHIVE\n"
-        for row in rows:
-            desc += f"• **{row[0]}** (`{row[1].upper()}`) — x{row[2]}\n"
-        
-        embed = main_mod.fiery_embed(f"📕 {target.display_name}'S ARCHIVE", desc)
+        # Display the targeted user's avatar as the archive visual
+        embed.set_thumbnail(url=target.display_avatar.url)
+
+        for tier, cards_list in tiers_data.items():
+            # Join multiple cards in the same rarity into one field
+            content = "\n".join(cards_list)
+            if len(content) > 1024: content = content[:1020] + "..."
+            embed.add_field(name=f"💎 {tier.upper()} TIER", value=content, inline=False)
+
+        embed.set_footer(text=f"Total Unique Signatures: {len(rows)} | Data Persists Forever")
         await ctx.send(embed=embed)
 
     @commands.command(name="collections")
