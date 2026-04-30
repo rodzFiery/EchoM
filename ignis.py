@@ -275,6 +275,13 @@ class IgnisEngine(commands.Cog):
             "Your submission is delicious. Let us see more.",
             "Final command: Show us everything you've got. Flash!"
         ]
+        self.suicide_sentences = [
+            "The weight of the chains was too much. {name} has ended their own session.",
+            "Despair consumes another soul. {name} took their own life in the darkness.",
+            "The Master's game proved too intense. {name} surrendered to the void by choice.",
+            "No longer able to withstand the pressure, {name} chose the quick way out.",
+            "A final act of defiance or defeat? {name} has committed suicide in the pit."
+        ]
 
     def calculate_level(self, current_xp):
         level = 1
@@ -496,7 +503,8 @@ class IgnisEngine(commands.Cog):
 
             while len(fighters) > 1:
                 # --- NEW: SUICIDE MECHANIC ---
-                if random.random() < 0.07 and len(fighters) > 2:
+                # Check 7% chance for suicide at the beginning of each cycle
+                if len(fighters) > 2 and random.random() < 0.07:
                     s_idx = random.randrange(len(fighters))
                     victim = fighters.pop(s_idx)
                     # Update survivors map
@@ -506,8 +514,16 @@ class IgnisEngine(commands.Cog):
                     await self.update_user_stats(victim['id'], deaths=1, source="Suicide")
                     fxp_log[victim['id']]["final_rank"] = len(fighters) + 1
                     
-                    s_msg = f"🥀 **DESPAIR IN THE DUNGEON:** {victim['name']} couldn't handle the pressure of the Red Room and took their own life. One less soul to toy with."
-                    await channel.send(embed=self.fiery_embed("SUICIDE ALERT", s_msg, color=0x4B0082))
+                    # UPDATED: Suicide Embed with photo and random sentence
+                    s_sentence = random.choice(self.suicide_sentences).format(name=victim['name'])
+                    s_emb = self.fiery_embed("SUICIDE ALERT", s_sentence, color=0x4B0082)
+                    if os.path.exists("LobbyTopRight.jpg"):
+                        s_file = discord.File("LobbyTopRight.jpg", filename="suicide_logo.jpg")
+                        s_emb.set_thumbnail(url="attachment://suicide_logo.jpg")
+                        await channel.send(file=s_file, embed=s_emb)
+                    else:
+                        await channel.send(embed=s_emb)
+                    
                     await asyncio.sleep(4)
                     if len(fighters) <= 1: break
 
@@ -591,6 +607,7 @@ class IgnisEngine(commands.Cog):
 
                 # NEW: Capture first loser for Basic NSFW protocol
                 if not first_blood_recorded:
+                    first_blood_recorded = True
                     first_loser_member = channel.guild.get_member(loser['id'])
 
                 # Update current survivors map
@@ -619,10 +636,9 @@ class IgnisEngine(commands.Cog):
                     await channel.send(embed=bounty_emb, files=files)
 
                 with self.get_db_connection() as conn:
-                    if not first_blood_recorded:
+                    if first_blood_recorded: # Logic check for winner update
                         conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
                         fxp_log[winner['id']]["first_kill"] = 1000
-                        first_blood_recorded = True
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
