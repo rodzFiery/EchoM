@@ -34,6 +34,16 @@ class LobbyView(discord.ui.View):
         self.edition = edition
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
+        self.load_persistence()
+
+    def load_persistence(self):
+        """ADDED: Loads participants from database to survive deployment/reboot."""
+        engine = discord.utils.get(sys.modules['__main__'].bot.cogs.values(), name="IgnisEngine")
+        if engine:
+            with engine.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (user_id INTEGER PRIMARY KEY)")
+                rows = conn.execute("SELECT user_id FROM lobby_persistence").fetchall()
+                self.participants = [row[0] for row in rows]
 
     # ADDED: custom_id to make the interaction persistent and stop "Interaction Failed"
     @discord.ui.button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
@@ -47,6 +57,13 @@ class LobbyView(discord.ui.View):
             return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
         
         self.participants.append(interaction.user.id)
+        
+        # ADDED: Save to Database for persistence
+        engine = interaction.client.get_cog("IgnisEngine")
+        if engine:
+            with engine.get_db_connection() as conn:
+                conn.execute("INSERT OR IGNORE INTO lobby_persistence (user_id) VALUES (?)", (interaction.user.id,))
+                conn.commit()
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
         try:
@@ -124,6 +141,11 @@ class LobbyView(discord.ui.View):
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
             self.active = False
 
+            # Clear Database Persistence upon game start
+            with engine.get_db_connection() as conn:
+                conn.execute("DELETE FROM lobby_persistence")
+                conn.commit()
+
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
@@ -161,6 +183,14 @@ class EngineControl(commands.Cog):
     async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
+        # Clear persistence for a new lobby
+        engine = self.bot.get_cog("IgnisEngine")
+        if engine:
+            with engine.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (user_id INTEGER PRIMARY KEY)")
+                conn.execute("DELETE FROM lobby_persistence")
+                conn.commit()
+
         # Removed image_path logic to stop sending files and thumbnails
         embed = discord.Embed(
             title=f"Echo's Hangrygames Edition # {main.game_edition}", 
@@ -169,7 +199,6 @@ class EngineControl(commands.Cog):
         )
         
         view = LobbyView(ctx.author, main.game_edition)
-        engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
             engine.current_lobbies[ctx.guild.id] = view
@@ -301,6 +330,10 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
+        # Reset database persistence
+        with self.get_db_connection() as conn:
+            conn.execute("DELETE FROM lobby_persistence")
+            conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
     # POWER COMMAND !getnaked @user ( decree / flash decree )
@@ -511,6 +544,16 @@ class IgnisEngine(commands.Cog):
                     if channel.id in self.current_survivors and victim['id'] in self.current_survivors[channel.id]:
                         self.current_survivors[channel.id].remove(victim['id'])
                     
+                    # Capture First Sacrificed soul if First Blood not yet hit
+                    if not first_blood_recorded:
+                        first_loser_member = channel.guild.get_member(victim['id'])
+                        first_blood_recorded = True
+                        import sys as _sys_suicide
+                        main_suicide = _sys_suicide.modules['__main__']
+                        if main_suicide.nsfw_mode_active or main_suicide.basic_nsfw_active:
+                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {victim['name']} has succumbed to despair! As per NSFW protocol, they must flash before exiting."
+                            await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
+
                     await self.update_user_stats(victim['id'], deaths=1, source="Suicide")
                     fxp_log[victim['id']]["final_rank"] = len(fighters) + 1
                     
@@ -557,9 +600,15 @@ class IgnisEngine(commands.Cog):
                         loser = fighters.pop(temp_index)
                         event_losers.append(loser)
 
-                        # NEW: Capture first loser for Basic NSFW protocol
-                        if not first_blood_recorded and not first_loser_member:
+                        # Capture First Sacrificed soul if First Blood not yet hit
+                        if not first_blood_recorded:
+                             first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
+                             import sys as _sys_event
+                             main_event = _sys_event.modules['__main__']
+                             if main_event.nsfw_mode_active or main_event.basic_nsfw_active:
+                                 flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} was caught in a surge! They are immediately exposed to the dungeon."
+                                 await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                         # Update current survivors map
                         if channel.id in self.current_survivors:
@@ -605,10 +654,15 @@ class IgnisEngine(commands.Cog):
                 winner, loser = (p1, p2) if random.random() < p1_win_chance else (p2, p1)
                 fighters.append(winner)
 
-                # NEW: Capture first loser for Basic NSFW protocol
+                # Capture First Sacrificed soul if First Blood not yet hit
                 if not first_blood_recorded:
                     first_blood_recorded = True
                     first_loser_member = channel.guild.get_member(loser['id'])
+                    import sys as _sys_mod
+                    main_combat = _sys_mod.modules['__main__']
+                    if main_combat.nsfw_mode_active or main_combat.basic_nsfw_active:
+                        flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! They must submit and strip immediately."
+                        await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                 # Update current survivors map
                 if channel.id in self.current_survivors:
@@ -636,16 +690,9 @@ class IgnisEngine(commands.Cog):
                     await channel.send(embed=bounty_emb, files=files)
 
                 with self.get_db_connection() as conn:
-                    if first_blood_recorded: # Logic check for winner update
+                    if first_blood_recorded: 
                         conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
                         fxp_log[winner['id']]["first_kill"] = 1000
-                        
-                        import sys as _sys_mod
-                        main = _sys_mod.modules['__main__']
-                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
-                        if main.nsfw_mode_active or main.basic_nsfw_active:
-                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
-                            await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     conn.execute("UPDATE users SET current_kill_streak = current_kill_streak + 1 WHERE id = ?", (winner['id'],))
                     conn.execute("UPDATE users SET max_kill_streak = MAX(max_kill_streak, current_kill_streak) WHERE id = ?", (winner['id'],))
