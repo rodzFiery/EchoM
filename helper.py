@@ -53,7 +53,7 @@ class HelperSystem(commands.Cog):
                 "admin", "classes", "extensions", "ship", "shop", "collect", 
                 "fight", "casino", "ask", "premium", "audit", "thread", 
                 "levels", "react", "counting", "guessnumber", "reactionrole", 
-                "autoignis", "confession", "helper"
+                "autoignis", "confession", "helper", "cards", "win", "emoji", "packs"
             ]
 
             reloaded = []
@@ -107,7 +107,6 @@ class HelperSystem(commands.Cog):
             f"• **Status:** Registered",
             f"• **Source Cog:** `{cog_name}`",
             f"• **Enabled:** {cmd.enabled}",
-            f"• **Hidden:** {cmd.hidden}",
             f"• **Has Checks:** {len(checks) > 0}"
         ]
         
