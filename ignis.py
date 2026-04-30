@@ -495,6 +495,22 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
+                # --- NEW: SUICIDE MECHANIC ---
+                if random.random() < 0.07 and len(fighters) > 2:
+                    s_idx = random.randrange(len(fighters))
+                    victim = fighters.pop(s_idx)
+                    # Update survivors map
+                    if channel.id in self.current_survivors and victim['id'] in self.current_survivors[channel.id]:
+                        self.current_survivors[channel.id].remove(victim['id'])
+                    
+                    await self.update_user_stats(victim['id'], deaths=1, source="Suicide")
+                    fxp_log[victim['id']]["final_rank"] = len(fighters) + 1
+                    
+                    s_msg = f"🥀 **DESPAIR IN THE DUNGEON:** {victim['name']} couldn't handle the pressure of the Red Room and took their own life. One less soul to toy with."
+                    await channel.send(embed=self.fiery_embed("SUICIDE ALERT", s_msg, color=0x4B0082))
+                    await asyncio.sleep(4)
+                    if len(fighters) <= 1: break
+
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
                     climax_msg = f"⛓️ **THE FINAL STAND.** ⛓️\n\nOnly {t1['name']} and {t2['name']} remain. The dungeon falls silent as the Voyeurs lean in. One will stand, one will fall. The contract is about to be sealed..."
