@@ -97,7 +97,7 @@ class CardSystem(commands.Cog):
         return "basic", 0x95A5A6
 
     async def spawn_card(self, guild):
-        """LOCALIZATION SEQUENCE: Selects a member based on activity pulse."""
+        """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
@@ -106,6 +106,7 @@ class CardSystem(commands.Cog):
         if not members: return
         target_member = random.choice(members)
 
+        # TRIGGER NEW RARITY ROLL: Independent of the user identity
         tier_name, color = self.get_random_tier()
         series = random.choice(self.series_types)
         
@@ -166,10 +167,10 @@ class CardSystem(commands.Cog):
 
         embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=0xFFD700)
         
-        # --- FOOLPROOF WORKAROUND FOR LINE 169 ---
+        # --- FOOLPROOF WORKAROUND FOR PREVIOUS SYNTAX ERROR ---
         metadata_value = "**Series:** " + str(card['type']) + "\n**Tier:** " + str(card['tier']).upper()
         embed.add_field(name="🧬 Metadata", value=metadata_value, inline=True)
-        # -----------------------------------------
+        # ------------------------------------------------------
         
         embed.add_field(name="📊 Archive", value=f"**Total Assets:** {total_count}", inline=True)
         
@@ -184,7 +185,7 @@ class CardSystem(commands.Cog):
         target = member or ctx.author
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            rows = conn.execute("SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? GROUP BY card_name", (target.id,)).fetchall()
+            rows = conn.execute("SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? GROUP BY card_name, tier", (target.id,)).fetchall()
         if not rows: return await ctx.send(f"📕 {target.display_name}'s Archive is empty.")
         
         desc = "### 🛡️ NEURAL ARCHIVE\n"
