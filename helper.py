@@ -9,6 +9,8 @@ import asyncio
 class HelperSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Added storage for ping limits: {role_id: limit_count}
+        self.ping_limits = {}
 
     @commands.command(name="echopurge")
     @commands.has_permissions(manage_messages=True)
@@ -17,11 +19,9 @@ class HelperSystem(commands.Cog):
         if amount < 1:
             return await ctx.send("❌ **Neural error:** Minimum purge value is 1.", delete_after=5)
         
-        # Limit to 100 to prevent API timeouts, adjust as needed
         if amount > 100:
             amount = 100
 
-        # We delete the trigger command itself + the requested amount
         deleted = await ctx.channel.purge(limit=amount + 1)
         
         confirm = await ctx.send(f"扫 **ECHO PURGE COMPLETE:** `{len(deleted)-1}` messages scrubbed from history.")
@@ -32,23 +32,20 @@ class HelperSystem(commands.Cog):
             pass
 
     @commands.command(name="refresh")
-    @commands.is_owner() # Secure override for the Master
+    @commands.is_owner()
     async def refresh(self, ctx):
         """Hot-reloads all extensions and synchronizes the database link."""
         msg = await ctx.send("🔄 **RECALIBRATING NEURAL NET...**")
         
         try:
-            # 1. Clear internal cache for local modules
             local_modules = ['utilis', 'database', 'prizes', 'worknranks', 'daily', 'social']
             for mod in local_modules:
                 if mod in sys.modules:
                     importlib.reload(sys.modules[mod])
             
-            # 2. Re-sync Database Connection
             import database as db_module
             db_module.init_db() 
             
-            # 3. Reload Cogs
             extensions = [
                 "admin", "classes", "extensions", "ship", "shop", "collect", 
                 "fight", "casino", "ask", "premium", "audit", "thread", 
@@ -112,6 +109,34 @@ class HelperSystem(commands.Cog):
         ]
         
         await ctx.send("\n".join(report))
+
+    # --- NEW ADDITIONS START HERE ---
+
+    @commands.command(name="limitflash")
+    @commands.has_permissions(manage_guild=True)
+    async def limitflash(self, ctx, role: discord.Role, amount: int):
+        """Sets a ping limit for a specific role. Use: !limitflash @role 15"""
+        if amount < 0:
+            return await ctx.send("❌ **Neural error:** Limit cannot be negative.")
+        
+        # Store the limit in the cog's dictionary
+        self.ping_limits[role.id] = amount
+        
+        await ctx.send(f"⚡ **FLASH LIMIT SET:** Role {role.mention} is now capped at `{amount}` pings per cycle.")
+
+    @commands.command(name="checklimits")
+    async def checklimits(self, ctx):
+        """Displays all active role ping limits."""
+        if not self.ping_limits:
+            return await ctx.send("📡 **No active ping limits found in the neural net.**")
+        
+        lines = []
+        for r_id, amt in self.ping_limits.items():
+            role = ctx.guild.get_role(r_id)
+            role_name = role.mention if role else f"Unknown ID: {r_id}"
+            lines.append(f"• {role_name}: `{amt}`")
+        
+        await ctx.send("**CURRENT PING CONSTRAINTS:**\n" + "\n".join(lines))
 
 async def setup(bot):
     await bot.add_cog(HelperSystem(bot))
