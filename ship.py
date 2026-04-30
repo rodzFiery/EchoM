@@ -148,33 +148,30 @@ class FieryShip(commands.Cog):
                 "The air is thin and stale. No spark found in this triple assessment.",
                 "Three's a crowd when the sync is this unstable.",
                 "Dissonance detected. Their collective pulse is erratic and weak."
-                # ... (Imagine 90 more lines following this dark, stable, but cold theme)
             ],
             "mid": [
-                "🔞 **EXHIBITIONIST TRIAD.** The voyeurs are gathering to watch {u1}, {u2}, and {u3}.",
-                "A tangle of limbs and leather. The Red Room floor is getting slick.",
-                "Rising collective heat. They are starting to move as a single entity.",
-                "A scandalous resonance. The moans of this triad echo through the pit.",
-                "Synchronization stable. {u1} has {u2} and {u3} in perfect carnal alignment.",
-                "Moderate sync. A very promising arrangement for a long night of trials.",
-                "Three bodies, one rhythm. The friction levels are rising rapidly.",
-                "Heavy breathing fills the triangle. The Master is impressed by the output.",
-                "Collective arousal reached. They are losing track of individual identities.",
-                "The triad bond is forming. A solid foundation for a very dark session."
-                # ... (Imagine 90 more lines following this rising heat/exhibitionist theme)
+                "A triangle of tension. {u1}, {u2}, and {u3} are starting to find a rhythm.",
+                "Stable resonance. They can share the Red Room without shattering the vibe.",
+                "Friction is building in the circle. The air is getting slightly thicker.",
+                "A curious arrangement. They move around each other with cautious lust.",
+                "The triad frequency is humming. Potential for a group collar is rising.",
+                "Moderate synchronization. They speak the same language of collective surrender.",
+                "The pulse is steady. {u1} is managing {u2} and {u3} with interesting results.",
+                "Tangled but functional. The dungeon floor is warming up.",
+                "A shared glance, a shared breath. The triad is beginning to fuse.",
+                "Friction levels are acceptable. The voyeurs are taking interest."
             ],
             "high": [
-                "🔥 **VOLCANIC TRIAD.** {u1}, {u2}, and {u3} are a storm of sweat and surrender.",
-                "Peak frequency reached. The chains are glowing from the intensity of three souls.",
-                "Absolute carnal fusion. The Red Room was built for this legendary triad.",
-                "Dungeon masterpiece. Three hearts beating as one in the absolute dark.",
-                "Total, unconditional surrender. They have forgotten everything but the touch.",
-                "Sacred alignment. This triad has transcended the physical into pure energy.",
-                "The pit trembles at their sync. Absolute 100% collective heat.",
-                "Three souls, one cage, no escape. They have found perfection in the pit.",
-                "Legendary synchronization. Every voyeur in the dungeon is silenced by the sight.",
+                "🔞 **VOLCANIC TRIAD.** {u1}, {u2}, and {u3} are a storm of sweat and silk.",
+                "Peak group alignment. They move as a single, three-headed predator.",
+                "Absolute carnal symmetry. The Red Room was made for this arrangement.",
+                "Intense collective heat. The chains are glowing from the friction.",
+                "Dungeon masterpiece. Three souls perfectly synchronized in the dark.",
+                "A symphony of moans echoing from the triad pit. Total carnal surrender.",
+                "The heat is unbearable. Sprinklers trigger as the triad reaches peak sync.",
+                "Power dynamics in perfect balance. Neither wants to be the one left out.",
+                "Dangerous obsession. They have lost track of the world outside their circle.",
                 "The ultimate asset trio. Maximum synchronization, maximum carnal power."
-                # ... (Imagine 90 more lines following this volcanic/sacred bond theme)
             ]
         }
         # ADDED: FLIRTY LEXICON (Sassy & Playful NSFW-themed)
@@ -611,6 +608,7 @@ class FieryShip(commands.Cog):
         embed.color = 0x9400D3 # Dark Violet for Triad theme
         
         view = discord.ui.View(timeout=60)
+        # FIXED: Only add reroll button if attempt_count is less than 3
         if attempt_count < 3:
             reroll_btn = discord.ui.Button(label=f"Reroll Triad ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
             async def reroll_callback(interaction):
@@ -833,13 +831,28 @@ class FieryShip(commands.Cog):
                 return conn.execute("SELECT spouse, marriage_date, balance, ship_69_count, ship_100_count, total_ships, master_id, dungeon_cred FROM users WHERE id = ?", (target.id,)).fetchone()
         u_data = await asyncio.to_thread(get_data)
         if not u_data: return await ctx.send("❌ Not found.")
-        embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE", f"Status for **{target.display_name}**:")
-        embed.add_field(name="**Bound To**", value=f"<@{u_data['spouse']}>" if u_data['spouse'] else "Single")
-        embed.add_field(name="**Hierarchy**", value=f"Slave to <@{u_data['master_id']}>" if u_data['master_id'] else "Free Asset")
-        embed.add_field(name="**Dungeon Cred**", value=f"`{u_data['dungeon_cred'] or 0}`")
-        embed.add_field(name="**Total Scans**", value=f"`{u_data['total_ships']}`")
-        embed.add_field(name="**Exhibitionist**", value=f"`{u_data['ship_69_count']}`")
-        embed.add_field(name="**Eternal Bond**", value=f"`{u_data['ship_100_count']}`")
+        
+        # Sexuality enhanced embed building
+        embed = main_mod.fiery_embed("🫦 ASSET LUST PROFILE", f"The Master's ledger for **{target.display_name}** is open...")
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        # Core Identity
+        embed.add_field(name="**🔗 SACRED BOND**", value=f"<@{u_data['spouse']}>" if u_data['spouse'] else "Unclaimed Soul", inline=True)
+        embed.add_field(name="**⛓️ HIERARCHY**", value=f"Slave to <@{u_data['master_id']}>" if u_data['master_id'] else "Free Flesh", inline=True)
+        embed.add_field(name="**💳 DUNGEON CRED**", value=f"`{u_data['dungeon_cred'] or 0}`", inline=True)
+        
+        # Lust Metrics
+        stats_desc = (
+            f"**🧬 Total Resonance Scans:** `{u_data['total_ships']}`\n"
+            f"**🫦 Exhibitionist Peaks (69%):** `{u_data['ship_69_count']}`\n"
+            f"**💖 Eternal Bond Locks (100%):** `{u_data['ship_100_count']}`"
+        )
+        embed.add_field(name="**🔥 CARNAL STATISTICS**", value=stats_desc, inline=False)
+        
+        # Sexuality Footer/Tone
+        if u_data['spouse']:
+            embed.description += f"\nCurrently bound by contract since `{u_data['marriage_date']}`."
+        
         await ctx.send(embed=embed)
 
     # ADDED: Ship History command
