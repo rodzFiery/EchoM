@@ -130,13 +130,11 @@ class CardSystem(commands.Cog):
         embed.set_image(url=target_member.display_avatar.url)
         embed.set_footer(text=f"Triggered by server activity | {series} series")
         
-        # Send main big embed
+        # Send main big informational embed
         await channel.send(embed=embed)
         
-        # Send small capture message/embed for copy-pasting
-        capture_desc = f"📥 **CAPTURE PROTOCOL:**\n`!catch {target_member.display_name}`"
-        capture_embed = main_mod.fiery_embed("🛰️ CAPTURE SIGNAL", capture_desc, color=color)
-        await channel.send(embed=capture_embed)
+        # Send ONLY the command block for clean copy-paste
+        await channel.send(f"`!catch {target_member.display_name}`")
 
     @commands.Cog.listener()
     async def on_message(self, message):
