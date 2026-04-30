@@ -123,15 +123,20 @@ class CardSystem(commands.Cog):
             f"⚡ **ACTIVITY SPIKE DETECTED:** A soul has manifested in the thermal vents!\n\n"
             f"👤 **Asset:** {target_member.mention}\n"
             f"🧬 **Series:** {series}\n"
-            f"💎 **Tier:** `{tier_name.upper()}`\n\n"
-            f"📥 **Capture Protocol (Copy-Paste):**\n`!catch {target_member.display_name}`"
+            f"💎 **Tier:** `{tier_name.upper()}`"
         )
         
         embed = main_mod.fiery_embed("🛰️ NEURAL ASSET LOCALIZED", desc, color=color)
         embed.set_image(url=target_member.display_avatar.url)
         embed.set_footer(text=f"Triggered by server activity | {series} series")
         
+        # Send main big embed
         await channel.send(embed=embed)
+        
+        # Send small capture message/embed for copy-pasting
+        capture_desc = f"📥 **CAPTURE PROTOCOL:**\n`!catch {target_member.display_name}`"
+        capture_embed = main_mod.fiery_embed("🛰️ CAPTURE SIGNAL", capture_desc, color=color)
+        await channel.send(embed=capture_embed)
 
     @commands.Cog.listener()
     async def on_message(self, message):
