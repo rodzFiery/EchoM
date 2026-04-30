@@ -92,7 +92,7 @@ class FieryShip(commands.Cog):
                 "The Red Room was built for moments like this.",
                 "Their bodies are a puzzle that only they know how to solve.",
                 "Intense, primal, and completely out of control.",
-                "The voyeurs are breathless. This is the ultimate show.",
+                "The voyeurs are breathlessness. This is the ultimate show.",
                 "A synchronization of moans that can be heard in every cell.",
                 "They have reached a frequency that turns the lights red.",
                 "Absolute carnal dominance. Neither wants to stop.",
@@ -568,9 +568,21 @@ class FieryShip(commands.Cog):
         pair_key = f"3some-{ids[0]}-{ids[1]}-{ids[2]}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
-            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'last_use': 0}
+            
+        # Cooldown check for triad
+        now_ts = datetime.now().timestamp()
+        if self.ship_attempts[pair_key]['count'] >= 3:
+            elapsed = now_ts - self.ship_attempts[pair_key]['last_use']
+            if elapsed < 10800: # 3 hours
+                rem = 10800 - elapsed
+                hrs, mins = int(rem // 3600), int((rem % 3600) // 60)
+                return await ctx.send(f"⏳ **TRIAD COOLDOWN:** Resonance is overtaxed. Wait `{hrs}h {mins}m` to re-scan this triad.")
+            else:
+                self.ship_attempts[pair_key]['count'] = 0 # Reset after 3h passed
             
         self.ship_attempts[pair_key]['count'] += 1
+        self.ship_attempts[pair_key]['last_use'] = now_ts
         attempt_count = self.ship_attempts[pair_key]['count']
         
         if attempt_count < 3:
@@ -581,7 +593,7 @@ class FieryShip(commands.Cog):
             seed_str = f"{ids[0]}{ids[1]}{ids[2]}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
-            status_note = "**🔒 Triad Frequency Locked: Resonance has stabilized.**"
+            status_note = "**🔒 Triad Frequency Locked: Resonance has stabilized. [COOLDOWN TRIGGERED]**"
         
         random.seed()
         
