@@ -608,9 +608,9 @@ class FieryShip(commands.Cog):
         embed.color = 0x9400D3 # Dark Violet for Triad theme
         
         view = discord.ui.View(timeout=60)
-        # FIXED: Only add reroll button if attempt_count is less than 3
-        if attempt_count < 3:
-            reroll_btn = discord.ui.Button(label=f"Reroll Triad ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
+        # --- FIXED REROLL LOGIC ---
+        if self.ship_attempts[pair_key]['count'] < 3:
+            reroll_btn = discord.ui.Button(label=f"Reroll Triad ({self.ship_attempts[pair_key]['count']}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
             async def reroll_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
@@ -619,6 +619,7 @@ class FieryShip(commands.Cog):
                 view.stop()
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
+        # ---------------------------
 
         img_buf = await self.create_triad_image(ctx.author.display_avatar.url, target1.display_avatar.url, target2.display_avatar.url, percent)
         if img_buf:
@@ -969,3 +970,4 @@ async def setup(bot):
         conn.commit()
     await bot.add_cog(FieryShip(bot))
     print("✅ LOG: Ship Extension ONLINE.")
+    
