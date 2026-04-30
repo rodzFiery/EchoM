@@ -24,7 +24,7 @@ class HelperSystem(commands.Cog):
         # We delete the trigger command itself + the requested amount
         deleted = await ctx.channel.purge(limit=amount + 1)
         
-        confirm = await ctx.send(f"🧹 **ECHO PURGE COMPLETE:** `{len(deleted)-1}` messages scrubbed from history.")
+        confirm = await ctx.send(f"扫 **ECHO PURGE COMPLETE:** `{len(deleted)-1}` messages scrubbed from history.")
         await asyncio.sleep(5)
         try:
             await confirm.delete()
@@ -107,6 +107,7 @@ class HelperSystem(commands.Cog):
             f"• **Status:** Registered",
             f"• **Source Cog:** `{cog_name}`",
             f"• **Enabled:** {cmd.enabled}",
+            f"• **Hidden:** {cmd.hidden}",
             f"• **Has Checks:** {len(checks) > 0}"
         ]
         
