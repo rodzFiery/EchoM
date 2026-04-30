@@ -98,4 +98,25 @@ class WinSystem(commands.Cog):
         await self.execute_win_command(ctx, "bendover")
 
 async def setup(bot):
+    # ADDED: Automatic Database Column Migration
+    import main
+    try:
+        with main.get_db_connection() as conn:
+            cursor = conn.execute("PRAGMA table_info(users)")
+            columns = [info[1] for info in cursor.fetchall()]
+            
+            # List of required last_ command columns for WinSystem
+            required_cols = [
+                "last_slut", "last_cuckold", "last_deepthroat", "last_spit", 
+                "last_tease", "last_spank", "last_slap", "last_makemedirty", 
+                "last_3some", "last_dp", "last_anal", "last_bendover"
+            ]
+            
+            for col in required_cols:
+                if col not in columns:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️ WinSystem Migration Error: {e}")
+
     await bot.add_cog(WinSystem(bot))
