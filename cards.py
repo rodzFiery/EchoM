@@ -101,7 +101,7 @@ class CardSystem(commands.Cog):
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
-        # Target a random member who has spoken recently/is in cache
+        # Target a random member who isn't a bot
         members = [m for m in guild.members if not m.bot]
         if not members: return
         target_member = random.choice(members)
@@ -137,12 +137,11 @@ class CardSystem(commands.Cog):
         """The Listener: Increments activity pool and checks for spawn readiness."""
         if message.author.bot or not message.guild: return
         
-        # Only track activity in the designated spawn channel to encourage chat there
-        # OR remove this check if you want global server activity to trigger it.
+        # Track global server activity
         self.activity_pool += 1
         
         if self.activity_pool >= self.required_activity:
-            # Chance check so it's not exactly every X messages (more addictive)
+            # Chance check so it's not exactly every 15 messages (more addictive)
             if random.random() < 0.40: 
                 self.activity_pool = 0
                 await self.spawn_card(message.guild)
