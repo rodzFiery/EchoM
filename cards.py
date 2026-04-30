@@ -165,8 +165,12 @@ class CardSystem(commands.Cog):
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
 
         embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=0xFFD700)
-        # --- FIXED LINE 169: Verified String and Bracket formatting ---
-        embed.add_field(name="🧬 Metadata", value=f"Series:\nTier:.upper()}", inline=True)
+        
+        # --- FOOLPROOF WORKAROUND FOR LINE 169 ---
+        metadata_value = "**Series:** " + str(card['type']) + "\n**Tier:** " + str(card['tier']).upper()
+        embed.add_field(name="🧬 Metadata", value=metadata_value, inline=True)
+        # -----------------------------------------
+        
         embed.add_field(name="📊 Archive", value=f"**Total Assets:** {total_count}", inline=True)
         
         target_member = ctx.guild.get_member(card['id'])
