@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import sys
 import importlib
 import os
@@ -12,10 +12,15 @@ class HelperSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.data_file = "ping_limits.json"
+        self.purge_file = "auto_purge_configs.json"
         # Storage for ping cooldowns: {role_id: cooldown_minutes}
         self.ping_cooldowns = self.load_persistent_limits()
+        # Storage for auto-purge: {channel_id: minutes}
+        self.purge_configs = self.load_purge_configs()
         # Storage for the last time a role was successfully pinged: {role_id: last_ping_datetime}
         self.last_ping_time = {}
+        
+        self.auto_purge_loop.start()
 
     def load_persistent_limits(self):
         """Loads limits from the JSON file on startup."""
@@ -33,6 +38,41 @@ class HelperSystem(commands.Cog):
         """Saves current limits to the JSON file."""
         with open(self.data_file, "w") as f:
             json.dump(self.ping_cooldowns, f)
+
+    def load_purge_configs(self):
+        """Loads auto-purge configurations from JSON."""
+        if os.path.exists(self.purge_file):
+            try:
+                with open(self.purge_file, "r") as f:
+                    data = json.load(f)
+                    return {int(k): v for k, v in data.items()}
+            except:
+                return {}
+        return {}
+
+    def save_purge_configs(self):
+        """Saves auto-purge configurations to JSON."""
+        with open(self.purge_file, "w") as f:
+            json.dump(self.purge_configs, f)
+
+    @tasks.loop(minutes=1)
+    async def auto_purge_loop(self):
+        """Background task to scrub channels based on set timers."""
+        for channel_id, minutes in self.purge_configs.items():
+            channel = self.bot.get_channel(channel_id)
+            if not channel:
+                continue
+            
+            try:
+                cutoff = datetime.now(timezone.utc if hasattr(datetime, 'now') else None) - timedelta(minutes=minutes)
+                # Purge messages older than the specified minutes
+                await channel.purge(before=cutoff, check=lambda m: not m.pinned)
+            except Exception as e:
+                print(f"⚠️ Auto-Purge Fail in {channel_id}: {e}")
+
+    @auto_purge_loop.before_loop
+    async def before_purge(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -112,6 +152,42 @@ class HelperSystem(commands.Cog):
             await confirm.delete()
         except:
             pass
+
+    @commands.command(name="autopurge")
+    @commands.has_permissions(manage_channels=True)
+    async def autopurge(self, ctx, time_setting: str = None):
+        """Sets automatic message scrubbing for this channel. Options: 5m, 10m, 15m, 1h, 2h, off"""
+        if not time_setting:
+            return await ctx.send("❓ **Usage:** `!autopurge <5m/10m/15m/1h/2h/off>`")
+
+        time_setting = time_setting.lower()
+        
+        if time_setting == "off":
+            if ctx.channel.id in self.purge_configs:
+                del self.purge_configs[ctx.channel.id]
+                self.save_purge_configs()
+                return await ctx.send("🧹 **AUTO-PURGE DISABLED** for this sector.")
+            return await ctx.send("ℹ️ Auto-purge is not active here.")
+
+        mapping = {
+            "5m": 5, "10m": 10, "15m": 15,
+            "1h": 60, "2h": 120
+        }
+
+        if time_setting not in mapping:
+            return await ctx.send("❌ **Invalid Timer.** Choose: 5m, 10m, 15m, 1h, 2h, or off.")
+
+        minutes = mapping[time_setting]
+        self.purge_configs[ctx.channel.id] = minutes
+        self.save_purge_configs()
+
+        embed = discord.Embed(
+            title="🧹 AUTO-PURGE ACTIVATED",
+            description=f"This channel is now under a scrubbing protocol.\nAll messages older than **{time_setting}** will be automatically deleted.",
+            color=0x3498DB
+        )
+        embed.set_footer(text="Pinned messages are safe from the scrub.")
+        await ctx.send(embed=embed)
 
     @commands.command(name="refresh")
     @commands.is_owner()
@@ -214,6 +290,7 @@ class HelperSystem(commands.Cog):
     async def unlimit(self, ctx, role: discord.Role):
         """Removes the ping cooldown."""
         if role.id in self.ping_cooldowns:
+            # Logic stays line by line as requested
             del self.ping_cooldowns[role.id]
             self.save_persistent_limits()
             if role.id in self.last_ping_time:
