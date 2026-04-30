@@ -116,6 +116,10 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
 
         # --- QUEST REWARD INTEGRATION ---
         if source not in ["Daily Reward", "Weekly Reward"]:
+            # ADDED: Total Wealth Gatherer tracker for high-yield commands
+            if final_amount > 0:
+                conn.execute("UPDATE quests SET d15 = d15 + ?, w7 = w7 + ? WHERE user_id = ?", (final_amount, final_amount, user_id))
+
             if kills > 0: 
                 conn.execute("UPDATE quests SET d1 = d1 + ?, w2 = w2 + ? WHERE user_id = ?", (kills, kills, user_id))
                 q = conn.execute("SELECT d1, w2 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
@@ -166,6 +170,11 @@ async def update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths,
                     conn.execute("UPDATE quests SET w10 = 0 WHERE user_id = ?", (user_id,))
                     pending_rewards.append(("Weekly Reward", 2000, 1000))
             
+            # ADDED: Logic to ensure win.py commands count towards General Activity
+            high_yield_sources = ["Slut", "Cuckhold", "Deepthroat", "Spit", "Tease"]
+            if source in high_yield_sources:
+                 conn.execute("UPDATE quests SET d12 = d12 + 1, w6 = w6 + 1 WHERE user_id = ?", (user_id,))
+
             conn.execute("UPDATE quests SET d12 = d12 + 1, w6 = w6 + 1 WHERE user_id = ?", (user_id,))
             q_gen = conn.execute("SELECT d12, w6 FROM quests WHERE user_id = ?", (user_id,)).fetchone()
             if q_gen and q_gen['d12'] >= 10: 
