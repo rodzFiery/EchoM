@@ -78,11 +78,21 @@ class AutoThread(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        """Listener that opens a thread every time a message is sent in an active channel. NO AUDIT LOGS."""
+        """Listener that opens a thread ONLY when an image is sent in an active channel."""
         if message.author.bot:
             return
         
         if message.channel.id in self.active_channels:
+            # FIX: Check if there are any attachments and if at least one is an image
+            is_image = any(
+                att.content_type and att.content_type.startswith('image/') 
+                or att.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+                for att in message.attachments
+            )
+
+            if not is_image:
+                return
+
             try:
                 # Use the first 50 characters of the message as the thread name
                 thread_name = f"Session: {message.author.display_name}"
