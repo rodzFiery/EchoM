@@ -45,7 +45,6 @@ class HelperSystem(commands.Cog):
             try:
                 with open(self.purge_file, "r") as f:
                     data = json.load(f)
-                    # Convert keys back to int IDs
                     return {int(k): v for k, v in data.items()}
             except:
                 return {}
@@ -54,7 +53,7 @@ class HelperSystem(commands.Cog):
     def save_purge_configs(self):
         """Saves auto-purge configurations to JSON."""
         with open(self.purge_file, "w") as f:
-            # Convert keys to strings for JSON compliance
+            # FIX: Ensure keys are strings for JSON and save
             json.dump({str(k): v for k, v in self.purge_configs.items()}, f)
 
     @tasks.loop(minutes=1)
@@ -66,16 +65,12 @@ class HelperSystem(commands.Cog):
                 continue
             
             try:
-                # Use timezone.utc to align with Discord's snowflake timestamps
+                # FIX: Use timezone.utc to align with Discord message timestamps
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 
-                # Check permissions before purging to avoid error spam
+                # FIX: Verify Manage Messages permission before purging
                 if channel.permissions_for(channel.guild.me).manage_messages:
-                    deleted = await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True)
-                    if len(deleted) > 0:
-                        print(f"🧹 [AUTO-PURGE] Scrubbed {len(deleted)} messages from {channel.name}")
-                else:
-                    print(f"⚠️ [AUTO-PURGE] Missing Manage Messages in {channel.name}")
+                    await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True)
             except Exception as e:
                 print(f"⚠️ Auto-Purge Fail in {channel_id}: {e}")
 
