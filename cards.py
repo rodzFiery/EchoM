@@ -122,6 +122,7 @@ class CardSystem(commands.Cog):
         desc = (
             f"⚡ **ACTIVITY SPIKE DETECTED:** A soul has manifested in the thermal vents!\n\n"
             f"👤 **Asset:** {target_member.mention}\n"
+            f"🆔 **ID Signature (Copy-Paste):**\n`{target_member.display_name}`\n\n"
             f"🧬 **Series:** {series}\n"
             f"💎 **Tier:** `{tier_name.upper()}`\n\n"
             f"Type `!catch {target_member.display_name}` to claim this asset!"
