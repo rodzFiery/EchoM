@@ -10,27 +10,39 @@ import json
 # --- NEW COMPONENT: INFO BUTTON ---
 
 class InfoView(discord.ui.View):
-    def __init__(self, card_data):
+    def __init__(self, card_data=None):
         # Setting timeout to None helps the button stay active longer
         super().__init__(timeout=None)
         self.card_data = card_data
 
-    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_button_unique")
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_persistent")
     async def view_intel(self, interaction: discord.Interaction):
-        # Retrieve powers from data (handles both dict and JSON string from DB)
-        p_raw = self.card_data.get('powers', {})
+        # Mechanical Fix: If view memory is lost (restart), we use the database.
+        # This ensures the button works "once and for all"
+        main_mod = sys.modules['__main__']
         
-        # Robust check to ensure p is a dictionary
-        if isinstance(p_raw, str):
-            try:
-                p = json.loads(p_raw)
-            except:
-                p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
-        else:
-            p = p_raw
+        # Determine the user whose archive we are looking at
+        # For a 'catch' drop, it's the person who clicked.
+        user_id = interaction.user.id
+        
+        with main_mod.get_db_connection() as conn:
+            # Fetch the most recent card caught by this user to get the intel
+            row = conn.execute(
+                "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+                (user_id,)
+            ).fetchone()
 
-        intel_text = self.card_data.get('intel', "No intel available.")
-        card_name = self.card_data.get('name', "Unknown Asset")
+        if not row:
+            return await interaction.response.send_message("Archive signal lost. Catch another asset!", ephemeral=True)
+
+        card_name = row[0]
+        intel_text = row[1]
+        p_raw = row[2]
+        
+        try:
+            p = json.loads(p_raw)
+        except:
+            p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
 
         power_display = (
             f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
@@ -44,7 +56,6 @@ class InfoView(discord.ui.View):
             description=f"*{intel_text}*\n\n{power_display}",
             color=0xFF69B4
         )
-        # Using follow-up or simple send_message for ephemeral response
         await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
@@ -248,7 +259,7 @@ class CardSystem(commands.Cog):
         user_id = ctx.author.id
         card = self.current_card
         
-        # Prepare View BEFORE clearing current_card to ensure data is captured
+        # Prepare View 
         view = InfoView(card)
         self.current_card = None 
 
