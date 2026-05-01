@@ -197,9 +197,18 @@ class CardSystem(commands.Cog):
                 "WHEN 'epic' THEN 4 WHEN 'rare' THEN 5 ELSE 6 END", 
                 (target.id,)
             ).fetchall()
+            
+            # Logic to count unique members caught
+            unique_members_caught = conn.execute(
+                "SELECT COUNT(DISTINCT card_name) FROM user_cards WHERE user_id = ?", 
+                (target.id,)
+            ).fetchone()[0]
 
         if not rows:
             return await ctx.send(f"📕 {target.display_name}'s Archive is empty. No neural patterns recorded.")
+
+        # Logic to count server members (excluding bots)
+        server_member_count = len([m for m in ctx.guild.members if not m.bot])
 
         # Organize by rarity for the embed fields
         tiers_data = {}
@@ -212,6 +221,10 @@ class CardSystem(commands.Cog):
         
         # Display the targeted user's avatar as the archive visual
         embed.set_thumbnail(url=target.display_avatar.url)
+
+        # Add the progress field
+        progress_val = f"**{unique_members_caught}** / **{server_member_count}** Members archived."
+        embed.add_field(name="📡 COLLECTION PROGRESS", value=progress_val, inline=False)
 
         for tier, cards_list in tiers_data.items():
             # Join multiple cards in the same rarity into one field
