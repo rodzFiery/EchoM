@@ -11,16 +11,24 @@ import json
 
 class InfoView(discord.ui.View):
     def __init__(self, card_data):
+        # Setting timeout to None helps the button stay active longer
         super().__init__(timeout=None)
         self.card_data = card_data
 
     @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_button_unique")
     async def view_intel(self, interaction: discord.Interaction):
-        # Retrieve and parse data
-        p = self.card_data.get('powers', {})
-        if isinstance(p, str):
-            p = json.loads(p)
+        # Retrieve powers from data (handles both dict and JSON string from DB)
+        p_raw = self.card_data.get('powers', {})
         
+        # Robust check to ensure p is a dictionary
+        if isinstance(p_raw, str):
+            try:
+                p = json.loads(p_raw)
+            except:
+                p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+        else:
+            p = p_raw
+
         intel_text = self.card_data.get('intel', "No intel available.")
         card_name = self.card_data.get('name', "Unknown Asset")
 
@@ -36,8 +44,7 @@ class InfoView(discord.ui.View):
             description=f"*{intel_text}*\n\n{power_display}",
             color=0xFF69B4
         )
-        
-        # Acknowledge the interaction immediately with the embed
+        # Using follow-up or simple send_message for ephemeral response
         await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
@@ -46,7 +53,7 @@ class PokedexView(discord.ui.View):
     def __init__(self, target, data, card_pool, fiery_embed_func):
         super().__init__(timeout=60)
         self.target = target
-        self.data = data 
+        self.data = data # Dict: {collection_type: [cards]}
         self.card_pool = card_pool
         self.fiery_embed = fiery_embed_func
         self.current_category = list(data.keys())[0] if data else None
@@ -75,14 +82,20 @@ class CardSystem(commands.Cog):
         self.bot = bot
         self.spawn_channel_id = 1438810509322223677 
         self.current_card = None
+        
+        # ACTIVITY LOGIC: restored and tied to member-spawns
         self.activity_pool = 0
         self.required_activity = 25 
         
         self._init_db()
+        
+        # PERSISTENCE: Restore the spawn channel from the central config table
         self._load_config()
 
+        # SERIES DEFINITIONS (Used to flavor the member-cards)
         self.series_types = ["Slut", "Dominator", "Submissive", "Switcher", "Threesomer", "Dirty", "Cummer", "Bossy", "Pimp", "Cum Cleaner"]
 
+        # 50 RANDOM SILLY NAUGHTY SENTENCES
         self.intel_pool = [
             "Secretly enjoys being watched through the webcam.", "Always forgets their safe word during intense 'archiving'.",
             "Has a collection of toys hidden in the server basement.", "Thinks 'SQL injection' is a type of bedroom play.",
@@ -114,16 +127,19 @@ class CardSystem(commands.Cog):
     def _init_db(self):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
+            # Updated table to include intel and powers
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, intel TEXT, powers TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
             
+            # Migration check: add columns if they don't exist in an old DB
             cursor = conn.execute("PRAGMA table_info(user_cards)")
             columns = [column[1] for column in cursor.fetchall()]
             if 'intel' not in columns:
                 conn.execute("ALTER TABLE user_cards ADD COLUMN intel TEXT")
             if 'powers' not in columns:
                 conn.execute("ALTER TABLE user_cards ADD COLUMN powers TEXT")
+            
             conn.commit()
 
     def _load_config(self):
@@ -139,6 +155,7 @@ class CardSystem(commands.Cog):
     @commands.command(name="setcards")
     @commands.has_permissions(administrator=True)
     async def setcards(self, ctx, channel: discord.TextChannel):
+        """Admin command to bind the card spawn frequency to a channel."""
         self.spawn_channel_id = channel.id
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
@@ -160,16 +177,20 @@ class CardSystem(commands.Cog):
         return "basic", 0x95A5A6
 
     async def spawn_card(self, guild):
+        """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
+        # Target a random member who isn't a bot
         members = [m for m in guild.members if not m.bot]
         if not members: return
         target_member = random.choice(members)
 
+        # TRIGGER NEW RARITY ROLL: Independent of the user identity
         tier_name, color = self.get_random_tier()
         series = random.choice(self.series_types)
         
+        # GENERATE RANDOM INTEL AND POWERS
         intel_text = random.choice(self.intel_pool)
         powers = {"Tease": random.randint(1, 100), "Flirt": random.randint(1, 100), "Sex": random.randint(1, 100), "Magic": random.randint(1, 100)}
 
@@ -183,6 +204,7 @@ class CardSystem(commands.Cog):
         }
 
         main_mod = sys.modules['__main__']
+        
         desc = (
             f"⚡ **ACTIVITY SPIKE DETECTED:** A soul has manifested in the thermal vents!\n\n"
             f"👤 **Asset:** {target_member.mention}\n"
@@ -194,17 +216,28 @@ class CardSystem(commands.Cog):
         embed.set_image(url=target_member.display_avatar.url)
         embed.set_footer(text=f"Triggered by server activity | {series} series")
         
+        # Send main big informational embed
         await channel.send(embed=embed)
+        
+        # Send ONLY the command block for clean copy-paste
         await channel.send(f"!catch {target_member.display_name}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
+        """The Listener: Increments activity pool and checks for spawn readiness."""
         if message.author.bot or not message.guild: return
+        
+        # Track global server activity
         self.activity_pool += 1
+        
         if self.activity_pool >= self.required_activity:
+            # Chance check lowered to 0.25 (25%) to slow down the high-frequency drops
             if random.random() < 0.25: 
                 self.activity_pool = 0
                 await self.spawn_card(message.guild)
+
+    async def check_mastery(self, ctx, user_id):
+        pass
 
     @commands.command()
     async def catch(self, ctx, *, card_name: str):
@@ -215,11 +248,12 @@ class CardSystem(commands.Cog):
         user_id = ctx.author.id
         card = self.current_card
         
-        # Instantiate view BEFORE clearing current_card
+        # Prepare View BEFORE clearing current_card to ensure data is captured
         view = InfoView(card)
         self.current_card = None 
 
         with main_mod.get_db_connection() as conn:
+            # Save card with Intel and Powers (serialized to JSON)
             conn.execute(
                 "INSERT INTO user_cards (user_id, card_name, tier, intel, powers) VALUES (?, ?, ?, ?, ?)", 
                 (user_id, card['name'], card['tier'], card['intel'], json.dumps(card['powers']))
@@ -228,8 +262,11 @@ class CardSystem(commands.Cog):
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
 
         embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=0xFFD700)
+        
+        # --- FOOLPROOF WORKAROUND FOR PREVIOUS SYNTAX ERROR ---
         metadata_value = "**Series:** " + str(card['type']) + "\n**Tier:** " + str(card['tier']).upper()
         embed.add_field(name="🧬 Metadata", value=metadata_value, inline=True)
+        
         embed.add_field(name="📊 Archive", value=f"**Total Assets:** {total_count}", inline=True)
         
         target_member = ctx.guild.get_member(card['id'])
@@ -240,10 +277,12 @@ class CardSystem(commands.Cog):
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
+        """Displays the neural archive sorted by rarity and user identity."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
         
         with main_mod.get_db_connection() as conn:
+            # Retrieve intel and powers along with count
             rows = conn.execute(
                 "SELECT card_name, tier, intel, powers, COUNT(*) as count FROM user_cards WHERE user_id = ? "
                 "GROUP BY card_name, tier ORDER BY "
@@ -252,25 +291,34 @@ class CardSystem(commands.Cog):
                 (target.id,)
             ).fetchall()
             
+            # Logic to count unique members caught
             unique_members_caught = conn.execute(
                 "SELECT COUNT(DISTINCT card_name) FROM user_cards WHERE user_id = ?", 
                 (target.id,)
             ).fetchone()[0]
 
         if not rows:
-            return await ctx.send(f"📕 {target.display_name}'s Archive is empty.")
+            return await ctx.send(f"📕 {target.display_name}'s Archive is empty. No neural patterns recorded.")
 
+        # Logic to count server members (excluding bots)
         server_member_count = len([m for m in ctx.guild.members if not m.bot])
+
+        # Organize by rarity for the embed fields
         tiers_data = {}
         last_card_caught = None 
         for row in rows:
             name, tier, intel, powers, count = row[0], row[1], row[2], row[3], row[4]
             if tier not in tiers_data: tiers_data[tier] = []
             tiers_data[tier].append(f"• **{name}** x{count}")
+            # Prep data for the button
             last_card_caught = {"name": name, "intel": intel, "powers": powers}
 
-        embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", "Signatures detected:")
+        embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
+                                     "The archive holds the following digitized signatures:")
+        
         embed.set_thumbnail(url=target.display_avatar.url)
+
+        # Add the progress field
         progress_val = f"**{unique_members_caught}** / **{server_member_count}** Members archived."
         embed.add_field(name="📡 COLLECTION PROGRESS", value=progress_val, inline=False)
 
@@ -279,8 +327,9 @@ class CardSystem(commands.Cog):
             if len(content) > 1024: content = content[:1020] + "..."
             embed.add_field(name=f"💎 {tier.upper()} TIER", value=content, inline=False)
 
-        embed.set_footer(text=f"Total Unique Signatures: {len(rows)}")
+        embed.set_footer(text=f"Total Unique Signatures: {len(rows)} | Data Persists Forever")
         
+        # Create a view if there is intel to show
         view = InfoView(last_card_caught) if last_card_caught else None
         await ctx.send(embed=embed, view=view)
 
