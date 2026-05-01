@@ -52,7 +52,7 @@ class CardSystem(commands.Cog):
         self._load_config()
 
         # SERIES DEFINITIONS (Used to flavor the member-cards)
-        self.series_types = ["Slut", "Dominator", "Submissive", "Switcher", "Threesomer", "Dirty", "Lava", "Water", "Space", "Mystery"]
+        self.series_types = ["Slut", "Dominator", "Submissive", "Switcher", "Threesomer", "Dirty", "Cummer", "Bossy", "Pimp", "Cum Cleaner"]
 
     def _init_db(self):
         main_mod = sys.modules['__main__']
