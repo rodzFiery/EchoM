@@ -11,13 +11,13 @@ import json
 
 class InfoView(discord.ui.View):
     def __init__(self, card_data):
-        # Setting timeout to None helps the button stay active longer
+        # Setting timeout to None prevents the view from expiring
         super().__init__(timeout=None)
         self.card_data = card_data
 
-    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_button")
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_fixed")
     async def view_intel(self, interaction: discord.Interaction):
-        # Retrieve powers from data (handles both dict and JSON string from DB)
+        # Acknowledge immediately to prevent "Interaction Failed"
         p = self.card_data['powers']
         if isinstance(p, str):
             p = json.loads(p)
@@ -34,7 +34,8 @@ class InfoView(discord.ui.View):
             description=f"*{self.card_data['intel']}*\n\n{power_display}",
             color=0xFF69B4
         )
-        # Using follow-up or simple send_message for ephemeral response
+        
+        # response.send_message is the standard way to reply to a button
         await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
