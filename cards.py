@@ -7,37 +7,31 @@ import sys
 import os
 import json
 
-# --- NEW COMPONENT: INFO BUTTON ---
+# --- NEW COMPONENT: PERSISTENT INFO BUTTON ---
 
 class InfoView(discord.ui.View):
     def __init__(self, card_data=None):
-        # Setting timeout to None helps the button stay active longer
+        # Setting timeout to None and using a fixed custom_id makes this persistent
         super().__init__(timeout=None)
         self.card_data = card_data
 
-    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_persistent")
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="persistent_intel_v1")
     async def view_intel(self, interaction: discord.Interaction):
-        # Mechanical Fix: If view memory is lost (restart), we use the database.
-        # This ensures the button works "once and for all"
         main_mod = sys.modules['__main__']
-        
-        # Determine the user whose archive we are looking at
-        # For a 'catch' drop, it's the person who clicked.
         user_id = interaction.user.id
         
+        # MECHANICAL FIX: Fetch info directly from the database based on the clicker's last catch
+        # This bypasses the memory loss issue that causes "Interaction Failed"
         with main_mod.get_db_connection() as conn:
-            # Fetch the most recent card caught by this user to get the intel
             row = conn.execute(
                 "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
                 (user_id,)
             ).fetchone()
 
         if not row:
-            return await interaction.response.send_message("Archive signal lost. Catch another asset!", ephemeral=True)
+            return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
 
-        card_name = row[0]
-        intel_text = row[1]
-        p_raw = row[2]
+        card_name, intel_text, p_raw = row[0], row[1], row[2]
         
         try:
             p = json.loads(p_raw)
@@ -56,6 +50,7 @@ class InfoView(discord.ui.View):
             description=f"*{intel_text}*\n\n{power_display}",
             color=0xFF69B4
         )
+        
         await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
@@ -259,7 +254,7 @@ class CardSystem(commands.Cog):
         user_id = ctx.author.id
         card = self.current_card
         
-        # Prepare View 
+        # Prepare View - Passing card here though the button now fetches from DB
         view = InfoView(card)
         self.current_card = None 
 
