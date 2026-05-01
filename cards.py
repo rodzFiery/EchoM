@@ -1,10 +1,13 @@
 import discord
 from discord.ext import commands, tasks
+import sqlite3import discord
+from discord.ext import commands, tasks
 import sqlite3
 import random
 import asyncio
 import sys
 import os
+import json
 
 # --- NEW COMPONENT: INFO BUTTON ---
 
@@ -15,8 +18,11 @@ class InfoView(discord.ui.View):
 
     @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel")
     async def view_intel(self, interaction: discord.Interaction):
-        # Generate the random powers display
+        # Retrieve powers from data (handles both dict and JSON string from DB)
         p = self.card_data['powers']
+        if isinstance(p, str):
+            p = json.loads(p)
+
         power_display = (
             f"**🔥 Tease:** {p['Tease']}/100\n"
             f"**💘 Flirt:** {p['Flirt']}/100\n"
@@ -111,9 +117,19 @@ class CardSystem(commands.Cog):
     def _init_db(self):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
+            # Updated table to include intel and powers
+            conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, intel TEXT, powers TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
+            
+            # Migration check: add columns if they don't exist in an old DB
+            cursor = conn.execute("PRAGMA table_info(user_cards)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if 'intel' not in columns:
+                conn.execute("ALTER TABLE user_cards ADD COLUMN intel TEXT")
+            if 'powers' not in columns:
+                conn.execute("ALTER TABLE user_cards ADD COLUMN powers TEXT")
+            
             conn.commit()
 
     def _load_config(self):
@@ -231,7 +247,11 @@ class CardSystem(commands.Cog):
         self.current_card = None 
 
         with main_mod.get_db_connection() as conn:
-            conn.execute("INSERT INTO user_cards (user_id, card_name, tier) VALUES (?, ?, ?)", (user_id, card['name'], card['tier']))
+            # Save card with Intel and Powers (serialized to JSON)
+            conn.execute(
+                "INSERT INTO user_cards (user_id, card_name, tier, intel, powers) VALUES (?, ?, ?, ?, ?)", 
+                (user_id, card['name'], card['tier'], card['intel'], json.dumps(card['powers']))
+            )
             conn.commit()
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
 
@@ -257,8 +277,9 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         
         with main_mod.get_db_connection() as conn:
+            # Retrieve intel and powers along with count
             rows = conn.execute(
-                "SELECT card_name, tier, COUNT(*) as count FROM user_cards WHERE user_id = ? "
+                "SELECT card_name, tier, intel, powers, COUNT(*) as count FROM user_cards WHERE user_id = ? "
                 "GROUP BY card_name, tier ORDER BY "
                 "CASE tier WHEN 'supreme' THEN 1 WHEN 'legendary' THEN 2 WHEN 'platine' THEN 3 "
                 "WHEN 'epic' THEN 4 WHEN 'rare' THEN 5 ELSE 6 END", 
@@ -279,9 +300,13 @@ class CardSystem(commands.Cog):
 
         # Organize by rarity for the embed fields
         tiers_data = {}
-        for name, tier, count in rows:
+        last_card_caught = None # To show intel button for the most recent/relevant row
+        for row in rows:
+            name, tier, intel, powers, count = row[0], row[1], row[2], row[3], row[4]
             if tier not in tiers_data: tiers_data[tier] = []
             tiers_data[tier].append(f"• **{name}** x{count}")
+            # Prep data for the button (most recently processed)
+            last_card_caught = {"name": name, "intel": intel, "powers": powers}
 
         embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
                                      "The archive holds the following digitized signatures:")
@@ -300,7 +325,10 @@ class CardSystem(commands.Cog):
             embed.add_field(name=f"💎 {tier.upper()} TIER", value=content, inline=False)
 
         embed.set_footer(text=f"Total Unique Signatures: {len(rows)} | Data Persists Forever")
-        await ctx.send(embed=embed)
+        
+        # Create a view if there is intel to show
+        view = InfoView(last_card_caught) if last_card_caught else None
+        await ctx.send(embed=embed, view=view)
 
     @commands.command(name="collections")
     async def collections(self, ctx, member: discord.Member = None):
