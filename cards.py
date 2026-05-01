@@ -11,10 +11,11 @@ import json
 
 class InfoView(discord.ui.View):
     def __init__(self, card_data):
+        # Setting timeout to None helps the button stay active longer
         super().__init__(timeout=None)
         self.card_data = card_data
 
-    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel")
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_button")
     async def view_intel(self, interaction: discord.Interaction):
         # Retrieve powers from data (handles both dict and JSON string from DB)
         p = self.card_data['powers']
@@ -33,6 +34,7 @@ class InfoView(discord.ui.View):
             description=f"*{self.card_data['intel']}*\n\n{power_display}",
             color=0xFF69B4
         )
+        # Using follow-up or simple send_message for ephemeral response
         await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
@@ -240,7 +242,7 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         user_id = ctx.author.id
         card = self.current_card
-        # We keep card data for the view before clearing self.current_card
+        # Prepare View
         view = InfoView(card)
         self.current_card = None 
 
@@ -258,7 +260,6 @@ class CardSystem(commands.Cog):
         # --- FOOLPROOF WORKAROUND FOR PREVIOUS SYNTAX ERROR ---
         metadata_value = "**Series:** " + str(card['type']) + "\n**Tier:** " + str(card['tier']).upper()
         embed.add_field(name="🧬 Metadata", value=metadata_value, inline=True)
-        # ------------------------------------------------------
         
         embed.add_field(name="📊 Archive", value=f"**Total Assets:** {total_count}", inline=True)
         
@@ -298,18 +299,17 @@ class CardSystem(commands.Cog):
 
         # Organize by rarity for the embed fields
         tiers_data = {}
-        last_card_caught = None # To show intel button for the most recent/relevant row
+        last_card_caught = None 
         for row in rows:
             name, tier, intel, powers, count = row[0], row[1], row[2], row[3], row[4]
             if tier not in tiers_data: tiers_data[tier] = []
             tiers_data[tier].append(f"• **{name}** x{count}")
-            # Prep data for the button (most recently processed)
+            # Prep data for the button
             last_card_caught = {"name": name, "intel": intel, "powers": powers}
 
         embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
                                      "The archive holds the following digitized signatures:")
         
-        # Display the targeted user's avatar as the archive visual
         embed.set_thumbnail(url=target.display_avatar.url)
 
         # Add the progress field
@@ -317,7 +317,6 @@ class CardSystem(commands.Cog):
         embed.add_field(name="📡 COLLECTION PROGRESS", value=progress_val, inline=False)
 
         for tier, cards_list in tiers_data.items():
-            # Join multiple cards in the same rarity into one field
             content = "\n".join(cards_list)
             if len(content) > 1024: content = content[:1020] + "..."
             embed.add_field(name=f"💎 {tier.upper()} TIER", value=content, inline=False)
