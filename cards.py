@@ -7,51 +7,18 @@ import sys
 import os
 import json
 
-# --- NEW COMPONENT: PERSISTENT INFO BUTTON ---
+# --- NEW COMPONENT: INFO BUTTON ---
 
 class InfoView(discord.ui.View):
     def __init__(self, card_data=None):
-        # Setting timeout to None and using a fixed custom_id makes this persistent
+        # Setting timeout to None helps the button stay active longer
         super().__init__(timeout=None)
         self.card_data = card_data
 
-    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="persistent_intel_v1")
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel_persistent")
     async def view_intel(self, interaction: discord.Interaction):
-        main_mod = sys.modules['__main__']
-        user_id = interaction.user.id
-        
-        # MECHANICAL FIX: Fetch info directly from the database based on the clicker's last catch
-        # This bypasses the memory loss issue that causes "Interaction Failed"
-        with main_mod.get_db_connection() as conn:
-            row = conn.execute(
-                "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
-                (user_id,)
-            ).fetchone()
-
-        if not row:
-            return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
-
-        card_name, intel_text, p_raw = row[0], row[1], row[2]
-        
-        try:
-            p = json.loads(p_raw)
-        except:
-            p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
-
-        power_display = (
-            f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
-            f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
-            f"**🔞 Sex:** {p.get('Sex', 0)}/100\n"
-            f"**✨ Magic:** {p.get('Magic', 0)}/100"
-        )
-        
-        intel_embed = discord.Embed(
-            title=f"📜 CLASSIFIED: {card_name}",
-            description=f"*{intel_text}*\n\n{power_display}",
-            color=0xFF69B4
-        )
-        
-        await interaction.response.send_message(embed=intel_embed, ephemeral=True)
+        # The logic is now handled by the Cog Listener for 100% reliability
+        pass
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
 
@@ -158,6 +125,44 @@ class CardSystem(commands.Cog):
         except:
             pass
 
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        """THE GLOBAL FIX: Listens for the persistent button ID everywhere."""
+        if interaction.type != discord.InteractionType.component: return
+        if interaction.data.get('custom_id') != "view_intel_persistent": return
+        
+        main_mod = sys.modules['__main__']
+        user_id = interaction.user.id
+        
+        with main_mod.get_db_connection() as conn:
+            row = conn.execute(
+                "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+                (user_id,)
+            ).fetchone()
+
+        if not row:
+            return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
+
+        card_name, intel_text, p_raw = row[0], row[1], row[2]
+        try:
+            p = json.loads(p_raw)
+        except:
+            p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+
+        power_display = (
+            f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
+            f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
+            f"**🔞 Sex:** {p.get('Sex', 0)}/100\n"
+            f"**✨ Magic:** {p.get('Magic', 0)}/100"
+        )
+        
+        intel_embed = discord.Embed(
+            title=f"📜 CLASSIFIED: {card_name}",
+            description=f"*{intel_text}*\n\n{power_display}",
+            color=0xFF69B4
+        )
+        await interaction.response.send_message(embed=intel_embed, ephemeral=True)
+
     @commands.command(name="setcards")
     @commands.has_permissions(administrator=True)
     async def setcards(self, ctx, channel: discord.TextChannel):
@@ -254,7 +259,7 @@ class CardSystem(commands.Cog):
         user_id = ctx.author.id
         card = self.current_card
         
-        # Prepare View - Passing card here though the button now fetches from DB
+        # Prepare View - Passing card here though the listener handles it
         view = InfoView(card)
         self.current_card = None 
 
