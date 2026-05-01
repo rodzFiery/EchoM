@@ -6,6 +6,31 @@ import asyncio
 import sys
 import os
 
+# --- NEW COMPONENT: INFO BUTTON ---
+
+class InfoView(discord.ui.View):
+    def __init__(self, card_data):
+        super().__init__(timeout=None)
+        self.card_data = card_data
+
+    @discord.ui.button(label="🔍 View Intel", style=discord.ButtonStyle.secondary, custom_id="view_intel")
+    async def view_intel(self, interaction: discord.Interaction):
+        # Generate the random powers display
+        p = self.card_data['powers']
+        power_display = (
+            f"**🔥 Tease:** {p['Tease']}/100\n"
+            f"**💘 Flirt:** {p['Flirt']}/100\n"
+            f"**🔞 Sex:** {p['Sex']}/100\n"
+            f"**✨ Magic:** {p['Magic']}/100"
+        )
+        
+        intel_embed = discord.Embed(
+            title=f"📜 CLASSIFIED: {self.card_data['name']}",
+            description=f"*{self.card_data['intel']}*\n\n{power_display}",
+            color=0xFF69B4
+        )
+        await interaction.response.send_message(embed=intel_embed, ephemeral=True)
+
 # --- INTERACTIVE POKEDEX COMPONENTS ---
 
 class PokedexView(discord.ui.View):
@@ -53,6 +78,35 @@ class CardSystem(commands.Cog):
 
         # SERIES DEFINITIONS (Used to flavor the member-cards)
         self.series_types = ["Slut", "Dominator", "Submissive", "Switcher", "Threesomer", "Dirty", "Cummer", "Bossy", "Pimp", "Cum Cleaner"]
+
+        # 50 RANDOM SILLY NAUGHTY SENTENCES
+        self.intel_pool = [
+            "Secretly enjoys being watched through the webcam.", "Always forgets their safe word during intense 'archiving'.",
+            "Has a collection of toys hidden in the server basement.", "Thinks 'SQL injection' is a type of bedroom play.",
+            "Wears lace under that digital avatar skin.", "Is 100% likely to send a risky text at 3 AM.",
+            "Can't resist the sound of handcuffs clicking.", "Actually prefers the 'Cum Cleaner' series over everything.",
+            "Has been a very naughty asset this week.", "Wants to be dominated by the bot's master code.",
+            "Known for leaving wet patches in the neural vents.", "Frequently visits the 'special' channels in incognito.",
+            "Their favorite exercise is 'horizontal cardio'.", "Spends too much time looking at 'asset' photos.",
+            "Has a hidden tattoo only the Dominator tier can see.", "Obsessed with the feeling of cold latex.",
+            "Always ready for a quick neural upload in the bathroom.", "Has a folder named 'Tax Returns' that is definitely not taxes.",
+            "Dreams of being shared by a full Threesomer squad.", "Likes it rough, especially when the server lags.",
+            "Their moans can be heard across three different nodes.", "Prefers to be 'archived' face down.",
+            "The loudest asset in the entire neural network.", "Known for breaking the 'no touching' protocol.",
+            "Has a dirty mind that would crash a lesser AI.", "Secretly wants to be the server's favorite toy.",
+            "Can make a grown admin blush with a single DM.", "Always 'up' for a challenge, regardless of the tier.",
+            "Leaves lip marks on the monitor screen.", "Has a list of kinks longer than the bot's code.",
+            "Actually enjoys being caught and archived.", "Always asks for 'just one more' round of testing.",
+            "The primary reason the server needs a 'Cum Cleaner'.", "Wants to explore every corner of your database.",
+            "A total switcher when the lights go out.", "Thinks the Pokedex is a menu for a wild night.",
+            "Always carries a spare pair of digital cuffs.", "Their favorite sound is the notification of a new catch.",
+            "Likes to play 'Master and Asset' during maintenance.", "Has a 'submissive' mode triggered by certain keywords.",
+            "Can handle more 'data' than you can provide.", "Known for making the thermal vents overheat.",
+            "Always looking for a Threesomer partner in the chat.", "Has a very high 'Magic' rating for bedroom tricks.",
+            "Thinks a 'hard drive' is a suggestion, not hardware.", "Secretly records their sessions for the Pimp series.",
+            "Would sell their soul for a Supreme tier night.", "The dirtiest asset ever recorded in this sector.",
+            "Always wet and ready for a neural sync.", "Never says no to a 'Dirty' series encounter."
+        ]
 
     def _init_db(self):
         main_mod = sys.modules['__main__']
@@ -110,11 +164,22 @@ class CardSystem(commands.Cog):
         tier_name, color = self.get_random_tier()
         series = random.choice(self.series_types)
         
+        # GENERATE RANDOM INTEL AND POWERS
+        intel_text = random.choice(self.intel_pool)
+        powers = {
+            "Tease": random.randint(1, 100),
+            "Flirt": random.randint(1, 100),
+            "Sex": random.randint(1, 100),
+            "Magic": random.randint(1, 100)
+        }
+
         self.current_card = {
             "name": target_member.display_name,
             "tier": tier_name,
             "type": series,
-            "id": target_member.id
+            "id": target_member.id,
+            "intel": intel_text,
+            "powers": powers
         }
 
         main_mod = sys.modules['__main__']
@@ -161,6 +226,8 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         user_id = ctx.author.id
         card = self.current_card
+        # We keep card data for the view before clearing self.current_card
+        view = InfoView(card)
         self.current_card = None 
 
         with main_mod.get_db_connection() as conn:
@@ -181,7 +248,7 @@ class CardSystem(commands.Cog):
         if target_member:
             embed.set_thumbnail(url=target_member.display_avatar.url)
 
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, view=view)
 
     @commands.command(name="pokedex")
     async def pokedex(self, ctx, member: discord.Member = None):
