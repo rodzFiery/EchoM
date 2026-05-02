@@ -6,18 +6,16 @@ import aiohttp
 import sys
 import json
 import os
-import asyncio # ADDED: Required for thread-safe processing
+import asyncio
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
 class DungeonAsk(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # FIXED: Pulled dynamically from main module to support the !audit system
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1482071248631758865)
 
     async def create_ask_lobby(self, u1_url, u2_url, title="DM REQUEST"):
-        """Generates visual for the request using square avatars and fiery theme."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(u1_url) as r1, session.get(u2_url) as r2:
@@ -27,15 +25,12 @@ class DungeonAsk(commands.Cog):
             def process():
                 canvas_width = 1200
                 canvas_height = 600
-                
-                # ADDED: Background image integration with fallback
                 if os.path.exists("askdm.jpg"):
                     canvas = Image.open("askdm.jpg").convert("RGBA").resize((canvas_width, canvas_height))
                 else:
                     canvas = Image.new("RGBA", (canvas_width, canvas_height), (15, 0, 8, 255))
                 
                 draw = ImageDraw.Draw(canvas)
-
                 av_size = 350
                 av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
@@ -50,16 +45,13 @@ class DungeonAsk(commands.Cog):
 
                 canvas.paste(av1, (100, 120), av1)
                 canvas.paste(av2, (750, 120), av2)
-
                 draw.text((500, 50), title, fill=(255, 255, 255), stroke_width=5, stroke_fill=(0,0,0))
-                # REMOVED: VS Text drawing logic
 
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
                 return buf
             
-            # FIXED: Heavy Pillow processing moved to background thread
             return await asyncio.to_thread(process)
         except Exception as e:
             print(f"Ask Visual Error: {e}")
@@ -67,13 +59,10 @@ class DungeonAsk(commands.Cog):
 
     @commands.command(name="ask")
     async def ask(self, ctx, member: discord.Member):
-        """Initiates a formal request with Accept/Deny mechanisms."""
         if member.id == ctx.author.id:
-            return await ctx.send("❌ You can't ask to DM yourself. For masturbation you have another ways.")
+            return await ctx.send("❌ You can't ask to DM yourself.")
 
         main_mod = sys.modules['__main__']
-        
-        # Phase 1: Initial Selection Card (Title parameter removed as requested)
         img = await self.create_ask_lobby(ctx.author.display_avatar.url, member.display_avatar.url, "")
         file = discord.File(img, filename="ask.png")
         
@@ -83,11 +72,12 @@ class DungeonAsk(commands.Cog):
         embed.set_image(url="attachment://ask.png")
         
         class InitialView(discord.ui.View):
-            def __init__(self, cog, requester, target):
+            def __init__(self, cog, requester, target, original_embed):
                 super().__init__(timeout=120)
                 self.cog = cog
                 self.requester = requester
                 self.target = target
+                self.embed = original_embed
 
             @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩")
             async def dm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -111,81 +101,78 @@ class DungeonAsk(commands.Cog):
                     
                     intent_display = " | ".join([f"**{val}**" for val in select.values])
                     
-                    # RE-CODED: Requester Profile stats (lvl, flames, spouse) removed from this embed
-                    final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
-                        f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
-                        f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
-                        f"** **")
-                    
-                    final_embed.set_thumbnail(url=self.requester.display_avatar.url)
-                    final_embed.color = 0x00BFFF 
+                    self.embed.title = "📩 INCOMING DM REQUEST"
+                    self.embed.description = (f"{self.target.mention}, a formal petition to enter your private space has been filed by {self.requester.mention}.\n\n"
+                                             f"### 🫦 INTENT OF CONTACT:\n> {intent_display}")
+                    self.embed.set_thumbnail(url=self.requester.display_avatar.url)
+                    self.embed.color = 0x00BFFF 
 
                     class RecipientView(discord.ui.View):
-                        def __init__(self, req, tar):
+                        def __init__(self, req, tar, emb):
                             super().__init__(timeout=300)
                             self.req = req
                             self.tar = tar
+                            self.emb = emb
 
                         @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦")
                         async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
                             if inter.user.id != self.tar.id: return
-                            success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", 
-                                f"**DM ACCEPTED.** {self.req.mention}, your request was **ACCEPTED** by {self.tar.mention}.\n\n"
-                                f"Proceed to the shadows. Be respectful and share love.")
-                            await inter.response.send_message(content=self.req.mention, embed=success_emb)
+                            self.emb.title = "💖 DM ACCEPTED"
+                            self.emb.description = f"**DM ACCEPTED.** {self.req.mention}, your request was **ACCEPTED** by {self.tar.mention}.\n\nProceed to the shadows."
+                            self.emb.color = discord.Color.green()
+                            await inter.response.edit_message(embed=self.emb, view=None)
                             self.stop()
 
                         @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌")
                         async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
                             if inter.user.id != self.tar.id: return
-                            fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", 
-                                f"**REQUEST DENIED.** {self.tar.mention} has rejected your advances.\n\n"
-                                f"Return to your cell, {self.req.mention}. Do not seek this asset again today.")
-                            await inter.response.send_message(content=self.req.mention, embed=fail_emb)
+                            self.emb.title = "❌ REQUEST DENIED"
+                            self.emb.description = f"**REQUEST DENIED.** {self.tar.mention} has rejected your advances.\n\nReturn to your cell."
+                            self.emb.color = discord.Color.red()
+                            await inter.response.edit_message(embed=self.emb, view=None)
                             self.stop()
 
-                    files = []
-                    if os.path.exists("LobbyTopRight.jpg"):
-                        files.append(discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg"))
-                        final_embed.set_author(name="VOYEUR NOTIFICATION", icon_url="attachment://LobbyTopRight.jpg")
-
-                    await sel_interaction.response.send_message(content=self.target.mention, embed=final_embed, files=files, view=RecipientView(self.requester, self.target))
+                    # We edit the original interaction message to update the UI for everyone
+                    await sel_interaction.response.edit_message(embed=self.embed, view=RecipientView(self.requester, self.target, self.embed))
 
                 select.callback = select_callback
-                dm_view = discord.ui.View()
-                dm_view.add_item(select)
-                await interaction.response.send_message("🫦 **Define the nature of your entry, asset:**", view=dm_view, ephemeral=True)
+                view = discord.ui.View()
+                view.add_item(select)
+                # Ephemeral remains separate as it's a private prompt for the requester
+                await interaction.response.send_message("🫦 **Define the nature of your entry, asset:**", view=view, ephemeral=True)
 
             @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦")
             async def play_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
                 if interaction.user.id != self.requester.id: return
                 
-                play_embed = main_mod.fiery_embed("🔞 SEX-BOT TRIAL REQUEST 🔞", 
-                    f"{self.target.mention}, {self.requester.mention} wants to initiate a deep-sync session (Sex Bot).\n\n"
-                    "**Will you submit to the session and reveal your frequencies?**")
+                self.embed.title = "🔞 SEX-BOT TRIAL REQUEST 🔞"
+                self.embed.description = (f"{self.target.mention}, {self.requester.mention} wants to initiate a deep-sync session (Sex Bot).\n\n"
+                                         "**Will you submit to the session?**")
                 
                 class PlayView(discord.ui.View):
-                    def __init__(self, req, tar):
+                    def __init__(self, req, tar, emb):
                         super().__init__(timeout=300)
                         self.req = req
                         self.tar = tar
+                        self.emb = emb
 
                     @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥")
                     async def accept_play(self, inter: discord.Interaction, btn: discord.ui.Button):
                         if inter.user.id != self.tar.id: return
-                        await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** {self.tar.mention} is ready for trial. {self.req.mention}, begin the sequence.")
+                        self.emb.description = f"🔞 **SYNC INITIALIZED.** {self.tar.mention} is ready. {self.req.mention}, begin sequence."
+                        await inter.response.edit_message(embed=self.emb, view=None)
                         self.stop()
 
                     @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒")
                     async def deny_play(self, inter: discord.Interaction, btn: discord.ui.Button):
                         if inter.user.id != self.tar.id: return
-                        await inter.response.send_message(f"🔒 **SYNC ABORTED.** {self.tar.mention} has locked their neural gate.")
+                        self.emb.description = f"🔒 **SYNC ABORTED.** {self.tar.mention} has locked their neural gate."
+                        await inter.response.edit_message(embed=self.emb, view=None)
                         self.stop()
 
-                await interaction.response.send_message(content=self.target.mention, embed=play_embed, view=PlayView(self.requester, self.target))
+                await interaction.response.edit_message(embed=self.embed, view=PlayView(self.requester, self.target, self.embed))
 
-        await ctx.send(file=file, embed=embed, view=InitialView(self, ctx.author, member))
+        await ctx.send(file=file, embed=embed, view=InitialView(self, ctx.author, member, embed))
 
 async def setup(bot):
     await bot.add_cog(DungeonAsk(bot))
-    print("✅ LOG: Ask Extension (Dungeon Intent) is ONLINE.")
