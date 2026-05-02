@@ -188,6 +188,7 @@ class EngineControl(commands.Cog):
             engine.current_lobbies[ctx.guild.id] = view
             # --- NEW: CLEAR OLD PERSISTENCE FOR THIS GUILD ---
             with engine.get_db_connection() as conn:
+                # FIXED: Ensure table is ready before deletion attempt
                 conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
                 conn.execute("DELETE FROM lobby_persistence WHERE guild_id = ?", (ctx.guild.id,))
                 conn.commit()
@@ -298,7 +299,14 @@ class IgnisEngine(commands.Cog):
 
     def _init_db(self):
         with self.get_db_connection() as conn:
+            # FIXED: Create table with ALL columns immediately to avoid "no such column" error
             conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
+            
+            # FIXED: Forced migration logic inside init to handle old tables
+            cursor = conn.execute("PRAGMA table_info(lobby_persistence)")
+            cols = [c[1] for c in cursor.fetchall()]
+            if cols and "guild_id" not in cols:
+                conn.execute("ALTER TABLE lobby_persistence ADD COLUMN guild_id INTEGER DEFAULT 0")
             conn.commit()
 
     # --- NEW: PERSISTENCE RESTORATION HOOK ---
@@ -306,17 +314,21 @@ class IgnisEngine(commands.Cog):
     async def on_ready(self):
         """Restores lobbies from the database after a redeploy."""
         with self.get_db_connection() as conn:
-            # Migration check: ensure guild_id exists
+            # Check table columns again safely
             cursor = conn.execute("PRAGMA table_info(lobby_persistence)")
             cols = [c[1] for c in cursor.fetchall()]
-            if cols and "guild_id" not in cols:
-                conn.execute("DROP TABLE lobby_persistence")
+            if not cols or "guild_id" not in cols:
+                # If the table is broken, reset it
+                conn.execute("DROP TABLE IF EXISTS lobby_persistence")
                 conn.execute("CREATE TABLE lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
-            
+                conn.commit()
+                return
+
             rows = conn.execute("SELECT guild_id, user_id, edition FROM lobby_persistence").fetchall()
             for row in rows:
                 g_id, u_id, edition = row[0], row[1], row[2]
                 if g_id not in self.current_lobbies:
+                    # We don't have the original owner, so we use None or a default
                     self.current_lobbies[g_id] = LobbyView(None, edition)
                 if u_id not in self.current_lobbies[g_id].participants:
                     self.current_lobbies[g_id].participants.append(u_id)
