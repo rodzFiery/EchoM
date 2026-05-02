@@ -297,7 +297,7 @@ class ShopView(discord.ui.View):
     async def handle_buy(self, interaction, index):
         if index >= len(self.items): return
         item_name = self.items[index]['name']
-        await interaction.response.defer()
+        # Immediate defer not needed as cog.buy_item handles response
         await self.cog.buy_item(interaction, item_name=item_name)
 
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=2)
@@ -401,28 +401,34 @@ class Shop(commands.Cog):
     @commands.command(name="buy")
     async def buy_item(self, ctx, *, item_name: str):
         author = ctx.author if hasattr(ctx, 'author') else ctx.user
-        send_method = ctx.send if hasattr(ctx, 'send') else ctx.followup.send
-        guild = ctx.guild if hasattr(ctx, 'guild') else ctx.guild
+        guild = ctx.guild
 
         found_item, found_cat, found_tier = self.get_item_details(item_name)
         
         if not found_item: 
             err_emb = discord.Embed(title="❌ Item Not Found", description=f"The item '{item_name}' does not exist.", color=0xFF0000)
-            return await send_method(embed=err_emb)
+            if isinstance(ctx, discord.Interaction):
+                return await ctx.response.send_message(embed=err_emb, ephemeral=True)
+            return await ctx.send(embed=err_emb)
 
         if found_cat == "Rings":
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         with self.get_db_connection() as conn:
-            user = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
-            if not user or user['balance'] < found_item['price']:
+            # Re-fetch row as dict to ensure we can edit it
+            user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
+            if not user_row or user_row['balance'] < found_item['price']:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
-                return await send_method(embed=lack_emb)
+                if isinstance(ctx, discord.Interaction):
+                    return await ctx.response.send_message(embed=lack_emb, ephemeral=True)
+                return await ctx.send(embed=lack_emb)
 
-            inv = json.loads(user['titles']) if user['titles'] else []
+            inv = json.loads(user_row['titles']) if user_row['titles'] else []
             if found_item['name'] in inv: 
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
-                return await send_method(embed=own_emb)
+                if isinstance(ctx, discord.Interaction):
+                    return await ctx.response.send_message(embed=own_emb, ephemeral=True)
+                return await ctx.send(embed=own_emb)
 
             inv.append(found_item['name'])
             conn.execute("UPDATE users SET balance = balance - ?, titles = ? WHERE id = ?", 
@@ -434,9 +440,15 @@ class Shop(commands.Cog):
         if found_tier == "Supreme":
             success_emb.title = "🚨 SUPREME ASSET CLAIMED!"
             success_emb.color = 0xFF0000
-            await send_method(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
+            if isinstance(ctx, discord.Interaction):
+                await ctx.response.send_message(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
+            else:
+                await ctx.send(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
         else:
-            await send_method(embed=success_emb)
+            if isinstance(ctx, discord.Interaction):
+                await ctx.response.send_message(embed=success_emb, ephemeral=True)
+            else:
+                await ctx.send(embed=success_emb)
 
         main_mod = sys.modules['__main__']
         audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
@@ -494,15 +506,17 @@ class Shop(commands.Cog):
 
     async def handle_ring_purchase(self, ctx, item, tier):
         author = ctx.author if hasattr(ctx, 'author') else ctx.user
-        send_method = ctx.send if hasattr(ctx, 'send') else ctx.followup.send
         channel = ctx.channel if hasattr(ctx, 'channel') else ctx.message.channel
-        guild = ctx.guild if hasattr(ctx, 'guild') else ctx.guild
 
         def check(m):
             return m.author == author and m.channel == channel
 
         prompt_emb = discord.Embed(title="💍 Soul Binding Ceremony", description=f"You are sacrificing flames for the **{item['name']}**.\nTag the soul you wish to bind to your destiny.", color=0xFF69B4)
-        await send_method(embed=prompt_emb)
+        
+        if isinstance(ctx, discord.Interaction):
+            await ctx.response.send_message(embed=prompt_emb)
+        else:
+            await ctx.send(embed=prompt_emb)
         
         try:
             msg = await self.bot.wait_for('message', timeout=30.0, check=check)
