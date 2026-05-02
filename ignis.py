@@ -188,6 +188,7 @@ class EngineControl(commands.Cog):
             engine.current_lobbies[ctx.guild.id] = view
             # --- NEW: CLEAR OLD PERSISTENCE FOR THIS GUILD ---
             with engine.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
                 conn.execute("DELETE FROM lobby_persistence WHERE guild_id = ?", (ctx.guild.id,))
                 conn.commit()
 
@@ -238,10 +239,7 @@ class IgnisEngine(commands.Cog):
         self.current_lobbies = {} # Guild ID -> LobbyView mapping
         self.current_survivors = {} # Channel ID -> List of survivor IDs
 
-        # --- NEW: INIT PERSISTENCE TABLE ---
-        with self.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
-            conn.commit()
+        self._init_db()
 
         # NSFW Winner Power Tracker
         self.last_winner_id = None
@@ -298,20 +296,27 @@ class IgnisEngine(commands.Cog):
             "Final command: Show us everything you've got. Flash!"
         ]
 
+    def _init_db(self):
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
+            conn.commit()
+
     # --- NEW: PERSISTENCE RESTORATION HOOK ---
     @commands.Cog.listener()
     async def on_ready(self):
         """Restores lobbies from the database after a redeploy."""
-        import sys as _sys
-        main = _sys.modules['__main__']
         with self.get_db_connection() as conn:
-            # FIX: Double ensure table exists before select
-            conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
+            # Migration check: ensure guild_id exists
+            cursor = conn.execute("PRAGMA table_info(lobby_persistence)")
+            cols = [c[1] for c in cursor.fetchall()]
+            if cols and "guild_id" not in cols:
+                conn.execute("DROP TABLE lobby_persistence")
+                conn.execute("CREATE TABLE lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
+            
             rows = conn.execute("SELECT guild_id, user_id, edition FROM lobby_persistence").fetchall()
             for row in rows:
                 g_id, u_id, edition = row[0], row[1], row[2]
                 if g_id not in self.current_lobbies:
-                    # We don't have the original owner, so we use None or a default
                     self.current_lobbies[g_id] = LobbyView(None, edition)
                 if u_id not in self.current_lobbies[g_id].participants:
                     self.current_lobbies[g_id].participants.append(u_id)
@@ -528,7 +533,7 @@ class IgnisEngine(commands.Cog):
                 # ADDED: Total number of participants in the description/footer logic
                 total_count = len(fighters)
                 roster_embed = self.fiery_embed(f"Tribute Roster - Edition #{edition}", f"**Total Sinners Bound:** `{total_count}`\n\n" + "\n".join(roster_list))
-                await channel.send(embed=roster_embed)
+                await channel.send(roster_embed)
             except:
                 await channel.send(f"**Tribute Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
 
