@@ -535,7 +535,7 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # --- FIXED: SUICIDE MECHANIC CHECKED AT START OF ROUND ---
+                # --- FIXED: SUICIDE MECHANIC MOVED TO MAIN ROUND START ---
                 if random.random() < 0.10 and len(fighters) > 2:
                     victim = fighters.pop(random.randrange(len(fighters)))
                     
