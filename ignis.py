@@ -535,13 +535,13 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # --- NEW: SUICIDE MECHANIC (10% Ratio) ---
+                # --- FIXED: SUICIDE MECHANIC CHECKED AT START OF ROUND ---
                 if random.random() < 0.10 and len(fighters) > 2:
                     victim = fighters.pop(random.randrange(len(fighters)))
                     
-                    # Capture first loser for Basic NSFW protocol
-                    if not first_blood_recorded and not first_loser_member:
+                    if not first_blood_recorded:
                         first_loser_member = channel.guild.get_member(victim['id'])
+                        first_blood_recorded = True
                     
                     if channel.id in self.current_survivors:
                         if victim['id'] in self.current_survivors[channel.id]:
@@ -564,12 +564,10 @@ class IgnisEngine(commands.Cog):
                     
                     await channel.send(file=s_file, embed=s_emb)
                     
-                    if not first_blood_recorded:
-                        first_blood_recorded = True
-                        import sys as _s_sys
-                        main_s = _s_sys.modules['__main__']
-                        if main_s.nsfw_mode_active or main_s.basic_nsfw_active:
-                            await channel.send(embed=self.fiery_embed("Public Exposure", f"🔞 **FIRST BLOOD BY SUICIDE:** {victim['name']} was the first to fall! Per protocol, their broken form is exposed to the pit.", color=0xFF00FF))
+                    import sys as _s_sys
+                    main_s = _s_sys.modules['__main__']
+                    if main_s.nsfw_mode_active or main_s.basic_nsfw_active:
+                        await channel.send(embed=self.fiery_embed("Public Exposure", f"🔞 **SUICIDE FALLOUT:** {victim['name']}'s broken form is stripped and exposed to the pit.", color=0xFF00FF))
                     
                     await asyncio.sleep(5)
                     if len(fighters) <= 1: break
