@@ -45,6 +45,7 @@ class HelperSystem(commands.Cog):
             try:
                 with open(self.purge_file, "r") as f:
                     data = json.load(f)
+                    # FIX: Ensure keys are cast to INT when loading so channel ID lookups work
                     return {int(k): v for k, v in data.items()}
             except:
                 return {}
@@ -53,7 +54,6 @@ class HelperSystem(commands.Cog):
     def save_purge_configs(self):
         """Saves auto-purge configurations to JSON."""
         with open(self.purge_file, "w") as f:
-            # FIX: Ensure keys are strings for JSON and save
             json.dump({str(k): v for k, v in self.purge_configs.items()}, f)
 
     @tasks.loop(minutes=1)
@@ -65,12 +65,11 @@ class HelperSystem(commands.Cog):
                 continue
             
             try:
-                # FIX: Use timezone.utc to align with Discord message timestamps
                 cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
                 
-                # FIX: Verify Manage Messages permission before purging
                 if channel.permissions_for(channel.guild.me).manage_messages:
-                    await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True)
+                    # FIX: Added limit=None to ensure it scans beyond the default 100 messages
+                    await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True, limit=None)
             except Exception as e:
                 print(f"⚠️ Auto-Purge Fail in {channel_id}: {e}")
 
@@ -84,9 +83,6 @@ class HelperSystem(commands.Cog):
         if message.author.bot:
             return
 
-        # Check if the message contains any role mentions (even if not pinging yet)
-        # We use content check because if the role is unmentionable, 
-        # message.role_mentions might be empty.
         for role_id, cooldown_mins in self.ping_cooldowns.items():
             role_tag = f"<@&{role_id}>"
             
@@ -106,19 +102,10 @@ class HelperSystem(commands.Cog):
                         allowed = True
 
                 if allowed:
-                    # THE FLASH PING PROTOCOL
                     try:
-                        # 1. Make role mentionable
                         await role.edit(mentionable=True)
-                        
-                        # 2. Send a temporary "Flash" message to trigger the notification
-                        # This ensures the ping actually 'hits' the members
                         flash = await message.channel.send(f"🔔 **{role.name} Notification Requested**")
-                        
-                        # 3. Update the timer
                         self.last_ping_time[role_id] = datetime.now()
-                        
-                        # 4. Wait a split second and lock it back
                         await asyncio.sleep(1)
                         await role.edit(mentionable=False)
                         await flash.delete()
@@ -126,9 +113,6 @@ class HelperSystem(commands.Cog):
                     except discord.Forbidden:
                         await message.channel.send("❌ **System Error:** I need 'Manage Roles' to toggle ping status.")
                 else:
-                    # NOT ALLOWED: We do nothing. 
-                    # The message stays, but since the role is unmentionable, 
-                    # it appears as text and pings NO ONE.
                     remaining = timedelta(minutes=cooldown_mins) - (datetime.now() - last_ping)
                     mins, secs = divmod(int(remaining.total_seconds()), 60)
                     
@@ -283,7 +267,6 @@ class HelperSystem(commands.Cog):
         self.save_persistent_limits()
         
         try:
-            # Force the role to be unmentionable by default
             await role.edit(mentionable=False)
             await ctx.send(f"🛡️ **COOLDOWN SECURED:** {role.mention} is now locked. Pings only allowed every `{minutes}`m. (Saved Forever)")
         except:
