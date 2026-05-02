@@ -535,8 +535,8 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # --- FIXED: SUICIDE CHECK AS INDEPENDENT EVENT ---
-                if random.random() < 0.10 and len(fighters) > 2:
+                # --- MANDATORY CYCLE: SUICIDE CHECK ---
+                if random.random() < 0.10:
                     victim_idx = random.randrange(len(fighters))
                     victim = fighters.pop(victim_idx)
                     
@@ -572,6 +572,7 @@ class IgnisEngine(commands.Cog):
                     
                     await asyncio.sleep(5)
                     if len(fighters) <= 1: break
+                    continue
 
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
@@ -627,9 +628,9 @@ class IgnisEngine(commands.Cog):
                         await asyncio.sleep(6)
                     
                     if len(fighters) <= 1: break
+                    continue
 
                 # --- COMBAT ROUND ---
-                if len(fighters) < 2: break
                 p1_idx = random.randrange(len(fighters))
                 p1 = fighters.pop(p1_idx)
                 p2_idx = random.randrange(len(fighters))
