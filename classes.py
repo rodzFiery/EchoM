@@ -13,7 +13,11 @@ class ClassSystem(commands.Cog):
     async def send_class_details(self, ctx, class_name):
         """Helper to send class profile details"""
         data = self.CLASSES[class_name]
-        desc = (f"**{data['icon']} {class_name.upper()} CLASS DETAILS**\n\n"
+        
+        # FIXED: Use .get() to prevent KeyError if 'icon' is missing in main.py
+        icon = data.get('icon', '⛓️')
+        
+        desc = (f"**{icon} {class_name.upper()} CLASS DETAILS**\n\n"
                 f"🔥 **Flame Bonus:** +{int((data['bonus_flames']-1)*100)}%\n"
                 f"💦 **Experience Bonus:** +{int((data['bonus_xp']-1)*100)}%\n\n"
                 f"*\"{data['desc']}\"*\n\n"
