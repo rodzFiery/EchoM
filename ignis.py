@@ -536,7 +536,8 @@ class IgnisEngine(commands.Cog):
 
             while len(fighters) > 1:
                 # --- FIX: SUICIDE CHECK MOVED INTO CORE LOOP FLOW ---
-                if random.random() < 0.12 and len(fighters) > 2:
+                # MOVED: Check happens at start of every iteration (10% chance)
+                if random.random() < 0.10 and len(fighters) > 2:
                     victim_idx = random.randrange(len(fighters))
                     victim = fighters.pop(victim_idx)
                     
@@ -572,6 +573,7 @@ class IgnisEngine(commands.Cog):
                     
                     await asyncio.sleep(5)
                     if len(fighters) <= 1: break
+                    continue # Re-evaluate conditions after suicide
 
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
