@@ -246,12 +246,17 @@ class CardSystem(commands.Cog):
             card_name = title.replace("🧬 ASSET INTEL: ", "").strip()
 
             with main_mod.get_db_connection() as conn:
-                # Find the rowid for this specific card name for the user
-                row = conn.execute("SELECT rowid FROM user_cards WHERE user_id = ? AND card_name = ? LIMIT 1", (user_id, card_name)).fetchone()
+                # Find the rowid and original name for this specific card
+                row = conn.execute("SELECT rowid, card_name FROM user_cards WHERE user_id = ? AND card_name = ? LIMIT 1", (user_id, card_name)).fetchone()
                 if row:
-                    # Attempt to find the member in the guild to get their current avatar
-                    target_member = discord.utils.find(lambda m: m.display_name == card_name, interaction.guild.members)
-                    avatar_url = target_member.display_avatar.url if target_member else None
+                    # Robust search for member avatar URL
+                    avatar_url = None
+                    target_member = discord.utils.get(interaction.guild.members, display_name=card_name)
+                    if not target_member:
+                        target_member = discord.utils.get(interaction.guild.members, name=card_name)
+                    
+                    if target_member:
+                        avatar_url = target_member.display_avatar.url
                     
                     conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
                                  (user_id, row[0], card_name, avatar_url))
