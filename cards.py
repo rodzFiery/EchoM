@@ -63,7 +63,27 @@ class VelvetdexSelect(discord.ui.Select):
         embed = main_mod.fiery_embed(f"🧬 ASSET INTEL: {card_name.upper()}", 
                                      f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}")
         
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # ADDED: View with a "Set as Pet" button
+        view = PetSelectionView(card_db_id, card_name)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+# --- NEW COMPONENT: PET SELECTION ---
+
+class PetSelectionView(discord.ui.View):
+    def __init__(self, card_db_id, card_name):
+        super().__init__(timeout=60)
+        self.card_db_id = card_db_id
+        self.card_name = card_name
+
+    @discord.ui.button(label="🐾 Set as Active Pet", style=discord.ButtonStyle.success)
+    async def set_pet(self, interaction: discord.Interaction):
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name) VALUES (?, ?, ?)", 
+                         (interaction.user.id, self.card_db_id, self.card_name))
+            conn.commit()
+        
+        await interaction.response.send_message(f"✅ **{self.card_name}** is now following you!", ephemeral=True)
 
 class VelvetdexView(discord.ui.View):
     def __init__(self, cards):
@@ -154,6 +174,8 @@ class CardSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, intel TEXT, powers TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
+            # NEW TABLE: To store the pet/companion
+            conn.execute("CREATE TABLE IF NOT EXISTS user_pets (user_id INTEGER PRIMARY KEY, card_rowid INTEGER, card_name TEXT)")
             
             # Migration check: add columns if they don't exist in an old DB
             cursor = conn.execute("PRAGMA table_info(user_cards)")
@@ -373,6 +395,10 @@ class CardSystem(commands.Cog):
                 (target.id,)
             ).fetchone()[0]
 
+            # FETCH PET DATA
+            pet_row = conn.execute("SELECT card_name FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
+            pet_name = pet_row[0] if pet_row else "None"
+
         if not rows:
             return await ctx.send(f"📕 {target.display_name}'s Archive is empty. No neural patterns recorded.")
 
@@ -390,7 +416,7 @@ class CardSystem(commands.Cog):
             last_card_caught = {"name": name, "intel": intel, "powers": powers}
 
         embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
-                                     "The archive holds the following digitized signatures:")
+                                     f"The archive holds the following digitized signatures:\n\n🐾 **Active Pet:** {pet_name}")
         
         embed.set_thumbnail(url=target.display_avatar.url)
 
@@ -423,6 +449,10 @@ class CardSystem(commands.Cog):
                 (target.id,)
             ).fetchall()
 
+            # FETCH PET DATA
+            pet_row = conn.execute("SELECT card_name FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
+            pet_display = f"\n🐾 **Active Pet:** {pet_row[0]}" if pet_row else "\n🐾 **Active Pet:** None"
+
         if not rows:
             return await ctx.send(f"📕 {target.display_name}'s Velvetdex is currently offline. No assets recorded.")
 
@@ -432,7 +462,7 @@ class CardSystem(commands.Cog):
             card_list.append({'id': r[0], 'card_name': r[1], 'tier': r[2]})
 
         embed = main_mod.fiery_embed(f"📂 {target.display_name.upper()}'S VELVETDEX", 
-                                     "Select an asset signature from the dropdown to access encrypted metadata.")
+                                     f"Select an asset signature from the dropdown to access encrypted metadata.{pet_display}")
         embed.set_thumbnail(url=target.display_avatar.url)
         
         view = VelvetdexView(card_list)
