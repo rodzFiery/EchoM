@@ -71,18 +71,18 @@ MARKET_DATA = {
             {"name": "Sky-Bound Spire", "price": 7500000, "prot": 8, "desc": "A tower floating above the toxins. Only drones can reach you."}
         ],
         "Legendary": [
-            {"name": "The Ivory Tower", "price": 12000000, "prot": 10, "desc": "Untouchable. Unreachable. Unforgiving prestige."},
-            {"name": "Abyssal Throne", "price": 15000000, "prot": 10, "desc": "A seat of power in the void. FB is almost impossible."},
-            {"name": "Grand Exhibition Hall", "price": 20000000, "prot": 10, "desc": "You are the centerpiece. The Master guards your sleep."},
-            {"name": "Molten Citadel", "price": 25000000, "prot": 10, "desc": "A castle on a lava lake. Only the heat can find you."},
-            {"name": "Kraken's Maw", "price": 35000000, "prot": 10, "desc": "Underwater and sealed. Absolute isolation."}
+            {"name": "The Ivory Tower", "price": 9500000, "prot": 10, "desc": "Untouchable. Unreachable. Unforgiving prestige."},
+            {"name": "Abyssal Throne", "price": 11000000, "prot": 10, "desc": "A seat of power in the void. FB is almost impossible."},
+            {"name": "Grand Exhibition Hall", "price": 12500000, "prot": 10, "desc": "You are the centerpiece. The Master guards your sleep."},
+            {"name": "Molten Citadel", "price": 14000000, "prot": 10, "desc": "A castle on a lava lake. Only the heat can find you."},
+            {"name": "Kraken's Maw", "price": 16000000, "prot": 10, "desc": "Underwater and sealed. Absolute isolation."}
         ],
         "Supreme": [
-            {"name": "The Forbidden Palace", "price": 55000000, "prot": 12, "desc": "The Master's quarters. You are property of the highest tier."},
-            {"name": "Dominion Prime", "price": 75000000, "prot": 12, "desc": "Total control over the landscape. You dictate the rules."},
-            {"name": "Eternity's Bastion", "price": 100000000, "prot": 12, "desc": "Built outside of time. You cannot fall if time stops."},
-            {"name": "The Red Sun", "price": 150000000, "prot": 12, "desc": "A celestial body mansion. You are a God of the Pit."},
-            {"name": "Absolute Null", "price": 250000000, "prot": 15, "desc": "SUPREME: You exist in negative space. FB is a myth."}
+            {"name": "The Forbidden Palace", "price": 25000000, "prot": 12, "desc": "The Master's quarters. You are property of the highest tier."},
+            {"name": "Dominion Prime", "price": 35000000, "prot": 12, "desc": "Total control over the landscape. You dictate the rules."},
+            {"name": "Eternity's Bastion", "price": 50000000, "prot": 12, "desc": "Built outside of time. You cannot fall if time stops."},
+            {"name": "The Red Sun", "price": 75000000, "prot": 12, "desc": "A celestial body mansion. You are a God of the Pit."},
+            {"name": "Absolute Null", "price": 100000000, "prot": 15, "desc": "SUPREME: You exist in negative space. FB is a myth."}
         ]
     },
     "Pets": {
@@ -115,18 +115,18 @@ MARKET_DATA = {
             {"name": "Spectral Stag", "price": 10000000, "luck": 8, "desc": "A ghostly king. Regal, deadly, and lucky."}
         ],
         "Legendary": [
-            {"name": "Inferno Drake", "price": 18000000, "luck": 12, "desc": "Breathes fire upon your enemy's chances."},
-            {"name": "Master's Shadow", "price": 22000000, "luck": 12, "desc": "A piece of the Master. Your win is decreed."},
-            {"name": "Lich Owl", "price": 28000000, "luck": 12, "desc": "Sees all futures. Chooses the one where you win."},
-            {"name": "Behemoth Cub", "price": 35000000, "luck": 12, "desc": "Tiny, but carries the strength of a thousand games."},
-            {"name": "Siren of Pits", "price": 45000000, "luck": 12, "desc": "Her song makes the final opponent surrender."}
+            {"name": "Inferno Drake", "price": 15000000, "luck": 12, "desc": "Breathes fire upon your enemy's chances."},
+            {"name": "Master's Shadow", "price": 18000000, "luck": 12, "desc": "A piece of the Master. Your win is decreed."},
+            {"name": "Lich Owl", "price": 22000000, "luck": 12, "desc": "Sees all futures. Chooses the one where you win."},
+            {"name": "Behemoth Cub", "price": 26000000, "luck": 12, "desc": "Tiny, but carries the strength of a thousand games."},
+            {"name": "Siren of Pits", "price": 30000000, "luck": 12, "desc": "Her song makes the final opponent surrender."}
         ],
         "Supreme": [
-            {"name": "World-Eater Worm", "price": 80000000, "luck": 12, "desc": "A god-tier parasite. It eats the bad luck of its owner."},
-            {"name": "Phoenix Reborn", "price": 120000000, "luck": 12, "desc": "You cannot lose. You only rise again to conquer."},
-            {"name": "Avatar of Lust", "price": 180000000, "luck": 12, "desc": "The ultimate temptation. The arena falls in love with you."},
-            {"name": "Chronos Cat", "price": 250000000, "luck": 12, "desc": "Rewinds time until you land the killing blow."},
-            {"name": "Tiamat's Seed", "price": 400000000, "luck": 12, "desc": "SUPREME: The multi-headed God of Luck. It is over."}
+            {"name": "World-Eater Worm", "price": 45000000, "luck": 12, "desc": "A god-tier parasite. It eats the bad luck of its owner."},
+            {"name": "Phoenix Reborn", "price": 60000000, "luck": 12, "desc": "You cannot lose. You only rise again to conquer."},
+            {"name": "Avatar of Lust", "price": 80000000, "luck": 12, "desc": "The ultimate temptation. The arena falls in love with you."},
+            {"name": "Chronos Cat", "price": 100000000, "luck": 12, "desc": "Rewinds time until you land the killing blow."},
+            {"name": "Tiamat's Seed", "price": 150000000, "luck": 12, "desc": "SUPREME: The multi-headed God of Luck. It is over."}
         ]
     },
     "Rings": {
@@ -159,18 +159,18 @@ MARKET_DATA = {
             {"name": "Shadow Ring", "price": 35000000, "desc": "Two people, one shadow. Total synchronization."}
         ],
         "Legendary": [
-            {"name": "Obsidian Brand", "price": 65000000, "desc": "Permanent. Painful. Powerful. 12% Shared Luck."},
-            {"name": "Master's Blessing", "price": 85000000, "desc": "The Master himself officiates this bond."},
-            {"name": "Eldritch Eye", "price": 110000000, "desc": "A ring that blinks. You see what your partner sees."},
-            {"name": "Dragon's Heart", "price": 150000000, "desc": "Brave and fiery. Shared protection is 15%."},
-            {"name": "Void Marriage", "price": 200000000, "desc": "Bound beyond the grave. Respawn together."}
+            {"name": "Obsidian Brand", "price": 50000000, "desc": "Permanent. Painful. Powerful. 12% Shared Luck."},
+            {"name": "Master's Blessing", "price": 65000000, "desc": "The Master himself officiates this bond."},
+            {"name": "Eldritch Eye", "price": 75000000, "desc": "A ring that blinks. You see what your partner sees."},
+            {"name": "Dragon's Heart", "price": 85000000, "desc": "Brave and fiery. Shared protection is 15%."},
+            {"name": "Void Marriage", "price": 100000000, "desc": "Bound beyond the grave. Respawn together."}
         ],
         "Supreme": [
-            {"name": "The One Ring", "price": 350000000, "desc": "SUPREME: One to rule the pit. Absolute shared dominance."},
-            {"name": "Soul Braid", "price": 450000000, "desc": "SUPREME: Your souls are literally woven together."},
-            {"name": "Infinity Band", "price": 600000000, "desc": "SUPREME: Shared balance and no cooldowns for partners."},
-            {"name": "Heart of Chaos", "price": 850000000, "desc": "SUPREME: You can sacrifice your partner to win instantly."},
-            {"name": "The Master's Rib", "price": 1200000000, "desc": "SUPREME: Created from the Master. You are the creators."}
+            {"name": "The One Ring", "price": 175000000, "desc": "SUPREME: One to rule the pit. Absolute shared dominance."},
+            {"name": "Soul Braid", "price": 250000000, "desc": "SUPREME: Your souls are literally woven together."},
+            {"name": "Infinity Band", "price": 350000000, "desc": "SUPREME: Shared balance and no cooldowns for partners."},
+            {"name": "Heart of Chaos", "price": 450000000, "desc": "SUPREME: You can sacrifice your partner to win instantly."},
+            {"name": "The Master's Rib", "price": 600000000, "desc": "SUPREME: Created from the Master. You are the creators."}
         ]
     },
     "Stones": {
@@ -203,18 +203,18 @@ MARKET_DATA = {
             {"name": "Witch's Brew", "price": 85000000, "desc": "Resets all daily/weekly cooldowns instantly."}
         ],
         "Legendary": [
-            {"name": "Star Soul", "price": 150000000, "desc": "Permanent +15% XP/FXP gain."},
-            {"name": "Master's Key", "price": 200000000, "desc": "Allows you to bypass a 'Blackout' for everyone."},
-            {"name": "God's Tear", "price": 300000000, "desc": "Heals all injuries and grants 1M Flames."},
-            {"name": "Hellfire Core", "price": 450000000, "desc": "Socketable: 1v1 Final match luck +5%."},
-            {"name": "Abyssal Pearl", "price": 600000000, "desc": "Permanent: You no longer lose flames on death."}
+            {"name": "Star Soul", "price": 110000000, "desc": "Permanent +15% XP/FXP gain."},
+            {"name": "Master's Key", "price": 130000000, "desc": "Allows you to bypass a 'Blackout' for everyone."},
+            {"name": "God's Tear", "price": 155000000, "desc": "Heals all injuries and grants 1M Flames."},
+            {"name": "Hellfire Core", "price": 185000000, "desc": "Socketable: 1v1 Final match luck +5%."},
+            {"name": "Abyssal Pearl", "price": 220000000, "desc": "Permanent: You no longer lose flames on death."}
         ],
         "Supreme": [
-            {"name": "Infinity Stone", "price": 1000000000, "desc": "SUPREME: Control over time. Reset any cooldown."},
-            {"name": "The Origin Gem", "price": 1500000000, "desc": "SUPREME: Grants one free win per week."},
-            {"name": "The Master's Eye", "price": 2500000000, "desc": "SUPREME: See everyone's secret items and balance."},
-            {"name": "Chaos Emerald", "price": 5000000000, "desc": "SUPREME: Change the winner of a game (Once/Week)."},
-            {"name": "Reality Shard", "price": 10000000000, "desc": "SUPREME: Force Peak Heat for the whole server for 24h."}
+            {"name": "Infinity Stone", "price": 350000000, "desc": "SUPREME: Control over time. Reset any cooldown."},
+            {"name": "The Origin Gem", "price": 450000000, "desc": "SUPREME: Grants one free win per week."},
+            {"name": "The Master's Eye", "price": 600000000, "desc": "SUPREME: See everyone's secret items and balance."},
+            {"name": "Chaos Emerald", "price": 850000000, "desc": "SUPREME: Change the winner of a game (Once/Week)."},
+            {"name": "Reality Shard", "price": 1200000000, "desc": "SUPREME: Force Peak Heat for the whole server for 24h."}
         ]
     },
     "Toys": {
@@ -247,18 +247,18 @@ MARKET_DATA = {
             {"name": "Master's Paddle", "price": 120000000, "desc": "Signed by the Master. Intimidates everyone."}
         ],
         "Legendary": [
-            {"name": "Dragon's Tail", "price": 250000000, "luck": 12, "desc": "A whip made of dragon hide. Luck +8%."},
-            {"name": "The Gilded Leash", "price": 350000000, "desc": "Total ownership. Dominants get 5% of Sub's work."},
-            {"name": "Obsidian Mask", "price": 500000000, "desc": "Hides your soul. No one can steal your flames."},
-            {"name": "The Velvet Throne", "price": 750000000, "desc": "A seat for a King. Permanent +5% all income."},
-            {"name": "Crowned Shackle", "price": 1000000000, "desc": "The mark of a legend. Your name glows red."}
+            {"name": "Dragon's Tail", "price": 150000000, "luck": 12, "desc": "A whip made of dragon hide. Luck +8%."},
+            {"name": "The Gilded Leash", "price": 185000000, "desc": "Total ownership. Dominants get 5% of Sub's work."},
+            {"name": "Obsidian Mask", "price": 220000000, "desc": "Hides your soul. No one can steal your flames."},
+            {"name": "The Velvet Throne", "price": 275000000, "desc": "A seat for a King. Permanent +5% all income."},
+            {"name": "Crowned Shackle", "price": 350000000, "desc": "The mark of a legend. Your name glows red."}
         ],
         "Supreme": [
-            {"name": "The God's Crop", "price": 2500000000, "desc": "SUPREME: One hit grants instant Level Up."},
-            {"name": "Absolute Restraint", "price": 4000000000, "desc": "SUPREME: Lock any user out of commands for 10m."},
-            {"name": "Sovereign's Scepter", "price": 6500000000, "desc": "SUPREME: Control the arena events."},
-            {"name": "The Eternal Collar", "price": 10000000000, "desc": "SUPREME: You are now the Master's Favorite."},
-            {"name": "Void Pleasure", "price": 25000000000, "desc": "SUPREME: Ascend beyond the dungeon. Infinite XP."}
+            {"name": "The God's Crop", "price": 550000000, "desc": "SUPREME: One hit grants instant Level Up."},
+            {"name": "Absolute Restraint", "price": 750000000, "desc": "SUPREME: Lock any user out of commands for 10m."},
+            {"name": "Sovereign's Scepter", "price": 950000000, "desc": "SUPREME: Control the arena events."},
+            {"name": "The Eternal Collar", "price": 1250000000, "desc": "SUPREME: You are now the Master's Favorite."},
+            {"name": "Void Pleasure", "price": 2000000000, "desc": "SUPREME: Ascend beyond the dungeon. Infinite XP."}
         ]
     }
 }
