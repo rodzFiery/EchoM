@@ -14,13 +14,16 @@ class ClassSystem(commands.Cog):
         """Helper to send class profile details"""
         data = self.CLASSES[class_name]
         
-        # FIXED: Use .get() to prevent KeyError if 'icon' is missing in main.py
+        # FIXED: Safety fallbacks for icon, flames, and xp to prevent KeyErrors
+        # This ensures the bonuses display correctly based on your main.py config
         icon = data.get('icon', '⛓️')
+        b_flames = data.get('bonus_flames', 1.0)
+        b_xp = data.get('bonus_xp', 1.0)
         
         desc = (f"**{icon} {class_name.upper()} CLASS DETAILS**\n\n"
-                f"🔥 **Flame Bonus:** +{int((data['bonus_flames']-1)*100)}%\n"
-                f"💦 **Experience Bonus:** +{int((data['bonus_xp']-1)*100)}%\n\n"
-                f"*\"{data['desc']}\"*\n\n"
+                f"🔥 **Flame Bonus:** +{int((b_flames-1)*100)}%\n"
+                f"💦 **Experience Bonus:** +{int((b_xp-1)*100)}%\n\n"
+                f"*\"{data.get('desc', 'No description provided.')}\"*\n\n"
                 f"Use `!setclass {class_name}` to claim this role.")
         
         embed = self.fiery_embed(f"{class_name} Class Profile", desc, color=0xFF0000)
@@ -58,7 +61,7 @@ class ClassSystem(commands.Cog):
     @commands.command()
     async def setclass(self, ctx, choice: str = None):
         if not choice or choice.capitalize() not in self.CLASSES:
-            options = "\n".join([f"**{k}**: {v['desc']}" for k,v in self.CLASSES.items()])
+            options = "\n".join([f"**{k}**: {v.get('desc', 'No description.')}" for k,v in self.CLASSES.items()])
             embed = self.fiery_embed("Dungeon Hierarchy", f"Choose your path, little asset:\n\n{options}\n\nType `!<classname>` for details.", color=0x800000)
             if os.path.exists("LobbyTopRight.jpg"):
                 file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
