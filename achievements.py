@@ -22,6 +22,8 @@ class Achievements(commands.Cog):
         scale.extend(range(3250, 5001, 250))
         # Phase 4: 500 in 500 until 10000
         scale.extend(range(5500, 10001, 500))
+        # Phase 5: ELITE - 5000 in 5000 until 50000
+        scale.extend(range(15000, 50001, 5000))
         return scale
 
     def get_tier(self, value, tiers):
@@ -40,15 +42,13 @@ class Achievements(commands.Cog):
             return "No achievements yet.."
 
         # Define high-tier milestone sets
-        # UPDATED: Now using the universal Fiery Scale for all primary milestones
         t_master_scale = self.generate_fiery_scale()
-        t_high = t_master_scale + [15000]
-        t_streaks = list(range(2, 21))
+        t_high = t_master_scale + [15000, 25000, 50000]
+        t_streaks = list(range(2, 51)) # Expanded streaks to 50
 
         lines = []
         
         # 1. First Blood Milestone (Killer)
-        # ADDED: dict access safety (u['key'] or 0)
         fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
         if fb: lines.append(f"Blood pro: {fb}")
         
@@ -68,22 +68,24 @@ class Achievements(commands.Cog):
         ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
         if ks: lines.append(f"Kill Spree: {ks}x")
 
-        # 6. ADDED: First Blood (Death) Milestone
+        # 6. First Blood (Death) Milestone
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
         if fbd: lines.append(f"First death: {fbd}")
 
+        # 7. ADDED: Commands/Interactions Milestone (Neural Level)
+        cmd_count = u['commands_used'] if 'commands_used' in u.keys() else 0
+        neural = self.get_tier(cmd_count, t_high)
+        if neural: lines.append(f"Neural Sync: {neural}")
+
         return "\n".join(lines) if lines else "No achievements yet.."
 
-    # --- NEW FEATURE: REAL-TIME AUDIT LOGGING ---
+    # --- REAL-TIME AUDIT LOGGING ---
     async def check_and_log_achievements(self, user_id, category, current_value):
         """ADDED: Checks if the current value exactly matches a milestone tier and logs it to audit."""
-        # Full Milestone Definitions (Mirrored from view command)
         t_master_scale = self.generate_fiery_scale()
-        t_high = t_master_scale + [15000]
-        # UPDATED: Killing Spree check for anything 3 or above
-        t_streaks = list(range(3, 21))
+        t_high = t_master_scale + [15000, 25000, 50000]
+        t_streaks = list(range(3, 51))
         
-        # Map categories to their respective tier lists
         tier_map = {
             "First Bloods": t_master_scale,
             "Total Wins": t_master_scale,
@@ -92,30 +94,37 @@ class Achievements(commands.Cog):
             "Win Streak": t_streaks,
             "Kill Streak": t_streaks,
             "Finalist (Top 2-5)": t_high,
-            "First Deaths": t_master_scale
+            "First Deaths": t_master_scale,
+            "Commands Used": t_high,
+            "Lobbies Created": t_master_scale
         }
         
         if category in tier_map and current_value in tier_map[category]:
             main_module = sys.modules['__main__']
-            # FIXED: Pulled dynamically from self to ensure !audit changes work instantly
             audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
             
             if audit_channel:
                 user = await self.bot.fetch_user(user_id)
                 
-                # Dynamic wording based on category
-                if category == "Kill Streak":
+                # Extended Dynamic wording
+                if category == "Kill Streak" and current_value >= 10:
+                    special_note = "A GODLIKE RAMPAGE HAS BEEN RECORDED."
+                elif category == "Kill Streak":
                     special_note = "A killing spree has ignited."
+                elif category == "First Deaths" and current_value >= 100:
+                    special_note = "The perfect sacrifice doesn't exi—"
                 elif category == "First Deaths":
                     special_note = "An member has been sacrificed too many times."
+                elif category == "Total Kills" and current_value >= 10000:
+                    special_note = "WIDOWMAKER STATUS ATTAINED."
                 else:
                     special_note = "The Master has noted your growing submission."
 
                 embed = self.fiery_embed("MASTER LEDGER: MILESTONE REACHED", 
                     f"{user.mention} has deepened their descent.\n\n"
-                    f"Category: {category}\n"
-                    f"Milestone: Level {current_value}\n\n"
-                    f"'{special_note}'", color=0xFFD700)
+                    f"**Category:** {category}\n"
+                    f"**Milestone:** Level {current_value}\n\n"
+                    f"*{special_note}*", color=0xFFD700)
                 
                 if os.path.exists("LobbyTopRight.jpg"):
                     file = discord.File("LobbyTopRight.jpg", filename="milestone.jpg")
@@ -134,65 +143,64 @@ class Achievements(commands.Cog):
         if not u: 
             return await ctx.send("No records found for this tribute.")
 
-        # Full Milestone Definitions
         t_master_scale = self.generate_fiery_scale()
-        t_high = t_master_scale + [15000]
-        t_streaks = list(range(2, 21))
+        t_high = t_master_scale + [15000, 25000, 50000]
+        t_streaks = list(range(2, 51))
 
         ach_msg = []
         
-        # 1. First Blood Tracking (Killer)
-        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
-        if fb: ach_msg.append(f"First Bloods (Killer): {fb}")
+        # Core Combat Tiers
+        fb = self.get_tier(u['first_bloods'] or 0, t_master_scale)
+        if fb: ach_msg.append(f"🩸 **First Bloods:** {fb}")
         
-        # 2. Participation Tracking
-        gp = self.get_tier(u['games_played'] if 'games_played' in u.keys() else 0, t_master_scale)
-        if gp: ach_msg.append(f"Participations: {gp}")
+        gp = self.get_tier(u['games_played'] or 0, t_master_scale)
+        if gp: ach_msg.append(f"🎮 **Participations:** {gp}")
         
-        # 3. Win Tracking
-        wins = self.get_tier(u['wins'] if 'wins' in u.keys() else 0, t_master_scale)
-        if wins: ach_msg.append(f"Total Wins: {wins}")
+        wins = self.get_tier(u['wins'] or 0, t_master_scale)
+        if wins: ach_msg.append(f"🏆 **Total Wins:** {wins}")
         
-        # 4. Kill Tracking
-        kills = self.get_tier(u['kills'] if 'kills' in u.keys() else 0, t_high)
-        if kills: ach_msg.append(f"Total Kills: {kills}")
+        kills = self.get_tier(u['kills'] or 0, t_high)
+        if kills: ach_msg.append(f"💀 **Total Kills:** {kills}")
         
-        # 5. First Blood (Death) Tracking
-        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
-        if fbd: ach_msg.append(f"First Blood (Victim): {fbd}")
+        fbd = self.get_tier(u['first_deaths'] or 0, t_master_scale)
+        if fbd: ach_msg.append(f"⚰️ **First Blood (Victim):** {fbd}")
         
-        # 6. Straight Kills Achievement (Killing Spree)
-        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
-        if ks >= 3: ach_msg.append(f"Killing Spree: {ks}x")
+        ks = self.get_tier(u['max_kill_streak'] or 0, t_streaks)
+        if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
+
+        # ADDED: Neural Connection Tiers (Activity)
+        cmds = self.get_tier(u.get('commands_used', 0), t_high)
+        if cmds: ach_msg.append(f"🧠 **Neural Sync:** {cmds}")
         
-        # Placement Tracking (Top 2-5)
+        # Placement Tracking
         top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
         top = self.get_tier(top_total, t_high)
-        if top: ach_msg.append(f"Finalist: {top}")
+        if top: ach_msg.append(f"🎖️ **Finalist Rank:** {top}")
 
-        # --- NEW VISUAL ADDITIONS ---
-        # Initialize original embed structure
+        # ADDED: Social/Marriage Tiers
+        marriage_count = u.get('total_marriages', 0)
+        m_tier = self.get_tier(marriage_count, [1, 5, 10, 25, 50])
+        if m_tier: ach_msg.append(f"💍 **Marriage Tiers:** {m_tier}")
+
         embed = self.fiery_embed(f"🏆 {member.display_name}'s Achievement Vault", 
                                   "\n".join(ach_msg) if ach_msg else "No milestones reached yet.")
         
-        # ADDED: Organized Stat Fields
+        # Organized Stat Fields
         embed.add_field(name="⚔️ Combat Records", 
-                        value=f"Kills: **{kills}**\nWins: **{wins}**", inline=True)
+                        value=f"Kills: **{u['kills']}**\nWins: **{u['wins']}**\nMax Streak: **{u['max_kill_streak']}**", inline=True)
         
         embed.add_field(name="🩸 Blood Ties", 
-                        value=f"Killer: **{fb}**\nVictim: **{fbd}**", inline=True)
+                        value=f"Killer: **{u['first_bloods']}**\nVictim: **{u['first_deaths']}**\nKD Ratio: **{round(u['kills']/(u['deaths'] if u['deaths'] else 1), 2)}**", inline=True)
         
-        if top or gp:
-            embed.add_field(name="🛡️ Battle History", 
-                            value=f"Matches: **{gp}**\nFinalist: **{top}**", inline=True)
+        embed.add_field(name="🛡️ Battle History", 
+                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u.get('lobbies_created', 0)}**", inline=True)
 
-        # ADDED: Large Centerpiece Photo (Member's Avatar)
+        # Activity Field
+        embed.add_field(name="🧠 Neural Interface", 
+                        value=f"Sync Level: **{u.get('commands_used', 0)}**\nSpouse Points: **{u.get('spouse_points', 0)}**", inline=False)
+
         embed.set_image(url=member.display_avatar.with_size(1024).url)
-        
-        # ADDED: Side Profile Photo (Thumbnail)
         embed.set_thumbnail(url=member.display_avatar.url)
-        
-        # ADDED: Official Ledger Footer
         embed.set_footer(text=f"Tribute ID: {member.id} • Authenticated by the Master", 
                          icon_url=self.bot.user.display_avatar.url)
         
