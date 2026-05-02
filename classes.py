@@ -35,17 +35,21 @@ class ClassSystem(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-    @commands.command()
-    async def dominant(self, ctx): await self.send_class_details(ctx, "Dominant")
+    @commands.command(name="dominant")
+    async def dominant(self, ctx): 
+        await self.send_class_details(ctx, "Dominant")
     
-    @commands.command()
-    async def submissive(self, ctx): await self.send_class_details(ctx, "Submissive")
+    @commands.command(name="submissive")
+    async def submissive(self, ctx): 
+        await self.send_class_details(ctx, "Submissive")
     
-    @commands.command()
-    async def switch(self, ctx): await self.send_class_details(ctx, "Switch")
+    @commands.command(name="switch")
+    async def switch(self, ctx): 
+        await self.send_class_details(ctx, "Switch")
     
-    @commands.command()
-    async def exhibitionist(self, ctx): await self.send_class_details(ctx, "Exhibitionist")
+    @commands.command(name="exhibitionist")
+    async def exhibitionist(self, ctx): 
+        await self.send_class_details(ctx, "Exhibitionist")
 
     @commands.command()
     async def setclass(self, ctx, choice: str = None):
