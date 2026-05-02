@@ -136,30 +136,31 @@ class ConfessionReviewView(discord.ui.View):
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
 
 class ConfessionSubmissionView(discord.ui.View):
-    def __init__(self, main_mod, bot, review_channel_id, target_slot=1):
-        # MANDATORY PERSISTENCE FIX: Unique custom_id per slot is required to distinguish views
+    def __init__(self, main_mod, bot, review_channel_id=None, target_slot=1):
+        # MANDATORY PERSISTENCE FIX: Added timeout=None
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.bot = bot
         self.review_channel_id = review_channel_id
         self.target_slot = target_slot
         
-        # Update the button custom_id dynamically based on slot
+        # CRITICAL: Hardcoding custom_id logic inside the button itself is better, 
+        # but here we set it in __init__ based on the target_slot.
         self.children[0].custom_id = f"confess_btn_slot_{target_slot}"
 
     @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # --- MODIFIED: PER-GUILD LOAD ON CLICK ---
-        cog = self.bot.get_cog("ConfessionSystem")
+        cog = interaction.client.get_cog("ConfessionSystem")
         cog.load_config(interaction.guild.id)
+        
         if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
         
-        # Determine target slot from button ID if it was a persistent load
+        # Determine target slot from button ID
         slot = 1
         if button.custom_id == "confess_btn_slot_2": slot = 2
 
-        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, slot))
+        await interaction.response.send_modal(ConfessionModal(self.main_mod, interaction.client, cog.review_channel_id, slot))
 
 class ConfessionSystem(commands.Cog):
     def __init__(self, bot):
@@ -173,6 +174,8 @@ class ConfessionSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
+                # Row-to-Dict conversion compatibility
+                conn.row_factory = sqlite3.Row
                 row = conn.execute("SELECT value FROM config WHERE key = ?", (f'confession_config_{guild_id}',)).fetchone()
                 if row:
                     data = json.loads(row['value'])
@@ -296,4 +299,15 @@ class ConfessionSystem(commands.Cog):
         await ctx.send("✅ Your confession has been transmitted for review.", delete_after=5)
 
 async def setup(bot):
-    await bot.add_cog(ConfessionSystem(bot))
+    main_mod = sys.modules['__main__']
+    cog = ConfessionSystem(bot)
+    await bot.add_cog(cog)
+
+    # --- PERSISTENCE PROTOCOL ---
+    # We register the views here so they stay active across restarts.
+    # We create one for Slot 1 and one for Slot 2.
+    bot.add_view(ConfessionSubmissionView(main_mod, bot, target_slot=1))
+    bot.add_view(ConfessionSubmissionView(main_mod, bot, target_slot=2))
+    
+    # Register the Review View (used for the approval messages themselves)
+    bot.add_view(ConfessionReviewView(main_mod, confession_text=None))
