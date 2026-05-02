@@ -305,6 +305,8 @@ class IgnisEngine(commands.Cog):
         import sys as _sys
         main = _sys.modules['__main__']
         with self.get_db_connection() as conn:
+            # FIX: Double ensure table exists before select
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
             rows = conn.execute("SELECT guild_id, user_id, edition FROM lobby_persistence").fetchall()
             for row in rows:
                 g_id, u_id, edition = row[0], row[1], row[2]
