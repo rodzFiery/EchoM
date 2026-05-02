@@ -535,8 +535,8 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # --- MANDATORY CYCLE: SUICIDE CHECK ---
-                if random.random() < 0.10:
+                # --- NEW PRIORITY: SUICIDE CHECK ---
+                if random.random() < 0.10 and len(fighters) > 2:
                     victim_idx = random.randrange(len(fighters))
                     victim = fighters.pop(victim_idx)
                     
