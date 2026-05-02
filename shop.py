@@ -263,6 +263,20 @@ MARKET_DATA = {
     }
 }
 
+class ShopDropdown(discord.ui.Select):
+    def __init__(self, current_category):
+        options = [
+            discord.SelectOption(label=cat, emoji=CAT_ICONS[cat], default=(cat == current_category))
+            for cat in MARKET_DATA.keys()
+        ]
+        super().__init__(placeholder="Switch Department...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        view: ShopView = self.view
+        view.category = self.values[0]
+        view.page = 1
+        await view.cog.update_shop_message(interaction, view.category, view.page, view.user)
+
 class ShopView(discord.ui.View):
     def __init__(self, cog, category, page, user, items):
         super().__init__(timeout=60)
@@ -271,6 +285,8 @@ class ShopView(discord.ui.View):
         self.page = page
         self.user = user
         self.items = items
+        # ADD CATEGORY DROPDOWN
+        self.add_item(ShopDropdown(category))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user.id:
@@ -284,25 +300,25 @@ class ShopView(discord.ui.View):
         await interaction.response.defer()
         await self.cog.buy_item(interaction, item_name=item_name)
 
-    @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=1)
+    @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=2)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page -= 1
         await self.cog.update_shop_message(interaction, self.category, self.page, self.user)
 
-    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.grey, row=1)
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.grey, row=2)
     async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page += 1
         await self.cog.update_shop_message(interaction, self.category, self.page, self.user)
 
-    @discord.ui.button(label="💰1", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="💰1", style=discord.ButtonStyle.success, row=1)
     async def buy1(self, i, b): await self.handle_buy(i, 0)
-    @discord.ui.button(label="💰2", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="💰2", style=discord.ButtonStyle.success, row=1)
     async def buy2(self, i, b): await self.handle_buy(i, 1)
-    @discord.ui.button(label="💰3", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="💰3", style=discord.ButtonStyle.success, row=1)
     async def buy3(self, i, b): await self.handle_buy(i, 2)
-    @discord.ui.button(label="💰4", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="💰4", style=discord.ButtonStyle.success, row=1)
     async def buy4(self, i, b): await self.handle_buy(i, 3)
-    @discord.ui.button(label="💰5", style=discord.ButtonStyle.success, row=0)
+    @discord.ui.button(label="💰5", style=discord.ButtonStyle.success, row=1)
     async def buy5(self, i, b): await self.handle_buy(i, 4)
 
 class Shop(commands.Cog):
@@ -340,7 +356,10 @@ class Shop(commands.Cog):
         tiers = list(MARKET_DATA[category].keys())
         page = max(1, min(page, len(tiers)))
         embed, view = await self.create_shop_ui(category, page, user)
-        await interaction.response.edit_message(embed=embed, view=view)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=view)
+        else:
+            await interaction.response.edit_message(embed=embed, view=view)
 
     async def create_shop_ui(self, category, page, user):
         tiers = list(MARKET_DATA[category].keys())
