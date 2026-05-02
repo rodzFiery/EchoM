@@ -20,6 +20,56 @@ class InfoView(discord.ui.View):
         # The logic is now handled by the Cog Listener for 100% reliability
         pass
 
+# --- NEW COMPONENT: VELVETDEX SELECT ---
+
+class VelvetdexSelect(discord.ui.Select):
+    def __init__(self, cards):
+        options = []
+        # Create an option for each caught card (limit to 25 due to Discord constraints)
+        for c in cards[:25]:
+            options.append(discord.SelectOption(
+                label=c['card_name'], 
+                description=f"Tier: {c['tier'].upper()}", 
+                value=str(c['id'])
+            ))
+        super().__init__(placeholder="📂 Select an asset to inspect...", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        main_mod = sys.modules['__main__']
+        card_db_id = self.values[0]
+        
+        with main_mod.get_db_connection() as conn:
+            row = conn.execute(
+                "SELECT card_name, tier, intel, powers FROM user_cards WHERE rowid = ?",
+                (card_db_id,)
+            ).fetchone()
+
+        if not row:
+            return await interaction.response.send_message("❌ Signature record not found.", ephemeral=True)
+
+        card_name, tier, intel, p_raw = row[0], row[1], row[2], row[3]
+        try:
+            p = json.loads(p_raw)
+        except:
+            p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+
+        power_display = (
+            f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
+            f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
+            f"**🔞 Sex:** {p.get('Sex', 0)}/100\n"
+            f"**✨ Magic:** {p.get('Magic', 0)}/100"
+        )
+
+        embed = main_mod.fiery_embed(f"🧬 ASSET INTEL: {card_name.upper()}", 
+                                     f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class VelvetdexView(discord.ui.View):
+    def __init__(self, cards):
+        super().__init__(timeout=180)
+        self.add_item(VelvetdexSelect(cards))
+
 # --- INTERACTIVE POKEDEX COMPONENTS ---
 
 class PokedexView(discord.ui.View):
@@ -342,6 +392,35 @@ class CardSystem(commands.Cog):
         
         # Create a view if there is intel to show
         view = InfoView(last_card_caught) if last_card_caught else None
+        await ctx.send(embed=embed, view=view)
+
+    @commands.command(name="velvetdex")
+    async def velvetdex(self, ctx, member: discord.Member = None):
+        """Consult the specific stats and intel of assets caught by a user."""
+        target = member or ctx.author
+        main_mod = sys.modules['__main__']
+
+        with main_mod.get_db_connection() as conn:
+            # Get individual rows to display in the select menu
+            # Using rowid as a unique identifier for the select values
+            rows = conn.execute(
+                "SELECT rowid, card_name, tier FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC",
+                (target.id,)
+            ).fetchall()
+
+        if not rows:
+            return await ctx.send(f"📕 {target.display_name}'s Velvetdex is currently offline. No assets recorded.")
+
+        # Structure data for the view
+        card_list = []
+        for r in rows:
+            card_list.append({'id': r[0], 'card_name': r[1], 'tier': r[2]})
+
+        embed = main_mod.fiery_embed(f"📂 {target.display_name.upper()}'S VELVETDEX", 
+                                     "Select an asset signature from the dropdown to access encrypted metadata.")
+        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        view = VelvetdexView(card_list)
         await ctx.send(embed=embed, view=view)
 
     @commands.command(name="collections")
