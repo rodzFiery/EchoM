@@ -371,6 +371,46 @@ class IgnisEngine(commands.Cog):
             buf.seek(0)
             return buf
 
+    # --- NEW: SUICIDE IMAGE GENERATOR ---
+    async def create_suicide_image(self, user_url):
+        """GENERATES SUICIDE VISUAL WITH GRAYSCALE FILTER AND CRACKED OVERLAY."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(user_url, timeout=10) as r:
+                    if r.status != 200: raise Exception("Avatar download failed")
+                    data = io.BytesIO(await r.read())
+            
+            canvas_w, canvas_h = 1000, 1000
+            bg_path = "1v1Background.jpg"
+            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (50, 50, 50, 255))
+            
+            av_size = 500
+            av_raw = Image.open(data).convert("RGBA").resize((av_size, av_size))
+            # Grayscale and high contrast for grim look
+            av = ImageOps.grayscale(av_raw).convert("RGBA")
+            enhancer = ImageEnhance.Contrast(av)
+            av = enhancer.enhance(1.5)
+            av = ImageOps.expand(av, border=15, fill=(40, 40, 40))
+            
+            bg.paste(av, (250, 150), av)
+            
+            draw = ImageDraw.Draw(bg)
+            # Big Skull or "X" to denote suicide
+            draw.line((250, 150, 750, 650), fill=(200, 0, 0), width=30)
+            draw.line((750, 150, 250, 650), fill=(200, 0, 0), width=30)
+            
+            buf = io.BytesIO()
+            bg.crop((0, 50, 1000, 750)).save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            print(f"Suicide Image Error: {e}")
+            fallback = Image.new("RGBA", (1000, 700), (0, 0, 0, 255))
+            buf = io.BytesIO()
+            fallback.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+
     async def get_market_bonuses(self, inventory):
         fb_prot = 0
         final_luck = 0
@@ -495,6 +535,45 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
+                # --- NEW: SUICIDE MECHANIC (10% Ratio) ---
+                if random.random() < 0.10 and len(fighters) > 2:
+                    victim = fighters.pop(random.randrange(len(fighters)))
+                    
+                    # Capture first loser for Basic NSFW protocol
+                    if not first_blood_recorded and not first_loser_member:
+                        first_loser_member = channel.guild.get_member(victim['id'])
+                    
+                    if channel.id in self.current_survivors:
+                        if victim['id'] in self.current_survivors[channel.id]:
+                            self.current_survivors[channel.id].remove(victim['id'])
+                    
+                    await self.update_user_stats(victim['id'], deaths=1, source="Suicide")
+                    with self.get_db_connection() as conn:
+                        conn.execute("UPDATE users SET current_kill_streak = 0, current_win_streak = 0 WHERE id = ?", (victim['id'],))
+                        conn.commit()
+                    
+                    rem = len(fighters)
+                    fxp_log[victim['id']]["final_rank"] = rem + 1
+                    
+                    s_img = await self.create_suicide_image(victim['avatar'])
+                    s_file = discord.File(fp=s_img, filename="suicide.png")
+                    
+                    s_msg = f"🥀 **THE CHAINS WERE TOO HEAVY.** {victim['name']} couldn't take the pressure of the Red Room and has ended their own existence."
+                    s_emb = discord.Embed(title="💀 SELF-TERMINATION DETECTED 💀", description=s_msg, color=0x333333)
+                    s_emb.set_image(url="attachment://suicide.png")
+                    
+                    await channel.send(file=s_file, embed=s_emb)
+                    
+                    if not first_blood_recorded:
+                        first_blood_recorded = True
+                        import sys as _s_sys
+                        main_s = _s_sys.modules['__main__']
+                        if main_s.nsfw_mode_active or main_s.basic_nsfw_active:
+                            await channel.send(embed=self.fiery_embed("Public Exposure", f"🔞 **FIRST BLOOD BY SUICIDE:** {victim['name']} was the first to fall! Per protocol, their broken form is exposed to the pit.", color=0xFF00FF))
+                    
+                    await asyncio.sleep(5)
+                    if len(fighters) <= 1: break
+
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
                     climax_msg = f"⛓️ **THE FINAL STAND.** ⛓️\n\nOnly {t1['name']} and {t2['name']} remain. The dungeon falls silent as the Voyeurs lean in. One will stand, one will fall. The contract is about to be sealed..."
