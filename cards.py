@@ -302,7 +302,8 @@ class CardSystem(commands.Cog):
 
     @commands.command()
     async def catch(self, ctx, *, card_name: str):
-        if not self.current_card or card_name.lower() != self.current_card['name'].lower():
+        # FIX: strip whitespace and use case-insensitive matching to solve "invalid name" errors
+        if not self.current_card or card_name.strip().lower() != self.current_card['name'].strip().lower():
             return await ctx.reply("❌ Asset signal lost or incorrect ID signature!")
         
         main_mod = sys.modules['__main__']
