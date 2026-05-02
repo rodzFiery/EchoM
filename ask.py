@@ -92,7 +92,8 @@ class DungeonAsk(commands.Cog):
 
             @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩", custom_id="ask_dm_init")
             async def dm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if interaction.user.id != self.requester.id: return
+                if interaction.user.id != self.requester.id: 
+                    return await interaction.response.send_message("❌ This is not your request to configure, asset.", ephemeral=True)
                 
                 options = [
                     discord.SelectOption(label="SFW", emoji="🛡️"),
@@ -108,7 +109,8 @@ class DungeonAsk(commands.Cog):
                 select = discord.ui.Select(placeholder="Nature of the DM (Choose up to 3)", min_values=1, max_values=3, options=options, custom_id="ask_dm_select")
 
                 async def select_callback(sel_interaction: discord.Interaction):
-                    if sel_interaction.user.id != self.requester.id: return
+                    if sel_interaction.user.id != self.requester.id: 
+                        return await sel_interaction.response.send_message("❌ Hands off. This belongs to the requester.", ephemeral=True)
                     
                     intent_display = " | ".join([f"**{val}**" for val in select.values])
                     
@@ -130,7 +132,8 @@ class DungeonAsk(commands.Cog):
 
                         @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept")
                         async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
-                            if inter.user.id != self.tar.id: return
+                            if inter.user.id != self.tar.id: 
+                                return await inter.response.send_message("❌ This invitation is not for you. Back to your cell.", ephemeral=True)
                             success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", 
                                 f"**DM ACCEPTED.** {self.req.mention}, your request was **ACCEPTED** by {self.tar.mention}.\n\n"
                                 f"Proceed to the shadows. Be respectful and share love.")
@@ -139,7 +142,8 @@ class DungeonAsk(commands.Cog):
 
                         @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject")
                         async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
-                            if inter.user.id != self.tar.id: return
+                            if inter.user.id != self.tar.id: 
+                                return await inter.response.send_message("❌ You cannot reject on someone else's behalf.", ephemeral=True)
                             fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", 
                                 f"**REQUEST DENIED.** {self.tar.mention} has rejected your advances.\n\n"
                                 f"Return to your cell, {self.req.mention}. Do not seek this asset again today.")
@@ -160,7 +164,8 @@ class DungeonAsk(commands.Cog):
 
             @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="ask_play_init")
             async def play_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-                if interaction.user.id != self.requester.id: return
+                if interaction.user.id != self.requester.id: 
+                    return await interaction.response.send_message("❌ Only the requester can initialize the sync sequence.", ephemeral=True)
                 
                 play_embed = main_mod.fiery_embed("🔞 SEX-BOT TRIAL REQUEST 🔞", 
                     f"{self.target.mention}, {self.requester.mention} wants to initiate a deep-sync session (Sex Bot).\n\n"
@@ -175,13 +180,15 @@ class DungeonAsk(commands.Cog):
 
                     @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥", custom_id="ask_play_accept")
                     async def accept_play(self, inter: discord.Interaction, btn: discord.ui.Button):
-                        if inter.user.id != self.tar.id: return
+                        if inter.user.id != self.tar.id: 
+                            return await inter.response.send_message("❌ Access denied. You are not the target asset for this sync.", ephemeral=True)
                         await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** {self.tar.mention} is ready for trial. {self.req.mention}, begin the sequence.")
                         self.stop()
 
                     @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ask_play_deny")
                     async def deny_play(self, inter: discord.Interaction, btn: discord.ui.Button):
-                        if inter.user.id != self.tar.id: return
+                        if inter.user.id != self.tar.id: 
+                            return await inter.response.send_message("❌ Your permission is not required to abort this neural link.", ephemeral=True)
                         await inter.response.send_message(f"🔒 **SYNC ABORTED.** {self.tar.mention} has locked their neural gate.")
                         self.stop()
 
