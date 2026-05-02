@@ -63,7 +63,7 @@ class VelvetdexSelect(discord.ui.Select):
         embed = main_mod.fiery_embed(f"🧬 ASSET INTEL: {card_name.upper()}", 
                                      f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}")
         
-        # ADDED: View with a "Set as Pet" button
+        # ADDED: View with a "Set as Pet" button using a persistent-style custom_id
         view = PetSelectionView(card_db_id, card_name)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -75,15 +75,10 @@ class PetSelectionView(discord.ui.View):
         self.card_db_id = card_db_id
         self.card_name = card_name
 
-    @discord.ui.button(label="🐾 Set as Active Pet", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🐾 Set as Active Pet", style=discord.ButtonStyle.success, custom_id="set_pet_persistent")
     async def set_pet(self, interaction: discord.Interaction):
-        main_mod = sys.modules['__main__']
-        with main_mod.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name) VALUES (?, ?, ?)", 
-                         (interaction.user.id, self.card_db_id, self.card_name))
-            conn.commit()
-        
-        await interaction.response.send_message(f"✅ **{self.card_name}** is now following you!", ephemeral=True)
+        # Logic moved to Cog Listener to prevent "Interaction Failed"
+        pass
 
 class VelvetdexView(discord.ui.View):
     def __init__(self, cards):
@@ -199,41 +194,61 @@ class CardSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        """THE GLOBAL FIX: Listens for the persistent button ID everywhere."""
+        """THE GLOBAL FIX: Listens for the persistent button IDs."""
         if interaction.type != discord.InteractionType.component: return
-        if interaction.data.get('custom_id') != "view_intel_persistent": return
+        custom_id = interaction.data.get('custom_id')
         
         main_mod = sys.modules['__main__']
         user_id = interaction.user.id
-        
-        with main_mod.get_db_connection() as conn:
-            row = conn.execute(
-                "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
-                (user_id,)
-            ).fetchone()
 
-        if not row:
-            return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
+        # --- LOGIC FOR VIEW INTEL ---
+        if custom_id == "view_intel_persistent":
+            with main_mod.get_db_connection() as conn:
+                row = conn.execute(
+                    "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+                    (user_id,)
+                ).fetchone()
 
-        card_name, intel_text, p_raw = row[0], row[1], row[2]
-        try:
-            p = json.loads(p_raw)
-        except:
-            p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+            if not row:
+                return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
 
-        power_display = (
-            f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
-            f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
-            f"**🔞 Sex:** {p.get('Sex', 0)}/100\n"
-            f"**✨ Magic:** {p.get('Magic', 0)}/100"
-        )
-        
-        intel_embed = discord.Embed(
-            title=f"📜 CLASSIFIED: {card_name}",
-            description=f"*{intel_text}*\n\n{power_display}",
-            color=0xFF69B4
-        )
-        await interaction.response.send_message(embed=intel_embed, ephemeral=True)
+            card_name, intel_text, p_raw = row[0], row[1], row[2]
+            try:
+                p = json.loads(p_raw)
+            except:
+                p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+
+            power_display = (
+                f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
+                f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
+                f"**🔞 Sex:** {p.get('Sex', 0)}/100\n"
+                f"**✨ Magic:** {p.get('Magic', 0)}/100"
+            )
+            
+            intel_embed = discord.Embed(
+                title=f"📜 CLASSIFIED: {card_name}",
+                description=f"*{intel_text}*\n\n{power_display}",
+                color=0xFF69B4
+            )
+            await interaction.response.send_message(embed=intel_embed, ephemeral=True)
+
+        # --- LOGIC FOR SET PET ---
+        elif custom_id == "set_pet_persistent":
+            # Extract data from the embed title to identify the card
+            if not interaction.message.embeds: return
+            title = interaction.message.embeds[0].title
+            card_name = title.replace("🧬 ASSET INTEL: ", "").strip()
+
+            with main_mod.get_db_connection() as conn:
+                # Find the rowid for this specific card name for the user
+                row = conn.execute("SELECT rowid FROM user_cards WHERE user_id = ? AND card_name = ? LIMIT 1", (user_id, card_name)).fetchone()
+                if row:
+                    conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name) VALUES (?, ?, ?)", 
+                                 (user_id, row[0], card_name))
+                    conn.commit()
+                    await interaction.response.send_message(f"✅ **{card_name}** is now following you!", ephemeral=True)
+                else:
+                    await interaction.response.send_message("❌ Failed to synchronize pet link.", ephemeral=True)
 
     @commands.command(name="setcards")
     @commands.has_permissions(administrator=True)
