@@ -169,8 +169,8 @@ class CardSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, intel TEXT, powers TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
-            # NEW TABLE: To store the pet/companion
-            conn.execute("CREATE TABLE IF NOT EXISTS user_pets (user_id INTEGER PRIMARY KEY, card_rowid INTEGER, card_name TEXT)")
+            # NEW TABLE: To store the pet/companion (added avatar_url column)
+            conn.execute("CREATE TABLE IF NOT EXISTS user_pets (user_id INTEGER PRIMARY KEY, card_rowid INTEGER, card_name TEXT, avatar_url TEXT)")
             
             # Migration check: add columns if they don't exist in an old DB
             cursor = conn.execute("PRAGMA table_info(user_cards)")
@@ -179,6 +179,12 @@ class CardSystem(commands.Cog):
                 conn.execute("ALTER TABLE user_cards ADD COLUMN intel TEXT")
             if 'powers' not in columns:
                 conn.execute("ALTER TABLE user_cards ADD COLUMN powers TEXT")
+            
+            # Migration check for user_pets
+            cursor = conn.execute("PRAGMA table_info(user_pets)")
+            pet_cols = [column[1] for column in cursor.fetchall()]
+            if 'avatar_url' not in pet_cols:
+                conn.execute("ALTER TABLE user_pets ADD COLUMN avatar_url TEXT")
             
             conn.commit()
 
@@ -243,8 +249,12 @@ class CardSystem(commands.Cog):
                 # Find the rowid for this specific card name for the user
                 row = conn.execute("SELECT rowid FROM user_cards WHERE user_id = ? AND card_name = ? LIMIT 1", (user_id, card_name)).fetchone()
                 if row:
-                    conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name) VALUES (?, ?, ?)", 
-                                 (user_id, row[0], card_name))
+                    # Attempt to find the member in the guild to get their current avatar
+                    target_member = discord.utils.find(lambda m: m.display_name == card_name, interaction.guild.members)
+                    avatar_url = target_member.display_avatar.url if target_member else None
+                    
+                    conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
+                                 (user_id, row[0], card_name, avatar_url))
                     conn.commit()
                     await interaction.response.send_message(f"✅ **{card_name}** is now following you!", ephemeral=True)
                 else:
@@ -411,8 +421,9 @@ class CardSystem(commands.Cog):
             ).fetchone()[0]
 
             # FETCH PET DATA
-            pet_row = conn.execute("SELECT card_name FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
+            pet_row = conn.execute("SELECT card_name, avatar_url FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
             pet_name = pet_row[0] if pet_row else "None"
+            pet_avatar = pet_row[1] if pet_row else None
 
         if not rows:
             return await ctx.send(f"📕 {target.display_name}'s Archive is empty. No neural patterns recorded.")
@@ -433,7 +444,11 @@ class CardSystem(commands.Cog):
         embed = main_mod.fiery_embed(f"📕 {target.display_name.upper()}'S NEURAL ARCHIVE", 
                                      f"The archive holds the following digitized signatures:\n\n🐾 **Active Pet:** {pet_name}")
         
-        embed.set_thumbnail(url=target.display_avatar.url)
+        # If pet exists, show their thumbnail; otherwise show target's
+        if pet_avatar:
+            embed.set_thumbnail(url=pet_avatar)
+        else:
+            embed.set_thumbnail(url=target.display_avatar.url)
 
         # Add the progress field
         progress_val = f"**{unique_members_caught}** / **{server_member_count}** Members archived."
@@ -465,8 +480,9 @@ class CardSystem(commands.Cog):
             ).fetchall()
 
             # FETCH PET DATA
-            pet_row = conn.execute("SELECT card_name FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
+            pet_row = conn.execute("SELECT card_name, avatar_url FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
             pet_display = f"\n🐾 **Active Pet:** {pet_row[0]}" if pet_row else "\n🐾 **Active Pet:** None"
+            pet_avatar = pet_row[1] if pet_row else None
 
         if not rows:
             return await ctx.send(f"📕 {target.display_name}'s Velvetdex is currently offline. No assets recorded.")
@@ -478,7 +494,12 @@ class CardSystem(commands.Cog):
 
         embed = main_mod.fiery_embed(f"📂 {target.display_name.upper()}'S VELVETDEX", 
                                      f"Select an asset signature from the dropdown to access encrypted metadata.{pet_display}")
-        embed.set_thumbnail(url=target.display_avatar.url)
+        
+        # If pet exists, show their thumbnail; otherwise show target's
+        if pet_avatar:
+            embed.set_thumbnail(url=pet_avatar)
+        else:
+            embed.set_thumbnail(url=target.display_avatar.url)
         
         view = VelvetdexView(card_list)
         await ctx.send(embed=embed, view=view)
