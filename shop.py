@@ -297,7 +297,6 @@ class ShopView(discord.ui.View):
     async def handle_buy(self, interaction, index):
         if index >= len(self.items): return
         item_name = self.items[index]['name']
-        # Immediate defer not needed as cog.buy_item handles response
         await self.cog.buy_item(interaction, item_name=item_name)
 
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=2)
@@ -415,7 +414,6 @@ class Shop(commands.Cog):
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         with self.get_db_connection() as conn:
-            # Re-fetch row as dict to ensure we can edit it
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
             if not user_row or user_row['balance'] < found_item['price']:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
@@ -441,12 +439,15 @@ class Shop(commands.Cog):
             success_emb.title = "🚨 SUPREME ASSET CLAIMED!"
             success_emb.color = 0xFF0000
             if isinstance(ctx, discord.Interaction):
-                await ctx.response.send_message(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
+                await ctx.followup.send(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
             else:
                 await ctx.send(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
         else:
             if isinstance(ctx, discord.Interaction):
-                await ctx.response.send_message(embed=success_emb, ephemeral=True)
+                if not ctx.response.is_done():
+                    await ctx.response.send_message(embed=success_emb, ephemeral=True)
+                else:
+                    await ctx.followup.send(embed=success_emb, ephemeral=True)
             else:
                 await ctx.send(embed=success_emb)
 
@@ -514,7 +515,10 @@ class Shop(commands.Cog):
         prompt_emb = discord.Embed(title="💍 Soul Binding Ceremony", description=f"You are sacrificing flames for the **{item['name']}**.\nTag the soul you wish to bind to your destiny.", color=0xFF69B4)
         
         if isinstance(ctx, discord.Interaction):
-            await ctx.response.send_message(embed=prompt_emb)
+            if not ctx.response.is_done():
+                await ctx.response.send_message(embed=prompt_emb)
+            else:
+                await ctx.followup.send(embed=prompt_emb)
         else:
             await ctx.send(embed=prompt_emb)
         
