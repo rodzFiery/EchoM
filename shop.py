@@ -178,7 +178,7 @@ MARKET_DATA = {
             {"name": "Pebble of Greed", "price": 7500, "desc": "+5% Work Flames for 1h."},
             {"name": "Dull Shard", "price": 15000, "desc": "Slightly increases beg success rate."},
             {"name": "Cold Flint", "price": 30000, "desc": "Sparks a small fire in the soul. +10 XP."},
-            {"name": "Salt Crystal", "price": 50000, "desc": "Rub it in the wound. Intimidates others."},
+            {"name": "Salt Crystal", "price": 50000, "desc": "Rub it in the word. Intimidates others."},
             {"name": "Soot Stone", "price": 85000, "desc": "Hides your presence for 10 minutes."}
         ],
         "Normal": [
@@ -525,7 +525,7 @@ class Shop(commands.Cog):
             with self.get_db_connection() as conn:
                 user = conn.execute("SELECT balance FROM users WHERE id = ?", (author.id,)).fetchone()
                 if not user or user['balance'] < item['price']:
-                    return await channel.send(discord.Embed(title="❌ Transaction Denied", description="Your wallet cannot afford this devotion.", color=0xFF0000))
+                    return await channel.send(embed=discord.Embed(title="❌ Transaction Denied", description="Your wallet cannot afford this devotion.", color=0xFF0000))
 
                 u1, u2 = sorted([author.id, target.id])
                 conn.execute("INSERT OR REPLACE INTO relationships (user_one, user_two, type, shared_luck, passive_income) VALUES (?, ?, ?, ?, ?)",
@@ -575,7 +575,7 @@ class Shop(commands.Cog):
             conn.commit()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(sell_emb)
+        await ctx.send(embed=sell_emb)
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
