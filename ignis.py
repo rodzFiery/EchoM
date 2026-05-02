@@ -48,6 +48,14 @@ class LobbyView(discord.ui.View):
         
         self.participants.append(interaction.user.id)
         
+        # --- NEW: PERSISTENCE SAVE ON JOIN ---
+        engine = interaction.client.get_cog("IgnisEngine")
+        if engine:
+            with engine.get_db_connection() as conn:
+                conn.execute("INSERT OR IGNORE INTO lobby_persistence (guild_id, user_id, edition) VALUES (?, ?, ?)", 
+                             (interaction.guild.id, interaction.user.id, self.edition))
+                conn.commit()
+
         # FIX: Robustly fetch the embed even if interaction.message is partial
         try:
             embed = interaction.message.embeds[0]
@@ -124,6 +132,11 @@ class LobbyView(discord.ui.View):
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
             self.active = False
 
+            # --- NEW: CLEAR PERSISTENCE ON START ---
+            with engine.get_db_connection() as conn:
+                conn.execute("DELETE FROM lobby_persistence WHERE guild_id = ?", (interaction.guild.id,))
+                conn.commit()
+
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
@@ -173,6 +186,10 @@ class EngineControl(commands.Cog):
         if engine: 
             # Assign lobby to the guild ID
             engine.current_lobbies[ctx.guild.id] = view
+            # --- NEW: CLEAR OLD PERSISTENCE FOR THIS GUILD ---
+            with engine.get_db_connection() as conn:
+                conn.execute("DELETE FROM lobby_persistence WHERE guild_id = ?", (ctx.guild.id,))
+                conn.commit()
 
         # Removed thumbnail and file logic, sending only embed and view
         embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
@@ -220,6 +237,11 @@ class IgnisEngine(commands.Cog):
         self.active_battles = set() # Set of channel IDs (unique across Discord)
         self.current_lobbies = {} # Guild ID -> LobbyView mapping
         self.current_survivors = {} # Channel ID -> List of survivor IDs
+
+        # --- NEW: INIT PERSISTENCE TABLE ---
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_persistence (guild_id INTEGER, user_id INTEGER, edition INTEGER, UNIQUE(guild_id, user_id))")
+            conn.commit()
 
         # NSFW Winner Power Tracker
         self.last_winner_id = None
@@ -276,6 +298,23 @@ class IgnisEngine(commands.Cog):
             "Final command: Show us everything you've got. Flash!"
         ]
 
+    # --- NEW: PERSISTENCE RESTORATION HOOK ---
+    @commands.Cog.listener()
+    async def on_ready(self):
+        """Restores lobbies from the database after a redeploy."""
+        import sys as _sys
+        main = _sys.modules['__main__']
+        with self.get_db_connection() as conn:
+            rows = conn.execute("SELECT guild_id, user_id, edition FROM lobby_persistence").fetchall()
+            for row in rows:
+                g_id, u_id, edition = row[0], row[1], row[2]
+                if g_id not in self.current_lobbies:
+                    # We don't have the original owner, so we use None or a default
+                    self.current_lobbies[g_id] = LobbyView(None, edition)
+                if u_id not in self.current_lobbies[g_id].participants:
+                    self.current_lobbies[g_id].participants.append(u_id)
+        print("⛓️ Ignis Lobbies restored from the Master's ledger.")
+
     def calculate_level(self, current_xp):
         level = 1
         xp_needed = 500
@@ -294,6 +333,10 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
+        # --- NEW: CLEAR PERSISTENCE ON DM OVERRIDE ---
+        with self.get_db_connection() as conn:
+            conn.execute("DELETE FROM lobby_persistence")
+            conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
     # POWER COMMAND !getnaked @user ( decree / flash decree )
@@ -575,6 +618,7 @@ class IgnisEngine(commands.Cog):
 
                 # NEW: Capture first loser for Basic NSFW protocol
                 if not first_blood_recorded:
+                    first_blood_recorded = True
                     first_loser_member = channel.guild.get_member(loser['id'])
 
                 # Update current survivors map
@@ -603,10 +647,9 @@ class IgnisEngine(commands.Cog):
                     await channel.send(embed=bounty_emb, files=files)
 
                 with self.get_db_connection() as conn:
-                    if not first_blood_recorded:
+                    if first_blood_recorded: # Logic check here as flag was set earlier
                         conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
                         fxp_log[winner['id']]["first_kill"] = 1000
-                        first_blood_recorded = True
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
