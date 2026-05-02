@@ -535,9 +535,10 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # --- FIXED: SUICIDE MECHANIC MOVED TO MAIN ROUND START ---
+                # --- FIXED: SUICIDE CHECK AS INDEPENDENT EVENT ---
                 if random.random() < 0.10 and len(fighters) > 2:
-                    victim = fighters.pop(random.randrange(len(fighters)))
+                    victim_idx = random.randrange(len(fighters))
+                    victim = fighters.pop(victim_idx)
                     
                     if not first_blood_recorded:
                         first_loser_member = channel.guild.get_member(victim['id'])
@@ -591,6 +592,7 @@ class IgnisEngine(commands.Cog):
                     kill_count = random.randint(2, min(2, len(fighters) - 1))
                     event_losers = []
                     for _ in range(kill_count):
+                        if len(fighters) <= 1: break
                         temp_index = random.randrange(len(fighters))
                         potential_loser = fighters[temp_index]
                         
@@ -615,10 +617,6 @@ class IgnisEngine(commands.Cog):
                         
                         rem = len(fighters)
                         fxp_log[loser['id']]["final_rank"] = rem + 1
-                        if rem == 4: fxp_log[loser['id']]["placement"] = 100
-                        elif rem == 3: fxp_log[loser['id']]["placement"] = 197
-                        elif rem == 2: fxp_log[loser['id']]["placement"] = 298
-                        elif rem == 1: fxp_log[loser['id']]["placement"] = 402
 
                     if event_losers:
                         try:
@@ -630,8 +628,12 @@ class IgnisEngine(commands.Cog):
                     
                     if len(fighters) <= 1: break
 
-                p1 = fighters.pop(random.randrange(len(fighters)))
-                p2 = fighters.pop(random.randrange(len(fighters)))
+                # --- COMBAT ROUND ---
+                if len(fighters) < 2: break
+                p1_idx = random.randrange(len(fighters))
+                p1 = fighters.pop(p1_idx)
+                p2_idx = random.randrange(len(fighters))
+                p2 = fighters.pop(p2_idx)
                 
                 is_final_fight = (len(fighters) == 0) 
                 p1_win_chance = 0.5
