@@ -251,9 +251,23 @@ class CardSystem(commands.Cog):
         tier_name, color = self.get_random_tier()
         series = random.choice(self.series_types)
         
+        # RARITY POWER SCALING LOGIC
+        # Basic: 1-40 | Rare: 30-60 | Epic: 50-80 | Platine: 70-90 | Legendary: 85-98 | Supreme: 95-100
+        if tier_name == "supreme": low, high = 95, 100
+        elif tier_name == "legendary": low, high = 85, 98
+        elif tier_name == "platine": low, high = 70, 90
+        elif tier_name == "epic": low, high = 50, 80
+        elif tier_name == "rare": low, high = 30, 60
+        else: low, high = 1, 40 # Basic
+
         # GENERATE RANDOM INTEL AND POWERS
         intel_text = random.choice(self.intel_pool)
-        powers = {"Tease": random.randint(1, 100), "Flirt": random.randint(1, 100), "Sex": random.randint(1, 100), "Magic": random.randint(1, 100)}
+        powers = {
+            "Tease": random.randint(low, high), 
+            "Flirt": random.randint(low, high), 
+            "Sex": random.randint(low, high), 
+            "Magic": random.randint(low, high)
+        }
 
         self.current_card = {
             "name": target_member.display_name,
