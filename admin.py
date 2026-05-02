@@ -33,7 +33,16 @@ class AdminSystem(commands.Cog):
         # ADDED: Load Admin Role from persistence
         import sys
         main_module = sys.modules['__main__']
-        self.ADMIN_ROLE_ID = getattr(main_module, "ADMIN_ROLE_ID", 0)
+        
+        # PERSISTENCE FIX: Check database for existing admin role before defaulting to 0
+        with self.get_db_connection() as conn:
+            # Ensure config table exists (safety check)
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+            res = conn.execute("SELECT value FROM config WHERE key = 'admin_role_id'").fetchone()
+            db_role_id = int(res[0]) if res else 0
+            
+        self.ADMIN_ROLE_ID = db_role_id
+        main_module.ADMIN_ROLE_ID = db_role_id
 
     # ADDED: Custom internal check to verify owner status manually
     async def is_master_owner(self, ctx):
