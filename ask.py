@@ -79,17 +79,18 @@ class DungeonAsk(commands.Cog):
         
         embed = main_mod.fiery_embed("🔞 ASK TO DM ALERT 🔞", 
             f"{ctx.author.mention} is signaling {member.mention}.\n\n"
-            "**Select the nature of your request below:**")
+            f"**Select the nature of your request below:**")
         embed.set_image(url="attachment://ask.png")
         
         class InitialView(discord.ui.View):
             def __init__(self, cog, requester, target):
-                super().__init__(timeout=120)
+                # FIXED: timeout=None for persistence
+                super().__init__(timeout=None)
                 self.cog = cog
                 self.requester = requester
                 self.target = target
 
-            @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩")
+            @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩", custom_id="ask_dm_init")
             async def dm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
                 if interaction.user.id != self.requester.id: return
                 
@@ -104,7 +105,7 @@ class DungeonAsk(commands.Cog):
                     discord.SelectOption(label="Open to Anything", emoji="🔞")
                 ]
                 
-                select = discord.ui.Select(placeholder="Nature of the DM (Choose up to 3)", min_values=1, max_values=3, options=options)
+                select = discord.ui.Select(placeholder="Nature of the DM (Choose up to 3)", min_values=1, max_values=3, options=options, custom_id="ask_dm_select")
 
                 async def select_callback(sel_interaction: discord.Interaction):
                     if sel_interaction.user.id != self.requester.id: return
@@ -122,11 +123,12 @@ class DungeonAsk(commands.Cog):
 
                     class RecipientView(discord.ui.View):
                         def __init__(self, req, tar):
-                            super().__init__(timeout=300)
+                            # FIXED: timeout=None for persistence
+                            super().__init__(timeout=None)
                             self.req = req
                             self.tar = tar
 
-                        @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦")
+                        @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept")
                         async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
                             if inter.user.id != self.tar.id: return
                             success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", 
@@ -135,7 +137,7 @@ class DungeonAsk(commands.Cog):
                             await inter.response.send_message(content=self.req.mention, embed=success_emb)
                             self.stop()
 
-                        @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌")
+                        @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject")
                         async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
                             if inter.user.id != self.tar.id: return
                             fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", 
@@ -152,31 +154,32 @@ class DungeonAsk(commands.Cog):
                     await sel_interaction.response.send_message(content=self.target.mention, embed=final_embed, files=files, view=RecipientView(self.requester, self.target))
 
                 select.callback = select_callback
-                dm_view = discord.ui.View()
+                dm_view = discord.ui.View(timeout=None)
                 dm_view.add_item(select)
                 await interaction.response.send_message("🫦 **Define the nature of your entry, asset:**", view=dm_view, ephemeral=True)
 
-            @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦")
+            @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="ask_play_init")
             async def play_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
                 if interaction.user.id != self.requester.id: return
                 
                 play_embed = main_mod.fiery_embed("🔞 SEX-BOT TRIAL REQUEST 🔞", 
                     f"{self.target.mention}, {self.requester.mention} wants to initiate a deep-sync session (Sex Bot).\n\n"
-                    "**Will you submit to the session and reveal your frequencies?**")
+                    f"**Will you submit to the session and reveal your frequencies?**")
                 
                 class PlayView(discord.ui.View):
                     def __init__(self, req, tar):
-                        super().__init__(timeout=300)
+                        # FIXED: timeout=None for persistence
+                        super().__init__(timeout=None)
                         self.req = req
                         self.tar = tar
 
-                    @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥")
+                    @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥", custom_id="ask_play_accept")
                     async def accept_play(self, inter: discord.Interaction, btn: discord.ui.Button):
                         if inter.user.id != self.tar.id: return
                         await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** {self.tar.mention} is ready for trial. {self.req.mention}, begin the sequence.")
                         self.stop()
 
-                    @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒")
+                    @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ask_play_deny")
                     async def deny_play(self, inter: discord.Interaction, btn: discord.ui.Button):
                         if inter.user.id != self.tar.id: return
                         await inter.response.send_message(f"🔒 **SYNC ABORTED.** {self.tar.mention} has locked their neural gate.")
