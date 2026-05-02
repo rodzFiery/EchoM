@@ -556,7 +556,7 @@ class Shop(commands.Cog):
             conn.commit()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(embed=sell_emb)
+        await ctx.send(sell_emb)
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
