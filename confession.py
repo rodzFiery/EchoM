@@ -1,8 +1,13 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
+import sqlite3
+import random
+import asyncio
 import sys
 import os
 import json
+
+# --- NEW COMPONENT: INFO BUTTON ---
 
 class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
     confession = discord.ui.TextInput(
@@ -41,7 +46,7 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
 
 class ConfessionReviewView(discord.ui.View):
     def __init__(self, main_mod, confession_text, submitter_id=None, target_slot=1):
-        # MANDATORY PERSISTENCE FIX: Added custom_id bridge
+        # MANDATORY PERSISTENCE FIX: Added timeout=None
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.confession_text = confession_text
@@ -55,6 +60,16 @@ class ConfessionReviewView(discord.ui.View):
         
         # --- MODIFIED: LOADING GUILD CONFIG ON APPROVAL ---
         cog.load_config(interaction.guild.id)
+
+        # Persistence Recovery: If text is lost due to restart, pull from embed
+        if not self.confession_text:
+            try:
+                content_field = interaction.message.embeds[0].description
+                self.confession_text = content_field.replace("**Submission:**\n", "")
+                # Logic to determine slot from embed title if memory is wiped
+                self.target_slot = 2 if "SECONDARY" in interaction.message.embeds[0].title else 1
+            except:
+                return await interaction.response.send_message("❌ Metadata lost. Cannot approve this legacy message.", ephemeral=True)
 
         # Logic to select ONLY the specific target channel based on the submission slot
         if self.target_slot == 2:
@@ -96,8 +111,20 @@ class ConfessionReviewView(discord.ui.View):
         audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
         audit_channel = interaction.client.get_channel(audit_id)
         
+        # Recovery of text for rejection audit
+        if not self.confession_text:
+            try:
+                self.confession_text = interaction.message.embeds[0].description.replace("**Submission:**\n", "")
+            except: self.confession_text = "Data Purged"
+
         if audit_channel:
-            # Use submitter_id in the archive if available
+            # Attempt to find submitter ID from embed if view is cold
+            if not self.submitter_id:
+                try: 
+                    id_val = interaction.message.embeds[0].fields[0].value
+                    self.submitter_id = id_val.split("(")[-1].replace(")", "")
+                except: pass
+
             user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
             archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", 
                 f"**Moderator:** {interaction.user.mention}\n"
@@ -127,8 +154,12 @@ class ConfessionSubmissionView(discord.ui.View):
         cog.load_config(interaction.guild.id)
         if cog.review_channel_id is None:
             return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
-        # Modal now correctly inherits the target_slot from the unique button custom_id
-        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, self.target_slot))
+        
+        # Determine target slot from button ID if it was a persistent load
+        slot = 1
+        if button.custom_id == "confess_btn_slot_2": slot = 2
+
+        await interaction.response.send_modal(ConfessionModal(self.main_mod, self.bot, cog.review_channel_id, slot))
 
 class ConfessionSystem(commands.Cog):
     def __init__(self, bot):
