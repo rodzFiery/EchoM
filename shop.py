@@ -127,7 +127,7 @@ MARKET_DATA = {
             {"name": "Phoenix Reborn", "price": 60000000, "luck": 12, "desc": "You cannot lose. You only rise again to conquer."},
             {"name": "Avatar of Lust", "price": 80000000, "luck": 12, "desc": "The ultimate temptation. The arena falls in love with you."},
             {"name": "Chronos Cat", "price": 100000000, "luck": 12, "desc": "Rewinds time until you land the killing blow."},
-            {"name": "Tiamat'Seed", "price": 150000000, "luck": 12, "desc": "SUPREME: The multi-headed God of Luck. It is over."}
+            {"name": "Tiamat's Seed", "price": 150000000, "luck": 12, "desc": "SUPREME: The multi-headed God of Luck. It is over."}
         ]
     },
     "Rings": {
@@ -298,8 +298,8 @@ class ShopView(discord.ui.View):
     async def handle_buy(self, interaction, index):
         if index >= len(self.items): return
         item_name = self.items[index]['name']
-        # FIX: Call internal method specifically for buying logic
-        await self.cog.internal_buy_handler(interaction, item_name)
+        # WORKAROUND: Call internal core method instead of command wrapper
+        await self.cog.execute_purchase_core(interaction, item_name)
 
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=2)
     async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -399,109 +399,98 @@ class Shop(commands.Cog):
         embed, view = await self.create_shop_ui(category, page, ctx.author)
         await ctx.send(embed=embed, view=view)
 
-    # FIX: Centralized logic handler for both commands and buttons
-    async def internal_buy_handler(self, ctx_or_inter, item_name: str):
-        # UNIVERSAL USER ID WORKAROUND
-        user_id = ctx_or_inter.user.id if isinstance(ctx_or_inter, discord.Interaction) else ctx_or_inter.author.id
-        author_obj = ctx_or_inter.user if isinstance(ctx_or_inter, discord.Interaction) else ctx_or_inter.author
+    # ==========================================
+    # INTERNAL CORE LOGIC (CENTRALIZED FIX)
+    # ==========================================
+    async def execute_purchase_core(self, ctx_or_inter, item_name: str):
+        # UNIVERSAL AUTHOR IDENTIFICATION
+        is_inter = isinstance(ctx_or_inter, discord.Interaction)
+        user_id = ctx_or_inter.user.id if is_inter else ctx_or_inter.author.id
+        author = ctx_or_inter.user if is_inter else ctx_or_inter.author
 
         found_item, found_cat, found_tier = self.get_item_details(item_name)
         
         if not found_item: 
-            err_emb = discord.Embed(title="❌ Item Not Found", description=f"The item '{item_name}' does not exist.", color=0xFF0000)
-            if isinstance(ctx_or_inter, discord.Interaction):
-                return await ctx_or_inter.response.send_message(embed=err_emb, ephemeral=True)
-            return await ctx_or_inter.send(embed=err_emb)
+            err = discord.Embed(title="❌ Item Not Found", description=f"The item '{item_name}' does not exist.", color=0xFF0000)
+            if is_inter: return await ctx_or_inter.response.send_message(embed=err, ephemeral=True)
+            return await ctx_or_inter.send(embed=err)
 
         if found_cat == "Rings":
             return await self.handle_ring_purchase(ctx_or_inter, found_item, found_tier)
 
-        # OPEN CONNECTION AND EXECUTE
         with self.get_db_connection() as conn:
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (user_id,)).fetchone()
             
             if not user_row:
-                lack_emb = discord.Embed(title="❌ Insufficient Flames", description="You have no account. Use commands to earn flames first.", color=0xFF0000)
-                if isinstance(ctx_or_inter, discord.Interaction):
-                    return await ctx_or_inter.response.send_message(embed=lack_emb, ephemeral=True)
-                return await ctx_or_inter.send(embed=lack_emb)
+                lack = discord.Embed(title="❌ Error", description="No account found. Earn flames first.", color=0xFF0000)
+                if is_inter: return await ctx_or_inter.response.send_message(embed=lack, ephemeral=True)
+                return await ctx_or_inter.send(embed=lack)
 
             if user_row['balance'] < found_item['price']:
-                lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
-                if isinstance(ctx_or_inter, discord.Interaction):
-                    return await ctx_or_inter.response.send_message(embed=lack_emb, ephemeral=True)
-                return await ctx_or_inter.send(embed=lack_emb)
+                lack = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
+                if is_inter: return await ctx_or_inter.response.send_message(embed=lack, ephemeral=True)
+                return await ctx_or_inter.send(embed=lack)
 
-            # JSON titles verification
-            raw_titles = user_row['titles']
-            inv = json.loads(raw_titles) if raw_titles and raw_titles != "null" else []
+            # JSON Parsing Safety
+            current_titles = user_row['titles']
+            inv = json.loads(current_titles) if current_titles and current_titles != "null" else []
             
             if found_item['name'] in inv: 
-                own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
-                if isinstance(ctx_or_inter, discord.Interaction):
-                    return await ctx_or_inter.response.send_message(embed=own_emb, ephemeral=True)
-                return await ctx_or_inter.send(embed=own_emb)
+                own = discord.Embed(title="❌ Already Possessed", color=0xFFFF00)
+                if is_inter: return await ctx_or_inter.response.send_message(embed=own, ephemeral=True)
+                return await ctx_or_inter.send(own)
 
-            # APPLY CHANGES
+            # ADD TO INVENTORY
             inv.append(found_item['name'])
 
-            current_prot = 0
-            current_luck = 0
-            for name in inv:
-                item_inf, item_cat, _ = self.get_item_details(name)
-                if item_inf:
-                    if item_cat == "Houses": current_prot = max(current_prot, item_inf.get('prot', 0))
-                    elif item_cat == "Pets": current_luck = max(current_luck, item_inf.get('luck', 0))
+            # CALCULATE BUFFS
+            c_prot = 0
+            c_luck = 0
+            for itm_name in inv:
+                itm_dat, itm_cat, _ = self.get_item_details(itm_name)
+                if itm_dat:
+                    if itm_cat == "Houses": c_prot = max(c_prot, itm_dat.get('prot', 0))
+                    elif itm_cat == "Pets": c_luck = max(c_luck, itm_dat.get('luck', 0))
 
             conn.execute("UPDATE users SET balance = balance - ?, titles = ?, protection = ?, luck = ? WHERE id = ?", 
-                         (found_item['price'], json.dumps(inv), current_prot, current_luck, user_id))
+                         (found_item['price'], json.dumps(inv), c_prot, c_luck, user_id))
             conn.commit()
 
-        success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
+        # UI RESPONSE
+        success = discord.Embed(title="🫦 Acquisition Successful", description=f"You took possession of: **{found_item['name']}**", color=0x00FF00)
         
         if found_tier == "Supreme":
-            success_emb.title = "🚨 SUPREME ASSET CLAIMED!"
-            success_emb.color = 0xFF0000
-            if isinstance(ctx_or_inter, discord.Interaction):
-                await ctx_or_inter.followup.send(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
-            else:
-                await ctx_or_inter.send(content=f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**", embed=success_emb)
+            content = f"@everyone 🔞 **A SOUL HAS REACHED APEX POWER!**"
+            if is_inter: await ctx_or_inter.response.send_message(content=content, embed=success)
+            else: await ctx_or_inter.send(content=content, embed=success)
         else:
-            if isinstance(ctx_or_inter, discord.Interaction):
-                if not ctx_or_inter.response.is_done():
-                    await ctx_or_inter.response.send_message(embed=success_emb, ephemeral=True)
-                else:
-                    await ctx_or_inter.followup.send(embed=success_emb, ephemeral=True)
-            else:
-                await ctx_or_inter.send(embed=success_emb)
+            if is_inter:
+                if not ctx_or_inter.response.is_done(): await ctx_or_inter.response.send_message(embed=success, ephemeral=True)
+                else: await ctx_or_inter.followup.send(embed=success, ephemeral=True)
+            else: await ctx_or_inter.send(embed=success)
 
+        # AUDIT LOG
         main_mod = sys.modules['__main__']
         audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
         if audit_channel:
-            log_emb = main_mod.fiery_embed("🕵️ VOYEUR TRANSACTION REPORT", f"The Master's Ledger has recorded a purchase in {found_cat}.")
-            log_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
-            log_emb.add_field(name="Asset Involved", value=author_obj.mention, inline=True)
-            log_emb.add_field(name="Item Claimed", value=f"{TIER_EMOJIS[found_tier]} **{found_item['name']}**", inline=True)
-            log_emb.add_field(name="Price Paid", value=f"`{found_item['price']:,}` 🔥", inline=True)
-            log_emb.description = f"🔞 **VOYEUR NOTE:** {author_obj.display_name} is increasing their power. Their inventory has been updated with the {found_tier} asset: *{found_item['desc']}*"
-            log_emb.set_footer(text="The Ledger never lies. Your wealth is monitored.")
+            log_emb = main_mod.fiery_embed("🕵️ VOYEUR TRANSACTION REPORT", f"Ledger recorded purchase in {found_cat}.")
+            log_emb.add_field(name="Asset", value=author.mention, inline=True)
+            log_emb.add_field(name="Item", value=f"{TIER_EMOJIS[found_tier]} **{found_item['name']}**", inline=True)
             log_emb.timestamp = datetime.now(timezone.utc)
             await audit_channel.send(embed=log_emb)
 
     @commands.command(name="buy")
-    async def buy_command(self, ctx, *, item_name: str):
-        await self.internal_buy_handler(ctx, item_name)
+    async def buy_item(self, ctx, *, item_name: str):
+        await self.execute_purchase_core(ctx, item_name)
 
     @commands.command(name="inv", aliases=["inventory", "assets"])
     async def inventory(self, ctx, member: discord.Member = None):
         target = member or ctx.author
-        
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles, spouse FROM users WHERE id = ?", (target.id,)).fetchone()
         
         if not user or not user['titles'] or user['titles'] == "[]":
-            desc = "This soul owns nothing but their chains." if target == ctx.author else f"{target.display_name} is currently naked of assets."
-            return await ctx.send(embed=discord.Embed(title=f"🎒 {target.display_name.upper()}'S VAULT", description=desc, color=0x808080))
+            return await ctx.send(embed=discord.Embed(title=f"🎒 {target.display_name.upper()}'S VAULT", description="Naked of assets.", color=0x808080))
 
         owned_names = json.loads(user['titles'])
         categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Other": []}
@@ -510,59 +499,36 @@ class Shop(commands.Cog):
             item, cat, tier = self.get_item_details(name)
             if item:
                 emoji = TIER_EMOJIS.get(tier, "⚪")
-                stat_text = ""
-                if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}%]"
-                elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
-                categories[cat].append(f"{emoji} **{name}**{stat_text}")
+                stat = f" [🛡️ {item.get('prot', 0)}%]" if cat == "Houses" else f" [🍀 {item.get('luck', 0)}%]" if cat == "Pets" else ""
+                categories[cat].append(f"{emoji} **{name}**{stat}")
             else:
                 categories["Other"].append(f"⚪ **{name}**")
 
         embed = discord.Embed(title=f"🎒 {target.display_name.upper()}'S PRIVATE VAULT", color=0xFF69B4)
-        embed.set_thumbnail(url=target.display_avatar.url)
-        
-        if user['spouse']:
-            embed.description = f"💍 **Bound to:** <@{user['spouse']}>"
+        if user['spouse']: embed.description = f"💍 **Bound to:** <@{user['spouse']}>"
 
         for cat_name, items in categories.items():
             if items:
-                content = "\n".join(items)
-                if len(content) > 1000: content = content[:997] + "..."
-                embed.add_field(name=f"{CAT_ICONS.get(cat_name, '📦')} {cat_name.upper()}", value=content, inline=False)
-
-        embed.set_footer(text=f"Total Assets: {len(owned_names)} | The Master is watching.")
-        embed.timestamp = datetime.now(timezone.utc)
+                embed.add_field(name=f"{CAT_ICONS.get(cat_name, '📦')} {cat_name.upper()}", value="\n".join(items), inline=False)
         await ctx.send(embed=embed)
 
     async def handle_ring_purchase(self, ctx, item, tier):
-        author_id = ctx.user.id if isinstance(ctx, discord.Interaction) else ctx.author.id
-        author_obj = ctx.user if isinstance(ctx, discord.Interaction) else ctx.author
-        channel = ctx.channel if hasattr(ctx, 'channel') else ctx.message.channel
+        author = ctx.user if isinstance(ctx, discord.Interaction) else ctx.author
+        channel = ctx.channel
+        def check(m): return m.author == author and m.channel == channel
 
-        def check(m):
-            return m.author.id == author_id and m.channel == channel
-
-        prompt_emb = discord.Embed(title="💍 Soul Binding Ceremony", description=f"You are sacrificing flames for the **{item['name']}**.\nTag the soul you wish to bind to your destiny.", color=0xFF69B4)
-        
-        if isinstance(ctx, discord.Interaction):
-            if not ctx.response.is_done():
-                await ctx.response.send_message(embed=prompt_emb)
-            else:
-                await ctx.followup.send(embed=prompt_emb)
-        else:
-            await ctx.send(embed=prompt_emb)
+        prompt = discord.Embed(title="💍 Soul Binding Ceremony", description="Tag the soul you wish to bind.", color=0xFF69B4)
+        if isinstance(ctx, discord.Interaction): await ctx.response.send_message(embed=prompt)
+        else: await ctx.send(embed=prompt)
         
         try:
             msg = await self.bot.wait_for('message', timeout=30.0, check=check)
-            if not msg.mentions:
-                return await channel.send(embed=discord.Embed(title="❌ Binding Failed", description="You cannot bind a ghost. Tag a user.", color=0xFF0000))
-            
+            if not msg.mentions: return await channel.send("Failed. No mention.")
             target = msg.mentions[0]
-            if target.id == author_id:
-                return await channel.send(embed=discord.Embed(title="❌ Forbidden Narcissism", description="A bond requires two souls.", color=0xFF0000))
+            if target.id == author.id: return await channel.send("Forbidden Narcissism.")
 
             luck_bonus = 0.01 
             income_bonus = 0.0 
-
             if tier == "Normal": luck_bonus = 0.02
             elif tier == "Rare": luck_bonus = 0.04
             elif tier == "Epic": luck_bonus = 0.08; income_bonus = 0.10
@@ -570,112 +536,47 @@ class Shop(commands.Cog):
             elif tier == "Supreme": luck_bonus = 0.20; income_bonus = 0.25
 
             with self.get_db_connection() as conn:
-                user_bal = conn.execute("SELECT balance FROM users WHERE id = ?", (author_id,)).fetchone()
-                if not user_bal or user_bal['balance'] < item['price']:
-                    return await channel.send(embed=discord.Embed(title="❌ Transaction Denied", description="Your wallet cannot afford this devotion.", color=0xFF0000))
-
-                u1, u2 = sorted([author_id, target.id])
+                u1, u2 = sorted([author.id, target.id])
                 conn.execute("INSERT OR REPLACE INTO relationships (user_one, user_two, type, shared_luck, passive_income) VALUES (?, ?, ?, ?, ?)",
                                  (u1, u2, "Bound", luck_bonus, income_bonus))
-                
-                conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (item['price'], author_id))
+                conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (item['price'], author.id))
                 conn.commit()
 
-            bond_emb = discord.Embed(title="💞 THE CHAINS OF DESIRE", color=0xFF1493)
-            bond_emb.description = f"{author_obj.mention} and {target.mention} have sealed their fates with the **{item['name']}**.\n\n" \
-                                   f"🍀 **Shared Arousal (Luck):** +{int(luck_bonus*100)}%\n" \
-                                   f"💰 **Shared Ecstasy (Income):** +{int(income_bonus*100)}%"
-            await channel.send(embed=bond_emb)
-
-            main_mod = sys.modules['__main__']
-            audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
-            if audit_channel:
-                log_emb = main_mod.fiery_embed("🕵️ VOYEUR BONDING AUDIT", f"The Master's Voyeurs have recorded a soul-binding ritual.")
-                log_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
-                log_emb.add_field(name="Soul One (Buyer)", value=author_obj.mention, inline=True)
-                log_emb.add_field(name="Soul Two (Target)", value=target.mention, inline=True)
-                log_emb.add_field(name="The Bond", value=f"{TIER_EMOJIS[tier]} **{item['name']}**", inline=True)
-                log_emb.description = f"💍 **VOYEUR NOTE:** Two assets are now synchronized. {author_obj.display_name} has sacrificed `{item['price']:,}` 🔥 to weave their fate with {target.display_name}."
-                log_emb.timestamp = datetime.now(timezone.utc)
-                await audit_channel.send(embed=log_emb)
-
-        except Exception as e:
-            await channel.send(embed=discord.Embed(title="❌ Ritual Interrupted", description="The Master is bored by your hesitation. Request expired.", color=0xFF0000))
+            await channel.send(f"💞 {author.mention} and {target.mention} are bound.")
+        except Exception: await channel.send("Ceremony Interrupted.")
 
     @commands.command(name="sell")
     async def sell_item(self, ctx, *, item_name: str):
-        found_item, found_cat, found_tier = self.get_item_details(item_name)
-        if not found_item:
-            return await ctx.send(embed=discord.Embed(title="❌ Item Not Found", description="This asset does not exist in our records.", color=0xFF0000))
-
+        found_item, _, _ = self.get_item_details(item_name)
+        if not found_item: return await ctx.send("Not a valid asset.")
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles FROM users WHERE id = ?", (ctx.author.id,)).fetchone()
             inv = json.loads(user['titles']) if user['titles'] else []
-            
-            if found_item['name'] not in inv:
-                return await ctx.send(embed=discord.Embed(title="❌ Theft Attempt", description="You cannot sell what you do not possess.", color=0xFF0000))
-            
-            sell_value = int(found_item['price'] * 0.5)
+            if found_item['name'] not in inv: return await ctx.send("You don't possess this.")
+            sell_val = int(found_item['price'] * 0.5)
             inv.remove(found_item['name'])
-
-            # Recalc stats after removal
-            current_prot = 0
-            current_luck = 0
-            for name in inv:
-                item_inf, item_cat, _ = self.get_item_details(name)
-                if item_inf:
-                    if item_cat == "Houses": current_prot = max(current_prot, item_inf.get('prot', 0))
-                    elif item_cat == "Pets": current_luck = max(current_luck, item_inf.get('luck', 0))
-            
+            # Recalc stats
+            cp, cl = 0, 0
+            for n in inv:
+                itm, c, _ = self.get_item_details(n)
+                if itm:
+                    if c == "Houses": cp = max(cp, itm.get('prot', 0))
+                    elif c == "Pets": cl = max(cl, itm.get('luck', 0))
             conn.execute("UPDATE users SET balance = balance + ?, titles = ?, protection = ?, luck = ? WHERE id = ?", 
-                         (sell_value, json.dumps(inv), current_prot, current_luck, ctx.author.id))
+                         (sell_val, json.dumps(inv), cp, cl, ctx.author.id))
             conn.commit()
-
-        sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(sell_emb)
+        await ctx.send(f"💰 Reclaimed **{sell_val:,}** 🔥")
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
         target = member or ctx.author
-        
         with self.get_db_connection() as conn:
-            user = conn.execute("SELECT titles, spouse FROM users WHERE id = ?", (target.id,)).fetchone()
-        
-        if not user or not user['titles'] or user['titles'] == "[]":
-            return await ctx.send(embed=discord.Embed(title="📊 Combat Analysis", description="This asset has no combat weightings. Total Luck: 0% | Total Protection: 0%", color=0x808080))
-
-        inv = json.loads(user['titles'])
-        total_prot = 0
-        total_luck = 0
-        
-        for name in inv:
-            item, cat, tier = self.get_item_details(name)
-            if item:
-                if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
-                elif cat == "Pets": total_luck = max(total_luck, item.get('luck', 0))
-
-        rel_luck = 0
-        with self.get_db_connection() as conn:
+            user = conn.execute("SELECT protection, luck FROM users WHERE id = ?", (target.id,)).fetchone()
             rel = conn.execute("SELECT shared_luck FROM relationships WHERE (user_one = ? OR user_two = ?)", (target.id, target.id)).fetchone()
-            if rel: rel_luck = int(rel['shared_luck'] * 100)
-
-        embed = discord.Embed(title=f"📊 COMBAT ANALYSIS: {target.display_name.upper()}", color=0xFF4500)
-        embed.set_thumbnail(url=target.display_avatar.url)
-        
-        desc = (
-            f"🛡️ **First Blood Protection:** `{total_prot}%` \n"
-            f"*Chance to dodge death rolls in the early game.*\n\n"
-            f"🍀 **Final Stand Luck:** `{total_luck}%` \n"
-            f"*Bonus percentage added to your 1v1 win probability.*\n\n"
-            f"💍 **Relationship Shared Luck:** `+{rel_luck}%` \n"
-            f"*Bonus luck synchronized with your bound partner.*"
-        )
-        
-        embed.description = desc
-        embed.set_footer(text="The calculations are final. The Master knows the odds.")
-        embed.timestamp = datetime.now(timezone.utc)
-        
-        await ctx.send(embed=embed)
+        p = user['protection'] if user else 0
+        l = user['luck'] if user else 0
+        rl = int(rel['shared_luck'] * 100) if rel else 0
+        await ctx.send(f"📊 **{target.display_name}**: Prot `{p}%` | Luck `{l}%` | Bond `+{rl}%`")
 
 async def setup(bot):
     await bot.add_cog(Shop(bot))
