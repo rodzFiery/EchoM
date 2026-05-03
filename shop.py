@@ -298,6 +298,7 @@ class ShopView(discord.ui.View):
     async def handle_buy(self, interaction, index):
         if index >= len(self.items): return
         item_name = self.items[index]['name']
+        # FIX: Call the internal buy logic directly with the interaction
         await self.cog.buy_item(interaction, item_name=item_name)
 
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.grey, row=2)
@@ -424,25 +425,35 @@ class Shop(commands.Cog):
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description="You have no account. Use commands to earn flames first.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.response.send_message(embed=lack_emb, ephemeral=True)
-                return await ctx.send(lack_emb)
+                return await ctx.send(embed=lack_emb)
 
             if user_row['balance'] < found_item['price']:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.response.send_message(embed=lack_emb, ephemeral=True)
-                return await ctx.send(lack_emb)
+                return await ctx.send(embed=lack_emb)
 
             inv = json.loads(user_row['titles']) if user_row['titles'] else []
             if found_item['name'] in inv: 
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.response.send_message(embed=own_emb, ephemeral=True)
-                return await ctx.send(own_emb)
+                return await ctx.send(embed=own_emb)
 
             inv.append(found_item['name'])
-            # FIX: Ensure titles is serialized back to JSON and balance is deducted
-            conn.execute("UPDATE users SET balance = balance - ?, titles = ? WHERE id = ?", 
-                         (found_item['price'], json.dumps(inv), author.id))
+
+            # BONUS LOGIC: Calculate current max prot/luck from the updated inventory
+            current_prot = 0
+            current_luck = 0
+            for name in inv:
+                item_inf, item_cat, _ = self.get_item_details(name)
+                if item_inf:
+                    if item_cat == "Houses": current_prot = max(current_prot, item_inf.get('prot', 0))
+                    elif item_cat == "Pets": current_luck = max(current_luck, item_inf.get('luck', 0))
+
+            # FIX: Update balance, inventory, and actual bonus stats in the DB
+            conn.execute("UPDATE users SET balance = balance - ?, titles = ?, protection = ?, luck = ? WHERE id = ?", 
+                         (found_item['price'], json.dumps(inv), current_prot, current_luck, author.id))
             conn.commit()
 
         success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
@@ -559,7 +570,7 @@ class Shop(commands.Cog):
 
                 u1, u2 = sorted([author.id, target.id])
                 conn.execute("INSERT OR REPLACE INTO relationships (user_one, user_two, type, shared_luck, passive_income) VALUES (?, ?, ?, ?, ?)",
-                             (u1, u2, "Bound", luck_bonus, income_bonus))
+                                 (u1, u2, "Bound", luck_bonus, income_bonus))
                 
                 conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (item['price'], author.id))
                 conn.commit()
@@ -600,8 +611,18 @@ class Shop(commands.Cog):
             
             sell_value = int(found_item['price'] * 0.5)
             inv.remove(found_item['name'])
+
+            # RECALCULATE BUFFS AFTER REMOVAL
+            current_prot = 0
+            current_luck = 0
+            for name in inv:
+                item_inf, item_cat, _ = self.get_item_details(name)
+                if item_inf:
+                    if item_cat == "Houses": current_prot = max(current_prot, item_inf.get('prot', 0))
+                    elif item_cat == "Pets": current_luck = max(current_luck, item_inf.get('luck', 0))
             
-            conn.execute("UPDATE users SET balance = balance + ?, titles = ? WHERE id = ?", (sell_value, json.dumps(inv), ctx.author.id))
+            conn.execute("UPDATE users SET balance = balance + ?, titles = ?, protection = ?, luck = ? WHERE id = ?", 
+                         (sell_value, json.dumps(inv), current_prot, current_luck, ctx.author.id))
             conn.commit()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
