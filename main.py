@@ -99,6 +99,17 @@ def load_game_config():
 def init_db():
     # FIXED: Initialize via db_module
     db_module.init_db()
+    # ADDED: Ensure the relationships table used by shop/ship is initialized centrally
+    with get_db_connection() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS relationships (
+                user_one INTEGER,
+                user_two INTEGER,
+                type TEXT,
+                shared_luck REAL DEFAULT 0.0,
+                passive_income REAL DEFAULT 0.0,
+                PRIMARY KEY (user_one, user_two)
+            )""")
+        conn.commit()
 
 init_db()
 
