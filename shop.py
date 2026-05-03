@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -399,7 +400,8 @@ class Shop(commands.Cog):
 
     @commands.command(name="buy")
     async def buy_item(self, ctx, *, item_name: str):
-        author = ctx.author if hasattr(ctx, 'author') else ctx.user
+        # FIX: Ensure we use the correct author object for interactions vs commands
+        author = ctx.user if isinstance(ctx, discord.Interaction) else ctx.author
         guild = ctx.guild
 
         found_item, found_cat, found_tier = self.get_item_details(item_name)
@@ -414,21 +416,31 @@ class Shop(commands.Cog):
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         with self.get_db_connection() as conn:
+            # FIX: Use author.id to ensure the user is found or handled correctly
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
-            if not user_row or user_row['balance'] < found_item['price']:
+            
+            # FIX: Handle new users who are not in the DB yet
+            if not user_row:
+                lack_emb = discord.Embed(title="❌ Insufficient Flames", description="You have no account. Use commands to earn flames first.", color=0xFF0000)
+                if isinstance(ctx, discord.Interaction):
+                    return await ctx.response.send_message(embed=lack_emb, ephemeral=True)
+                return await ctx.send(lack_emb)
+
+            if user_row['balance'] < found_item['price']:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.response.send_message(embed=lack_emb, ephemeral=True)
-                return await ctx.send(embed=lack_emb)
+                return await ctx.send(lack_emb)
 
             inv = json.loads(user_row['titles']) if user_row['titles'] else []
             if found_item['name'] in inv: 
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.response.send_message(embed=own_emb, ephemeral=True)
-                return await ctx.send(embed=own_emb)
+                return await ctx.send(own_emb)
 
             inv.append(found_item['name'])
+            # FIX: Ensure titles is serialized back to JSON and balance is deducted
             conn.execute("UPDATE users SET balance = balance - ?, titles = ? WHERE id = ?", 
                          (found_item['price'], json.dumps(inv), author.id))
             conn.commit()
@@ -506,7 +518,7 @@ class Shop(commands.Cog):
         await ctx.send(embed=embed)
 
     async def handle_ring_purchase(self, ctx, item, tier):
-        author = ctx.author if hasattr(ctx, 'author') else ctx.user
+        author = ctx.user if isinstance(ctx, discord.Interaction) else ctx.author
         channel = ctx.channel if hasattr(ctx, 'channel') else ctx.message.channel
 
         def check(m):
