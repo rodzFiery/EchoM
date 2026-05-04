@@ -10,17 +10,10 @@ async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
     """UPDATED: Guild-Independent Audit Logging System"""
     
     # --- INDEPENDENT LOOKUP LOGIC ---
-    # We attempt to find the specific guild context from the user
-    # Note: If triggered from a global background task, it falls back to global AUDIT_CHANNEL_ID
     target_channel_id = AUDIT_CHANNEL_ID
     
     try:
-        # Try to find which guild the user is performing the action in
-        # This works if the source call provides a way to trace the guild
         with db_module.get_db_connection() as conn:
-            # We look up if this user's current action guild has a specific audit channel
-            # Requires the calling function to be aware of the guild_id context
-            # Fallback: uses the global ID provided in the arguments
             pass 
     except:
         pass
@@ -49,7 +42,6 @@ async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
         embed.add_field(name="🫦 Ident: Asset", value=user.mention, inline=True)
         embed.add_field(name="⛓️ Source: Protocol", value=f"**{source}**", inline=True)
         
-        # Details with Emojis
         val_flames = f"🔥 **+{amount}** Flames added to vault." if amount >= 0 else f"📉 **{amount}** Flames extracted."
         embed.add_field(name="💰 Currency Flow", value=val_flames, inline=False)
         
@@ -67,14 +59,12 @@ async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
 
 def fiery_embed(bot, nsfw_mode_active, title, description, color=0xFF4500):
     """ADDED: Centralized Embed Styler"""
-    # DYNAMIC COLOR: During Master Presence or NSFW Mode, all embeds turn Blood Red
     ext = bot.get_cog("FieryExtensions")
     if (ext and ext.master_present) or nsfw_mode_active:
         color = 0x8B0000 
     
     embed = discord.Embed(title=f" {title.upper()} ", description=description, color=color)
     
-    # FIXED: Mandatory Image Integration on ALL embeds
     if os.path.exists("LobbyTopRight.jpg"):
         embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
         
@@ -94,9 +84,12 @@ class DungeonCounter(commands.Cog):
         """Loads designated math channel from config table."""
         try:
             with db_module.get_db_connection() as conn:
+                # Ensure the table exists before selecting
+                conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
                 row = conn.execute("SELECT value FROM config WHERE key = 'math_channel'").fetchone()
                 if row: self.designated_channel = int(row['value'])
-        except: pass
+        except Exception as e:
+            print(f"Math Load Error: {e}")
 
     @commands.command(name="math")
     @commands.has_permissions(manage_channels=True)
@@ -116,47 +109,45 @@ class DungeonCounter(commands.Cog):
     async def on_message(self, message):
         if message.author.bot: return
         
+        # Load channel if not already cached
+        if self.designated_channel == 0: 
+            self.load_channel()
+            
         # RESTRICTION: Only process if the channel matches the !math designation
-        if self.designated_channel == 0: self.load_channel()
         if message.channel.id != self.designated_channel: return
         
-        # Only process messages that are strictly numbers
         if message.content.isdigit():
             val = int(message.content)
             channel_id = message.channel.id
             current = self.counts.get(channel_id, 0)
 
-            # Sequence Check
             if val == current + 1:
                 self.counts[channel_id] = val
                 
                 if val == 25:
-                    self.counts[channel_id] = 0 # Reset the count
+                    self.counts[channel_id] = 0 # Reset
                     
-                    # Sassy Embed Alert
                     desc = (
-                        f"🎯 **APEX REACHED.**\n\n"
-                        f"Asset {message.author.mention}, you've hit the limit. "
+                        f"🎯 **25 REACHED.**\n\n"
+                        f"Asset {message.author.mention}, you've hit the 25. "
                         f"The rules of the Pit are absolute: **A tease picture is now required.**\n\n"
-                        f"🫦 *Don't keep the Master waiting. Upload your tribute.*"
+                        f"🫦 *Don't keep us waiting. Upload your tribute.*"
                     )
                     
-                    # Using the centralized styling
-                    # We pass 'True' for NSFW mode to ensure blood-red coloring for this alert
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
                     
-                    # Add image file if it exists for the thumbnail
                     if os.path.exists("LobbyTopRight.jpg"):
                         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
                         await message.channel.send(file=file, embed=embed)
                     else:
                         await message.channel.send(embed=embed)
             
-            # Optional: Error handling if they break the count
             elif val <= current and current != 0:
-                await message.add_reaction("❌") # Just a silent mark of failure
+                try: await message.add_reaction("❌")
+                except: pass
 
 async def setup(bot):
+    # Registering the Cog properly to ensure !math is found
     cog = DungeonCounter(bot)
-    cog.load_channel() # Load persistence on boot
+    cog.load_channel()
     await bot.add_cog(cog)
