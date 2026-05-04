@@ -564,22 +564,15 @@ class FieryShip(commands.Cog):
         ids = sorted([ctx.author.id, target1.id, target2.id])
         pair_key = f"3some-{ids[0]}-{ids[1]}-{ids[2]}"
         
+        # --- FIXED: 3 SCANS PER DAY LIMIT ---
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
             self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'last_use': 0}
             
-        # Cooldown check for triad
-        now_ts = datetime.now().timestamp()
+        # Check if 3 scans already performed today
         if self.ship_attempts[pair_key]['count'] >= 3:
-            elapsed = now_ts - self.ship_attempts[pair_key]['last_use']
-            if elapsed < 10800: # 3 hours
-                rem = 10800 - elapsed
-                hrs, mins = int(rem // 3600), int((rem % 3600) // 60)
-                return await ctx.send(f"⏳ **TRIAD COOLDOWN:** Resonance is overtaxed. Wait `{hrs}h {mins}m` to re-scan this triad.")
-            else:
-                self.ship_attempts[pair_key]['count'] = 0 # Reset after 3h passed
+            return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
             
         self.ship_attempts[pair_key]['count'] += 1
-        self.ship_attempts[pair_key]['last_use'] = now_ts
         attempt_count = self.ship_attempts[pair_key]['count']
         
         if attempt_count < 3:
@@ -590,7 +583,7 @@ class FieryShip(commands.Cog):
             seed_str = f"{ids[0]}{ids[1]}{ids[2]}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
-            status_note = "**🔒 Triad Frequency Locked: Resonance has stabilized. [COOLDOWN TRIGGERED]**"
+            status_note = "**🔒 Triad Frequency Locked: Resonance has stabilized for today.**"
         
         random.seed()
         
@@ -608,18 +601,17 @@ class FieryShip(commands.Cog):
         embed.color = 0x9400D3 # Dark Violet for Triad theme
         
         view = discord.ui.View(timeout=60)
-        # --- FIXED REROLL LOGIC ---
-        if self.ship_attempts[pair_key]['count'] < 3:
-            reroll_btn = discord.ui.Button(label=f"Reroll Triad ({self.ship_attempts[pair_key]['count']}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
+        if attempt_count < 3:
+            reroll_btn = discord.ui.Button(label=f"Reroll Triad ({attempt_count}/3)", style=discord.ButtonStyle.secondary, emoji="🔄")
             async def reroll_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
                 await interaction.response.defer()
+                # Re-invoke command to increment count and lock resonance
                 await ctx.invoke(self.match3some)
                 view.stop()
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
-        # ---------------------------
 
         img_buf = await self.create_triad_image(ctx.author.display_avatar.url, target1.display_avatar.url, target2.display_avatar.url, percent)
         if img_buf:
@@ -885,8 +877,6 @@ class FieryShip(commands.Cog):
         embed = main_mod.fiery_embed("🕵️ SCANNER ARCHIVES", f"Recent logs for **{target.display_name}**:\n\n{desc}")
         await ctx.send(embed=embed)
 
-    # --- NEW ADDITIONS START HERE ---
-
     @commands.command(name="submit")
     async def submit(self, ctx, master: discord.Member):
         """Offer your neck to a Master asset."""
@@ -970,4 +960,3 @@ async def setup(bot):
         conn.commit()
     await bot.add_cog(FieryShip(bot))
     print("✅ LOG: Ship Extension ONLINE.")
-    
