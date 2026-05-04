@@ -188,8 +188,11 @@ def run_web_server():
     port = int(os.environ.get("PORT", 8080))
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    except OSError:
+        # FIXED: Prevent crash if port is already bound by another module
+        print(f"⚠️ Port {port} already in use. Web server is likely already running.")
     except Exception as e:
-        print(f"⚠️ Web Server bypass (Address in use): {e}")
+        print(f"⚠️ Web Server bypass: {e}")
 
 # Inicia o servidor em segundo plano apenas se não estiver rodando
 if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
@@ -720,11 +723,13 @@ async def on_ready():
     
     try:
         await bot.load_extension("ask")
-        # --- ADDED: REGISTRATION FOR ASK PERSISTENT VIEWS ---
-        from ask import InitialView, RecipientView, PlayView
-        bot.add_view(InitialView(None, None, None))
-        bot.add_view(RecipientView(None, None))
-        bot.add_view(PlayView(None, None))
+        # --- FIXED: REGISTRATION FOR ASK PERSISTENT VIEWS ---
+        try:
+            from ask import InitialView, RecipientView, PlayView
+            bot.add_view(InitialView(None, None, None))
+            bot.add_view(RecipientView(None, None))
+            bot.add_view(PlayView(None, None))
+        except ImportError: pass
         print("✅ LOG: Ask System (Persistent) is ONLINE.")
     except Exception as e: print(f"Ask fail: {e}")
 
@@ -817,6 +822,12 @@ async def on_ready():
             await bot.load_extension("win")
             print("✅ LOG: High-Yield Extraction (win.py) is ONLINE.")
     except Exception as e: print(f"Win System fail: {e}")
+
+    # --- ADDED: LOADER FOR MATH (COUNTING GAME) ---
+    try:
+        await bot.load_extension("utilis")
+        print("✅ LOG: Math Protocol is ONLINE.")
+    except Exception as e: print(f"Math fail: {e}")
 
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
