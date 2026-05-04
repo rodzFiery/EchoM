@@ -78,19 +78,19 @@ class AutoThread(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        """Listener that opens a thread ONLY when an image is sent in an active channel."""
+        """Listener that opens a thread ONLY when an image or video is sent in an active channel."""
         if message.author.bot:
             return
         
         if message.channel.id in self.active_channels:
-            # FIX: Check if there are any attachments and if at least one is an image
-            is_image = any(
-                att.content_type and att.content_type.startswith('image/') 
-                or att.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp'))
+            # FIX: Check if there are any attachments and if at least one is an image or video
+            is_media = any(
+                (att.content_type and (att.content_type.startswith('image/') or att.content_type.startswith('video/'))) 
+                or att.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.mp4', '.mov', '.mkv', '.webm'))
                 for att in message.attachments
             )
 
-            if not is_image:
+            if not is_media:
                 return
 
             try:
