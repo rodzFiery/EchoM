@@ -27,11 +27,12 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner, edition):
+    def __init__(self, owner, edition, guild_id=None):
         # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
         self.owner = owner
         self.edition = edition
+        self.guild_id = guild_id
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
 
@@ -42,11 +43,22 @@ class LobbyView(discord.ui.View):
         if not self.active:
             return await interaction.response.send_message("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
 
-        if interaction.user.id in self.participants:
-            # UPDATED: Locked-In message. Once they are in, they stay in.
-            return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
-        
-        self.participants.append(interaction.user.id)
+        engine = interaction.client.get_cog("IgnisEngine")
+        if not engine: return
+
+        # PERSISTENCE LOGIC: Add to DB and Local List
+        with engine.get_db_connection() as conn:
+            check = conn.execute("SELECT 1 FROM lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
+            if check:
+                return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
+            
+            conn.execute("INSERT INTO lobby_participants (guild_id, user_id) VALUES (?, ?)", (interaction.guild.id, interaction.user.id))
+            conn.commit()
+
+        # Update local list from DB to ensure sync after restart
+        with engine.get_db_connection() as conn:
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            self.participants = [r[0] for r in rows]
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
         try:
@@ -103,6 +115,11 @@ class LobbyView(discord.ui.View):
         if owner_id and interaction.user.id != owner_id and not is_staff:
             return await interaction.followup.send("Only the Masters or Staff start the games!", ephemeral=True)
         
+        # PERSISTENCE: Reload participants from DB before starting to catch post-restart joins
+        with engine.get_db_connection() as conn:
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            self.participants = [r[0] for r in rows]
+
         if len(self.participants) < 2:
             return await interaction.followup.send("Need at least 2 sexy fucks !", ephemeral=True)
         
@@ -127,6 +144,11 @@ class LobbyView(discord.ui.View):
             # Clear lobby for THIS guild specifically
             if interaction.guild.id in engine.current_lobbies:
                 del engine.current_lobbies[interaction.guild.id]
+
+            # PERSISTENCE: Clear DB participants for this guild as game starts
+            with engine.get_db_connection() as conn:
+                conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
+                conn.commit()
             
             # Visual confirmation the game is launching
             await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
@@ -161,6 +183,12 @@ class EngineControl(commands.Cog):
     async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
+        
+        # PERSISTENCE: Reset any leftover stale data for this guild
+        with self.get_db_connection() as conn:
+            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.commit()
+
         # Removed image_path logic to stop sending files and thumbnails
         embed = discord.Embed(
             title=f"Echo's Hangrygames Edition # {main.game_edition}", 
@@ -168,7 +196,7 @@ class EngineControl(commands.Cog):
             color=0xFF0000
         )
         
-        view = LobbyView(ctx.author, main.game_edition)
+        view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
         engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
@@ -187,20 +215,21 @@ class EngineControl(commands.Cog):
         # Check specific guild lobby
         guild_lobby = engine.current_lobbies.get(ctx.guild.id) if engine else None
         
-        if not engine or not guild_lobby:
+        # PERSISTENCE: Check DB if local cache is empty
+        participants = []
+        with self.get_db_connection() as conn:
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,)).fetchall()
+            participants = [r[0] for r in rows]
+        
+        if not participants:
             embed = self.fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             return await ctx.send(file=file, embed=embed)
         
-        # FIX: Now correctly identifying members from the View's participant list
-        participants = guild_lobby.participants
-        if not participants:
-            embed = self.fiery_embed("Lobby Status", "The room is empty. No one has offered their body yet.")
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        
         mentions = [f"<@{p_id}>" for p_id in participants]
-        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{guild_lobby.edition}:\n\n" + "\n".join(mentions), color=0x00FF00)
+        # Re-fetch edition from main or fallback if needed
+        edition_val = guild_lobby.edition if guild_lobby else "?"
+        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{edition_val}:\n\n" + "\n".join(mentions), color=0x00FF00)
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
@@ -275,6 +304,13 @@ class IgnisEngine(commands.Cog):
             "Your submission is delicious. Let us see more.",
             "Final command: Show us everything you've got. Flash!"
         ]
+        self._init_persistence()
+
+    def _init_persistence(self):
+        """Initializes the participant database table."""
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+            conn.commit()
 
     def calculate_level(self, current_xp):
         level = 1
@@ -294,6 +330,9 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
+        with self.get_db_connection() as conn:
+            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
     # POWER COMMAND !getnaked @user ( decree / flash decree )
@@ -608,6 +647,7 @@ class IgnisEngine(commands.Cog):
 
                         # NEW: Capture first loser for Basic NSFW protocol
                         if not first_blood_recorded and not first_loser_member:
+                             first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
 
                         # Update current survivors map
