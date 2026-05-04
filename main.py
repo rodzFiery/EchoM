@@ -720,7 +720,12 @@ async def on_ready():
     
     try:
         await bot.load_extension("ask")
-        print("✅ LOG: Ask System is ONLINE.")
+        # --- ADDED: REGISTRATION FOR ASK PERSISTENT VIEWS ---
+        from ask import InitialView, RecipientView, PlayView
+        bot.add_view(InitialView(None, None, None))
+        bot.add_view(RecipientView(None, None))
+        bot.add_view(PlayView(None, None))
+        print("✅ LOG: Ask System (Persistent) is ONLINE.")
     except Exception as e: print(f"Ask fail: {e}")
 
     try:
