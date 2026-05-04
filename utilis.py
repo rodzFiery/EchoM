@@ -97,6 +97,8 @@ class DungeonCounter(commands.Cog):
         """DESIGNATE THE MATH PIT: Sets the active channel for counting."""
         target = channel or ctx.channel
         self.designated_channel = target.id
+        # Reset count when re-setting channel
+        self.counts[target.id] = 0
         
         with db_module.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_channel', ?)", (str(target.id),))
@@ -121,19 +123,35 @@ class DungeonCounter(commands.Cog):
             channel_id = message.channel.id
             current = self.counts.get(channel_id, 0)
 
+            # Sequence Check
             if val == current + 1:
                 self.counts[channel_id] = val
                 
-                if val == 25:
-                    self.counts[channel_id] = 0 # Reset
-                    
+                # Check for values under 25
+                if val < 25:
+                    try: await message.add_reaction("✅")
+                    except: pass
+
+                # If 24 is hit, trigger the warning for the next person (25)
+                if val == 24:
                     desc = (
-                        f"🎯 **25 REACHED.**\n\n"
-                        f"Asset {message.author.mention}, you've hit the 25. "
-                        f"The rules of the Pit are absolute: **A tease picture is now required.**\n\n"
-                        f"🫦 *Don't keep us waiting. Upload your tribute.*"
+                        f"⚠️ **WARNING: APEX NEAR.**\n\n"
+                        f"Asset {message.author.mention} has reached **24**.\n"
+                        f"The next soul to type **25** will be bound by the Pit's law: **A tease picture must be posted immediately.**\n\n"
+                        f"🫦 *Who is brave enough to complete the count?*"
                     )
-                    
+                    embed = fiery_embed(self.bot, True, "🔞 NEAR APEX 🔞", desc)
+                    await message.channel.send(embed=embed)
+
+                # If 25 is hit, final reset
+                if val == 25:
+                    self.counts[channel_id] = 0 # Reset the count to 1 can start again
+                    desc = (
+                        f"🎯 **25 REACHED: TRIBUTE RECOVERY.**\n\n"
+                        f"Asset {message.author.mention}, you have closed the sequence.\n"
+                        f"Upload your tease picture now or face the Master's boredom.\n\n"
+                        f"🫦 *The count has been reset.*"
+                    )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
                     
                     if os.path.exists("LobbyTopRight.jpg"):
@@ -142,6 +160,7 @@ class DungeonCounter(commands.Cog):
                     else:
                         await message.channel.send(embed=embed)
             
+            # Error handling if they break the count
             elif val <= current and current != 0:
                 try: await message.add_reaction("❌")
                 except: pass
