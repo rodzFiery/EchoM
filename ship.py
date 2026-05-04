@@ -554,38 +554,44 @@ class FieryShip(commands.Cog):
         """🔞 SCAN FOR A TRIAD RESONANCE: Author + 2 Random Assets (or specified)"""
         main_mod = sys.modules['__main__']
         
-        # Determine targets
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        
+        # We define pair_key broadly for Author's daily limit
+        pair_key = f"3some-limit-{ctx.author.id}"
+        
+        if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'used_targets': []}
+            
+        if self.ship_attempts[pair_key]['count'] >= 3:
+            return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
+
+        # If reroll (button), t1/t2 will be None, we need to pick NEW people
+        # Excluding previously picked people in this session
         if not t1 or not t2:
-            members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
+            exclude = [ctx.author.id] + self.ship_attempts[pair_key]['used_targets']
+            members = [m for m in ctx.channel.members if not m.bot and m.id not in exclude]
             if len(members) < 2:
-                return await ctx.send("❌ Not enough assets in the pit for a triad scan.")
+                # If we ran out of unique people in small channels, clear history and retry once
+                self.ship_attempts[pair_key]['used_targets'] = []
+                members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
+                if len(members) < 2:
+                    return await ctx.send("❌ Not enough unique assets in the pit for a new scan.")
             target1, target2 = random.sample(members, 2)
         else:
             target1, target2 = t1, t2
 
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        
-        # Key includes author and the two targets
-        ids = sorted([ctx.author.id, target1.id, target2.id])
-        pair_key = f"3some-{ids[0]}-{ids[1]}-{ids[2]}"
-        
-        # Check current state in memory
-        if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
-            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
-            
-        # Check if 3 scans already performed today
-        if self.ship_attempts[pair_key]['count'] >= 3:
-            return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
-            
-        # Increment ONLY when command is actually executed successfully
+        # Record targets
+        self.ship_attempts[pair_key]['used_targets'].extend([target1.id, target2.id])
         self.ship_attempts[pair_key]['count'] += 1
         attempt_count = self.ship_attempts[pair_key]['count']
         
         if attempt_count < 3:
-            random.seed(f"{pair_key}{datetime.now().timestamp()}")
+            # NO SEED during unstable phase ensures different percentages every time
             percent = random.randint(0, 100)
             status_note = f"**⚠️ Triad Vibration: Scan {attempt_count}/3. Results are fluctuating...**"
         else:
+            # Seed only on the final lock
+            ids = sorted([ctx.author.id, target1.id, target2.id])
             seed_str = f"{ids[0]}{ids[1]}{ids[2]}{today}"
             random.seed(seed_str)
             percent = random.randint(0, 100)
@@ -613,8 +619,8 @@ class FieryShip(commands.Cog):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
                 await interaction.response.defer()
-                # Re-invoke command with specific targets to maintain the pair_key integrity
-                await ctx.invoke(self.match3some, t1=target1, t2=target2)
+                # Passing None to t1/t2 forces a fresh random sample selection
+                await ctx.invoke(self.match3some, t1=None, t2=None)
                 view.stop()
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
