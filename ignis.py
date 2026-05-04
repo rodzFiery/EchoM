@@ -35,6 +35,20 @@ class LobbyView(discord.ui.View):
         self.guild_id = guild_id
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
+        
+        # --- ADDED: Persistence Rehydration ---
+        # When the view is recreated after a restart, try to fetch current participants from DB
+        if self.guild_id:
+            try:
+                import sys as _sys
+                main = _sys.modules['__main__']
+                with main.get_db_connection() as conn:
+                    # Ensure table exists before querying
+                    conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+                    rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (self.guild_id,)).fetchall()
+                    self.participants = [r[0] for r in rows]
+            except Exception as e:
+                print(f"Rehydration Error: {e}")
 
     # ADDED: custom_id to make the interaction persistent and stop "Interaction Failed"
     @discord.ui.button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
@@ -197,6 +211,11 @@ class EngineControl(commands.Cog):
         )
         
         view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
+        
+        # --- ADDED: Persistent View Registration ---
+        # This tells the bot to keep listening for these buttons even after a restart
+        self.bot.add_view(view)
+
         engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
@@ -1020,6 +1039,23 @@ class StatusCheck(commands.Cog):
                 else:
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
+# --- NEW: PERSISTENT LOBBY LAUNCHER COG ---
+class PersistentLobbyLauncher(commands.Cog):
+    """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks."""
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # We register a 'Template' of the LobbyView. 
+        # Because we used custom_id in the buttons, Discord will map clicks to this view
+        # even if it's not the exact same instance as before.
+        import sys as _sys
+        main = _sys_setup.modules['__main__']
+        # owner=None is okay because is_staff check and DB checks will handle the logic
+        self.bot.add_view(LobbyView(owner=None, edition=0))
+        print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
+
 async def setup(bot):
     import sys as _sys_setup
     main = _sys_setup.modules['__main__']
@@ -1045,3 +1081,6 @@ async def setup(bot):
     await bot.add_cog(engine_control)
 
     await bot.add_cog(StatusCheck(bot))
+    
+    # ADDED: Register the persistence cog
+    await bot.add_cog(PersistentLobbyLauncher(bot))
