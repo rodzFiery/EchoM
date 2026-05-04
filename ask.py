@@ -10,23 +10,10 @@ import asyncio # ADDED: Required for thread-safe processing
 from datetime import datetime, timezone
 from PIL import Image, ImageDraw, ImageOps, ImageFilter
 
-# --- PERSISTENT VIEW CLASSES (MOVED OUTSIDE FOR STABILITY) ---
+# --- PERSISTENT VIEW CLASSES (MOVED AND DECOUPLED FOR TOTAL STABILITY) ---
 
-class InitialView(discord.ui.View):
-    def __init__(self, requester_id=None, target_id=None):
-        super().__init__(timeout=None)
-        self.requester_id = requester_id
-        self.target_id = target_id
-
-    @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩", custom_id="ask_dm_init_v2")
-    async def dm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # If IDs aren't in memory (after restart), we extract from mentions in the embed
-        req_id = self.requester_id or int(interaction.message.embeds[0].description.split('<@')[1].split('>')[0])
-        tar_id = self.target_id or int(interaction.message.embeds[0].description.split('signaling <@')[1].split('>')[0])
-
-        if interaction.user.id != req_id: 
-            return await interaction.response.send_message("❌ This is not your request to configure, asset.", ephemeral=True)
-        
+class NatureSelect(discord.ui.Select):
+    def __init__(self, requester_id, target_id):
         options = [
             discord.SelectOption(label="SFW", emoji="🛡️"),
             discord.SelectOption(label="NSFW", emoji="🔞"),
@@ -37,38 +24,61 @@ class InitialView(discord.ui.View):
             discord.SelectOption(label="Dating vibes", emoji="💘"),
             discord.SelectOption(label="Open to Anything", emoji="🔞")
         ]
+        # We store the IDs in the custom_id so they survive restarts
+        super().__init__(placeholder="Nature of the DM (Choose up to 3)", min_values=1, max_values=3, options=options, custom_id=f"ask_sel:{requester_id}:{target_id}")
+
+    async def callback(self, interaction: discord.Interaction):
+        # Extract IDs from custom_id if memory is wiped
+        _, req_id, tar_id = self.custom_id.split(':')
+        req_id, tar_id = int(req_id), int(tar_id)
+
+        if interaction.user.id != req_id:
+            return await interaction.response.send_message("❌ This setup belongs to the requester.", ephemeral=True)
+
+        main_mod = sys.modules['__main__']
+        intent_display = " | ".join([f"**{val}**" for val in self.values])
+        target_user = interaction.guild.get_member(tar_id)
+        requester_user = interaction.guild.get_member(req_id)
+
+        final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
+            f"{target_user.mention}, a formal petition to enter your private space has been filed by {requester_user.mention}.\n\n"
+            f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
+            f"** **")
         
-        select = discord.ui.Select(placeholder="Nature of the DM (Choose up to 3)", min_values=1, max_values=3, options=options, custom_id="ask_dm_select_v2")
+        final_embed.set_thumbnail(url=requester_user.display_avatar.url)
+        final_embed.color = 0x00BFFF 
 
-        async def select_callback(sel_interaction: discord.Interaction):
-            if sel_interaction.user.id != req_id: 
-                return await sel_interaction.response.send_message("❌ Hands off.", ephemeral=True)
-            
-            main_mod = sys.modules['__main__']
-            intent_display = " | ".join([f"**{val}**" for val in select.values])
-            target_user = interaction.guild.get_member(tar_id)
-            requester_user = interaction.guild.get_member(req_id)
+        view = RecipientView(req_id, tar_id)
+        await interaction.response.send_message(content=target_user.mention, embed=final_embed, view=view)
 
-            final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
-                f"{target_user.mention}, a formal petition to enter your private space has been filed by {requester_user.mention}.\n\n"
-                f"### 🫦 INTENT OF CONTACT:\n> {intent_display}\n\n"
-                f"** **")
-            
-            final_embed.set_thumbnail(url=requester_user.display_avatar.url)
-            final_embed.color = 0x00BFFF 
+class InitialView(discord.ui.View):
+    def __init__(self, requester_id=None, target_id=None):
+        super().__init__(timeout=None)
+        self.requester_id = requester_id
+        self.target_id = target_id
 
-            view = RecipientView(req_id, tar_id)
-            await sel_interaction.response.send_message(content=target_user.mention, embed=final_embed, view=view)
+    @discord.ui.button(label="Ask to DM", style=discord.ButtonStyle.primary, emoji="📩", custom_id="ask_dm_init_v3")
+    async def dm_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Logic to recover IDs from mentions if they aren't in memory
+        try:
+            req_id = self.requester_id or int(interaction.message.embeds[0].description.split('<@')[1].split('>')[0])
+            tar_id = self.target_id or int(interaction.message.embeds[0].description.split('signaling <@')[1].split('>')[0])
+        except: return await interaction.response.send_message("❌ Internal link broken. Use the command again.", ephemeral=True)
 
-        select.callback = select_callback
+        if interaction.user.id != req_id: 
+            return await interaction.response.send_message("❌ This is not your request, asset.", ephemeral=True)
+        
+        # We create a temporary view for the select menu which uses a stable custom_id
         dm_view = discord.ui.View(timeout=None)
-        dm_view.add_item(select)
+        dm_view.add_item(NatureSelect(req_id, tar_id))
         await interaction.response.send_message("🫦 **Define the nature of your entry:**", view=dm_view, ephemeral=True)
 
-    @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="ask_play_init_v2")
+    @discord.ui.button(label="Ask to Play", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="ask_play_init_v3")
     async def play_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        req_id = self.requester_id or int(interaction.message.embeds[0].description.split('<@')[1].split('>')[0])
-        tar_id = self.target_id or int(interaction.message.embeds[0].description.split('signaling <@')[1].split('>')[0])
+        try:
+            req_id = self.requester_id or int(interaction.message.embeds[0].description.split('<@')[1].split('>')[0])
+            tar_id = self.target_id or int(interaction.message.embeds[0].description.split('signaling <@')[1].split('>')[0])
+        except: return
 
         if interaction.user.id != req_id: 
             return await interaction.response.send_message("❌ Access denied.", ephemeral=True)
@@ -85,44 +95,46 @@ class InitialView(discord.ui.View):
         await interaction.response.send_message(content=target_user.mention, embed=play_embed, view=view)
 
 class RecipientView(discord.ui.View):
-    def __init__(self, req_id, tar_id):
+    def __init__(self, req_id=0, tar_id=0):
         super().__init__(timeout=None)
         self.req_id = req_id
         self.tar_id = tar_id
 
-    @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept_v2")
+    @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept_v3")
     async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
-        if inter.user.id != self.tar_id: 
+        # Determine target from interaction if initialized with 0
+        target_id = self.tar_id or inter.user.id 
+        if inter.user.id != target_id: 
             return await inter.response.send_message("❌ Access denied.", ephemeral=True)
+        
         main_mod = sys.modules['__main__']
-        success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", f"**ACCEPTED.** <@{self.req_id}>, request accepted by <@{self.tar_id}>.")
-        await inter.response.send_message(content=f"<@{self.req_id}>", embed=success_emb)
+        # Try to find requester from mentions in message content/embed if not set
+        requester_mention = inter.message.content.split('by ')[1].split('.')[0] if "filed by" in inter.message.content else "Asset"
+        
+        success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", f"**ACCEPTED.** The request was accepted by {inter.user.mention}.")
+        await inter.response.send_message(embed=success_emb)
 
-    @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject_v2")
+    @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject_v3")
     async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
-        if inter.user.id != self.tar_id: 
+        if self.tar_id != 0 and inter.user.id != self.tar_id: 
             return await inter.response.send_message("❌ Access denied.", ephemeral=True)
         main_mod = sys.modules['__main__']
-        fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", f"**DENIED.** <@{self.tar_id}> has rejected your advances.")
-        await inter.response.send_message(content=f"<@{self.req_id}>", embed=fail_emb)
+        fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", f"**DENIED.** {inter.user.mention} has rejected the advances.")
+        await inter.response.send_message(embed=fail_emb)
 
 class PlayView(discord.ui.View):
-    def __init__(self, req_id, tar_id):
+    def __init__(self, req_id=0, tar_id=0):
         super().__init__(timeout=None)
         self.req_id = req_id
         self.tar_id = tar_id
 
-    @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥", custom_id="ask_play_accept_v2")
+    @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥", custom_id="ask_play_accept_v3")
     async def accept_play(self, inter: discord.Interaction, btn: discord.ui.Button):
-        if inter.user.id != self.tar_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
-        await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** <@{self.tar_id}> is ready. <@{self.req_id}>, begin.")
+        await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** {inter.user.mention} is ready.")
 
-    @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ask_play_deny_v2")
+    @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ask_play_deny_v3")
     async def deny_play(self, inter: discord.Interaction, btn: discord.ui.Button):
-        if inter.user.id != self.tar_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
-        await inter.response.send_message(f"🔒 **SYNC ABORTED.** <@{self.tar_id}> has locked their gate.")
+        await inter.response.send_message(f"🔒 **SYNC ABORTED.** {inter.user.mention} has locked their gate.")
 
 # --- COG CLASS ---
 
@@ -159,7 +171,6 @@ class DungeonAsk(commands.Cog):
 
     @commands.command(name="ask")
     async def ask(self, ctx, member: discord.Member):
-        """Initiates a formal request."""
         if member.id == ctx.author.id:
             return await ctx.send("❌ You can't ask to DM yourself.")
 
@@ -179,6 +190,6 @@ async def setup(bot):
     await bot.add_cog(DungeonAsk(bot))
     # Register views for persistence after setup
     bot.add_view(InitialView())
-    bot.add_view(RecipientView(0, 0))
-    bot.add_view(PlayView(0, 0))
-    print("✅ LOG: Ask Extension is ONLINE.")
+    bot.add_view(RecipientView())
+    bot.add_view(PlayView())
+    print("✅ LOG: Ask Extension is ONLINE (V3 Persistence).")
