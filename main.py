@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -578,7 +579,7 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
     """Sends a public ping in the alert channel."""
     embed = fiery_embed("⚠️ STREAK VIBRATION: DISCIPLINE REQUIRED", 
                         f"Asset <@{user_id}>, your consistent submission is at risk.\n\n"
-                        f"It has been **{elapsed}** since your last **{tier}** claim. "
+                        f"It has been **{elapsed}** since your last **{tier} Claim. "
                         f"In **3 hours**, your progress will be purged.\n\n"
                         f"⛓️ **Submit your tribute now.**", color=0xFFCC00)
     
@@ -863,13 +864,22 @@ async def on_message(message):
                 
                 if command_cog in admin_cogs:
                     admin_roles = ["Admin", "Moderator"]
-                    # Simplified check to ensure compatibility
+                    
+                    # --- ADDED: IGNIS ADMIN ROLE CHECK ---
+                    ignis_admin_role_id = None
+                    with get_db_connection() as conn:
+                        row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
+                        if row: ignis_admin_role_id = row[0]
+                    
+                    # Check if user has standard roles OR the specific Ignis Admin role
+                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
                     is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
                     
-                    if not is_staff and not await bot.is_owner(message.author):
+                    # Skip denial if they have the ignis role, standard staff role, or are bot owner
+                    if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
                         denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                                  f"Neural link signature rejected for {message.author.mention}.\n"
-                                                 "Required: **ADMIN** or **MODERATOR**.", color=0xFF0000)
+                                                 "Required: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
                         await message.reply(embed=denied_emb)
             except Exception:
                 pass
