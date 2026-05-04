@@ -198,6 +198,16 @@ class EngineControl(commands.Cog):
         import sys
         main = sys.modules['__main__']
         
+        # --- ADDED: SINGLE LOBBY PER CHANNEL CHECK ---
+        engine = self.bot.get_cog("IgnisEngine")
+        if engine:
+            if ctx.channel.id in engine.active_battles:
+                return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
+            if ctx.guild.id in engine.current_lobbies:
+                 # Check if the existing lobby belongs to this specific channel
+                 existing_view = engine.current_lobbies[ctx.guild.id]
+                 return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
+
         # PERSISTENCE: Reset any leftover stale data for this guild
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
@@ -216,7 +226,6 @@ class EngineControl(commands.Cog):
         # This tells the bot to keep listening for these buttons even after a restart
         self.bot.add_view(view)
 
-        engine = self.bot.get_cog("IgnisEngine")
         if engine: 
             # Assign lobby to the guild ID
             engine.current_lobbies[ctx.guild.id] = view
@@ -1051,7 +1060,7 @@ class PersistentLobbyLauncher(commands.Cog):
         # Because we used custom_id in the buttons, Discord will map clicks to this view
         # even if it's not the exact same instance as before.
         import sys as _sys
-        main = _sys_setup.modules['__main__']
+        main = sys.modules['__main__']
         # owner=None is okay because is_staff check and DB checks will handle the logic
         self.bot.add_view(LobbyView(owner=None, edition=0))
         print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
