@@ -550,28 +550,34 @@ class FieryShip(commands.Cog):
                 await audit_channel.send(embed=log_embed)
 
     @commands.command(name="match3some")
-    async def match3some(self, ctx):
-        """🔞 SCAN FOR A TRIAD RESONANCE: Author + 2 Random Assets"""
+    async def match3some(self, ctx, t1: discord.Member = None, t2: discord.Member = None):
+        """🔞 SCAN FOR A TRIAD RESONANCE: Author + 2 Random Assets (or specified)"""
         main_mod = sys.modules['__main__']
-        members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
-        if len(members) < 2:
-            return await ctx.send("❌ Not enough assets in the pit for a triad scan.")
         
-        target1, target2 = random.sample(members, 2)
+        # Determine targets
+        if not t1 or not t2:
+            members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
+            if len(members) < 2:
+                return await ctx.send("❌ Not enough assets in the pit for a triad scan.")
+            target1, target2 = random.sample(members, 2)
+        else:
+            target1, target2 = t1, t2
+
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
         # Key includes author and the two targets
         ids = sorted([ctx.author.id, target1.id, target2.id])
         pair_key = f"3some-{ids[0]}-{ids[1]}-{ids[2]}"
         
-        # --- FIXED: 3 SCANS PER DAY LIMIT ---
+        # Check current state in memory
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
-            self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'last_use': 0}
+            self.ship_attempts[pair_key] = {'count': 0, 'date': today}
             
         # Check if 3 scans already performed today
         if self.ship_attempts[pair_key]['count'] >= 3:
             return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
             
+        # Increment ONLY when command is actually executed successfully
         self.ship_attempts[pair_key]['count'] += 1
         attempt_count = self.ship_attempts[pair_key]['count']
         
@@ -607,8 +613,8 @@ class FieryShip(commands.Cog):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message("❌ Only the initiator can recalibrate the vibration.", ephemeral=True)
                 await interaction.response.defer()
-                # Re-invoke command to increment count and lock resonance
-                await ctx.invoke(self.match3some)
+                # Re-invoke command with specific targets to maintain the pair_key integrity
+                await ctx.invoke(self.match3some, t1=target1, t2=target2)
                 view.stop()
             reroll_btn.callback = reroll_callback
             view.add_item(reroll_btn)
