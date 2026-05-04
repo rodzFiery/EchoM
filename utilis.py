@@ -135,9 +135,9 @@ class DungeonCounter(commands.Cog):
                 # If 24 is hit, trigger the warning for the next person (25)
                 if val == 24:
                     desc = (
-                        f"⚠️ **WARNING: APEX NEAR.**\n\n"
+                        f"⚠️ **WARNING: 25 coming soon**\n\n"
                         f"Asset {message.author.mention} has reached **24**.\n"
-                        f"The next soul to type **25** will be bound by the Pit's law: **A tease picture must be posted immediately.**\n\n"
+                        f"The next soul to type **25** will be bound by the Pit's law: **A tease picture must be posted.**\n\n"
                         f"🫦 *Who is brave enough to complete the count?*"
                     )
                     embed = fiery_embed(self.bot, True, "🔞 NEAR APEX 🔞", desc)
@@ -149,7 +149,6 @@ class DungeonCounter(commands.Cog):
                     desc = (
                         f"🎯 **25 REACHED: TRIBUTE RECOVERY.**\n\n"
                         f"Asset {message.author.mention}, you have closed the sequence.\n"
-                        f"Upload your tease picture now or face the Master's boredom.\n\n"
                         f"🫦 *The count has been reset.*"
                     )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
