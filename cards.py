@@ -25,8 +25,8 @@ class InfoView(discord.ui.View):
 class VelvetdexSelect(discord.ui.Select):
     def __init__(self, cards):
         options = []
-        # Create an option for each caught card (limit to 25 due to Discord constraints)
-        for c in cards[:25]:
+        # Create an option for each caught card
+        for c in cards:
             options.append(discord.SelectOption(
                 label=c['card_name'], 
                 description=f"Tier: {c['tier'].upper()}", 
@@ -82,9 +82,52 @@ class PetSelectionView(discord.ui.View):
         pass
 
 class VelvetdexView(discord.ui.View):
-    def __init__(self, cards):
+    def __init__(self, cards, target, current_page=0):
         super().__init__(timeout=180)
-        self.add_item(VelvetdexSelect(cards))
+        self.cards = cards
+        self.target = target
+        self.current_page = current_page
+        self.per_page = 25
+        
+        # Calculate slices for pagination
+        start = self.current_page * self.per_page
+        end = start + self.per_page
+        current_slice = self.cards[start:end]
+        
+        # Add Select menu
+        self.add_item(VelvetdexSelect(current_slice))
+        
+        # Disable buttons based on page count
+        if len(self.cards) > self.per_page:
+            prev_btn = discord.ui.Button(label="⬅️ Previous", style=discord.ButtonStyle.gray, disabled=(self.current_page == 0))
+            prev_btn.callback = self.prev_page
+            
+            next_btn = discord.ui.Button(label="Next ➡️", style=discord.ButtonStyle.gray, disabled=(end >= len(self.cards)))
+            next_btn.callback = self.next_page
+            
+            self.add_item(prev_btn)
+            self.add_item(next_btn)
+
+    async def update_view(self, interaction: discord.Interaction):
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            pet_row = conn.execute("SELECT card_name FROM user_pets WHERE user_id = ?", (self.target.id,)).fetchone()
+            pet_display = f"\n🐾 **Active Pet:** {pet_row[0]}" if pet_row else "\n🐾 **Active Pet:** None"
+        
+        embed = main_mod.fiery_embed(f"📂 {self.target.display_name.upper()}'S VELVETDEX", 
+                                     f"Select an asset signature from the dropdown (Page {self.current_page + 1}).{pet_display}")
+        
+        # Re-create view to update buttons/select
+        new_view = VelvetdexView(self.cards, self.target, self.current_page)
+        await interaction.response.edit_message(embed=embed, view=new_view)
+
+    async def next_page(self, interaction: discord.Interaction):
+        self.current_page += 1
+        await self.update_view(interaction)
+
+    async def prev_page(self, interaction: discord.Interaction):
+        self.current_page -= 1
+        await self.update_view(interaction)
 
 # --- INTERACTIVE POKEDEX COMPONENTS ---
 
@@ -483,9 +526,11 @@ class CardSystem(commands.Cog):
 
         with main_mod.get_db_connection() as conn:
             # Get individual rows to display in the select menu
-            # Using rowid as a unique identifier for the select values
+            # NEW: Sorted by top rarity first for better organization
             rows = conn.execute(
-                "SELECT rowid, card_name, tier FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC",
+                "SELECT rowid, card_name, tier FROM user_cards WHERE user_id = ? ORDER BY "
+                "CASE tier WHEN 'supreme' THEN 1 WHEN 'legendary' THEN 2 WHEN 'platine' THEN 3 "
+                "WHEN 'epic' THEN 4 WHEN 'rare' THEN 5 ELSE 6 END, timestamp DESC",
                 (target.id,)
             ).fetchall()
 
@@ -511,7 +556,8 @@ class CardSystem(commands.Cog):
         else:
             embed.set_thumbnail(url=target.display_avatar.url)
         
-        view = VelvetdexView(card_list)
+        # FIXED: Using Paginated VelvetdexView
+        view = VelvetdexView(card_list, target)
         await ctx.send(embed=embed, view=view)
 
     @commands.command(name="collections")
