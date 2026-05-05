@@ -5,7 +5,14 @@ import random
 from datetime import datetime, timezone, timedelta
 
 # SHARED CONFIGURATION
-RANKS = ["Tribute", "Neophyte", "Slave", "Servant", "Thrall", "Vassal", "Initiate", "Follower", "Devotee", "Acolyte"]
+# EXPANDED TO 50 RANKS - THEME: NSFW/BDSM PROGRESSION
+RANKS = [
+    "Tribute", "Neophyte", "Slave", "Servant", "Thrall", "Vassal", "Initiate", "Follower", "Devotee", "Acolyte",
+    "Collared", "Pet", "Novice Sub", "Owned Asset", "Bondage Subject", "Bound Soul", "Obedient Toy", "Willing Asset", "Submissive Pupil", "Pliant Servant",
+    "Leather Disciple", "Discipline Cadet", "Rigger's Apprentice", "Dungeon Guard", "Silent Thrall", "Latex Acolyte", "Sensory Vessel", "Pain Enthusiast", "Strictly Owned", "Dungeon Veteran",
+    "Elite Sub", "High Servant", "Chosen Pet", "Master's Favorite", "Sanctuary Guardian", "Chamber Warden", "Dungeon Overseer", "Dominion Knight", "Sovereign Asset", "Caged Elite",
+    "Grand Submissive", "High Priest of Pain", "Abyssal Thrall", "Velvet Master", "Iron Sovereign", "Dungeon Monarch", "Eternal Consort", "Supreme Dominant", "God of the Pit", "Absolute Master"
+]
 CLASSES = {
     "Dominant": {"bonus": "20% Flames", "desc": "Dictate the flow."},
     "Submissive": {"bonus": "25% XP", "desc": "Absorb the discipline."},
@@ -72,6 +79,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
             base_flames = int(base_flames * multiplier)
         
         # Check for Absolute Mastery (1.5x Global Multiplier)
+        # 
         absolute_master = conn.execute("SELECT 1 FROM card_mastery WHERE user_id = ? AND mastery_key = 'absolute_master'", (user_id,)).fetchone()
         if absolute_master:
             base_flames = int(base_flames * 1.5)
@@ -104,7 +112,7 @@ async def handle_work_command(ctx, bot, cmd_name, range_tuple, get_user, update_
     
     embed = fiery_embed(f"PROTOCOL: {cmd_name.upper()}", 
                         f"{response_text}\n\n" 
-                        f"💰 **Earned:** {base_flames:,} Flames\n"
+                        f"💰 **Earned:** {base_flames:,} Flames\n" 
                         f"🔥 **Experience:** +{base_xp:,} XP")
     
     if os.path.exists("LobbyTopRight.jpg"):
