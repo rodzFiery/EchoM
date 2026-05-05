@@ -261,11 +261,13 @@ class FieryCasino(commands.Cog):
         total = d1 + d2
         mult = 1.0 + (user['fiery_level'] * 0.01)
         if total == guess:
-            win = int((bet * 8) * mult)
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win-bet, source="Dice Win")
+            win_total = int((bet * 8) * mult)
+            # Math: Net gain is win_total - bet (since the bet was still in the wallet)
+            await main_mod.update_user_stats_async(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
-            res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** You win **{win:,} Flames**."
+            res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** You win **{win_total:,} Flames**."
         else:
+            # Math: Loss is negative bet
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Dice Loss")
             title, color = "💀 CRIPPLING LOSS 💀", 0x8B0000
             res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n⛓️ **SUBMISSION.** You lose **{bet:,} Flames**."
@@ -311,7 +313,10 @@ class FieryCasino(commands.Cog):
                 f"━━━━━━━━━━━━━━━━━━━━━━━\n\n**🎴 YOUR HAND:**\n{p_visual}\n**⚡ TOTAL:** `{p_score}`\n\n"
                 f"**🃏 DEALER HAND:**\n{d_visual}\n━━━━━━━━━━━━━━━━━━━━━━━")
         embed = main_mod.fiery_embed("THE DUEL IS ON", desc, color=0x3b0a0a)
-        await interaction.response.edit_message(embed=embed, view=view)
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=view)
+        else:
+            await interaction.response.edit_message(embed=embed, view=view)
 
     async def finish_blackjack(self, interaction, bet, p_hand, d_hand, reason):
         main_mod = sys.modules['__main__']
@@ -319,37 +324,46 @@ class FieryCasino(commands.Cog):
         p_score = self.calculate_bj(p_hand)
         d_score = self.calculate_bj(d_hand)
         mult = 1.0 + (user['fiery_level'] * 0.01)
-        win, status = 0, ""
+        win_amt, status, color = 0, "", 0x808080
+        
         if reason == "BLACKJACK":
-            win = int((bet * 2.5) * mult)
+            win_amt = int((bet * 2.5) * mult)
             status = f"🔞 **NATURAL CLIMAX!** {interaction.user.display_name} overstimulated the dealer."
             color = 0xFFD700
         elif p_score > 21:
-            win = -bet
+            win_amt = -bet
             status = f"💀 **BUST.** {interaction.user.display_name} broke under pressure."
             color = 0x8B0000
         elif d_score > 21 or p_score > d_score:
-            win = int((bet * 2) * mult)
+            win_amt = int((bet * 2) * mult)
             status = f"🫦 **DOMINANCE.** {interaction.user.display_name} outplayed the House."
             color = 0x00FF00
         elif p_score == d_score:
-            win = 0
+            win_amt = 0
             status = f"🤝 **STALEMATE.** No one climaxes. Bet returned."
             color = 0x808080
         else:
-            win = -bet
+            win_amt = -bet
             status = f"⛓️ **DEFEAT.** {interaction.user.display_name} taken by the House."
             color = 0x8B0000
 
-        if win > 0: await main_mod.update_user_stats_async(interaction.user.id, amount=win-bet, source="BJ Win")
-        elif win < 0: await main_mod.update_user_stats_async(interaction.user.id, amount=win, source="BJ Loss")
+        # Update stats based on net gain/loss
+        # If win_amt > 0, we subtract the original bet to get the net added profit
+        if win_amt > 0:
+            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="BJ Win")
+        elif win_amt < 0:
+            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt, source="BJ Loss")
 
         p_visual = " ".join([get_visual_card(c) for c in p_hand])
         d_visual = " ".join([get_visual_card(c) for c in d_hand])
         res_desc = (f"## {status}\n\n**🫦 FINAL:**\n{p_visual} (`{p_score}`)\n\n**⛓️ DEALER:**\n{d_visual} (`{d_score}`)\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━\n💳 **RESULT:** `{'+' if win >= 0 else ''}{win:,}` Flames")
+                    f"━━━━━━━━━━━━━━━━━━━━━━━\n💳 **RESULT:** `{'+' if win_amt >= 0 else ''}{win_amt:,}` Flames")
         embed = main_mod.fiery_embed("DUEL CONCLUDED", res_desc, color=color)
-        await interaction.response.edit_message(embed=embed, view=None)
+        
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=None)
+        else:
+            await interaction.response.edit_message(embed=embed, view=None)
 
     # --- ROULETTE COMMANDS ---
     @commands.command(name="roulette")
@@ -377,13 +391,13 @@ class FieryCasino(commands.Cog):
         color = "red" if num % 2 == 0 and num != 0 else "black"
         if num == 0: color = "green"
         mult = 1.0 + (user['fiery_level'] * 0.01)
-        win = 0
+        win_amt = 0
         if choice == color or (choice.isdigit() and int(choice) == num):
             payout_mult = 35 if choice.isdigit() else 2
-            win = int((bet * payout_mult) * mult)
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win-bet, source="Roulette Win")
+            win_amt = int((bet * payout_mult) * mult)
+            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
-            res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Payout of **{win:,} Flames**!"
+            res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Payout of **{win_amt:,} Flames**!"
         else:
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Roulette Loss")
             title, color_hex = "💀 THE WHEEL REJECTS 💀", 0x8B0000
@@ -430,17 +444,17 @@ class FieryCasino(commands.Cog):
             
         r1, r2, r3 = random.choice(icons), random.choice(icons), random.choice(icons)
         mult = 1.0 + (user['fiery_level'] * 0.01)
-        win = 0
+        win_amt = 0
         if r1 == r2 == r3:
             payout = 50 if r1 == "🔥" else 10
-            win = int((bet * payout) * mult)
+            win_amt = int((bet * payout) * mult)
         elif r1 == r2 or r2 == r3 or r1 == r3:
-            win = int((bet * 3) * mult)
+            win_amt = int((bet * 3) * mult)
 
-        if win > 0:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win-bet, source="Slots Win")
+        if win_amt > 0:
+            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Slots Win")
             title, color = "🔞 TOTAL ALIGNMENT 🔞", 0xFFD700
-            res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n🫦 **CLIMAX.** The machine shudders and releases **{win:,} Flames**!"
+            res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n🫦 **CLIMAX.** The machine shudders and releases **{win_amt:,} Flames**!"
         else:
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Slots Loss")
             title, color = "💀 MACHINE COLD 💀", 0x8B0000
