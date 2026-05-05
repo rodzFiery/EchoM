@@ -64,6 +64,7 @@ class VelvetdexSelect(discord.ui.Select):
                                      f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}")
         
         # ADDED: View with a "Set as Pet" button using a persistent-style custom_id
+        # FIXED: card_db_id is passed as the identifying factor
         view = PetSelectionView(card_db_id, card_name)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
@@ -240,17 +241,18 @@ class CardSystem(commands.Cog):
 
         # --- LOGIC FOR SET PET ---
         elif custom_id == "set_pet_persistent":
-            # Extract data from the embed title to identify the card
+            # FIXED: Change pet logic now searches DB by name appearing in Intel embed
             if not interaction.message.embeds: return
             title = interaction.message.embeds[0].title
             card_name = title.replace("🧬 ASSET INTEL: ", "").strip()
 
             with main_mod.get_db_connection() as conn:
                 # Find the rowid and original name for this specific card
-                row = conn.execute("SELECT rowid, card_name FROM user_cards WHERE user_id = ? AND card_name = ? LIMIT 1", (user_id, card_name)).fetchone()
+                row = conn.execute("SELECT rowid, card_name FROM user_cards WHERE user_id = ? AND card_name = ? ORDER BY timestamp DESC LIMIT 1", (user_id, card_name)).fetchone()
                 if row:
                     # Robust search for member avatar URL
                     avatar_url = None
+                    # Search guild members for the avatar
                     target_member = discord.utils.get(interaction.guild.members, display_name=card_name)
                     if not target_member:
                         target_member = discord.utils.get(interaction.guild.members, name=card_name)
@@ -261,9 +263,9 @@ class CardSystem(commands.Cog):
                     conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
                                  (user_id, row[0], card_name, avatar_url))
                     conn.commit()
-                    await interaction.response.send_message(f"✅ **{card_name}** is now following you!", ephemeral=True)
+                    await interaction.response.send_message(f"✅ **{card_name}** is now your active pet following you!", ephemeral=True)
                 else:
-                    await interaction.response.send_message("❌ Failed to synchronize pet link.", ephemeral=True)
+                    await interaction.response.send_message("❌ Failed to synchronize pet link from your archive.", ephemeral=True)
 
     @commands.command(name="setcards")
     @commands.has_permissions(administrator=True)
