@@ -241,31 +241,34 @@ class CardSystem(commands.Cog):
 
         # --- LOGIC FOR SET PET ---
         elif custom_id == "set_pet_persistent":
-            # FIXED: Change pet logic now searches DB by name appearing in Intel embed
+            # FIXED: Robust parsing of card name from Intel embed title
             if not interaction.message.embeds: return
             title = interaction.message.embeds[0].title
-            card_name = title.replace("🧬 ASSET INTEL: ", "").strip()
+            # Handles "🧬 ASSET INTEL: NAME" format by stripping prefix
+            card_name = title.split(":")[-1].strip()
 
             with main_mod.get_db_connection() as conn:
-                # Find the rowid and original name for this specific card
-                row = conn.execute("SELECT rowid, card_name FROM user_cards WHERE user_id = ? AND card_name = ? ORDER BY timestamp DESC LIMIT 1", (user_id, card_name)).fetchone()
+                # Find the rowid and original name for this specific card using name check
+                row = conn.execute("SELECT rowid, card_name FROM user_cards WHERE user_id = ? AND UPPER(card_name) = ? ORDER BY timestamp DESC LIMIT 1", (user_id, card_name.upper())).fetchone()
                 if row:
-                    # Robust search for member avatar URL
+                    db_rowid = row[0]
+                    db_name = row[1]
                     avatar_url = None
-                    # Search guild members for the avatar
-                    target_member = discord.utils.get(interaction.guild.members, display_name=card_name)
+                    
+                    # Robust search for member avatar URL
+                    target_member = discord.utils.get(interaction.guild.members, display_name=db_name)
                     if not target_member:
-                        target_member = discord.utils.get(interaction.guild.members, name=card_name)
+                        target_member = discord.utils.get(interaction.guild.members, name=db_name)
                     
                     if target_member:
                         avatar_url = target_member.display_avatar.url
                     
                     conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
-                                 (user_id, row[0], card_name, avatar_url))
+                                 (user_id, db_rowid, db_name, avatar_url))
                     conn.commit()
-                    await interaction.response.send_message(f"✅ **{card_name}** is now your active pet following you!", ephemeral=True)
+                    await interaction.response.send_message(f"✅ **{db_name}** is now your active pet following you!", ephemeral=True)
                 else:
-                    await interaction.response.send_message("❌ Failed to synchronize pet link from your archive.", ephemeral=True)
+                    await interaction.response.send_message(f"❌ Failed to find **{card_name}** in your archive. Re-open !velvetdex.", ephemeral=True)
 
     @commands.command(name="setcards")
     @commands.has_permissions(administrator=True)
