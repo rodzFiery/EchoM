@@ -84,7 +84,7 @@ class ConfessionReviewView(discord.ui.View):
         cog.confession_count += 1
         cog.save_config(interaction.guild.id)
 
-        embed = self.main_mod.fiery_embed(f"🌑 ANONYMOUS CONFESSION #{cog.confession_count}", 
+        embed = self.main_mod.fiery_embed(f"💌 ANONYMOUS CONFESSION #{cog.confession_count}", 
                                         f"\"{self.confession_text}\"")
         embed.set_footer(text="Frequency verified by the Red Room.")
         
@@ -148,7 +148,7 @@ class ConfessionSubmissionView(discord.ui.View):
         # but here we set it in __init__ based on the target_slot.
         self.children[0].custom_id = f"confess_btn_slot_{target_slot}"
 
-    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="🌑")
+    @discord.ui.button(label="SUBMIT CONFESSION", style=discord.ButtonStyle.secondary, emoji="💌")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("ConfessionSystem")
         cog.load_config(interaction.guild.id)
