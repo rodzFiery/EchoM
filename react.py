@@ -56,6 +56,27 @@ class AutoReact(commands.Cog):
                                     color=0x00FF00)
         await ctx.send(embed=embed)
 
+    @commands.command(name="deletereact")
+    @commands.has_permissions(administrator=True)
+    async def del_react(self, ctx, channel: discord.TextChannel, emoji: str):
+        """Admin command to remove a specific emoji from a channel's auto-react list."""
+        main_mod = sys.modules['__main__']
+        channel_id = str(channel.id)
+
+        if channel_id in self.react_channels and emoji in self.react_channels[channel_id]:
+            self.react_channels[channel_id].remove(emoji)
+            
+            # Clean up key if list is empty
+            if not self.react_channels[channel_id]:
+                del self.react_channels[channel_id]
+                
+            self.save_config()
+            embed = main_mod.fiery_embed("🗑️ REACTION REMOVED", f"The emoji {emoji} has been removed from {channel.mention}.", color=0xFF4500)
+            await ctx.send(embed=embed)
+        else:
+            embed = main_mod.fiery_embed("💢 REACTION PROTOCOL", f"The emoji {emoji} was not bound to {channel.mention}.", color=0xFFFF00)
+            await ctx.send(embed=embed)
+
     @commands.command(name="reactoff")
     @commands.has_permissions(administrator=True)
     async def react_off(self, ctx, channel: discord.TextChannel = None):
