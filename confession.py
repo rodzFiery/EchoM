@@ -129,10 +129,18 @@ class ConfessionReviewView(discord.ui.View):
             archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", 
                 f"**Moderator:** {interaction.user.mention}\n"
                 f"**Submitter:** {user_info}\n"
-                f"**Content Purged:**\n```\n{self.confession_text}\n```", color=0xFF0000)
+                f"**Content Purged:**\n```\n{self.confession_text}\n
+```", color=0xFF0000)
             await audit_channel.send(embed=archive_emb)
 
-        await interaction.message.delete()
+        # --- MODIFIED: HISTORY RETENTION IN REVIEW CHANNEL ---
+        # Update the original review message instead of deleting it
+        rejected_embed = interaction.message.embeds[0]
+        rejected_embed.title = "❌ CONFESSION REJECTED"
+        rejected_embed.color = discord.Color.red()
+        rejected_embed.add_field(name="⚖️ Decision", value=f"Rejected by {interaction.user.mention}\nStatus: Purged from public queue.", inline=False)
+        
+        await interaction.message.edit(embed=rejected_embed, view=None)
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
 
 class ConfessionSubmissionView(discord.ui.View):
