@@ -269,7 +269,7 @@ class ConfessionSystem(commands.Cog):
         self.load_config(ctx.guild.id)
         main_mod = sys.modules['__main__']
         slot_text = "SFW" if slot == 1 else "NSFW"
-        embed = main_mod.fiery_embed(f"🌑 NEURAL CONFESSION HUB [{slot_text}]", 
+        embed = main_mod.fiery_embed(f"📩 CONFESSION HUB [{slot_text}]", 
                                     f"Click the button below to submit your frequency to the {slot_text} channel.\n"
                                     "Every submission is reviewed by the Master before being echoed.")
         # Pass slot ID to the view so it knows where to route approved messages
@@ -288,7 +288,7 @@ class ConfessionSystem(commands.Cog):
             return await ctx.send("❌ Error: Review channel not found.")
 
         main_mod = sys.modules['__main__']
-        embed = main_mod.fiery_embed("🛰️ CONFESSION [SFW]", f"**Submission:**\n{message}")
+        embed = main_mod.fiery_embed("💗 CONFESSION [SFW]", f"**Submission:**\n{message}")
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
