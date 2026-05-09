@@ -126,9 +126,8 @@ class ConfessionReviewView(discord.ui.View):
                 except: pass
 
             user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
-            # FIXED: Corrected unterminated f-string literal by removing the line break inside the f-string
-            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", f"**Moderator:** {interaction.user.mention}\n**Submitter:** {user_info}\n**Content Purged:**\n```\n{self.confession_text}\n
-```", color=0xFF0000)
+            # FIXED: f-string literal cleaned to prevent SyntaxError
+            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", f"**Moderator:** {interaction.user.mention}\n**Submitter:** {user_info}\n**Content Purged:**\n{self.confession_text}", color=0xFF0000)
             await audit_channel.send(embed=archive_emb)
 
         # --- MODIFIED: HISTORY RETENTION IN REVIEW CHANNEL ---
