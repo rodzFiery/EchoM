@@ -30,7 +30,7 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         if not review_channel:
             return await interaction.response.send_message("❌ Error: Review channel not found.", ephemeral=True)
 
-        slot_label = "PRIMARY" if self.target_slot == 1 else "SECONDARY"
+        slot_label = "SFW" if self.target_slot == 1 else "NSFW"
         embed = self.main_mod.fiery_embed(f"🛰️ INCOMING CONFESSION [{slot_label}]", 
                                         f"**Submission:**\n{self.confession.value}")
         
@@ -67,7 +67,7 @@ class ConfessionReviewView(discord.ui.View):
                 content_field = interaction.message.embeds[0].description
                 self.confession_text = content_field.replace("**Submission:**\n", "")
                 # Logic to determine slot from embed title if memory is wiped
-                self.target_slot = 2 if "SECONDARY" in interaction.message.embeds[0].title else 1
+                self.target_slot = 2 if "NSFW" in interaction.message.embeds[0].title else 1
             except:
                 return await interaction.response.send_message("❌ Metadata lost. Cannot approve this legacy message.", ephemeral=True)
 
@@ -98,7 +98,7 @@ class ConfessionReviewView(discord.ui.View):
         original_embed = interaction.message.embeds[0]
         original_embed.title = "✅ CONFESSION DISPATCHED"
         original_embed.color = discord.Color.green()
-        dest_name = "Secondary" if self.target_slot == 2 else "Primary"
+        dest_name = "NSFW" if self.target_slot == 2 else "SFW"
         original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nSent to: {dest_name}", inline=False)
         
         await interaction.message.edit(embed=original_embed, view=None)
@@ -224,7 +224,7 @@ class ConfessionSystem(commands.Cog):
         self.load_config(ctx.guild.id)
         self.post_channel_id = (channel or ctx.channel).id
         self.save_config(ctx.guild.id)
-        await ctx.send(f"✅ Primary Post channel set to {(channel or ctx.channel).mention}")
+        await ctx.send(f"✅ SFW Post channel set to {(channel or ctx.channel).mention}")
 
     @commands.command(name="setconfesspost2")
     @commands.has_permissions(administrator=True)
@@ -233,7 +233,7 @@ class ConfessionSystem(commands.Cog):
         self.load_config(ctx.guild.id)
         self.post_channel_id_2 = (channel or ctx.channel).id
         self.save_config(ctx.guild.id)
-        await ctx.send(f"✅ Secondary Post channel set to {(channel or ctx.channel).mention}")
+        await ctx.send(f"✅ NSFW Post channel set to {(channel or ctx.channel).mention}")
 
     @commands.command(name="setconfesscount")
     @commands.has_permissions(administrator=True)
@@ -257,8 +257,8 @@ class ConfessionSystem(commands.Cog):
         
         desc = (f"### 📡 CONFESSION PROTOCOL STATUS\n"
                 f"**Review Channel:** {review}\n"
-                f"**Primary Post:** {post1}\n"
-                f"**Secondary Post:** {post2}\n\n"
+                f"**SFW Post:** {post1}\n"
+                f"**NSFW Post:** {post2}\n\n"
                 f"**Total Echoed:** `{self.confession_count}`")
         await ctx.send(embed=main_mod.fiery_embed("SYSTEM CONFIGURATION AUDIT", desc, color=0x3498DB))
 
@@ -268,7 +268,7 @@ class ConfessionSystem(commands.Cog):
         """Sends a button for members. Use !confesspanel 1 or !confesspanel 2."""
         self.load_config(ctx.guild.id)
         main_mod = sys.modules['__main__']
-        slot_text = "PRIMARY" if slot == 1 else "SECONDARY"
+        slot_text = "SFW" if slot == 1 else "NSFW"
         embed = main_mod.fiery_embed(f"🌑 NEURAL CONFESSION HUB [{slot_text}]", 
                                     f"Click the button below to submit your frequency to the {slot_text} channel.\n"
                                     "Every submission is reviewed by the Master before being echoed.")
@@ -278,7 +278,7 @@ class ConfessionSystem(commands.Cog):
 
     @commands.command(name="confess")
     async def manual_confess(self, ctx, *, message: str):
-        """Manually trigger an anonymous confession (defaults to Primary)."""
+        """Manually trigger an anonymous confession (defaults to SFW)."""
         self.load_config(ctx.guild.id)
         if self.review_channel_id is None:
             return await ctx.send("❌ The confession review channel is not configured.")
@@ -292,7 +292,7 @@ class ConfessionSystem(commands.Cog):
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
         embed.add_field(name="👤 Submitter Identity", value=f"{ctx.author.mention} ({ctx.author.id})", inline=False)
-        embed.set_footer(text="Submitted via command protocol (Primary).")
+        embed.set_footer(text="Submitted via command protocol (SFW).")
         
         # FIXED: Passing target_slot 1 for manual commands
         view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1)
