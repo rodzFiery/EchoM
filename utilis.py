@@ -98,6 +98,15 @@ class DungeonCounter(commands.Cog):
                     self.counts[self.designated_channel] = int(count_row['value'])
                 else:
                     self.counts[self.designated_channel] = 0
+
+                # Ensure columns exist in users table globally during load
+                cursor = conn.execute("PRAGMA table_info(users)")
+                cols = [c[1] for c in cursor.fetchall()]
+                if "math_total_numbers" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN math_total_numbers INTEGER DEFAULT 0")
+                if "math_total_tributes" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN math_total_tributes INTEGER DEFAULT 0")
+                conn.commit()
         except Exception as e:
             print(f"Math Load Error: {e}")
 
@@ -152,13 +161,13 @@ class DungeonCounter(commands.Cog):
                 # --- UPDATE USER HISTORY STATS ---
                 try:
                     with db_module.get_db_connection() as conn:
-                        # Ensure columns exist in users table
-                        conn.execute("ALTER TABLE users ADD COLUMN math_total_numbers INTEGER DEFAULT 0")
-                        conn.execute("ALTER TABLE users ADD COLUMN math_total_tributes INTEGER DEFAULT 0")
-                    with db_module.get_db_connection() as conn:
-                        conn.execute("UPDATE users SET math_total_numbers = math_total_numbers + 1 WHERE id = ?", (message.author.id,))
+                        # Register user if they don't exist to avoid integrity errors
+                        conn.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (message.author.id,))
+                        # Direct increment
+                        conn.execute("UPDATE users SET math_total_numbers = COALESCE(math_total_numbers, 0) + 1 WHERE id = ?", (message.author.id,))
                         conn.commit()
-                except: pass
+                except Exception as e: 
+                    print(f"Stats Error: {e}")
 
                 # Logic for Randomized Tributes (Infinite Counting)
                 if self.next_tribute_number == 0:
@@ -174,14 +183,17 @@ class DungeonCounter(commands.Cog):
                     u_tributes = 0
                     try:
                         with db_module.get_db_connection() as conn:
-                            conn.execute("UPDATE users SET math_total_tributes = math_total_tributes + 1 WHERE id = ?", (message.author.id,))
+                            conn.execute("UPDATE users SET math_total_tributes = COALESCE(math_total_tributes, 0) + 1 WHERE id = ?", (message.author.id,))
                             conn.commit()
-                            # Use Row indexing properly to fetch integers
+                            
+                            # Use row_factory style for dict-like access
+                            conn.row_factory = db_module.sqlite3.Row
                             row = conn.execute("SELECT math_total_numbers, math_total_tributes FROM users WHERE id = ?", (message.author.id,)).fetchone()
                             if row:
                                 u_numbers = row["math_total_numbers"] if row["math_total_numbers"] else 0
                                 u_tributes = row["math_total_tributes"] if row["math_total_tributes"] else 0
-                    except: pass
+                    except Exception as e: 
+                        print(f"Fetch Error: {e}")
 
                     desc = (
                         f"🎯 **TRIBUTE ACTIVATED: {val}**\n\n"
