@@ -65,35 +65,27 @@ class DungeonPacks(commands.Cog):
             }
             theme = colors.get(rarity, {"main": (255, 255, 255), "glow": (100, 100, 100)})
             
-            # Create Background with slight gradient effect
             canvas = Image.new("RGBA", (800, 450), (10, 2, 15, 255))
             draw = ImageDraw.Draw(canvas)
             
-            # Draw Outer Glow/Border
             for i in range(15, 0, -1):
                 alpha = int(150 * (1 - i/15))
                 draw.rectangle([i, i, 800-i, 450-i], outline=(*theme['main'], alpha), width=2)
 
-            # Header Styling
             draw.text((40, 30), "▣ NEURAL ASSET RECOVERY", fill=theme['main'])
             draw.line([40, 60, 300, 60], fill=theme['main'], width=2)
             
-            # Rarity Badge
             draw.rectangle([40, 80, 200, 110], fill=theme['main'])
             draw.text((50, 85), rarity.upper(), fill=(0, 0, 0))
 
-            # Stats Visualization (Bar Style)
             stats = [("ATK", item['atk'], (255, 80, 80)), ("DEF", item['def'], (80, 140, 255)), ("SPD", item['spd'], (80, 255, 140))]
             for idx, (label, val, col) in enumerate(stats):
                 y_pos = 150 + (idx * 60)
                 draw.text((40, y_pos), f"{label}: {val}", fill=col)
-                # Draw Bar Background
                 draw.rectangle([140, y_pos + 5, 400, y_pos + 15], fill=(30, 30, 40))
-                # Draw Bar Fill
                 bar_width = int((val / 100) * 260)
                 draw.rectangle([140, y_pos + 5, 140 + bar_width, y_pos + 15], fill=col)
 
-            # Item Display Box (Right Side)
             draw.rectangle([450, 80, 750, 350], outline=theme['main'], width=3)
             draw.text((465, 365), f"ASSET: {item['name']}", fill=theme['main'])
             draw.text((40, 400), f"DESCRIPTION: \"{item['desc']}\"", fill=(180, 180, 180))
@@ -110,17 +102,12 @@ class DungeonPacks(commands.Cog):
         def draw_task():
             canvas = Image.new("RGBA", (1000, 500), (20, 0, 5, 255))
             draw = ImageDraw.Draw(canvas)
-            
-            # Central 'VS' text with glitch effect
             draw.text((450, 200), "V S", fill=(255, 0, 40))
-            
-            # List first 3 players on each side
             for idx, player in enumerate(players[:6]):
                 x = 50 if idx < 3 else 700
                 y = 100 + (idx % 3 * 100)
                 draw.text((x, y), f"► {player['user'].display_name[:15]}", fill=(255, 255, 255))
                 draw.text((x + 20, y + 30), f"EQUIP: {player['gear_name']}", fill=(180, 0, 0))
-
             buf = io.BytesIO()
             canvas.save(buf, format="PNG")
             buf.seek(0)
@@ -132,111 +119,55 @@ class DungeonPacks(commands.Cog):
         """Spend Flames to open a Gear Box (basic, premium, elite, tech, guardian, warlord)."""
         main_mod = sys.modules['__main__']
         box_type = box_type.lower()
-        
-        prices = {
-            "basic": 5000, 
-            "premium": 15000, 
-            "elite": 50000,
-            "tech": 25000,
-            "guardian": 25000,
-            "warlord": 100000
-        }
-        if box_type not in prices:
-            return await ctx.send("❌ Valid boxes: `basic`, `premium`, `elite`, `tech`, `guardian`, `warlord`.")
-
+        prices = {"basic": 5000, "premium": 15000, "elite": 50000, "tech": 25000, "guardian": 25000, "warlord": 100000}
+        if box_type not in prices: return await ctx.send("❌ Invalid box type.")
         price = prices[box_type]
-        user_data = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
-        
-        if user_data['balance'] < price:
-            return await ctx.send(f"❌ You lack the Flames. Opening a {box_type} box requires `{price:,}`.")
+        user_data = main_mod.get_user(ctx.author.id)
+        if user_data['balance'] < price: return await ctx.send("❌ Insufficient Flames.")
 
-        # Determine Rarity and Filtering
         rarity_weights = {"Common": 0.80, "Rare": 0.18, "Epic": 0.02, "Legendary": 0.00}
-        
-        if box_type == "premium":
-            rarity_weights = {"Common": 0.40, "Rare": 0.45, "Epic": 0.12, "Legendary": 0.03}
-        elif box_type == "elite":
-            rarity_weights = {"Common": 0.10, "Rare": 0.30, "Epic": 0.45, "Legendary": 0.15}
-        elif box_type == "tech" or box_type == "guardian":
-            rarity_weights = {"Common": 0.30, "Rare": 0.50, "Epic": 0.20, "Legendary": 0.00}
-        elif box_type == "warlord":
-            rarity_weights = {"Common": 0.00, "Rare": 0.20, "Epic": 0.55, "Legendary": 0.25}
+        if box_type == "premium": rarity_weights = {"Common": 0.40, "Rare": 0.45, "Epic": 0.12, "Legendary": 0.03}
+        elif box_type == "elite": rarity_weights = {"Common": 0.10, "Rare": 0.30, "Epic": 0.45, "Legendary": 0.15}
+        elif box_type == "tech" or box_type == "guardian": rarity_weights = {"Common": 0.30, "Rare": 0.50, "Epic": 0.20, "Legendary": 0.00}
+        elif box_type == "warlord": rarity_weights = {"Common": 0.00, "Rare": 0.20, "Epic": 0.55, "Legendary": 0.25}
 
         rarity = random.choices(list(rarity_weights.keys()), weights=list(rarity_weights.values()))[0]
-        
-        # Filter pool based on specialty boxes
         pool = self.item_pool[rarity]
-        if box_type == "tech":
-            pool = [i for i in pool if i['spd'] >= i['atk']] or pool
-        elif box_type == "guardian":
-            pool = [i for i in pool if i['def'] >= i['atk']] or pool
-            
+        if box_type == "tech": pool = [i for i in pool if i['spd'] >= i['atk']] or pool
+        elif box_type == "guardian": pool = [i for i in pool if i['def'] >= i['atk']] or pool
         item = random.choice(pool)
-        
-        # Deduct money and add to inventory
-        await main_mod.update_user_stats_async(ctx.author.id, amount=-price, source=f"Purchased {box_type} Gear Box")
-        
-        def add_item():
-            with self._get_db() as conn:
-                cursor = conn.execute("INSERT INTO dungeon_inventory (user_id, item_name, rarity, atk, def, spd) VALUES (?, ?, ?, ?, ?, ?)",
-                             (ctx.author.id, item['name'], rarity, item['atk'], item['def'], item['spd']))
-                conn.commit()
-                return cursor.lastrowid
-        
-        new_id = await asyncio.to_thread(add_item)
 
-        # GENERATE IMAGE
+        await main_mod.update_user_stats_async(ctx.author.id, amount=-price, source=f"Purchased {box_type} Gear Box")
+        with self._get_db() as conn:
+            conn.execute("INSERT INTO dungeon_inventory (user_id, item_name, rarity, atk, def, spd) VALUES (?, ?, ?, ?, ?, ?)",
+                         (ctx.author.id, item['name'], rarity, item['atk'], item['def'], item['spd']))
+            conn.commit()
+
         img_buf = await self.create_pack_image(ctx.author.display_avatar.url, item, rarity)
-        
-        # Visual Feedback
-        color = 0xCCCCCC if rarity == "Common" else 0x3498DB if rarity == "Rare" else 0x9B59B6 if rarity == "Epic" else 0xF1C40F
-        embed = main_mod.fiery_embed(f"📦 {box_type.upper()} BOX DEPLOYED", f"Asset {ctx.author.mention}, your gear has arrived.")
-        embed.color = color
+        embed = main_mod.fiery_embed(f"📦 {box_type.upper()} BOX DEPLOYED", f"Asset {ctx.author.mention}, gear arrived.")
         embed.set_image(url="attachment://pack.png")
-        
         await ctx.send(file=discord.File(img_buf, filename="pack.png"), embed=embed)
 
     @commands.command(name="dungeonbag", aliases=["dbag", "gear"])
     async def dungeon_bag(self, ctx):
         """View your collected Rumble gear."""
         main_mod = sys.modules['__main__']
-        
-        def fetch_inv():
-            with self._get_db() as conn:
-                return conn.execute("SELECT id, item_name, rarity, atk, def, spd, is_equipped FROM dungeon_inventory WHERE user_id = ?", (ctx.author.id,)).fetchall()
-        
-        items = await asyncio.to_thread(fetch_inv)
-        if not items:
-            return await ctx.send("🥀 Your bag is empty. Buy a box to start your collection.")
-
-        desc = ""
-        for i in items:
-            eq = "✅ " if i['is_equipped'] else ""
-            desc += f"{eq}**[{i['id']}] {i['item_name']}** ({i['rarity']})\n└ ⚔️`{i['atk']}` 🛡️`{i['def']}` ⚡`{i['spd']}`\n"
-
-        embed = main_mod.fiery_embed("🎒 DUNGEON INVENTORY", f"Gear stored by {ctx.author.mention}:\n\n{desc}")
-        embed.set_footer(text="Use !equip <id> to prepare for the Pit.")
-        await ctx.send(embed=embed)
+        with self._get_db() as conn:
+            items = conn.execute("SELECT id, item_name, rarity, atk, def, spd, is_equipped FROM dungeon_inventory WHERE user_id = ?", (ctx.author.id,)).fetchall()
+        if not items: return await ctx.send("🥀 Your bag is empty.")
+        desc = "".join([f"{'✅ ' if i['is_equipped'] else ''}**[{i['id']}] {i['item_name']}** ({i['rarity']})\n└ ⚔️`{i['atk']}` 🛡️`{i['def']}` ⚡`{i['spd']}`\n" for i in items])
+        await ctx.send(embed=main_mod.fiery_embed("🎒 DUNGEON INVENTORY", desc))
 
     @commands.command(name="equip")
     async def equip_item(self, ctx, item_id: int):
         """Select gear to use in the next Rumble."""
-        def do_equip():
-            with self._get_db() as conn:
-                # Check ownership
-                item = conn.execute("SELECT item_name FROM dungeon_inventory WHERE id = ? AND user_id = ?", (item_id, ctx.author.id)).fetchone()
-                if not item: return None
-                # Unequip all, then equip target
-                conn.execute("UPDATE dungeon_inventory SET is_equipped = 0 WHERE user_id = ?", (ctx.author.id,))
-                conn.execute("UPDATE dungeon_inventory SET is_equipped = 1 WHERE id = ?", (item_id,))
-                conn.commit()
-                return item['item_name']
-
-        name = await asyncio.to_thread(do_equip)
-        if not name:
-            return await ctx.send("❌ Item not found in your inventory.")
-        
-        await ctx.send(f"⛓️ **EQUIPPED:** `{name}` is now ready for the Pit.")
+        with self._get_db() as conn:
+            item = conn.execute("SELECT item_name FROM dungeon_inventory WHERE id = ? AND user_id = ?", (item_id, ctx.author.id)).fetchone()
+            if not item: return await ctx.send("❌ Item not found.")
+            conn.execute("UPDATE dungeon_inventory SET is_equipped = 0 WHERE user_id = ?", (ctx.author.id,))
+            conn.execute("UPDATE dungeon_inventory SET is_equipped = 1 WHERE id = ?", (item_id,))
+            conn.commit()
+        await ctx.send(f"⛓️ **EQUIPPED:** `{item['item_name']}` ready.")
 
     # --- RUMBLE ENGINE START ---
 
@@ -246,257 +177,195 @@ class DungeonPacks(commands.Cog):
         """Opens the Red Room lobby for assets to join."""
         main_mod = sys.modules['__main__']
         if self.pit_open: return await ctx.send("❌ The Pit is already open.")
-        
         self.pit_open = True
         self.pit_lobby = []
-        
-        embed = main_mod.fiery_embed("⛓️ THE PIT IS OPEN", 
-            f"The Red Room Rumble lobby is active.\n\n**Entry Fee:** `{self.entry_fee:,} Flames`\n**Protocol:** Type `!joinpit` or click the button below to enter.")
-        
-        # --- MODIFIED: Added View with Button ---
-        view = RumbleJoinView(self)
-        await ctx.send(embed=embed, view=view)
+        embed = main_mod.fiery_embed("⛓️ THE PIT IS OPEN", f"**Entry Fee:** `{self.entry_fee:,} Flames`\nType `!joinpit` or click below.")
+        await ctx.send(embed=embed, view=RumbleJoinView(self))
 
-    # --- ADDED: Unified Join Logic for Command and Button ---
     async def process_join(self, target_obj):
-        # target_obj can be Context or Interaction
         is_interaction = isinstance(target_obj, discord.Interaction)
         user = target_obj.user if is_interaction else target_obj.author
-        
         main_mod = sys.modules['__main__']
-        if not self.pit_open:
-            msg = "🥀 The Pit is currently cold."
-            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
-            
-        if user.id in [a['user'].id for a in self.pit_lobby]:
-            msg = "❌ You are already registered for this sequence."
-            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
-            
-        user_data = await asyncio.to_thread(main_mod.get_user, user.id)
-        if user_data['balance'] < self.entry_fee:
-            msg = f"❌ Entry requires `{self.entry_fee:,}` Flames."
-            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
+        if not self.pit_open: return await (target_obj.response.send_message("🥀 Pit cold.", ephemeral=True) if is_interaction else target_obj.send("Pit cold."))
+        if user.id in [a['user'].id for a in self.pit_lobby]: return await (target_obj.response.send_message("❌ Already in.", ephemeral=True) if is_interaction else target_obj.send("Already in."))
+        user_data = main_mod.get_user(user.id)
+        if user_data['balance'] < self.entry_fee: return await (target_obj.response.send_message("❌ Need Flames.", ephemeral=True) if is_interaction else target_obj.send("Need Flames."))
 
-        def get_gear():
-            with self._get_db() as conn:
-                return conn.execute("SELECT item_name, atk, def, spd FROM dungeon_inventory WHERE user_id = ? AND is_equipped = 1", (user.id,)).fetchone()
+        with self._get_db() as conn:
+            gear = conn.execute("SELECT item_name, atk, def, spd FROM dungeon_inventory WHERE user_id = ? AND is_equipped = 1", (user.id,)).fetchone()
         
-        gear = await asyncio.to_thread(get_gear)
-        await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="Rumble Pit Entry")
-        
-        self.pit_lobby.append({
-            "user": user,
-            "hp": 100 + (gear['def'] if gear else 0),
-            "atk": 10 + (gear['atk'] if gear else 0),
-            "spd": 5 + (gear['spd'] if gear else 0),
-            "gear_name": gear['item_name'] if gear else "Fists",
-            "kills": 0
-        })
-        
-        conf_msg = f"⛓️ **ASSET REGISTERED:** {user.mention} entered with **{gear['item_name'] if gear else 'No Gear'}**."
-        if is_interaction:
-            await target_obj.response.send_message(conf_msg, ephemeral=True)
-            # Optional: Send a public message if you want the button click to be visible
-            await target_obj.channel.send(conf_msg)
-        else:
-            await target_obj.send(conf_msg)
+        await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="Rumble Entry")
+        self.pit_lobby.append({"user": user, "hp": 100 + (gear['def'] if gear else 0), "atk": 10 + (gear['atk'] if gear else 0), "spd": 5 + (gear['spd'] if gear else 0), "gear_name": gear['item_name'] if gear else "Fists", "kills": 0, "revives": 0, "dead": False})
+        msg = f"⛓️ **ASSET REGISTERED:** {user.mention} entered."
+        if is_interaction: await target_obj.response.send_message(msg, ephemeral=True); await target_obj.channel.send(msg)
+        else: await target_obj.send(msg)
 
     @commands.command(name="joinpit")
-    async def join_pit(self, ctx):
-        """Enter the current Rumble lobby."""
-        await self.process_join(ctx)
+    async def join_pit(self, ctx): await self.process_join(ctx)
 
     @commands.command(name="startrumble")
     @commands.has_permissions(administrator=True)
     async def start_rumble(self, ctx):
-        """Initiates the Pit simulation and determines the winner."""
+        """Overhauled Battle Royale Engine matching the visual style requested."""
         main_mod = sys.modules['__main__']
-        if not self.pit_open: return await ctx.send("❌ Open the Pit first.")
-        if len(self.pit_lobby) < 2: return await ctx.send("❌ Need at least 2 assets for a Rumble.")
+        if not self.pit_open or len(self.pit_lobby) < 2: return await ctx.send("❌ Open pit with 2+ players.")
         
         self.pit_open = False
-        # Remove buttons from original open message if possible by editing it? 
-        # (Usually not worth complexity for this script)
+        players = self.pit_lobby
+        initial_count = len(players)
+        prize = (initial_count * self.entry_fee) + 10000
+        graveyard = []
         
-        combatants = self.pit_lobby
-        total_pot = len(combatants) * self.entry_fee
-        bonus = 10000
-        prize = total_pot + bonus
+        # Initial Embed
+        start_emb = main_mod.fiery_embed("Started a new Rumble Royale session", 
+            f"**Number of participants:**\n{initial_count}\n**Era:** Classic\n**Prize:** {prize} 🪙")
+        await ctx.send(embed=start_emb)
+        await asyncio.sleep(2)
+
+        round_num = 1
+        while len([p for p in players if not p['dead']]) > 1:
+            alive = [p for p in players if not p['dead']]
+            
+            # --- SPECIAL ROUND: RESURRECTION ---
+            if round_num == 2 or (round_num > 5 and random.random() < 0.15):
+                to_revive = random.sample(graveyard, min(len(graveyard), random.randint(1, 3))) if graveyard else []
+                revive_names = ""
+                for p in to_revive:
+                    p['dead'] = False
+                    p['revives'] += 1
+                    graveyard.remove(p)
+                    revive_names += f"✨ | **{p['user'].display_name}**\n"
+                
+                res_emb = discord.Embed(title=f"Round {round_num} - RESURRECTION", description="Nope, it's not Halloween. Players are coming back!", color=0x9B59B6)
+                res_emb.add_field(name="The following players were revived:", value=revive_names if revive_names else "None")
+                res_emb.set_footer(text=f"Players Left: {len([p for p in players if not p['dead']])}")
+                await ctx.send(embed=res_emb)
+            
+            # --- NORMAL ROUND ---
+            else:
+                round_events = []
+                # Determine how many events happen this round
+                num_events = random.randint(1, min(len(alive), 5))
+                
+                for _ in range(num_events):
+                    alive = [p for p in players if not p['dead']]
+                    if len(alive) <= 1: break
+                    
+                    event_type = random.choices(["kill", "accident", "nothing"], weights=[0.6, 0.2, 0.2])[0]
+                    
+                    if event_type == "kill":
+                        attacker = random.choice(alive)
+                        victim = random.choice([p for p in alive if p != attacker])
+                        victim['dead'] = True
+                        attacker['kills'] += 1
+                        graveyard.append(victim)
+                        
+                        kill_msgs = [
+                            f"🗡️ | **{attacker['user'].display_name}** killed **{victim['user'].display_name}**, get rekt.",
+                            f"🦴 | **{attacker['user'].display_name}** broke **{victim['user'].display_name}**'s neck while they were sleeping.",
+                            f"🥒 | **{attacker['user'].display_name}** stabbed **{victim['user'].display_name}** with a {attacker['gear_name']}. How gruesome!",
+                            f"🎯 | **{attacker['user'].display_name}** successfully assassinated **{victim['user'].display_name}**."
+                        ]
+                        round_events.append(random.choice(kill_msgs))
+                    
+                    elif event_type == "accident":
+                        victim = random.choice(alive)
+                        victim['dead'] = True
+                        graveyard.append(victim)
+                        acc_msgs = [
+                            f"☣️ | **{victim['user'].display_name}** spun too hard and died of toxicity.",
+                            f"🧱 | **{victim['user'].display_name}** tripped and cracked their skull on a brick.",
+                            f"🏔️ | **{victim['user'].display_name}** speedily adventured down a cliff.",
+                            f"🐶 | **{victim['user'].display_name}** was killed by a puppy."
+                        ]
+                        round_events.append(random.choice(acc_msgs))
+
+                    elif event_type == "nothing":
+                        p = random.choice(alive)
+                        round_events.append(f"🎣 | **{p['user'].display_name}** went fishing for food.")
+
+                if round_events:
+                    round_emb = discord.Embed(title=f"Round {round_num}", description="\n".join(round_events), color=0x2ECC71)
+                    round_emb.set_footer(text=f"Players Left: {len([p for p in players if not p['dead']])}")
+                    await ctx.send(embed=round_emb)
+
+            round_num += 1
+            await asyncio.sleep(3)
+
+        winner = [p for p in players if not p['dead']][0]
         
-        # NEW: Visual Intro Card
-        card_buf = await self.create_rumble_card(combatants)
-        embed = main_mod.fiery_embed("🔞 RUMBLE INITIATED", "The gates lock. The voyeurs lean in. **BLOOD WILL FLOW.**")
-        embed.set_image(url="attachment://vs.png")
-        msg = await ctx.send(file=discord.File(card_buf, filename="vs.png"), embed=embed)
-        await asyncio.sleep(4)
+        # --- FINAL RESULTS ---
+        win_emb = discord.Embed(title="🏆 WINNER!", description=f"**{winner['user'].display_name}**\nReward: {prize} 🪙", color=0xF1C40F)
+        win_emb.set_footer(text=f"Total Players: {initial_count}")
+        await ctx.send(embed=win_emb)
 
-        history = []
-        while len(combatants) > 1:
-            # Sort by speed + random factor
-            combatants.sort(key=lambda x: x['spd'] + random.randint(1, 10), reverse=True)
-            
-            attacker = combatants[0]
-            targets = [c for c in combatants if c['user'].id != attacker['user'].id]
-            target = random.choice(targets)
-            
-            damage = random.randint(attacker['atk'] // 2, attacker['atk'])
-            target['hp'] -= damage
-            
-            history_line = f"⛓️ **{attacker['user'].display_name}** uses **{attacker['gear_name']}** on **{target['user'].display_name}** for `{damage}` DMG!"
-            
-            if target['hp'] <= 0:
-                history_line += f"\n💀 **{target['user'].display_name} has been BROKEN!**"
-                attacker['kills'] += 1
-                combatants.remove(target)
-            
-            history.append(history_line)
-            
-            # Keep history display manageable
-            if len(history) > 5: history.pop(0)
-            
-            embed.description = "\n".join(history)
-            embed.set_footer(text=f"Remaining Assets: {len(combatants)}")
-            await msg.edit(embed=embed)
-            await asyncio.sleep(1.5)
-
-        winner = combatants[0]
+        # Stats Recap
+        runners_up = sorted(graveyard, key=lambda x: players.index(x), reverse=True)[:4]
+        ru_text = "\n".join([f"{i+2}. {p['user'].display_name}" for i, p in enumerate(runners_up)])
         
-        # Update database stats
-        def update_winner():
-            with self._get_db() as conn:
-                conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (winner['user'].id,))
-                conn.execute("UPDATE rumble_stats SET wins = wins + 1, pit_master_count = pit_master_count + 1 WHERE user_id = ?", (winner['user'].id,))
-                for asset in self.pit_lobby:
-                    if asset['user'].id != winner['user'].id:
-                        conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (asset['user'].id,))
-                        conn.execute("UPDATE rumble_stats SET losses = losses + 1 WHERE user_id = ?", (asset['user'].id,))
-                        conn.execute("UPDATE rumble_stats SET kills = kills + ? WHERE user_id = ?", (asset['kills'], asset['user'].id))
-                conn.commit()
+        top_killers = sorted(players, key=lambda x: x['kills'], reverse=True)[:4]
+        kill_text = "\n".join([f"{p['kills']} {p['user'].display_name}" for p in top_killers if p['kills'] > 0])
+        
+        revive_text = "\n".join([f"{p['revives']} {p['user'].display_name}" for p in players if p['revives'] > 0])
 
-        await asyncio.to_thread(update_winner)
-        await main_mod.update_user_stats_async(winner['user'].id, amount=prize, source="Rumble Pit Winner")
+        recap_emb = discord.Embed(title="📊 Session Summary", color=0x34495E)
+        recap_emb.add_field(name="🟣 Runners-up", value=ru_text or "None", inline=False)
+        recap_emb.add_field(name="⚔️ Most Kills", value=kill_text or "None", inline=False)
+        recap_emb.add_field(name="✨ Most Revives", value=revive_text or "None", inline=False)
+        await ctx.send(embed=recap_emb)
 
-        win_embed = main_mod.fiery_embed("🏆 PIT MASTER DECLARED", 
-            f"### **{winner['user'].mention}**\n\n"
-            f"The asset has emerged victorious with `{winner['kills']}` eliminations.\n\n"
-            f"**💰 REWARD:** `{prize:,} Flames` added to balance.\n"
-            f"**📊 STATUS:** The Red Room is satisfied.")
-        win_embed.color = 0xF1C40F
-        await ctx.send(embed=win_embed)
+        # Update DB
+        await main_mod.update_user_stats_async(winner['user'].id, amount=prize, source="Rumble Victory")
+        with self._get_db() as conn:
+            conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (winner['user'].id,))
+            conn.execute("UPDATE rumble_stats SET wins = wins + 1 WHERE user_id = ?", (winner['user'].id,))
+            for p in players:
+                conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (p['user'].id,))
+                conn.execute("UPDATE rumble_stats SET kills = kills + ? WHERE user_id = ?", (p['kills'], p['user'].id))
+            conn.commit()
 
     @commands.command(name="pitrecords", aliases=["rumblelb", "pitlb"])
     async def pit_records(self, ctx):
-        """Displays the top fighters in the dungeon archives."""
         main_mod = sys.modules['__main__']
-        
-        def fetch_records():
-            with self._get_db() as conn:
-                return conn.execute("SELECT user_id, wins, kills, pit_master_count FROM rumble_stats ORDER BY wins DESC, kills DESC LIMIT 10").fetchall()
-        
-        data = await asyncio.to_thread(fetch_records)
-        if not data: return await ctx.send("🥀 The archives are empty. No blood has been spilled.")
-
-        desc = "### 🏛️ DUNGEON PIT ARCHIVES\n"
-        for i, row in enumerate(data, 1):
-            user = self.bot.get_user(row['user_id'])
-            name = user.display_name if user else f"Unknown Asset ({row['user_id']})"
-            desc += f"`#{i}` **{name}** — `Wins: {row['wins']}` | `Kills: {row['kills']}`\n"
-
-        embed = main_mod.fiery_embed("🕵️ TOP RUMBLE ASSETS", desc)
-        embed.color = 0xFF4500
-        await ctx.send(embed=embed)
+        with self._get_db() as conn:
+            data = conn.execute("SELECT user_id, wins, kills FROM rumble_stats ORDER BY wins DESC, kills DESC LIMIT 10").fetchall()
+        if not data: return await ctx.send("🥀 No blood spilled yet.")
+        desc = "\n".join([f"`#{i+1}` **{self.bot.get_user(row['user_id']).display_name if self.bot.get_user(row['user_id']) else row['user_id']}** — W: {row['wins']} | K: {row['kills']}" for i, row in enumerate(data)])
+        await ctx.send(embed=main_mod.fiery_embed("🕵️ TOP RUMBLE ASSETS", desc))
 
     @commands.command(name="dailygear", aliases=["scan"])
     @commands.cooldown(1, 86400, commands.BucketType.user)
     async def daily_gear(self, ctx):
-        """Perform a free daily Neural Scan for gear (Common, Rare, or Epic)."""
         main_mod = sys.modules['__main__']
-        
-        # Rarity weights for free scan: No legendary, but chance for Epic.
-        weights = {"Common": 0.70, "Rare": 0.25, "Epic": 0.05}
-        rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
+        weights = {"Common": 0.70, "Rare": 0.25, "Epic": 0.05}; rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
         item = random.choice(self.item_pool[rarity])
-        
-        def add_item():
-            with self._get_db() as conn:
-                conn.execute("INSERT INTO dungeon_inventory (user_id, item_name, rarity, atk, def, spd) VALUES (?, ?, ?, ?, ?, ?)",
-                             (ctx.author.id, item['name'], rarity, item['atk'], item['def'], item['spd']))
-                conn.commit()
-        
-        await asyncio.to_thread(add_item)
+        with self._get_db() as conn:
+            conn.execute("INSERT INTO dungeon_inventory (user_id, item_name, rarity, atk, def, spd) VALUES (?, ?, ?, ?, ?, ?)",
+                         (ctx.author.id, item['name'], rarity, item['atk'], item['def'], item['spd']))
+            conn.commit()
         img_buf = await self.create_pack_image(ctx.author.display_avatar.url, item, rarity)
-        
-        color = 0xCCCCCC if rarity == "Common" else 0x3498DB if rarity == "Rare" else 0x9B59B6
-        embed = main_mod.fiery_embed("📡 DAILY NEURAL SCAN COMPLETE", f"Asset {ctx.author.mention}, free gear has been materialized.")
-        embed.color = color
+        embed = main_mod.fiery_embed("📡 DAILY NEURAL SCAN COMPLETE", f"Asset {ctx.author.mention}, gear materialized.")
         embed.set_image(url="attachment://pack.png")
-        
         await ctx.send(file=discord.File(img_buf, filename="pack.png"), embed=embed)
-
-    @daily_gear.error
-    async def daily_gear_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            hours = int(error.retry_after // 3600)
-            minutes = int((error.retry_after % 3600) // 60)
-            await ctx.send(f"🥀 **SIGNAL INTERFERENCE:** Neural scanner is recharging. Try again in `{hours}h {minutes}m`.")
 
     @commands.command(name="scrap")
     async def scrap_item(self, ctx, item_id: int):
-        """Deconstruct unwanted gear for Flames."""
         main_mod = sys.modules['__main__']
-        
-        def do_scrap():
-            with self._get_db() as conn:
-                item = conn.execute("SELECT item_name, rarity FROM dungeon_inventory WHERE id = ? AND user_id = ?", (item_id, ctx.author.id)).fetchone()
-                if not item: return None
-                conn.execute("DELETE FROM dungeon_inventory WHERE id = ?", (item_id,))
-                conn.commit()
-                return item['item_name'], item['rarity']
-
-        result = await asyncio.to_thread(do_scrap)
-        if not result:
-            return await ctx.send("❌ Item not found in your inventory.")
-
-        name, rarity = result
-        scraps = {"Common": 1000, "Rare": 3000, "Epic": 10000, "Legendary": 25000}
-        payout = scraps.get(rarity, 500)
-
-        await main_mod.update_user_stats_async(ctx.author.id, amount=payout, source=f"Scrapped {name} ({rarity})")
-        
-        embed = main_mod.fiery_embed("♻️ NEURAL RECYCLING COMPLETE", 
-            f"Asset {ctx.author.mention}, **{name}** has been deconstructed.\n\n"
-            f"**Neural Scraps Recovered:** `{payout:,} Flames`.")
-        await ctx.send(embed=embed)
+        with self._get_db() as conn:
+            item = conn.execute("SELECT item_name, rarity FROM dungeon_inventory WHERE id = ? AND user_id = ?", (item_id, ctx.author.id)).fetchone()
+            if not item: return await ctx.send("❌ Item not found.")
+            conn.execute("DELETE FROM dungeon_inventory WHERE id = ?", (item_id,))
+            conn.commit()
+        payout = {"Common": 1000, "Rare": 3000, "Epic": 10000, "Legendary": 25000}.get(item['rarity'], 500)
+        await main_mod.update_user_stats_async(ctx.author.id, amount=payout, source=f"Scrapped {item['item_name']}")
+        await ctx.send(embed=main_mod.fiery_embed("♻️ NEURAL RECYCLING", f"Recovered `{payout:,} Flames`."))
 
 async def setup(bot):
     main_mod = sys.modules['__main__']
     with main_mod.get_db_connection() as conn:
-        # Create Inventory table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS dungeon_inventory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                item_name TEXT,
-                rarity TEXT,
-                atk INTEGER,
-                def INTEGER,
-                spd INTEGER,
-                is_equipped INTEGER DEFAULT 0
-            )
-        """)
-        # Create Rumble Stats table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS rumble_stats (
-                user_id INTEGER PRIMARY KEY,
-                wins INTEGER DEFAULT 0,
-                kills INTEGER DEFAULT 0,
-                losses INTEGER DEFAULT 0,
-                pit_master_count INTEGER DEFAULT 0
-            )
-        """)
+        conn.execute("CREATE TABLE IF NOT EXISTS dungeon_inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, item_name TEXT, rarity TEXT, atk INTEGER, def INTEGER, spd INTEGER, is_equipped INTEGER DEFAULT 0)")
+        conn.execute("CREATE TABLE IF NOT EXISTS rumble_stats (user_id INTEGER PRIMARY KEY, wins INTEGER DEFAULT 0, kills INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, pit_master_count INTEGER DEFAULT 0)")
         conn.commit()
     cog = DungeonPacks(bot)
     await bot.add_cog(cog)
-    # Register the persistent view for restarts
     bot.add_view(RumbleJoinView(cog))
-    print("✅ LOG: Dungeon Packs & Gear ONLINE.")
