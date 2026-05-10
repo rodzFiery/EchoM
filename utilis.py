@@ -198,12 +198,12 @@ class DungeonCounter(commands.Cog):
                     desc = (
                         f"🎯 **TRIBUTE ACTIVATED: {val}**\n\n"
                         f"Asset {message.author.mention}, you have hit a hidden target.\n"
-                        f"🫦 *The Pit demands its price. A tease picture must be posted immediately. The count continues.*"
+                        f"🫦 A tease picture must be posted immediately. The count continues."
                     )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
                     
                     # Add historical stats to the embed
-                    embed.add_field(name="📊 Asset Statistics", value=f"Total Numbers Contributed: **{u_numbers}**\nTributes Demanded: **{u_tributes}**", inline=False)
+                    embed.add_field(name="📊 Member Statistics", value=f"Total Numbers Contributed: **{u_numbers}**\nTributes Demanded: **{u_tributes}**", inline=False)
                     
                     if os.path.exists("LobbyTopRight.jpg"):
                         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
