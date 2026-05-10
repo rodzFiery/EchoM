@@ -9,6 +9,16 @@ import os
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageFont
 from datetime import datetime
 
+# --- NEW COMPONENT: JOIN BUTTON VIEW ---
+class RumbleJoinView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="JOIN RUMBLE", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="persistent_join_pit")
+    async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.cog.process_join(interaction)
+
 class DungeonPacks(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -241,32 +251,41 @@ class DungeonPacks(commands.Cog):
         self.pit_lobby = []
         
         embed = main_mod.fiery_embed("⛓️ THE PIT IS OPEN", 
-            f"The Red Room Rumble lobby is active.\n\n**Entry Fee:** `{self.entry_fee:,} Flames`\n**Protocol:** Type `!joinpit` to enter.")
-        await ctx.send(embed=embed)
+            f"The Red Room Rumble lobby is active.\n\n**Entry Fee:** `{self.entry_fee:,} Flames`\n**Protocol:** Type `!joinpit` or click the button below to enter.")
+        
+        # --- MODIFIED: Added View with Button ---
+        view = RumbleJoinView(self)
+        await ctx.send(embed=embed, view=view)
 
-    @commands.command(name="joinpit")
-    async def join_pit(self, ctx):
-        """Enter the current Rumble lobby."""
+    # --- ADDED: Unified Join Logic for Command and Button ---
+    async def process_join(self, target_obj):
+        # target_obj can be Context or Interaction
+        is_interaction = isinstance(target_obj, discord.Interaction)
+        user = target_obj.user if is_interaction else target_obj.author
+        
         main_mod = sys.modules['__main__']
-        if not self.pit_open: return await ctx.send("🥀 The Pit is currently cold.")
-        if ctx.author.id in [a['user'].id for a in self.pit_lobby]:
-            return await ctx.send("❌ You are already registered for this sequence.")
+        if not self.pit_open:
+            msg = "🥀 The Pit is currently cold."
+            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
             
-        user_data = await asyncio.to_thread(main_mod.get_user, ctx.author.id)
+        if user.id in [a['user'].id for a in self.pit_lobby]:
+            msg = "❌ You are already registered for this sequence."
+            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
+            
+        user_data = await asyncio.to_thread(main_mod.get_user, user.id)
         if user_data['balance'] < self.entry_fee:
-            return await ctx.send(f"❌ Entry requires `{self.entry_fee:,}` Flames.")
+            msg = f"❌ Entry requires `{self.entry_fee:,}` Flames."
+            return await target_obj.response.send_message(msg, ephemeral=True) if is_interaction else await target_obj.send(msg)
 
-        # Fetch Equipped Gear
         def get_gear():
             with self._get_db() as conn:
-                return conn.execute("SELECT item_name, atk, def, spd FROM dungeon_inventory WHERE user_id = ? AND is_equipped = 1", (ctx.author.id,)).fetchone()
+                return conn.execute("SELECT item_name, atk, def, spd FROM dungeon_inventory WHERE user_id = ? AND is_equipped = 1", (user.id,)).fetchone()
         
         gear = await asyncio.to_thread(get_gear)
-        
-        await main_mod.update_user_stats_async(ctx.author.id, amount=-self.entry_fee, source="Rumble Pit Entry")
+        await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="Rumble Pit Entry")
         
         self.pit_lobby.append({
-            "user": ctx.author,
+            "user": user,
             "hp": 100 + (gear['def'] if gear else 0),
             "atk": 10 + (gear['atk'] if gear else 0),
             "spd": 5 + (gear['spd'] if gear else 0),
@@ -274,7 +293,18 @@ class DungeonPacks(commands.Cog):
             "kills": 0
         })
         
-        await ctx.send(f"⛓️ **ASSET REGISTERED:** {ctx.author.mention} entered with **{gear['item_name'] if gear else 'No Gear'}**.")
+        conf_msg = f"⛓️ **ASSET REGISTERED:** {user.mention} entered with **{gear['item_name'] if gear else 'No Gear'}**."
+        if is_interaction:
+            await target_obj.response.send_message(conf_msg, ephemeral=True)
+            # Optional: Send a public message if you want the button click to be visible
+            await target_obj.channel.send(conf_msg)
+        else:
+            await target_obj.send(conf_msg)
+
+    @commands.command(name="joinpit")
+    async def join_pit(self, ctx):
+        """Enter the current Rumble lobby."""
+        await self.process_join(ctx)
 
     @commands.command(name="startrumble")
     @commands.has_permissions(administrator=True)
@@ -285,6 +315,9 @@ class DungeonPacks(commands.Cog):
         if len(self.pit_lobby) < 2: return await ctx.send("❌ Need at least 2 assets for a Rumble.")
         
         self.pit_open = False
+        # Remove buttons from original open message if possible by editing it? 
+        # (Usually not worth complexity for this script)
+        
         combatants = self.pit_lobby
         total_pot = len(combatants) * self.entry_fee
         bonus = 10000
@@ -337,7 +370,7 @@ class DungeonPacks(commands.Cog):
                     if asset['user'].id != winner['user'].id:
                         conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (asset['user'].id,))
                         conn.execute("UPDATE rumble_stats SET losses = losses + 1 WHERE user_id = ?", (asset['user'].id,))
-                    conn.execute("UPDATE rumble_stats SET kills = kills + ? WHERE user_id = ?", (asset['kills'], asset['user'].id))
+                        conn.execute("UPDATE rumble_stats SET kills = kills + ? WHERE user_id = ?", (asset['kills'], asset['user'].id))
                 conn.commit()
 
         await asyncio.to_thread(update_winner)
@@ -462,5 +495,8 @@ async def setup(bot):
             )
         """)
         conn.commit()
-    await bot.add_cog(DungeonPacks(bot))
+    cog = DungeonPacks(bot)
+    await bot.add_cog(cog)
+    # Register the persistent view for restarts
+    bot.add_view(RumbleJoinView(cog))
     print("✅ LOG: Dungeon Packs & Gear ONLINE.")
