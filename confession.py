@@ -30,6 +30,11 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         if not review_channel:
             return await interaction.response.send_message("❌ Error: Review channel not found.", ephemeral=True)
 
+        # --- ADDED: PING LOGIC ---
+        cog = self.bot.get_cog("ConfessionSystem")
+        cog.load_config(interaction.guild.id)
+        ping_content = f"<@&{cog.ping_role_id}>" if cog.ping_role_id else None
+
         slot_label = "SFW" if self.target_slot == 1 else "NSFW"
         embed = self.main_mod.fiery_embed(f"🛰️ INCOMING CONFESSION [{slot_label}]", 
                                         f"**Submission:**\n{self.confession.value}")
@@ -40,7 +45,7 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         
         # FIXED: Passing target_slot to the review view
         view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id, self.target_slot)
-        await review_channel.send(embed=embed, view=view)
+        await review_channel.send(content=ping_content, embed=embed, view=view)
         
         await interaction.response.send_message("✅ Your confession has been transmitted to the Master for review.", ephemeral=True)
 
@@ -101,7 +106,7 @@ class ConfessionReviewView(discord.ui.View):
         dest_name = "NSFW" if self.target_slot == 2 else "SFW"
         original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nSent to: {dest_name}", inline=False)
         
-        await interaction.message.edit(embed=original_embed, view=None)
+        await interaction.message.edit(content=None, embed=original_embed, view=None)
         await interaction.response.send_message(f"✅ Confession Approved and Dispatched to {dest_name}.", ephemeral=True)
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="confess_reject_btn")
@@ -137,7 +142,7 @@ class ConfessionReviewView(discord.ui.View):
         rejected_embed.color = discord.Color.red()
         rejected_embed.add_field(name="⚖️ Decision", value=f"Rejected by {interaction.user.mention}\nStatus: Purged from public queue.", inline=False)
         
-        await interaction.message.edit(embed=rejected_embed, view=None)
+        await interaction.message.edit(content=None, embed=rejected_embed, view=None)
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
 
 class ConfessionSubmissionView(discord.ui.View):
@@ -173,6 +178,7 @@ class ConfessionSystem(commands.Cog):
         self.review_channel_id = None
         self.post_channel_id = None
         self.post_channel_id_2 = None
+        self.ping_role_id = None
         self.confession_count = 0
 
     def load_config(self, guild_id):
@@ -187,11 +193,13 @@ class ConfessionSystem(commands.Cog):
                     self.review_channel_id = data.get('review_id')
                     self.post_channel_id = data.get('post_id')
                     self.post_channel_id_2 = data.get('post_id_2')
+                    self.ping_role_id = data.get('ping_role_id')
                     self.confession_count = data.get('count', 0)
                 else:
                     self.review_channel_id = None
                     self.post_channel_id = None
                     self.post_channel_id_2 = None
+                    self.ping_role_id = None
                     self.confession_count = 0
         except: pass
 
@@ -202,6 +210,7 @@ class ConfessionSystem(commands.Cog):
                 'review_id': self.review_channel_id, 
                 'post_id': self.post_channel_id, 
                 'post_id_2': self.post_channel_id_2, 
+                'ping_role_id': self.ping_role_id,
                 'count': self.confession_count
             }
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
@@ -235,6 +244,19 @@ class ConfessionSystem(commands.Cog):
         self.save_config(ctx.guild.id)
         await ctx.send(f"✅ NSFW Post channel set to {(channel or ctx.channel).mention}")
 
+    @commands.command(name="confessrole")
+    @commands.has_permissions(administrator=True)
+    async def set_confess_role(self, ctx, role: discord.Role = None):
+        """Sets the role to ping when a new confession arrives in the review channel."""
+        self.load_config(ctx.guild.id)
+        if role:
+            self.ping_role_id = role.id
+            await ctx.send(f"✅ Review ping role set to {role.mention}")
+        else:
+            self.ping_role_id = None
+            await ctx.send("✅ Review ping role has been disabled.")
+        self.save_config(ctx.guild.id)
+
     @commands.command(name="setconfesscount")
     @commands.has_permissions(administrator=True)
     async def set_confess_count(self, ctx, count: int):
@@ -254,9 +276,11 @@ class ConfessionSystem(commands.Cog):
         review = f"<#{self.review_channel_id}>" if self.review_channel_id else "`Not Set`"
         post1 = f"<#{self.post_channel_id}>" if self.post_channel_id else f"`Not Set`"
         post2 = f"<#{self.post_channel_id_2}>" if self.post_channel_id_2 else f"`Not Set`"
+        ping_role = f"<@&{self.ping_role_id}>" if self.ping_role_id else "`Disabled`"
         
         desc = (f"### 📡 CONFESSION PROTOCOL STATUS\n"
                 f"**Review Channel:** {review}\n"
+                f"**Ping Role:** {ping_role}\n"
                 f"**SFW Post:** {post1}\n"
                 f"**NSFW Post:** {post2}\n\n"
                 f"**Total Echoed:** `{self.confession_count}`")
@@ -288,6 +312,7 @@ class ConfessionSystem(commands.Cog):
             return await ctx.send("❌ Error: Review channel not found.")
 
         main_mod = sys.modules['__main__']
+        ping_content = f"<@&{self.ping_role_id}>" if self.ping_role_id else None
         embed = main_mod.fiery_embed("💗 CONFESSION [SFW]", f"**Submission:**\n{message}")
         
         # --- ADDED: USER IDENTITY FOR ADMINS ---
@@ -296,7 +321,7 @@ class ConfessionSystem(commands.Cog):
         
         # FIXED: Passing target_slot 1 for manual commands
         view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1)
-        await review_channel.send(embed=embed, view=view)
+        await review_channel.send(content=ping_content, embed=embed, view=view)
         
         try:
             await ctx.message.delete()
