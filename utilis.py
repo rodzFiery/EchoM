@@ -96,6 +96,8 @@ class DungeonCounter(commands.Cog):
                 count_row = conn.execute("SELECT value FROM config WHERE key = 'math_current_count'").fetchone()
                 if count_row and self.designated_channel != 0:
                     self.counts[self.designated_channel] = int(count_row['value'])
+                else:
+                    self.counts[self.designated_channel] = 0
         except Exception as e:
             print(f"Math Load Error: {e}")
 
@@ -130,8 +132,8 @@ class DungeonCounter(commands.Cog):
     async def on_message(self, message):
         if message.author.bot: return
         
-        # Load channel if not already cached
-        if self.designated_channel == 0: 
+        # Load channel and count from DB if memory is empty (happens on deploy)
+        if self.designated_channel == 0 or not self.counts: 
             self.load_channel()
             
         # RESTRICTION: Only process if the channel matches the !math designation
@@ -145,7 +147,7 @@ class DungeonCounter(commands.Cog):
             # Sequence Check
             if val == current + 1:
                 self.counts[channel_id] = val
-                self.save_count(val) # PERSISTENCE: Save each increment
+                self.save_count(val) # PERSISTENCE: Save each increment to DB immediately
                 
                 # --- UPDATE USER HISTORY STATS ---
                 try:
@@ -174,10 +176,11 @@ class DungeonCounter(commands.Cog):
                         with db_module.get_db_connection() as conn:
                             conn.execute("UPDATE users SET math_total_tributes = math_total_tributes + 1 WHERE id = ?", (message.author.id,))
                             conn.commit()
+                            # Use Row indexing properly to fetch integers
                             row = conn.execute("SELECT math_total_numbers, math_total_tributes FROM users WHERE id = ?", (message.author.id,)).fetchone()
                             if row:
-                                u_numbers = row[0]
-                                u_tributes = row[1]
+                                u_numbers = row["math_total_numbers"] if row["math_total_numbers"] else 0
+                                u_tributes = row["math_total_tributes"] if row["math_total_tributes"] else 0
                     except: pass
 
                     desc = (
