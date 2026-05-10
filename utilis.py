@@ -3,6 +3,7 @@ import os
 from discord.ext import commands
 from datetime import datetime, timezone
 import database as db_module # Ensure this is imported for independent lookup
+import json
 
 # ===== CORE HELPERS & AUDIT =====
 
@@ -81,15 +82,29 @@ class DungeonCounter(commands.Cog):
         self.designated_channel = 0 # Persistent Math Protocol Channel
 
     def load_channel(self):
-        """Loads designated math channel from config table."""
+        """Loads designated math channel and current count from config table."""
         try:
             with db_module.get_db_connection() as conn:
                 # Ensure the table exists before selecting
                 conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
                 row = conn.execute("SELECT value FROM config WHERE key = 'math_channel'").fetchone()
                 if row: self.designated_channel = int(row['value'])
+                
+                # Load current count if it exists
+                count_row = conn.execute("SELECT value FROM config WHERE key = 'math_current_count'").fetchone()
+                if count_row and self.designated_channel != 0:
+                    self.counts[self.designated_channel] = int(count_row['value'])
         except Exception as e:
             print(f"Math Load Error: {e}")
+
+    def save_count(self, count):
+        """Saves current count to the database for persistence."""
+        try:
+            with db_module.get_db_connection() as conn:
+                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_current_count', ?)", (str(count),))
+                conn.commit()
+        except Exception as e:
+            print(f"Math Save Error: {e}")
 
     @commands.command(name="math")
     @commands.has_permissions(manage_channels=True)
@@ -102,6 +117,7 @@ class DungeonCounter(commands.Cog):
         
         with db_module.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_channel', ?)", (str(target.id),))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_current_count', '0')",)
             conn.commit()
             
         desc = f"Protocol **MATH** initialized. The Master will only monitor numbers in {target.mention}."
@@ -126,6 +142,7 @@ class DungeonCounter(commands.Cog):
             # Sequence Check
             if val == current + 1:
                 self.counts[channel_id] = val
+                self.save_count(val) # PERSISTENCE: Save each increment
                 
                 # Check for values under 25
                 if val < 25:
@@ -145,7 +162,8 @@ class DungeonCounter(commands.Cog):
 
                 # If 25 is hit, final reset
                 if val == 25:
-                    self.counts[channel_id] = 0 # Reset the count to 1 can start again
+                    self.counts[channel_id] = 0 # Reset the count
+                    self.save_count(0) # PERSISTENCE: Reset in DB
                     desc = (
                         f"🎯 **25 REACHED: TRIBUTE RECOVERY.**\n\n"
                         f"Asset {message.author.mention}, you have closed the sequence.\n"
@@ -160,7 +178,8 @@ class DungeonCounter(commands.Cog):
                         await message.channel.send(embed=embed)
             
             # Error handling if they break the count
-            elif val <= current and current != 0:
+            elif val != current + 1:
+                # We only react with X if it was clearly meant to be a number input
                 try: await message.add_reaction("❌")
                 except: pass
 
