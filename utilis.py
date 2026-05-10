@@ -147,8 +147,18 @@ class DungeonCounter(commands.Cog):
                 self.counts[channel_id] = val
                 self.save_count(val) # PERSISTENCE: Save each increment
                 
+                # --- UPDATE USER HISTORY STATS ---
+                try:
+                    with db_module.get_db_connection() as conn:
+                        # Ensure columns exist in users table
+                        conn.execute("ALTER TABLE users ADD COLUMN math_total_numbers INTEGER DEFAULT 0")
+                        conn.execute("ALTER TABLE users ADD COLUMN math_total_tributes INTEGER DEFAULT 0")
+                    with db_module.get_db_connection() as conn:
+                        conn.execute("UPDATE users SET math_total_numbers = math_total_numbers + 1 WHERE id = ?", (message.author.id,))
+                        conn.commit()
+                except: pass
+
                 # Logic for Randomized Tributes (Infinite Counting)
-                # Roll for a 5% chance (ratio 5/100) to make this specific number a tribute
                 if self.next_tribute_number == 0:
                     if random.random() < 0.05:
                         self.next_tribute_number = val
@@ -156,12 +166,29 @@ class DungeonCounter(commands.Cog):
                 # If the Tribute number is hit
                 if self.next_tribute_number != 0 and val == self.next_tribute_number:
                     self.next_tribute_number = 0 # Reset tribute tracker
+                    
+                    # --- UPDATE TRIBUTE COUNT & FETCH STATS ---
+                    u_numbers = 0
+                    u_tributes = 0
+                    try:
+                        with db_module.get_db_connection() as conn:
+                            conn.execute("UPDATE users SET math_total_tributes = math_total_tributes + 1 WHERE id = ?", (message.author.id,))
+                            conn.commit()
+                            row = conn.execute("SELECT math_total_numbers, math_total_tributes FROM users WHERE id = ?", (message.author.id,)).fetchone()
+                            if row:
+                                u_numbers = row[0]
+                                u_tributes = row[1]
+                    except: pass
+
                     desc = (
                         f"🎯 **TRIBUTE ACTIVATED: {val}**\n\n"
                         f"Asset {message.author.mention}, you have hit a hidden target.\n"
                         f"🫦 *The Pit demands its price. A tease picture must be posted immediately. The count continues.*"
                     )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
+                    
+                    # Add historical stats to the embed
+                    embed.add_field(name="📊 Asset Statistics", value=f"Total Numbers Contributed: **{u_numbers}**\nTributes Demanded: **{u_tributes}**", inline=False)
                     
                     if os.path.exists("LobbyTopRight.jpg"):
                         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
