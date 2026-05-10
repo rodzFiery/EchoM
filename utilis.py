@@ -4,6 +4,7 @@ from discord.ext import commands
 from datetime import datetime, timezone
 import database as db_module # Ensure this is imported for independent lookup
 import json
+import random # Ensure random is available for the new logic
 
 # ===== CORE HELPERS & AUDIT =====
 
@@ -80,6 +81,7 @@ class DungeonCounter(commands.Cog):
         self.bot = bot
         self.counts = {} # Simple in-memory tracker: {channel_id: current_count}
         self.designated_channel = 0 # Persistent Math Protocol Channel
+        self.next_tribute_number = 0 # Tracks when the next random tribute occurs
 
     def load_channel(self):
         """Loads designated math channel and current count from config table."""
@@ -114,6 +116,7 @@ class DungeonCounter(commands.Cog):
         self.designated_channel = target.id
         # Reset count when re-setting channel
         self.counts[target.id] = 0
+        self.next_tribute_number = 0
         
         with db_module.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_channel', ?)", (str(target.id),))
@@ -144,30 +147,30 @@ class DungeonCounter(commands.Cog):
                 self.counts[channel_id] = val
                 self.save_count(val) # PERSISTENCE: Save each increment
                 
-                # Check for values under 25
-                if val < 25:
-                    try: await message.add_reaction("✅")
-                    except: pass
+                # Logic for Randomized Tributes (Infinite Counting)
+                # If no tribute is scheduled, roll for a 5% chance (ratio 5/100)
+                if self.next_tribute_number == 0:
+                    if random.random() < 0.05:
+                        self.next_tribute_number = val + 1
 
-                # If 24 is hit, trigger the warning for the next person (25)
-                if val == 24:
+                # If the current number is the Warning (Number before Tribute)
+                if self.next_tribute_number != 0 and val == self.next_tribute_number - 1:
                     desc = (
-                        f"⚠️ **WARNING: 25 coming soon**\n\n"
-                        f"Asset {message.author.mention} has reached **24**.\n"
-                        f"The next soul to type **25** will be bound by the Pit's law: **A tease picture must be posted.**\n\n"
-                        f"🫦 *Who is brave enough to complete the count?*"
+                        f"⚠️ **RANDOM CHALLENGE DETECTED**\n\n"
+                        f"Asset {message.author.mention} has reached **{val}**.\n"
+                        f"The next soul to type **{self.next_tribute_number}** will be bound by the Pit's law: **A tease picture must be posted.**\n\n"
+                        f"🫦 *Who is brave enough to accept the Master's sudden whim?*"
                     )
-                    embed = fiery_embed(self.bot, True, "🔞 NEAR APEX 🔞", desc)
+                    embed = fiery_embed(self.bot, True, "🔞 UNEXPECTED APEX 🔞", desc)
                     await message.channel.send(embed=embed)
 
-                # If 25 is hit, final reset
-                if val == 25:
-                    self.counts[channel_id] = 0 # Reset the count
-                    self.save_count(0) # PERSISTENCE: Reset in DB
+                # If the Tribute number is hit
+                elif self.next_tribute_number != 0 and val == self.next_tribute_number:
+                    self.next_tribute_number = 0 # Reset tribute tracker
                     desc = (
-                        f"🎯 **25 REACHED: TRIBUTE RECOVERY.**\n\n"
-                        f"Asset {message.author.mention}, you have closed the sequence.\n"
-                        f"🫦 *The count has been reset.*"
+                        f"🎯 **TRIBUTE REACHED: {val}**\n\n"
+                        f"Asset {message.author.mention}, you have hit the target.\n"
+                        f"🫦 *The Master demands your recovery. The count continues to infinity.*"
                     )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
                     
@@ -176,10 +179,14 @@ class DungeonCounter(commands.Cog):
                         await message.channel.send(file=file, embed=embed)
                     else:
                         await message.channel.send(embed=embed)
+                
+                # Standard confirmation for non-tribute numbers
+                else:
+                    try: await message.add_reaction("✅")
+                    except: pass
             
             # Error handling if they break the count
             elif val != current + 1:
-                # We only react with X if it was clearly meant to be a number input
                 try: await message.add_reaction("❌")
                 except: pass
 
