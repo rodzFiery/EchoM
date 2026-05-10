@@ -222,7 +222,7 @@ class DungeonPacks(commands.Cog):
         
         await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="Echo Rumble Entry")
         self.pit_lobby.append({"user": user, "hp": 100 + (gear['def'] if gear else 0), "atk": 10 + (gear['atk'] if gear else 0), "spd": 5 + (gear['spd'] if gear else 0), "gear_name": gear['item_name'] if gear else "Hands", "kills": 0, "revives": 0, "dead": False})
-        msg = f"⛓️ **ASSET REGISTERED:** {user.mention} has surrendered to the Pit."
+        msg = f"⭐️ **Member REGISTERED:** {user.mention} has surrendered to the Pit."
         if is_interaction: await target_obj.response.send_message(msg, ephemeral=True); await target_obj.channel.send(msg)
         else: await target_obj.send(msg)
 
