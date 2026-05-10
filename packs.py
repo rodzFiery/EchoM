@@ -15,7 +15,7 @@ class RumbleJoinView(discord.ui.View):
         super().__init__(timeout=None)
         self.cog = cog
 
-    @discord.ui.button(label="ENTER THE PIT", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="persistent_join_pit")
+    @discord.ui.button(label="SURRENDER YOUR BODY", style=discord.ButtonStyle.danger, emoji="🫦", custom_id="persistent_join_pit")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.cog.process_join(interaction)
 
@@ -174,13 +174,36 @@ class DungeonPacks(commands.Cog):
     @commands.command(name="openpit")
     @commands.has_permissions(administrator=True)
     async def open_pit(self, ctx):
-        """Opens the Red Room Pit for the EchoGames."""
+        """Opens the Red Room Pit for the Echo Rumble."""
         main_mod = sys.modules['__main__']
         if self.pit_open: return await ctx.send("❌ the Pit is already wet.")
         self.pit_open = True
         self.pit_lobby = []
-        embed = main_mod.fiery_embed("🔞 THE RED ROOM IS OPEN", f"The EchoGames are calling.\n**Lease Price:** `{self.entry_fee:,} Flames`\nClick below to submit your body.")
-        await ctx.send(embed=embed, view=RumbleJoinView(self))
+        
+        # PERSISTENT STATS RETRIEVAL
+        with self._get_db() as conn:
+            conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('total_echo_games', '0')")
+            conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('total_echo_participants', '0')")
+            g_row = conn.execute("SELECT value FROM config WHERE key = 'total_echo_games'").fetchone()
+            p_row = conn.execute("SELECT value FROM config WHERE key = 'total_echo_participants'").fetchone()
+            total_g = g_row[0] if g_row else "0"
+            total_p = p_row[0] if p_row else "0"
+
+        embed = main_mod.fiery_embed("🔞 ECHO RUMBLE: THE PIT IS OPEN", 
+            f"The Red Room door creaks open. The Echo Rumble is calling for fresh meat.\n\n"
+            f"🖤 **ENTRY FEE:** `{self.entry_fee:,} Flames`\n"
+            f"🫦 **INSTRUCTIONS:** Click the button below to strip and enter.\n\n"
+            f"📊 **Dungeon History:**\n"
+            f"└ Sessions Completed: `{total_g}`\n"
+            f"└ Assets Processed: `{total_p}`")
+        
+        # Visual Logo Protocol (Small top right)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="logo.jpg")
+            embed.set_thumbnail(url="attachment://logo.jpg")
+            await ctx.send(file=file, embed=embed, view=RumbleJoinView(self))
+        else:
+            await ctx.send(embed=embed, view=RumbleJoinView(self))
 
     async def process_join(self, target_obj):
         is_interaction = isinstance(target_obj, discord.Interaction)
@@ -193,10 +216,13 @@ class DungeonPacks(commands.Cog):
 
         with self._get_db() as conn:
             gear = conn.execute("SELECT item_name, atk, def, spd FROM dungeon_inventory WHERE user_id = ? AND is_equipped = 1", (user.id,)).fetchone()
+            # Lifetime Participant Update
+            conn.execute("UPDATE config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_echo_participants'")
+            conn.commit()
         
-        await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="EchoGames Entry")
+        await main_mod.update_user_stats_async(user.id, amount=-self.entry_fee, source="Echo Rumble Entry")
         self.pit_lobby.append({"user": user, "hp": 100 + (gear['def'] if gear else 0), "atk": 10 + (gear['atk'] if gear else 0), "spd": 5 + (gear['spd'] if gear else 0), "gear_name": gear['item_name'] if gear else "Hands", "kills": 0, "revives": 0, "dead": False})
-        msg = f"⛓️ **ASSET REGISTERED:** {user.mention} has entered the room."
+        msg = f"⛓️ **ASSET REGISTERED:** {user.mention} has surrendered to the Pit."
         if is_interaction: await target_obj.response.send_message(msg, ephemeral=True); await target_obj.channel.send(msg)
         else: await target_obj.send(msg)
 
@@ -208,7 +234,7 @@ class DungeonPacks(commands.Cog):
     async def start_rumble(self, ctx):
         """Overhauled Battle Royale Engine matching the visual style requested."""
         main_mod = sys.modules['__main__']
-        if not self.pit_open or len(self.pit_lobby) < 2: return await ctx.send("❌ Need more assets to start the orgy.")
+        if not self.pit_open or len(self.pit_lobby) < 2: return await ctx.send("❌ Need more assets to start the Echo Rumble.")
         
         self.pit_open = False
         players = self.pit_lobby
@@ -216,9 +242,14 @@ class DungeonPacks(commands.Cog):
         prize = (initial_count * self.entry_fee) + 10000
         graveyard = []
         
+        # Increment Total Games
+        with self._get_db() as conn:
+            conn.execute("UPDATE config SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_echo_games'")
+            conn.commit()
+
         # Initial Embed
-        start_emb = main_mod.fiery_embed("Initiated a new EchoGames Session", 
-            f"**Participants chained:**\n{initial_count}\n**Protocol:** Erotic Classic\n**Prize:** {prize} 🪙")
+        start_emb = main_mod.fiery_embed("Initiated a new Echo Rumble Session", 
+            f"**Assets chained:**\n{initial_count}\n**Protocol:** Erotic Classic\n**Prize:** {prize} 🪙")
         await ctx.send(embed=start_emb)
         await asyncio.sleep(2)
 
@@ -314,7 +345,7 @@ class DungeonPacks(commands.Cog):
         await ctx.send(embed=recap_emb)
 
         # Update DB
-        await main_mod.update_user_stats_async(winner['user'].id, amount=prize, source="EchoGames Victory")
+        await main_mod.update_user_stats_async(winner['user'].id, amount=prize, source="Echo Rumble Victory")
         with self._get_db() as conn:
             conn.execute("INSERT OR IGNORE INTO rumble_stats (user_id) VALUES (?)", (winner['user'].id,))
             conn.execute("UPDATE rumble_stats SET wins = wins + 1 WHERE user_id = ?", (winner['user'].id,))
@@ -364,6 +395,8 @@ async def setup(bot):
     with main_mod.get_db_connection() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS dungeon_inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, item_name TEXT, rarity TEXT, atk INTEGER, def INTEGER, spd INTEGER, is_equipped INTEGER DEFAULT 0)")
         conn.execute("CREATE TABLE IF NOT EXISTS rumble_stats (user_id INTEGER PRIMARY KEY, wins INTEGER DEFAULT 0, kills INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, pit_master_count INTEGER DEFAULT 0)")
+        # Ensure config table for global stats exists
+        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
         conn.commit()
     cog = DungeonPacks(bot)
     await bot.add_cog(cog)
