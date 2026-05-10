@@ -148,29 +148,18 @@ class DungeonCounter(commands.Cog):
                 self.save_count(val) # PERSISTENCE: Save each increment
                 
                 # Logic for Randomized Tributes (Infinite Counting)
-                # If no tribute is scheduled, roll for a 5% chance (ratio 5/100)
+                # Roll for a 5% chance (ratio 5/100) to make this specific number a tribute
                 if self.next_tribute_number == 0:
                     if random.random() < 0.05:
-                        self.next_tribute_number = val + 1
-
-                # If the current number is the Warning (Number before Tribute)
-                if self.next_tribute_number != 0 and val == self.next_tribute_number - 1:
-                    desc = (
-                        f"⚠️ **RANDOM CHALLENGE DETECTED**\n\n"
-                        f"Asset {message.author.mention} has reached **{val}**.\n"
-                        f"The next soul to type **{self.next_tribute_number}** will be bound by the Pit's law: **A tease picture must be posted.**\n\n"
-                        f"🫦 *Who is brave enough to accept the Master's sudden whim?*"
-                    )
-                    embed = fiery_embed(self.bot, True, "🔞 UNEXPECTED APEX 🔞", desc)
-                    await message.channel.send(embed=embed)
+                        self.next_tribute_number = val
 
                 # If the Tribute number is hit
-                elif self.next_tribute_number != 0 and val == self.next_tribute_number:
+                if self.next_tribute_number != 0 and val == self.next_tribute_number:
                     self.next_tribute_number = 0 # Reset tribute tracker
                     desc = (
-                        f"🎯 **TRIBUTE REACHED: {val}**\n\n"
-                        f"Asset {message.author.mention}, you have hit the target.\n"
-                        f"🫦 *The Master demands your recovery. The count continues to infinity.*"
+                        f"🎯 **TRIBUTE ACTIVATED: {val}**\n\n"
+                        f"Asset {message.author.mention}, you have hit a hidden target.\n"
+                        f"🫦 *The Pit demands its price. A tease picture must be posted immediately. The count continues.*"
                     )
                     embed = fiery_embed(self.bot, True, "🔞 TRIBUTE REQUIRED 🔞", desc)
                     
