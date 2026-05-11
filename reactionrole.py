@@ -125,7 +125,7 @@ class ReactionRoleSystem(commands.Cog):
             conn.commit()
         
         embed = discord.Embed(
-            title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
+            title="📩 Contact the Staff",
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
                         "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
                         "💡 **SUGGESTIONS:** Whisper your desires to improve the pit.\n"
