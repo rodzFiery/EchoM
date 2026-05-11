@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import sqlite3
 import asyncio
+import os
 
 # --- ADDED: DesignerLobby (The missing piece main.py was looking for) ---
 class DesignerLobby(discord.ui.View):
@@ -126,14 +127,25 @@ class ReactionRoleSystem(commands.Cog):
         embed = discord.Embed(
             title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
-                        "🔞 **VERIFICATION:** Prove your identity\n"
-                        "💡 **SUGGESTIONS:** Whisper your desires to improve the server.\n"
+                        "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
+                        "💡 **SUGGESTIONS:** Whisper your desires to improve the pit.\n"
                         "🆘 **HELP:** Request intervention for technical or social conflicts.",
             color=0x8B0000
         )
         embed.set_footer(text="Echo Ticket System | Secure Neural Link")
+        
+        # --- ADDED: LARGE SCALE IMAGE PROTOCOL ---
+        file = None
+        if os.path.exists("ticket.png"):
+            file = discord.File("ticket.png", filename="ticket.png")
+            embed.set_image(url="attachment://ticket.png")
+
         view = TicketLobbyView()
-        await channel.send(embed=embed, view=view)
+        if file:
+            await channel.send(file=file, embed=embed, view=view)
+        else:
+            await channel.send(embed=embed, view=view)
+            
         await ctx.send(f"✅ Ticket Lobby deployed in {channel.mention}")
 
     @commands.command(name="ticketadmin")
