@@ -105,7 +105,7 @@ class ReactionRoleSystem(commands.Cog):
 
             await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention}!")
 
-        except asyncio.TimeoutError:
+        except asyncio.timeoutError:
             await ctx.send("⌛ **TIMEOUT:** You took too long to respond. Restart with `!setroles`.")
 
     # --- NEW TICKET COMMANDS ---
@@ -114,7 +114,12 @@ class ReactionRoleSystem(commands.Cog):
     async def set_ticket_lobby(self, ctx, channel: discord.TextChannel):
         """Sets the channel where the ticket embed and buttons will appear."""
         with sqlite3.connect("database.db") as conn:
-            conn.execute("INSERT INTO ticket_config (guild_id, lobby_channel) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel", (ctx.guild.id, channel.id))
+            # FIX: Ensure all columns are handled for the INSERT OR REPLACE logic
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, lobby_channel) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel
+            """, (ctx.guild.id, channel.id))
             conn.commit()
         
         embed = discord.Embed(
@@ -135,9 +140,26 @@ class ReactionRoleSystem(commands.Cog):
     async def set_ticket_admin(self, ctx, channel: discord.TextChannel):
         """Sets the channel where admins receive notifications of new tickets."""
         with sqlite3.connect("database.db") as conn:
-            conn.execute("INSERT INTO ticket_config (guild_id, admin_channel) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET admin_channel=excluded.admin_channel", (ctx.guild.id, channel.id))
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, admin_channel) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET admin_channel=excluded.admin_channel
+            """, (ctx.guild.id, channel.id))
             conn.commit()
         await ctx.send(f"✅ Admin Notification Channel set to {channel.mention}")
+
+    @commands.command(name="ticketcategory")
+    @commands.has_permissions(administrator=True)
+    async def set_ticket_category(self, ctx, category_id: int):
+        """Sets the category ID where ticket channels will be created."""
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, category_id) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET category_id=excluded.category_id
+            """, (ctx.guild.id, category_id))
+            conn.commit()
+        await ctx.send(f"✅ Ticket Category set to ID: `{category_id}`")
 
 # --- NEW TICKET UI COMPONENTS ---
 
@@ -173,9 +195,13 @@ class TicketLobbyView(discord.ui.View):
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         
+        # Determine category
+        target_category = interaction.guild.get_channel(config['category_id']) if config['category_id'] else None
+        
         ticket_channel = await interaction.guild.create_text_channel(
             name=f"{category}-{interaction.user.name}",
             overwrites=overwrites,
+            category=target_category,
             topic=f"Asset ID: {interaction.user.id} | Category: {category}"
         )
 
@@ -186,13 +212,13 @@ class TicketLobbyView(discord.ui.View):
                         "The Master and Admins have been notified of your presence.",
             color=0x8B0000
         )
-        tkt_embed.set_footer(text="Type !close to seal this session.")
+        tkt_embed.set_footer(text="The Master is watching.")
         await ticket_channel.send(embed=tkt_embed, view=TicketControls())
 
         # Notify Admins
         admin_chan = interaction.guild.get_channel(config['admin_channel'])
         if admin_chan:
-            log = discord.Embed(title="🚨 NEW TICKET OPENED", color=0xFFD700)
+            log = discord.Embed(title="🚨 NEW SESSION OPENED", color=0xFFD700)
             log.add_field(name="Asset", value=interaction.user.mention, inline=True)
             log.add_field(name="Category", value=category.upper(), inline=True)
             log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
@@ -215,3 +241,4 @@ async def setup(bot):
     # Required for persistent buttons to work after restart
     bot.add_view(TicketLobbyView())
     bot.add_view(TicketControls())
+    bot.add_view(DesignerLobby())
