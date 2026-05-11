@@ -44,7 +44,8 @@ class ReactionRoleSystem(commands.Cog):
     def _init_db(self):
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
-            conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER)")
+            # MODIFIED: admin_channel changed to admin_role_id
+            conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER)")
             conn.commit()
 
     @commands.command(name="setroles")
@@ -137,16 +138,33 @@ class ReactionRoleSystem(commands.Cog):
 
     @commands.command(name="ticketadmin")
     @commands.has_permissions(administrator=True)
-    async def set_ticket_admin(self, ctx, channel: discord.TextChannel):
-        """Sets the channel where admins receive notifications of new tickets."""
+    async def set_ticket_admin(self, ctx, role: discord.Role):
+        """Sets the Admin Role and creates a private channel for notifications."""
+        # Define overwrites for the new private admin channel
+        overwrites = {
+            ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            role: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+
+        # Create the channel
+        admin_channel = await ctx.guild.create_text_channel(
+            name="war-room-logs",
+            overwrites=overwrites,
+            topic="Private logs for the Master and appointed Admins."
+        )
+
         with sqlite3.connect("database.db") as conn:
             conn.execute("""
-                INSERT INTO ticket_config (guild_id, admin_channel) 
-                VALUES (?, ?) 
-                ON CONFLICT(guild_id) DO UPDATE SET admin_channel=excluded.admin_channel
-            """, (ctx.guild.id, channel.id))
+                INSERT INTO ticket_config (guild_id, admin_channel, admin_role_id) 
+                VALUES (?, ?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET 
+                    admin_channel=excluded.admin_channel, 
+                    admin_role_id=excluded.admin_role_id
+            """, (ctx.guild.id, admin_channel.id, role.id))
             conn.commit()
-        await ctx.send(f"✅ Admin Notification Channel set to {channel.mention}")
+
+        await ctx.send(f"✅ Admin Notification Channel created: {admin_channel.mention}\nOnly users with the role {role.mention} can see it.")
 
     @commands.command(name="ticketcategory")
     @commands.has_permissions(administrator=True)
@@ -186,7 +204,9 @@ class TicketLobbyView(discord.ui.View):
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
         
         if not config or not config['admin_channel']:
-            return await interaction.response.send_message("❌ System Error: Admin channel not configured. Contact an admin.", ephemeral=True)
+            return await interaction.response.send_message("❌ System Error: Admin role not configured. Use `!ticketadmin @role` first.", ephemeral=True)
+
+        admin_role = interaction.guild.get_role(config['admin_role_id'])
 
         # Create Private Channel
         overwrites = {
@@ -194,6 +214,10 @@ class TicketLobbyView(discord.ui.View):
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
             interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
+        
+        # Add the Admin Role to the private channel permissions
+        if admin_role:
+            overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         
         # Determine category
         target_category = interaction.guild.get_channel(config['category_id']) if config['category_id'] else None
