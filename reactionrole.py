@@ -126,8 +126,8 @@ class ReactionRoleSystem(commands.Cog):
         embed = discord.Embed(
             title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
-                        "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
-                        "💡 **SUGGESTIONS:** Whisper your desires to improve the pit.\n"
+                        "🔞 **VERIFICATION:** Prove your identity\n"
+                        "💡 **SUGGESTIONS:** Whisper your desires to improve the server.\n"
                         "🆘 **HELP:** Request intervention for technical or social conflicts.",
             color=0x8B0000
         )
