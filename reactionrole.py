@@ -125,11 +125,12 @@ class ReactionRoleSystem(commands.Cog):
             conn.commit()
         
         embed = discord.Embed(
-            title="📩 Contact the Staff",
+            title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
                         "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
-                        "💡 **SUGGESTIONS:** Whisper your desires to improve the pit.\n"
-                        "🆘 **HELP:** Request intervention for technical or social conflicts.",
+                        "💬 **SUPPORT:** General inquiries and server guidance.\n"
+                        "⚙️ **TECHNICAL ISSUES:** Report glitches in the neural link.\n"
+                        "🚨 **DRAMAS:** Report conflicts or asset misbehavior.",
             color=0x8B0000
         )
         embed.set_footer(text="Echo Ticket System | Secure Neural Link")
@@ -201,13 +202,17 @@ class TicketLobbyView(discord.ui.View):
     async def verification(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.create_ticket(interaction, "verification")
 
-    @discord.ui.button(label="SUGGESTIONS", style=discord.ButtonStyle.secondary, emoji="💡", custom_id="tkt:suggestion")
-    async def suggestion(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "suggestion")
+    @discord.ui.button(label="SUPPORT", style=discord.ButtonStyle.secondary, emoji="💬", custom_id="tkt:support")
+    async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "support")
 
-    @discord.ui.button(label="HELP", style=discord.ButtonStyle.secondary, emoji="🆘", custom_id="tkt:help")
-    async def help(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "help")
+    @discord.ui.button(label="TECHNICAL ISSUES", style=discord.ButtonStyle.secondary, emoji="⚙️", custom_id="tkt:technical")
+    async def technical(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "technical")
+
+    @discord.ui.button(label="DRAMAS", style=discord.ButtonStyle.secondary, emoji="🚨", custom_id="tkt:drama")
+    async def dramas(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "drama")
 
     async def create_ticket(self, interaction: discord.Interaction, category: str):
         # Fetch config
