@@ -44,6 +44,7 @@ class ReactionRoleSystem(commands.Cog):
     def _init_db(self):
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER)")
             conn.commit()
 
     @commands.command(name="setroles")
@@ -107,5 +108,110 @@ class ReactionRoleSystem(commands.Cog):
         except asyncio.TimeoutError:
             await ctx.send("⌛ **TIMEOUT:** You took too long to respond. Restart with `!setroles`.")
 
+    # --- NEW TICKET COMMANDS ---
+    @commands.command(name="ticket")
+    @commands.has_permissions(administrator=True)
+    async def set_ticket_lobby(self, ctx, channel: discord.TextChannel):
+        """Sets the channel where the ticket embed and buttons will appear."""
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("INSERT INTO ticket_config (guild_id, lobby_channel) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel", (ctx.guild.id, channel.id))
+            conn.commit()
+        
+        embed = discord.Embed(
+            title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
+            description="Select a protocol below to open a private line. Every word is recorded.\n\n"
+                        "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
+                        "💡 **SUGGESTIONS:** Whisper your desires to improve the pit.\n"
+                        "🆘 **HELP:** Request intervention for technical or social conflicts.",
+            color=0x8B0000
+        )
+        embed.set_footer(text="Echo Ticket System | Secure Neural Link")
+        view = TicketLobbyView()
+        await channel.send(embed=embed, view=view)
+        await ctx.send(f"✅ Ticket Lobby deployed in {channel.mention}")
+
+    @commands.command(name="ticketadmin")
+    @commands.has_permissions(administrator=True)
+    async def set_ticket_admin(self, ctx, channel: discord.TextChannel):
+        """Sets the channel where admins receive notifications of new tickets."""
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("INSERT INTO ticket_config (guild_id, admin_channel) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET admin_channel=excluded.admin_channel", (ctx.guild.id, channel.id))
+            conn.commit()
+        await ctx.send(f"✅ Admin Notification Channel set to {channel.mention}")
+
+# --- NEW TICKET UI COMPONENTS ---
+
+class TicketLobbyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="VERIFICATION", style=discord.ButtonStyle.secondary, emoji="🔞", custom_id="tkt:verification")
+    async def verification(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "verification")
+
+    @discord.ui.button(label="SUGGESTIONS", style=discord.ButtonStyle.secondary, emoji="💡", custom_id="tkt:suggestion")
+    async def suggestion(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "suggestion")
+
+    @discord.ui.button(label="HELP", style=discord.ButtonStyle.secondary, emoji="🆘", custom_id="tkt:help")
+    async def help(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.create_ticket(interaction, "help")
+
+    async def create_ticket(self, interaction: discord.Interaction, category: str):
+        # Fetch config
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+        
+        if not config or not config['admin_channel']:
+            return await interaction.response.send_message("❌ System Error: Admin channel not configured. Contact an admin.", ephemeral=True)
+
+        # Create Private Channel
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        
+        ticket_channel = await interaction.guild.create_text_channel(
+            name=f"{category}-{interaction.user.name}",
+            overwrites=overwrites,
+            topic=f"Asset ID: {interaction.user.id} | Category: {category}"
+        )
+
+        # Send greeting in ticket
+        tkt_embed = discord.Embed(
+            title=f"⛓️ SESSION INITIATED: {category.upper()}",
+            description=f"Welcome {interaction.user.mention}. State your business clearly. "
+                        "The Master and Admins have been notified of your presence.",
+            color=0x8B0000
+        )
+        tkt_embed.set_footer(text="Type !close to seal this session.")
+        await ticket_channel.send(embed=tkt_embed, view=TicketControls())
+
+        # Notify Admins
+        admin_chan = interaction.guild.get_channel(config['admin_channel'])
+        if admin_chan:
+            log = discord.Embed(title="🚨 NEW TICKET OPENED", color=0xFFD700)
+            log.add_field(name="Asset", value=interaction.user.mention, inline=True)
+            log.add_field(name="Category", value=category.upper(), inline=True)
+            log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
+            await admin_chan.send(embed=log)
+
+        await interaction.response.send_message(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
+
+class TicketControls(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="CLOSE SESSION", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="tkt:close")
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("⛓️ *Session sealing in 5 seconds...*", ephemeral=False)
+        await asyncio.sleep(5)
+        await interaction.channel.delete()
+
 async def setup(bot):
     await bot.add_cog(ReactionRoleSystem(bot))
+    # Required for persistent buttons to work after restart
+    bot.add_view(TicketLobbyView())
+    bot.add_view(TicketControls())
