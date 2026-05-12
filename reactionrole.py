@@ -3,6 +3,7 @@ from discord.ext import commands
 import sqlite3
 import asyncio
 import os
+import io
 
 # --- ADDED: DesignerLobby (The missing piece main.py was looking for) ---
 class DesignerLobby(discord.ui.View):
@@ -47,15 +48,6 @@ class ReactionRoleSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             # MODIFIED: admin_channel changed to admin_role_id | ADDED: ticket_count
             conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER, ticket_count INTEGER DEFAULT 0)")
-            
-            # SCHEMA PROTECTION: Ensure ticket_count exists if table was created previously without it
-            cursor = conn.execute("PRAGMA table_info(ticket_config)")
-            columns = [column[1] for column in cursor.fetchall()]
-            if "ticket_count" not in columns:
-                conn.execute("ALTER TABLE ticket_config ADD COLUMN ticket_count INTEGER DEFAULT 0")
-            if "admin_role_id" not in columns:
-                conn.execute("ALTER TABLE ticket_config ADD COLUMN admin_role_id INTEGER")
-            
             conn.commit()
 
     @commands.command(name="setroles")
@@ -273,15 +265,18 @@ class TicketLobbyView(discord.ui.View):
             topic=f"Asset ID: {interaction.user.id} | Session #{current_num}"
         )
 
+        # --- MODIFIED: PING THE ROLE ---
+        ping_content = f"{interaction.user.mention} | {admin_role.mention if admin_role else ''}"
+
         # Send greeting in ticket
         tkt_embed = discord.Embed(
             title=f"⛓️ SESSION #{current_num} INITIATED: {category.upper()}",
             description=f"Welcome {interaction.user.mention}. State your business clearly. "
-                        "The Master and Admins have been notified of your presence.",
+                        "The Staff has been notified of your presence.",
             color=0x8B0000
         )
         tkt_embed.set_footer(text="The Master is watching.")
-        await ticket_channel.send(embed=tkt_embed, view=TicketControls())
+        await ticket_channel.send(content=ping_content, embed=tkt_embed, view=TicketControls())
 
         # Notify Admins
         admin_chan = interaction.guild.get_channel(config['admin_channel'])
@@ -300,7 +295,40 @@ class TicketControls(discord.ui.View):
 
     @discord.ui.button(label="CLOSE SESSION", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="tkt:close")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("⛓️ *Session sealing in 5 seconds...*", ephemeral=False)
+        await interaction.response.defer()
+        
+        # --- BLACK BOX TRANSCRIPT SYSTEM ---
+        # 1. Fetch History
+        transcript = f"--- BLACK BOX TRANSCRIPT: {interaction.channel.name} ---\n"
+        transcript += f"Sealed on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        transcript += "-"*40 + "\n\n"
+        
+        async for message in interaction.channel.history(limit=None, oldest_first=True):
+            time = message.created_at.strftime('%H:%M')
+            content = message.clean_content if message.content else "[Attachment/Embed]"
+            transcript += f"[{time}] {message.author.display_name}: {content}\n"
+
+        # 2. Prepare Buffer
+        buffer = io.BytesIO(transcript.encode('utf-8'))
+        file_name = f"transcript-{interaction.channel.name}.txt"
+        
+        # 3. Transmit to Admin Channel
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            config = conn.execute("SELECT admin_channel FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+        
+        if config and config['admin_channel']:
+            admin_chan = interaction.guild.get_channel(config['admin_channel'])
+            if admin_chan:
+                archive_emb = discord.Embed(
+                    title="📸 EVIDENCE ARCHIVED",
+                    description=f"Session **{interaction.channel.name}** has been sealed by {interaction.user.mention}.",
+                    color=0x2F3136
+                )
+                await admin_chan.send(embed=archive_emb, file=discord.File(buffer, filename=file_name))
+
+        # 4. Final Purge
+        await interaction.followup.send("⛓️ *Session sealing. Data stored in Black Box. Purging in 5 seconds...*")
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
