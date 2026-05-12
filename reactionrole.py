@@ -45,8 +45,8 @@ class ReactionRoleSystem(commands.Cog):
     def _init_db(self):
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
-            # MODIFIED: admin_channel changed to admin_role_id
-            conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER)")
+            # MODIFIED: admin_channel changed to admin_role_id | ADDED: ticket_count
+            conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER, ticket_count INTEGER DEFAULT 0)")
             conn.commit()
 
     @commands.command(name="setroles")
@@ -125,7 +125,7 @@ class ReactionRoleSystem(commands.Cog):
             conn.commit()
         
         embed = discord.Embed(
-            title="⛓️ SUBMISSION HUB: CONTACT THE MASTER",
+            title="📩 Contact the Staff",
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
                         "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
                         "💬 **SUPPORT:** General inquiries and server guidance.\n"
@@ -215,15 +215,19 @@ class TicketLobbyView(discord.ui.View):
         await self.create_ticket(interaction, "drama")
 
     async def create_ticket(self, interaction: discord.Interaction, category: str):
-        # Fetch config
+        # Fetch and Increment config
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = sqlite3.Row
+            # Update counter first
+            conn.execute("UPDATE ticket_config SET ticket_count = ticket_count + 1 WHERE guild_id = ?", (interaction.guild.id,))
+            conn.commit()
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
         
         if not config or not config['admin_channel']:
             return await interaction.response.send_message("❌ System Error: Admin role not configured. Use `!ticketadmin @role` first.", ephemeral=True)
 
         admin_role = interaction.guild.get_role(config['admin_role_id'])
+        current_num = config['ticket_count']
 
         # Create Private Channel
         overwrites = {
@@ -239,16 +243,17 @@ class TicketLobbyView(discord.ui.View):
         # Determine category
         target_category = interaction.guild.get_channel(config['category_id']) if config['category_id'] else None
         
+        # FORMATTED NAME: ticket[number]-[category]
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"{category}-{interaction.user.name}",
+            name=f"ticket{current_num}-{category}",
             overwrites=overwrites,
             category=target_category,
-            topic=f"Asset ID: {interaction.user.id} | Category: {category}"
+            topic=f"Asset ID: {interaction.user.id} | Session #{current_num}"
         )
 
         # Send greeting in ticket
         tkt_embed = discord.Embed(
-            title=f"⛓️ SESSION INITIATED: {category.upper()}",
+            title=f"⛓️ SESSION #{current_num} INITIATED: {category.upper()}",
             description=f"Welcome {interaction.user.mention}. State your business clearly. "
                         "The Master and Admins have been notified of your presence.",
             color=0x8B0000
@@ -259,7 +264,7 @@ class TicketLobbyView(discord.ui.View):
         # Notify Admins
         admin_chan = interaction.guild.get_channel(config['admin_channel'])
         if admin_chan:
-            log = discord.Embed(title="🚨 NEW SESSION OPENED", color=0xFFD700)
+            log = discord.Embed(title=f"🚨 NEW SESSION OPENED: #{current_num}", color=0xFFD700)
             log.add_field(name="Asset", value=interaction.user.mention, inline=True)
             log.add_field(name="Category", value=category.upper(), inline=True)
             log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
