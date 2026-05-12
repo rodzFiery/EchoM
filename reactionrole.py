@@ -49,6 +49,15 @@ class ReactionRoleSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             # MODIFIED: admin_channel changed to admin_role_id | ADDED: ticket_count
             conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER, ticket_count INTEGER DEFAULT 0)")
+            
+            # ENSURE ADMIN_ROLE_ID COLUMN PERSISTS BETWEEN DEPLOYS
+            cursor = conn.execute("PRAGMA table_info(ticket_config)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "admin_role_id" not in columns:
+                conn.execute("ALTER TABLE ticket_config ADD COLUMN admin_role_id INTEGER")
+            
+            # --- NEW ARCHIVE TABLE ---
+            conn.execute("CREATE TABLE IF NOT EXISTS ticket_archives (ticket_id TEXT PRIMARY KEY, guild_id INTEGER, asset_name TEXT, category TEXT, content TEXT, timestamp TEXT)")
             conn.commit()
 
     @commands.command(name="setroles")
@@ -179,7 +188,7 @@ class ReactionRoleSystem(commands.Cog):
             """, (ctx.guild.id, admin_channel.id, role.id))
             conn.commit()
 
-        await ctx.send(f"✅ Admin Notification Channel created: {admin_channel.mention}\nOnly users with the role {role.mention} can see it.")
+        await ctx.send(f"✅ Admin Role and Channel Persisted: {admin_channel.mention}\nOnly users with the role {role.mention} can see it.")
 
     @commands.command(name="ticketcategory")
     @commands.has_permissions(administrator=True)
@@ -206,6 +215,41 @@ class ReactionRoleSystem(commands.Cog):
             """, (ctx.guild.id, count))
             conn.commit()
         await ctx.send(f"✅ Ticket counter adjusted. The next session will be **#{count + 1}**.")
+
+    # --- NEW ARCHIVE BROWSER ---
+    @commands.command(name="archives")
+    @commands.has_permissions(administrator=True)
+    async def list_archives(self, ctx):
+        """Displays the list of sealed transcripts from the database."""
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT ticket_id, asset_name, category, timestamp FROM ticket_archives WHERE guild_id = ? ORDER BY timestamp DESC LIMIT 10", (ctx.guild.id,)).fetchall()
+        
+        if not rows:
+            return await ctx.send("🗄️ The Black Box is empty. No sessions archived.")
+        
+        embed = discord.Embed(title="🗄️ NEURAL ARCHIVE: STORED SESSIONS", color=0x2F3136)
+        desc = ""
+        for row in rows:
+            desc += f"🆔 `{row['ticket_id']}` | **{row['asset_name']}** ({row['category']}) - {row['timestamp']}\n"
+        
+        embed.description = desc
+        embed.set_footer(text="Use !view <ID> to retrieve a specific transcript.")
+        await ctx.send(embed=embed)
+
+    @commands.command(name="view")
+    @commands.has_permissions(administrator=True)
+    async def view_archive(self, ctx, ticket_id: str):
+        """Retrieves and re-transmits a transcript from the archives."""
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM ticket_archives WHERE ticket_id = ? AND guild_id = ?", (ticket_id, ctx.guild.id)).fetchone()
+        
+        if not row:
+            return await ctx.send("❌ Data block not found.")
+        
+        buffer = io.BytesIO(row['content'].encode('utf-8'))
+        await ctx.send(content=f"📑 **TRANSCRIPT RECOVERY:** `{ticket_id}`", file=discord.File(buffer, filename=f"recovered-{ticket_id}.txt"))
 
 # --- NEW TICKET UI COMPONENTS ---
 
@@ -238,7 +282,7 @@ class TicketLobbyView(discord.ui.View):
             conn.commit()
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
         
-        if not config or not config['admin_channel']:
+        if not config or not config['admin_role_id']:
             return await interaction.response.send_message("❌ System Error: Admin role not configured. Use `!ticketadmin @role` first.", ephemeral=True)
 
         admin_role = interaction.guild.get_role(config['admin_role_id'])
@@ -299,6 +343,24 @@ class TicketLobbyView(discord.ui.View):
 
         await interaction.response.send_message(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
 
+class ArchiveViewer(discord.ui.View):
+    def __init__(self, ticket_id):
+        super().__init__(timeout=None)
+        self.ticket_id = ticket_id
+
+    @discord.ui.button(label="VIEW DATA", style=discord.ButtonStyle.secondary, emoji="👁️", custom_id="persistent_view_archive")
+    async def view_data(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Trigger the !view command logic via interaction
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT content FROM ticket_archives WHERE ticket_id = ?", (self.ticket_id,)).fetchone()
+        
+        if row:
+            buffer = io.BytesIO(row['content'].encode('utf-8'))
+            await interaction.response.send_message(f"📑 **NEURAL RECOVERY:** Session `{self.ticket_id}`", file=discord.File(buffer, filename=f"{self.ticket_id}.txt"), ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Data block corrupted or missing.", ephemeral=True)
+
 class TicketControls(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -308,9 +370,9 @@ class TicketControls(discord.ui.View):
         await interaction.response.defer()
         
         try:
-            # --- BLACK BOX TRANSCRIPT SYSTEM ---
             # 1. Fetch History
             transcript = f"--- BLACK BOX TRANSCRIPT: {interaction.channel.name} ---\n"
+            transcript += f"Asset: {interaction.channel.name.split('-')[-1]}\n"
             transcript += f"Sealed on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             transcript += "-"*40 + "\n\n"
             
@@ -319,11 +381,14 @@ class TicketControls(discord.ui.View):
                 content = message.clean_content if message.content else "[Attachment/Embed]"
                 transcript += f"[{time}] {message.author.display_name}: {content}\n"
 
-            # 2. Prepare Buffer
-            buffer = io.BytesIO(transcript.encode('utf-8'))
-            file_name = f"transcript-{interaction.channel.name}.txt"
-            
-            # 3. Transmit to Admin Channel
+            # 2. Store in Database Archives
+            ticket_id = interaction.channel.name
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("INSERT OR REPLACE INTO ticket_archives VALUES (?, ?, ?, ?, ?, ?)", 
+                             (ticket_id, interaction.guild.id, interaction.user.display_name, "SESSION", transcript, datetime.now().strftime('%Y-%m-%d %H:%M')))
+                conn.commit()
+
+            # 3. Transmit to Admin Channel with Button
             with sqlite3.connect("database.db") as conn:
                 conn.row_factory = sqlite3.Row
                 config = conn.execute("SELECT admin_channel FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
@@ -333,10 +398,11 @@ class TicketControls(discord.ui.View):
                 if admin_chan:
                     archive_emb = discord.Embed(
                         title="📸 EVIDENCE ARCHIVED",
-                        description=f"Session **{interaction.channel.name}** has been sealed by {interaction.user.mention}.",
+                        description=f"Session **{ticket_id}** has been sealed. Data logged to database.",
                         color=0x2F3136
                     )
-                    await admin_chan.send(embed=archive_emb, file=discord.File(buffer, filename=file_name))
+                    await admin_chan.send(embed=archive_emb, view=ArchiveViewer(ticket_id))
+
         except Exception as e:
             print(f"Transcript Error: {e}")
 
