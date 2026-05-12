@@ -4,6 +4,7 @@ import sqlite3
 import asyncio
 import os
 import io
+from datetime import datetime
 
 # --- ADDED: DesignerLobby (The missing piece main.py was looking for) ---
 class DesignerLobby(discord.ui.View):
@@ -130,7 +131,7 @@ class ReactionRoleSystem(commands.Cog):
             description="Select a protocol below to open a private line. Every word is recorded.\n\n"
                         "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
                         "💬 **SUPPORT:** General inquiries and server guidance.\n"
-                        "⚙️ **TECHNICAL ISSUES:** Report glitches in the neural link.\n"
+                        "⚙️ **TECH ISSUES:** Report glitches in the neural link.\n"
                         "🚨 **DRAMAS:** Report conflicts or asset misbehavior.",
             color=0x8B0000
         )
@@ -297,35 +298,38 @@ class TicketControls(discord.ui.View):
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         
-        # --- BLACK BOX TRANSCRIPT SYSTEM ---
-        # 1. Fetch History
-        transcript = f"--- BLACK BOX TRANSCRIPT: {interaction.channel.name} ---\n"
-        transcript += f"Sealed on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        transcript += "-"*40 + "\n\n"
-        
-        async for message in interaction.channel.history(limit=None, oldest_first=True):
-            time = message.created_at.strftime('%H:%M')
-            content = message.clean_content if message.content else "[Attachment/Embed]"
-            transcript += f"[{time}] {message.author.display_name}: {content}\n"
+        try:
+            # --- BLACK BOX TRANSCRIPT SYSTEM ---
+            # 1. Fetch History
+            transcript = f"--- BLACK BOX TRANSCRIPT: {interaction.channel.name} ---\n"
+            transcript += f"Sealed on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            transcript += "-"*40 + "\n\n"
+            
+            async for message in interaction.channel.history(limit=None, oldest_first=True):
+                time = message.created_at.strftime('%H:%M')
+                content = message.clean_content if message.content else "[Attachment/Embed]"
+                transcript += f"[{time}] {message.author.display_name}: {content}\n"
 
-        # 2. Prepare Buffer
-        buffer = io.BytesIO(transcript.encode('utf-8'))
-        file_name = f"transcript-{interaction.channel.name}.txt"
-        
-        # 3. Transmit to Admin Channel
-        with sqlite3.connect("database.db") as conn:
-            conn.row_factory = sqlite3.Row
-            config = conn.execute("SELECT admin_channel FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
-        
-        if config and config['admin_channel']:
-            admin_chan = interaction.guild.get_channel(config['admin_channel'])
-            if admin_chan:
-                archive_emb = discord.Embed(
-                    title="📸 EVIDENCE ARCHIVED",
-                    description=f"Session **{interaction.channel.name}** has been sealed by {interaction.user.mention}.",
-                    color=0x2F3136
-                )
-                await admin_chan.send(embed=archive_emb, file=discord.File(buffer, filename=file_name))
+            # 2. Prepare Buffer
+            buffer = io.BytesIO(transcript.encode('utf-8'))
+            file_name = f"transcript-{interaction.channel.name}.txt"
+            
+            # 3. Transmit to Admin Channel
+            with sqlite3.connect("database.db") as conn:
+                conn.row_factory = sqlite3.Row
+                config = conn.execute("SELECT admin_channel FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+            
+            if config and config['admin_channel']:
+                admin_chan = interaction.guild.get_channel(config['admin_channel'])
+                if admin_chan:
+                    archive_emb = discord.Embed(
+                        title="📸 EVIDENCE ARCHIVED",
+                        description=f"Session **{interaction.channel.name}** has been sealed by {interaction.user.mention}.",
+                        color=0x2F3136
+                    )
+                    await admin_chan.send(embed=archive_emb, file=discord.File(buffer, filename=file_name))
+        except Exception as e:
+            print(f"Transcript Error: {e}")
 
         # 4. Final Purge
         await interaction.followup.send("⛓️ *Session sealing. Data stored in Black Box. Purging in 5 seconds...*")
