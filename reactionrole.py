@@ -228,7 +228,7 @@ class TicketLobbyView(discord.ui.View):
     async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.create_ticket(interaction, "support")
 
-    @discord.ui.button(label="TECHNICAL ISSUES", style=discord.ButtonStyle.secondary, emoji="⚙️", custom_id="tkt:technical")
+    @discord.ui.button(label="TECH ISSUES", style=discord.ButtonStyle.secondary, emoji="⚙️", custom_id="tkt:technical")
     async def technical(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.create_ticket(interaction, "technical")
 
