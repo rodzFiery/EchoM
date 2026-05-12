@@ -244,6 +244,18 @@ class TicketLobbyView(discord.ui.View):
         admin_role = interaction.guild.get_role(config['admin_role_id'])
         current_num = config['ticket_count']
 
+        # --- AUTO CATEGORY LOGIC ---
+        cat_name = category.upper()
+        target_category = discord.utils.get(interaction.guild.categories, name=cat_name)
+        
+        if not target_category:
+            # Create the category automatically if it doesn't exist
+            overwrites_cat = {
+                interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                admin_role: discord.PermissionOverwrite(read_messages=True, send_messages=True) if admin_role else None
+            }
+            target_category = await interaction.guild.create_category(name=cat_name, overwrites=overwrites_cat)
+
         # Create Private Channel
         overwrites = {
             interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -254,9 +266,6 @@ class TicketLobbyView(discord.ui.View):
         # Add the Admin Role to the private channel permissions
         if admin_role:
             overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        
-        # Determine category
-        target_category = interaction.guild.get_channel(config['category_id']) if config['category_id'] else None
         
         # FORMATTED NAME: ticket[number]-[category]
         ticket_channel = await interaction.guild.create_text_channel(
