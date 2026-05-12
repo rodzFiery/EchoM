@@ -192,6 +192,19 @@ class ReactionRoleSystem(commands.Cog):
             conn.commit()
         await ctx.send(f"✅ Ticket Category set to ID: `{category_id}`")
 
+    @commands.command(name="setticket")
+    @commands.has_permissions(administrator=True)
+    async def set_ticket_count(self, ctx, count: int):
+        """Manually sets the ticket counter to a specific number."""
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, ticket_count) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET ticket_count=excluded.ticket_count
+            """, (ctx.guild.id, count))
+            conn.commit()
+        await ctx.send(f"✅ Ticket counter adjusted. The next session will be **#{count + 1}**.")
+
 # --- NEW TICKET UI COMPONENTS ---
 
 class TicketLobbyView(discord.ui.View):
