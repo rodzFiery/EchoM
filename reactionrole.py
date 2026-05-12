@@ -47,6 +47,15 @@ class ReactionRoleSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             # MODIFIED: admin_channel changed to admin_role_id | ADDED: ticket_count
             conn.execute("CREATE TABLE IF NOT EXISTS ticket_config (guild_id INTEGER PRIMARY KEY, lobby_channel INTEGER, admin_channel INTEGER, category_id INTEGER, admin_role_id INTEGER, ticket_count INTEGER DEFAULT 0)")
+            
+            # SCHEMA PROTECTION: Ensure ticket_count exists if table was created previously without it
+            cursor = conn.execute("PRAGMA table_info(ticket_config)")
+            columns = [column[1] for column in cursor.fetchall()]
+            if "ticket_count" not in columns:
+                conn.execute("ALTER TABLE ticket_config ADD COLUMN ticket_count INTEGER DEFAULT 0")
+            if "admin_role_id" not in columns:
+                conn.execute("ALTER TABLE ticket_config ADD COLUMN admin_role_id INTEGER")
+            
             conn.commit()
 
     @commands.command(name="setroles")
