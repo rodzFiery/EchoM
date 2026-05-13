@@ -445,6 +445,7 @@ class Shop(commands.Cog):
             # FIXED: Crucial update to ensure the serialized list is saved back to 'titles' column
             conn.execute("UPDATE users SET balance = balance - ?, titles = ? WHERE id = ?", 
                          (found_item['price'], json.dumps(inv), author.id))
+            # FIX: Database MUST be committed to stay forever
             conn.commit()
 
         # If it's a marriage ring, proceed to bonding ritual logic
@@ -617,11 +618,12 @@ class Shop(commands.Cog):
         if not user or not user['titles'] or user['titles'] == "[]":
             return await ctx.send(embed=discord.Embed(title="📊 Combat Analysis", description="This asset has no combat weightings. Total Luck: 0% | Total Protection: 0%", color=0x808080))
 
+        # FIXED: Variable was undefined
         inv = json.loads(user['titles'])
         total_prot = 0
         total_luck = 0
         
-        for name in owned_names:
+        for name in inv:
             item, cat, tier = self.get_item_details(name)
             if item:
                 if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
