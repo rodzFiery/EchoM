@@ -301,7 +301,7 @@ async def me(ctx, member: discord.Member = None):
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
         
         wins_rank = wins_row['r'] if wins_row else "?"
-        kills_rank = kills_row['r'] if kills_row else "?"
+        kills_rank = kills_row['r'] if kills_rank else "?"
         duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
 
         # Fetch Victims from duel_history
@@ -489,14 +489,15 @@ async def buytitle(ctx, *, title_choice: str = None):
     pass
 
 @bot.command()
-async def marry(self, ctx, member: discord.Member):
+async def marry(ctx, member: discord.Member):
     """Propose a lifelong contract of submission."""
-    if member.id == ctx.author.id: return await ctx.send("❌ You cannot own your own soul twice, asset.")
+    if member.id == ctx.author.id: return await ctx.send("❌ Self-possession is default, asset.")
     u1 = get_user(ctx.author.id)
     u2 = get_user(member.id)
+    if not u1 or not u2: return await ctx.send("❌ Error fetching data.")
     if u1['spouse'] or u2['spouse']: return await ctx.send("❌ One of you is already under contract elsewhere.")
     
-    # FIXED: Accurate check for rings in the serialized JSON list
+    # FIXED: Re-checked ring logic with proper JSON parsing
     try:
         inv = json.loads(u1['titles']) if u1['titles'] else []
     except:
@@ -665,6 +666,11 @@ async def on_ready():
                 print(f"🕵️ PERSISTENCE: Audit Channel restored to {AUDIT_CHANNEL_ID}")
     except Exception as e:
         print(f"Audit restoration fail: {e}")
+
+    # Set up references for cogs (FIX for Ship and Shop compatibility)
+    bot.get_db_connection = get_db_connection
+    bot.get_user = get_user
+    bot.fiery_embed = fiery_embed
 
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
