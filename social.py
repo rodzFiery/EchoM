@@ -93,10 +93,18 @@ async def handle_ranking_command(ctx, get_db_connection, fiery_embed):
     lines = []
     for i, row in enumerate(top, 1):
         m = ctx.guild.get_member(row['id'])
-        name = m.display_name if m else f"Unknown({row['id']})"
-        lines.append(f"**#{i} {name}**\n└ 🎮:{row['games_played']} | 🏆:{row['wins']} | ⚔️:{row['kills']} | 🩸:{row['first_bloods']}")
+        name = m.display_name if m else f"Unknown Asset ({row['id']})"
+        
+        # --- EDITED: Clean, Professional Row Formatting ---
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "⛓️"
+        line = (f"{medal} **{i}. {name}**\n"
+                f"└─ 🏆 **Wins:** `{row['wins']}` | ⚔️ **Kills:** `{row['kills']}` | 🩸 **FB:** `{row['first_bloods']}`")
+        lines.append(line)
     
-    embed = fiery_embed("LEADERBOARD", "\n".join(lines), color=0xFFD700)
+    # ADDED: Professional visual separator
+    description = "### 🏆 THE ELITE TOP 10\n" + "\n\n".join(lines)
+    
+    embed = fiery_embed("GLOBAL HIERARCHY", description, color=0xFFD700)
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
