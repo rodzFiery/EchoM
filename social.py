@@ -202,23 +202,28 @@ async def handle_fiery_guide(ctx, fiery_embed):
 
 async def handle_streaks_command(ctx, get_db_connection, get_user, fiery_embed):
     with get_db_connection() as conn:
-        top_daily = conn.execute("SELECT id, daily_streak FROM users WHERE daily_streak > 0 ORDER BY daily_streak DESC LIMIT 5").fetchall()
-        top_weekly = conn.execute("SELECT id, weekly_streak FROM users WHERE weekly_streak > 0 ORDER BY weekly_streak DESC LIMIT 5").fetchall()
-        top_monthly = conn.execute("SELECT id, monthly_streak FROM users WHERE monthly_streak > 0 ORDER BY monthly_streak DESC LIMIT 5").fetchall()
+        top_daily = conn.execute("SELECT id, daily_streak FROM users WHERE daily_streak > 0 ORDER BY daily_streak DESC").fetchall()
+        top_weekly = conn.execute("SELECT id, weekly_streak FROM users WHERE weekly_streak > 0 ORDER BY weekly_streak DESC").fetchall()
+        top_monthly = conn.execute("SELECT id, monthly_streak FROM users WHERE monthly_streak > 0 ORDER BY monthly_streak DESC").fetchall()
 
-    embed = fiery_embed("NEURAL PERSISTENCE: GLOBAL SINNER DISCIPLINE", 
-                        "The Master tracks every cycle of submission. Consistency is the only path to the throne.")
+    embed = fiery_embed("NEURAL PERSISTENCE: LOCAL SINNER DISCIPLINE", 
+                        "The Master tracks every cycle of submission within these walls. Consistency is the only path to the throne.")
 
     def format_rank(rows, streak_type):
-        if not rows: return "The pit is silent in this tier."
         lines = []
-        for i, row in enumerate(rows, 1):
+        count = 0
+        for row in rows:
+            if count >= 5: break
             member = ctx.guild.get_member(row['id'])
-            name = member.display_name if member else f"Asset {row['id']}"
-            icon = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "⛓️"
+            if not member: continue # Skip users not in the current server
+            
+            count += 1
+            name = member.display_name
+            icon = "🥇" if count == 1 else "🥈" if count == 2 else "🥉" if count == 3 else "⛓️"
             bonus = int(row[f'{streak_type}_streak'] * 5)
             lines.append(f"{icon} **{name}**: {row[f'{streak_type}_streak']} counts (+{bonus}% bonus)")
-        return "\n".join(lines)
+        
+        return "\n".join(lines) if lines else "The pit is silent in this tier."
 
     embed.add_field(name="🫦 Daily Submission Streaks", value=format_rank(top_daily, "daily"), inline=False)
     embed.add_field(name="⛓️ Weekly Service Streaks", value=format_rank(top_weekly, "weekly"), inline=False)
