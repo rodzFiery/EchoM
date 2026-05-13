@@ -132,11 +132,10 @@ MARKET_DATA = {
     },
     "Rings": {
         "Basic": [
-            {"name": "Copper Loop", "price": 15000, "desc": "A simple band. +1% Shared Luck with partners."},
-            {"name": "Twisted Wire", "price": 25000, "desc": "Crude, but binds two souls together tightly."},
-            {"name": "Rust Ring", "price": 40000, "desc": "Left behind by a fallen lover in the pit."},
-            {"name": "Glass Band", "price": 60000, "desc": "Fragile, like most dungeon romances."},
-            {"name": "Bone Signet", "price": 90000, "desc": "Carved from a finger bone. Creepy but bonding."}
+            {"name": "Rare Ring", "price": 15000, "desc": "A simple band. Required for !marry. +1% Shared Luck."},
+            {"name": "Epic Ring", "price": 25000, "desc": "Crude, but binds souls tightly. Required for !marry."},
+            {"name": "Legendary Ring", "price": 40000, "desc": "Forged in the pit. Required for !marry."},
+            {"name": "Supreme Ring", "price": 60000, "desc": "The highest mark of devotion. Required for !marry."}
         ],
         "Normal": [
             {"name": "Iron Girdle", "price": 250000, "desc": "Strong enough to withstand betrayal. +2% shared luck."},
@@ -417,8 +416,8 @@ class Shop(commands.Cog):
                 return await ctx.followup.send(embed=err_emb, ephemeral=True)
             return await ctx.send(embed=err_emb)
 
-        if found_cat == "Rings":
-            return await self.handle_ring_purchase(ctx, found_item, found_tier)
+        # FIXED: Logic to check if the item is a Marriage Ring specifically for main.py checks
+        is_marriage_ring = found_item['name'] in ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"]
 
         with self.get_db_connection() as conn:
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
@@ -440,13 +439,17 @@ class Shop(commands.Cog):
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.followup.send(embed=own_emb, ephemeral=True)
-                return await ctx.send(embed=own_emb)
+                return await ctx.send(own_emb)
 
             inv.append(found_item['name'])
-            # FIX: Ensure database is actually updated with the serialized list
+            # FIXED: Crucial update to ensure the serialized list is saved back to 'titles' column
             conn.execute("UPDATE users SET balance = balance - ?, titles = ? WHERE id = ?", 
                          (found_item['price'], json.dumps(inv), author.id))
             conn.commit()
+
+        # If it's a marriage ring, proceed to bonding ritual logic
+        if found_cat == "Rings" and not is_marriage_ring:
+            return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
         
@@ -488,7 +491,7 @@ class Shop(commands.Cog):
             return await ctx.send(embed=discord.Embed(title=f"🎒 {target.display_name.upper()}'S VAULT", description=desc, color=0x808080))
 
         owned_names = json.loads(user['titles'])
-        categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Other": []}
+        categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Rings": [], "Other": []}
         
         for name in owned_names:
             item, cat, tier = self.get_item_details(name)
@@ -602,7 +605,7 @@ class Shop(commands.Cog):
             conn.commit()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(embed=sell_emb)
+        await ctx.send(sell_emb)
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
@@ -618,7 +621,7 @@ class Shop(commands.Cog):
         total_prot = 0
         total_luck = 0
         
-        for name in inv:
+        for name in owned_names:
             item, cat, tier = self.get_item_details(name)
             if item:
                 if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
