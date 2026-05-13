@@ -489,6 +489,42 @@ async def buytitle(ctx, *, title_choice: str = None):
     pass
 
 @bot.command()
+async def marry(self, ctx, member: discord.Member):
+    """Propose a lifelong contract of submission."""
+    if member.id == ctx.author.id: return await ctx.send("❌ You cannot own your own soul twice, asset.")
+    u1 = get_user(ctx.author.id)
+    u2 = get_user(member.id)
+    if u1['spouse'] or u2['spouse']: return await ctx.send("❌ One of you is already under contract elsewhere.")
+    
+    # FIXED: Accurate check for rings in the serialized JSON list
+    try:
+        inv = json.loads(u1['titles']) if u1['titles'] else []
+    except:
+        inv = []
+        
+    rings = ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"]
+    # Check if the user has at least one of the specific marriage rings
+    if not any(r in inv for r in rings): return await ctx.send("❌ Purchase a **Marriage Ring** in the !shop first.")
+
+    emb = fiery_embed("🔞 SACRED CONTRACT OFFERED", f"{ctx.author.mention} offers chains to {member.mention}.", color=0xFFB6C1)
+    view = discord.ui.View(timeout=60)
+    async def accept(interaction):
+        if interaction.user.id != member.id: return
+        today = datetime.now().strftime("%Y-%m-%d")
+        with get_db_connection() as conn:
+            conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
+            conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (ctx.author.id, today, member.id))
+            conn.commit()
+        
+        win_emb = fiery_embed("💖 CONTRACT SEALED 🫦", f"**{ctx.author.display_name}** and **{member.display_name}** are bound forever.")
+        await interaction.response.send_message(embed=win_emb)
+        
+    btn = discord.ui.Button(label="Accept Possession", style=discord.ButtonStyle.success, emoji="🫦")
+    btn.callback = accept
+    view.add_item(btn)
+    await ctx.send(embed=emb, view=view)
+
+@bot.command()
 async def favor(ctx):
     """Bribe the Master to force Peak Heat."""
     cost = 5000000
