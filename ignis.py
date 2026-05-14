@@ -1093,8 +1093,3 @@ async def setup(bot):
     
     # ADDED: Register the persistence cog
     await bot.add_cog(PersistentLobbyLauncher(bot))
-
-Failed Protocols:
- autoignis (Load Fail: Extension 'autoignis' raised an error: SyntaxError: unterminated f-string literal (detected at line 50) (autoignis.py, line 50))
-
-win (Load Fail: Extension 'win' raised an error: CommandRegistrationError: The command slut is already an existing command or alias.)
