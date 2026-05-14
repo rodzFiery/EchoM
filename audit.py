@@ -33,6 +33,10 @@ class AuditManager(commands.Cog):
                 # ADDED: Logic to ensure the specific Guild ID is the primary filter
                 conn.execute("INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, 'audit_channel', ?)", (ctx.guild.id, str(primary_id)))
                 conn.commit()
+            
+            # ADDED: Reward logic for setting the audit channel
+            await main_mod.update_user_stats_async(ctx.author.id, xp=25000, flames=50000, source="Audit Channel Calibration")
+                
         except Exception as e:
             print(f"⚠️ Persistence Error: {e}")
 
@@ -41,7 +45,8 @@ class AuditManager(commands.Cog):
         embed = main_mod.fiery_embed("🕵️ AUDIT PROTOCOL UPDATED", 
             f"The Master has redirected the voyeur frequencies for this sector.\n\n"
             f"**New Audit Target(s):** {channel_mentions}\n"
-            f"**System Status:** Logs for **{ctx.guild.name}** are now independent.", color=0x00FF00)
+            f"**System Status:** Logs for **{ctx.guild.name}** are now independent.\n\n"
+            f"🎁 **Master's Bounty:** {ctx.author.mention} rewarded with **25,000 XP** and **50,000 Flames**.", color=0x00FF00)
         
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
