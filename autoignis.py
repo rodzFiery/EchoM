@@ -46,8 +46,8 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
-        # FIXED: Removed literal line break inside the f-string block to prevent SyntaxError
-        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n
+        # FIXED: Corrected the f-string syntax to prevent unterminated literal error
+        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS
 ```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
 
@@ -105,6 +105,10 @@ class IgnisAuto(commands.Cog):
 
             # If we have already triggered the start/reset for this specific window, skip
             if self.last_processed_window == window_id:
+                return
+
+            # FIXED: Added check to prevent 404 NotFound errors on deployment
+            if not self.auto_channel_id or self.auto_channel_id == 123456789012345678:
                 return
 
             channel = self.bot.get_channel(self.auto_channel_id)
