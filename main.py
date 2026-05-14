@@ -300,15 +300,21 @@ async def me(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
     
+    # Initialize variables to avoid UnboundLocalError
+    wins_rank = "?"
+    kills_rank = "?"
+    duel_rank = "?"
+    victims = []
+
     with get_db_connection() as conn:
         # Calculate Rankings
         wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
         kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
         
-        wins_rank = wins_row['r'] if wins_row else "?"
-        kills_rank = kills_row['r'] if kills_rank else "?"
-        duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
+        if wins_row: wins_rank = wins_row['r']
+        if kills_row: kills_rank = kills_row['r']
+        if duel_wins_row: duel_rank = duel_wins_row['r']
 
         # Fetch Victims from duel_history
         victims = conn.execute("""
