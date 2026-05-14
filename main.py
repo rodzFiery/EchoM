@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -200,10 +201,6 @@ def run_web_server():
     except Exception as e:
         print(f"⚠️ Web Server bypass: {e}")
 
-# Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
-if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
-    threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
-
 # --- TOP.GG STATS POSTER PROTOCOL ---
 @tasks.loop(minutes=30)
 async def topgg_poster():
@@ -299,15 +296,21 @@ async def me(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
     
+    # Initialize variables to avoid UnboundLocalError
+    wins_rank = "?"
+    kills_rank = "?"
+    duel_rank = "?"
+    victims = []
+
     with get_db_connection() as conn:
         # Calculate Rankings
         wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
         kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
         
-        wins_rank = wins_row['r'] if wins_row else "?"
-        kills_rank = kills_row['r'] if kills_row else "?"
-        duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
+        if wins_row: wins_rank = wins_row['r']
+        if kills_row: kills_rank = kills_row['r']
+        if duel_wins_row: duel_rank = duel_wins_row['r']
 
         # Fetch Victims from duel_history
         victims = conn.execute("""
@@ -898,7 +901,12 @@ async def on_message(message):
             except Exception:
                 pass
 
-async def main():
+async def main_thread_fix():
+    # --- WEB SERVER THREADING FIX ---
+    # Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
+    if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+        threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
+
     try:
         async with bot: 
             await bot.start(TOKEN)
@@ -907,5 +915,5 @@ async def main():
         if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try: asyncio.run(main())
+    try: asyncio.run(main_thread_fix())
     except KeyboardInterrupt: pass
