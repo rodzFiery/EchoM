@@ -44,7 +44,8 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
-        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n```\n*Ready to be broken in the Master's image.*", inline=False)
+        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n
+```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
 
 class IgnisAuto(commands.Cog):
@@ -85,6 +86,14 @@ class IgnisAuto(commands.Cog):
 
     def cog_unload(self):
         self.auto_loop.cancel()
+
+    async def is_master_or_owner(ctx):
+        """Custom check to allow Bot Owner or Server Owner."""
+        if await ctx.bot.is_owner(ctx.author):
+            return True
+        if ctx.guild and ctx.author.id == ctx.guild.owner_id:
+            return True
+        return False
 
     @tasks.loop(seconds=10) # CHECK FREQUENTLY (10s) TO PREVENT MISSING THE START
     async def auto_loop(self):
@@ -190,7 +199,7 @@ class IgnisAuto(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.command(name="setauto")
-    @commands.is_owner()
+    @commands.check(is_master_or_owner)
     async def set_auto_channel(self, ctx):
         """Sets the current channel as the Automated Ignis Pit and saves it."""
         import sys
@@ -227,7 +236,8 @@ class IgnisAuto(commands.Cog):
             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
             "This lobby will close at the next 30-minute mark.", color=0x00FF00)
         
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```", inline=False)
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
+```", inline=False)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
 
         image_path = "LobbyTopRight.jpg"
@@ -244,7 +254,7 @@ class IgnisAuto(commands.Cog):
             self.auto_loop.restart()
 
     @commands.command(name="autoignis")
-    @commands.is_owner()
+    @commands.check(is_master_or_owner)
     async def set_auto_ping_role(self, ctx, role: discord.Role):
         """Sets the role to be pinged every hour at .00."""
         import sys
@@ -261,7 +271,7 @@ class IgnisAuto(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
-    @commands.is_owner()
+    @commands.check(is_master_or_owner)
     async def stop_auto_ignis(self, ctx):
         """Stops the Automated Ignis cycle immediately."""
         import sys
