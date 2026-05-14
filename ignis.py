@@ -62,6 +62,7 @@ class LobbyView(discord.ui.View):
 
         # PERSISTENCE LOGIC: Add to DB and Local List
         with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
             check = conn.execute("SELECT 1 FROM lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
             if check:
                 return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
@@ -1092,3 +1093,8 @@ async def setup(bot):
     
     # ADDED: Register the persistence cog
     await bot.add_cog(PersistentLobbyLauncher(bot))
+
+Failed Protocols:
+ autoignis (Load Fail: Extension 'autoignis' raised an error: SyntaxError: unterminated f-string literal (detected at line 50) (autoignis.py, line 50))
+
+win (Load Fail: Extension 'win' raised an error: CommandRegistrationError: The command slut is already an existing command or alias.)
