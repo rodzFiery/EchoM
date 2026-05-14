@@ -30,12 +30,15 @@ class AuditManager(commands.Cog):
             with db_module.get_db_connection() as conn:
                 # Table ensures each guild has its own independent audit channel
                 conn.execute("CREATE TABLE IF NOT EXISTS guild_config (guild_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
-                # ADDED: Logic to ensure the specific Guild ID is the primary filter
+                # Ensure key matches 'audit_channel' for collect.py to find it
                 conn.execute("INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, 'audit_channel', ?)", (ctx.guild.id, str(primary_id)))
                 conn.commit()
             
-            # ADDED: Reward logic for setting the audit channel
-            await main_mod.update_user_stats_async(ctx.author.id, xp=25000, flames=50000, source="Audit Channel Calibration")
+            # FIXED: Reward admin using manual DB for XP and correct kwarg for flames
+            await main_mod.update_user_stats_async(ctx.author.id, amount=50000, source="Audit Calibration")
+            with db_module.get_db_connection() as conn:
+                conn.execute("UPDATE users SET xp = xp + ? WHERE id = ?", (25000, ctx.author.id))
+                conn.commit()
                 
         except Exception as e:
             print(f"⚠️ Persistence Error: {e}")
@@ -49,7 +52,7 @@ class AuditManager(commands.Cog):
             f"🎁 **Master's Bounty:** {ctx.author.mention} rewarded with **25,000 XP** and **50,000 Flames**.", color=0x00FF00)
         
         if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            file = discord.File(image_path := "LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
             await ctx.send(file=file, embed=embed)
         else:
