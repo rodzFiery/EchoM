@@ -193,6 +193,16 @@ class EngineControl(commands.Cog):
             conn.commit()
         await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as an **Ignis Admin**."))
 
+    @commands.command(name="igniscount")
+    @commands.has_permissions(administrator=True)
+    async def set_ignis_count(self, ctx, number: int):
+        """Recalibrates the current Hangrygames Edition number."""
+        import sys
+        main = sys.modules['__main__']
+        main.game_edition = number
+        self.save_game_config()
+        await ctx.send(embed=self.fiery_embed("System Recalibrated", f"✅ The Master has adjusted the ledger. Next session will be **Edition #{number}**."))
+
     @commands.command()
     async def echostart(self, ctx):
         import sys
