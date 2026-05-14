@@ -194,7 +194,7 @@ def run_web_server():
     # O Railway usa a porta 8080 por padrão para Networking Público
     port = int(os.environ.get("PORT", 8080))
     try:
-        # FIXED: Added threaded=True to prevent Flask from blocking the Discord bot start
+        # FIXED: Added threaded=True to prevent Flask from blocking the bot start
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
     except OSError:
         # FIXED: Prevent crash if port is already bound by another module
@@ -207,10 +207,6 @@ def run_web_server():
 async def topgg_poster():
     """Automatically posts server count to Top.gg every 30 minutes."""
     if not TOPGG_TOKEN:
-        return
-
-    # Safety check for bot.user availability during startup
-    if not bot.user:
         return
 
     url = f"https://top.gg/api/bots/{bot.user.id}/stats"
@@ -502,9 +498,10 @@ async def buytitle(ctx, *, title_choice: str = None):
         embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
+            await ctx.send(file=file, embed=embed)
         else:
-            return await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
+        return
     pass
 
 # FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
@@ -520,17 +517,19 @@ async def favor(ctx):
         embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
+            await ctx.send(file=file, embed=embed)
         else:
-            return await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
+        return
     
     if not ext:
         embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
+            await ctx.send(file=file, embed=embed)
         else:
-            return await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
+        return
 
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (cost, ctx.author.id))
@@ -913,9 +912,8 @@ async def on_message(message):
                         row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
                         if row: ignis_admin_role_id = row[0]
                     
-                    # FIXED: Added getattr to handle cases where author roles aren't cached yet
-                    author_roles = getattr(message.author, 'roles', [])
                     # Check if user has standard roles OR the specific Ignis Admin role
+                    author_roles = getattr(message.author, 'roles', [])
                     has_ignis_role = any(role.id == ignis_admin_role_id for role in author_roles)
                     is_staff = any(role.name in admin_roles for role in author_roles)
                     
@@ -932,6 +930,7 @@ async def main():
     # --- WEB SERVER THREADING FIX ---
     # Start the web server in a background thread inside the main entry point
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+        # FIXED: Start thread exactly once before running bot.start()
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
     try:
