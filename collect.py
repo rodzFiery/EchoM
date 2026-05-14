@@ -49,19 +49,23 @@ class Collect(commands.Cog):
 
     @commands.command(name="collectaudit")
     @commands.has_permissions(administrator=True)
-    async def collectaudit(self, ctx, channel: discord.TextChannel, xp: int, flames: int):
-        """ADMIN ONLY: Sets a channel as a collection stage with custom XP/Flame rates."""
+    async def collectaudit(self, ctx, channel: discord.TextChannel, xp: int = 25000, flames: int = 50000):
+        """ADMIN ONLY: Sets a channel as a collection stage with custom XP/Flame rates (Defaults to 25k/50k)."""
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO collect_channels (channel_id, xp_rate, flame_rate) VALUES (?, ?, ?)", 
                          (channel.id, xp, flames))
             conn.commit()
         
         main_mod = sys.modules['__main__']
+        
+        # ADDED: Reward admin with 25k XP and 50k Flames for calibration
+        await main_mod.update_user_stats_async(ctx.author.id, xp=25000, flames=50000, source="Collection Stage Calibration")
+        
         embed = main_mod.fiery_embed("🛰️ COLLECTION STAGE INITIALIZED", 
             f"The Master has added {channel.mention} to the voyeur network.\n\n"
-            f"**XP Rate:** +{xp}\n"
-            f"**Flame Rate:** +{flames}\n"
-            f"**Status:** All exhibition captures in this sector are now being monetized.", color=0x00FF00)
+            f"**Member Reward XP:** +{xp}\n"
+            f"**Member Reward Flames:** +{flames}\n\n"
+            f"🎁 **Master's Bounty:** {ctx.author.mention} rewarded with **25,000 XP** and **50,000 Flames** for calibration.", color=0x00FF00)
         await ctx.send(embed=embed)
 
     async def send_immediate_audit(self, guild_id, user_id, xp, flames, source_desc, channel_name=None):
@@ -169,7 +173,6 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return
 
-        # Separate logs by guild
         guild_groups = {}
         for uid, stats in self.hourly_log.items():
             gid = stats['guild_id']
@@ -177,7 +180,6 @@ class Collect(commands.Cog):
             guild_groups[gid][uid] = stats
 
         for guild_id, logs in guild_groups.items():
-            # SYNC: Pull the audit channel from audit.py configuration
             audit_channel = await self.sync_audit_channel(guild_id)
             if not audit_channel: continue
 
@@ -241,9 +243,9 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return await ctx.send("The sensors are clear. No new activity to report in the ledger.")
         
-        # SYNC: Dynamically find where audit.py says to post
-        audit_channel = await self.sync_audit_channel(ctx.guild.id)
-        if not audit_channel: return
+        chan_id = await self.sync_audit_channel(ctx.guild.id)
+        if not chan_id: return
+        audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
 
         image_path = "LobbyTopRight.jpg"
         file = None
@@ -273,9 +275,9 @@ class Collect(commands.Cog):
             guild_vibe_groups[gid].append((uid, data['count']))
 
         for guild_id, reactions in guild_vibe_groups.items():
-            # SYNC: Pull the audit channel from audit.py configuration
-            audit_channel = await self.sync_audit_channel(guild_id)
-            if not audit_channel: continue
+            chan_id = await self.sync_audit_channel(guild_id)
+            if not chan_id: continue
+            audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
             
             embed = discord.Embed(title="🕵️ VELVET FEED: MASS REACTIONS REPORT", description="Reaction display report follows.", color=0x800080, timestamp=datetime.now(timezone.utc))
             image_path = "LobbyTopRight.jpg"
