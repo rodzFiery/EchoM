@@ -1,3 +1,14 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
 import discord
 from discord.ext import commands
 import random
@@ -49,8 +60,8 @@ class WinSystem(commands.Cog):
             custom_cooldown=self.cooldown
         )
 
-    @commands.command(name="slut")
-    async def slut(self, ctx):
+    @commands.command(name="winslut") # RENAMED: To avoid conflict with core !slut in main.py
+    async def winslut(self, ctx):
         await self.execute_win_command(ctx, "slut")
 
     @commands.command(name="cuckold")
