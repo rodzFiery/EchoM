@@ -87,14 +87,6 @@ class IgnisAuto(commands.Cog):
     def cog_unload(self):
         self.auto_loop.cancel()
 
-    async def is_master_or_owner(ctx):
-        """Custom check to allow Bot Owner or Server Owner."""
-        if await ctx.bot.is_owner(ctx.author):
-            return True
-        if ctx.guild and ctx.author.id == ctx.guild.owner_id:
-            return True
-        return False
-
     @tasks.loop(seconds=10) # CHECK FREQUENTLY (10s) TO PREVENT MISSING THE START
     async def auto_loop(self):
         await self.bot.wait_until_ready()
@@ -199,7 +191,7 @@ class IgnisAuto(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.command(name="setauto")
-    @commands.check(is_master_or_owner)
+    @commands.is_owner()
     async def set_auto_channel(self, ctx):
         """Sets the current channel as the Automated Ignis Pit and saves it."""
         import sys
@@ -254,7 +246,7 @@ class IgnisAuto(commands.Cog):
             self.auto_loop.restart()
 
     @commands.command(name="autoignis")
-    @commands.check(is_master_or_owner)
+    @commands.is_owner()
     async def set_auto_ping_role(self, ctx, role: discord.Role):
         """Sets the role to be pinged every hour at .00."""
         import sys
@@ -271,7 +263,7 @@ class IgnisAuto(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
-    @commands.check(is_master_or_owner)
+    @commands.is_owner()
     async def stop_auto_ignis(self, ctx):
         """Stops the Automated Ignis cycle immediately."""
         import sys
