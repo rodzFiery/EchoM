@@ -8,8 +8,8 @@ class Achievements(commands.Cog):
         self.bot = bot
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
-        # FIXED: Pulled dynamically from main module to support the !audit system
-        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1482071248631758865)
+        # FIXED: Now defaults to None; will be pulled from DB per guild
+        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", None)
 
     def generate_fiery_scale(self):
         """ADDED: Generates the specialized Master's Scale for all achievements."""
@@ -80,7 +80,7 @@ class Achievements(commands.Cog):
         return "\n".join(lines) if lines else "No achievements yet.."
 
     # --- REAL-TIME AUDIT LOGGING ---
-    async def check_and_log_achievements(self, user_id, category, current_value):
+    async def check_and_log_achievements(self, user_id, category, current_value, guild_id=None):
         """ADDED: Checks if the current value exactly matches a milestone tier and logs it to audit."""
         t_master_scale = self.generate_fiery_scale()
         t_high = t_master_scale + [15000, 25000, 50000]
@@ -100,8 +100,20 @@ class Achievements(commands.Cog):
         }
         
         if category in tier_map and current_value in tier_map[category]:
-            main_module = sys.modules['__main__']
-            audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
+            # NEW: Retrieve the specific audit channel for this guild from the database
+            target_channel_id = None
+            if guild_id:
+                with self.get_db_connection() as conn:
+                    row = conn.execute("SELECT audit_channel_id FROM guild_settings WHERE guild_id = ?", (guild_id,)).fetchone()
+                    if row:
+                        target_channel_id = row['audit_channel_id']
+            
+            # Fallback to hardcoded only if DB fails and attribute exists
+            audit_channel_id = target_channel_id or self.AUDIT_CHANNEL_ID
+            if not audit_channel_id:
+                return
+
+            audit_channel = self.bot.get_channel(audit_channel_id)
             
             if audit_channel:
                 user = await self.bot.fetch_user(user_id)
@@ -132,6 +144,17 @@ class Achievements(commands.Cog):
                     await audit_channel.send(content=f"Achievement Protocol: {user.mention}", file=file, embed=embed)
                 else:
                     await audit_channel.send(content=f"Achievement Protocol: {user.mention}", embed=embed)
+
+    @commands.command(name="setaudit")
+    @commands.has_permissions(administrator=True)
+    async def set_audit_channel(self, ctx, channel: discord.TextChannel):
+        """ADMIN ONLY: Sets the channel where achievement milestones will be logged."""
+        with self.get_db_connection() as conn:
+            # Ensure table exists (Add-only logic)
+            conn.execute("CREATE TABLE IF NOT EXISTS guild_settings (guild_id INTEGER PRIMARY KEY, audit_channel_id INTEGER)")
+            conn.execute("INSERT OR REPLACE INTO guild_settings (guild_id, audit_channel_id) VALUES (?, ?)", (ctx.guild.id, channel.id))
+        
+        await ctx.send(f"✅ **Audit Protocol Initialized:** Milestones will now be logged in {channel.mention}")
 
     @commands.command(name="achievements")
     async def view_achievements(self, ctx, member: discord.Member = None):
