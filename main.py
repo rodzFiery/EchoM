@@ -115,15 +115,15 @@ def init_db():
                 user_id INTEGER PRIMARY KEY,
                 mastery_level INTEGER DEFAULT 1,
                 mastery_xp INTEGER DEFAULT 0,
-                cards_collected INTEGER DEFAULT 0
+                cards_collected INTEGER DEFAULT 0,
+                mastery_key TEXT DEFAULT 'None'
             )""")
         
-        # SCHEMA MIGRATION: Check for mastery_key column to prevent Command Errors
+        # Check for mastery_key column in case table already existed
         cursor = conn.execute("PRAGMA table_info(card_mastery)")
         columns = [column[1] for column in cursor.fetchall()]
         if 'mastery_key' not in columns:
             conn.execute("ALTER TABLE card_mastery ADD COLUMN mastery_key TEXT DEFAULT 'None'")
-            print("🛠️ DATABASE: Added missing 'mastery_key' column.")
 
         conn.execute("""CREATE TABLE IF NOT EXISTS ignis_settings (
                 guild_id INTEGER PRIMARY KEY,
@@ -265,7 +265,7 @@ async def beg(ctx):
 
 @bot.command()
 async def slut(ctx): 
-    # FIXED: Explicitly added missing slut command to map to worknranks
+    # FIXED: ADDED MISSING SLUT COMMAND
     await worknranks.handle_work_command(ctx, bot, "slut", (600, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 @bot.command()
@@ -309,6 +309,7 @@ async def balance(ctx, member: discord.Member = None):
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
+    
     if os.path.exists("LobbyTopRight.jpg"):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
@@ -653,15 +654,36 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
 async def on_ready():
     print("--- STARTING SYSTEM INITIALIZATION ---")
     
-    # --- 1. LOAD CONFIG FIRST ---
+    # --- 1. LOAD CONFIG FIRST (Critical for Audit Sync) ---
     load_game_config()
     
     # --- 2. AUDIT PERSISTENCE RETRIEVAL ---
     try:
         with get_db_connection() as conn:
+            # Garante que a tabela config existe
             conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-            conn.execute("""CREATE TABLE IF NOT EXISTS dungeon_inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, item_name TEXT, rarity TEXT, atk INTEGER, def INTEGER, spd INTEGER, is_equipped INTEGER DEFAULT 0)""")
-            conn.execute("""CREATE TABLE IF NOT EXISTS rumble_stats (user_id INTEGER PRIMARY KEY, wins INTEGER DEFAULT 0, kills INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, pit_master_count INTEGER DEFAULT 0)""")
+            # PERSISTENCE: Ensure Packs and Rumble tables exist
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS dungeon_inventory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    item_name TEXT,
+                    rarity TEXT,
+                    atk INTEGER,
+                    def INTEGER,
+                    spd INTEGER,
+                    is_equipped INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rumble_stats (
+                    user_id INTEGER PRIMARY KEY,
+                    wins INTEGER DEFAULT 0,
+                    kills INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    pit_master_count INTEGER DEFAULT 0
+                )
+            """)
             row = conn.execute("SELECT value FROM config WHERE key = 'audit_channel'").fetchone()
             if row:
                 global AUDIT_CHANNEL_ID
@@ -670,7 +692,7 @@ async def on_ready():
     except Exception as e:
         print(f"Audit restoration fail: {e}")
 
-    # Set up references for cogs
+    # Set up references for cogs (FIX for Ship and Shop compatibility)
     bot.get_db_connection = get_db_connection
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
@@ -707,8 +729,31 @@ async def on_ready():
 
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
-    
-    # Recovery for persistent UI
+
+    # --- 6. REACTION ROLE PERSISTENCE RECOVERY ---
+    try:
+        with get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
+            rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
+            mappings = {}
+            for row in rows:
+                m_id = row['message_id']
+                if m_id not in mappings: mappings[m_id] = {}
+                mappings[m_id][row['emoji']] = row['role_id']
+            
+            try:
+                from reactionrole import ReactionRoleView, DesignerLobby
+                bot.add_view(DesignerLobby())
+                for m_id, data in mappings.items():
+                    bot.add_view(ReactionRoleView(data), message_id=m_id)
+            except Exception as e:
+                print(f"⚠️ LOG: Reaction Role recovery bypassed (Broken View): {e}")
+                
+        print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
+    except Exception as e:
+        print(f"RR Recovery fail: {e}")
+
+    # --- 7. PERSISTENT VIEWS FOR OTHER COGS ---
     try:
         from ask import InitialView, RecipientView, PlayView
         bot.add_view(InitialView(None, None, None))
@@ -763,9 +808,9 @@ async def on_message(message):
                     has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
                     is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
                     if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
-                        denied_emb = fiery_embed("🚫 ACCESS DENIED", f"Neural link signature rejected.\nRequired: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
+                        denied_emb = fiery_embed("🚫 ACCESS DENIED", f"Neural link signature rejected for {message.author.mention}.\nRequired: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
                         await message.reply(embed=denied_emb)
-            except: pass
+            except Exception: pass
 
 async def main_thread_fix():
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
