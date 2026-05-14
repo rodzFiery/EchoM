@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -296,6 +295,7 @@ async def me(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
     
+    # Initialize variables to avoid UnboundLocalError
     wins_rank = "?"
     kills_rank = "?"
     duel_rank = "?"
@@ -483,6 +483,20 @@ async def streaks(ctx):
     await social_module.handle_streaks_command(ctx, get_db_connection, get_user, fiery_embed)
 # --- GLOBAL STREAK LEADERBOARD COMMAND END ---
 
+# ===== 🛒 BLACK MARKET & LEGACY MUSEUM ADDITIONS =====
+
+@bot.command()
+async def buytitle(ctx, *, title_choice: str = None):
+    """Market purchase command for prestige titles."""
+    shop = bot.get_cog("ShopSystem")
+    if not shop:
+        embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
+    pass
+
+# FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
+
 @bot.command()
 async def favor(ctx):
     """Bribe the Master to force Peak Heat."""
@@ -509,14 +523,18 @@ async def favor(ctx):
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
+# ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
+
 # ===== 9. SYSTEM INTEGRATION =====
 
+# EMERGENCY RAILWAY DEBUG COMMAND
 @bot.command()
 async def ping(ctx):
     embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
+# --- STREAK GUARDIAN PROTOCOL START ---
 @bot.command()
 async def togglealerts(ctx):
     """Toggles whether you receive public pings from the Streak Guardian."""
@@ -550,68 +568,351 @@ async def streak_guardian():
             if u['last_daily'] and u['daily_streak'] >= 5:
                 last_d = datetime.fromisoformat(u['last_daily'])
                 if timedelta(hours=45) <= (now - last_d) < timedelta(hours=46):
-                    await channel.send(f"<@{member_id}> Daily streak alert!")
+                    await send_streak_ping(channel, member_id, "Daily", "45 hours")
+
+            # Protocol: Weekly (Ping 3h before 14-day limit)
+            if u['last_weekly'] and u['weekly_streak'] > 0:
+                last_w = datetime.fromisoformat(u['last_weekly'])
+                limit = timedelta(days=14)
+                if (limit - timedelta(hours=3)) <= (now - last_w) < (limit - timedelta(hours=2)):
+                    await send_streak_ping(channel, member_id, "Weekly", "13 days and 21 hours")
+
+            # Protocol: Monthly (Ping 3h before 60-day limit)
+            if u['last_monthly'] and u['monthly_streak'] > 0:
+                last_m = datetime.fromisoformat(u['last_monthly'])
+                limit = timedelta(days=60)
+                if (limit - timedelta(hours=3)) <= (now - last_m) < (limit - timedelta(hours=2)):
+                    await send_streak_ping(channel, member_id, "Monthly", "59 days and 21 hours")
+
+async def send_streak_ping(channel, user_id, tier, elapsed):
+    """Sends a public ping in the alert channel."""
+    embed = fiery_embed("⚠️ STREAK VIBRATION: DISCIPLINE REQUIRED", 
+                        f"Asset <@{user_id}>, your consistent submission is at risk.\n\n"
+                        f"It has been **{elapsed}** since your last **{tier} Claim. "
+                        f"In **3 hours**, your progress will be purged.\n\n"
+                        f"⛓️ **Submit your tribute now.**", color=0xFFCC00)
+    
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="alert.jpg")
+        embed.set_thumbnail(url="attachment://alert.jpg")
+        await channel.send(content=f"<@{user_id}>", file=file, embed=embed)
+    else:
+        await channel.send(content=f"<@{user_id}>", embed=embed)
+# --- STREAK GUARDIAN PROTOCOL END ---
 
 @bot.event
 async def on_ready():
     print("--- STARTING SYSTEM INITIALIZATION ---")
+    
+    # --- 1. LOAD CONFIG FIRST (Critical for Audit Sync) ---
     load_game_config()
     
-    # Set up references
+    # --- 2. AUDIT PERSISTENCE RETRIEVAL ---
+    try:
+        with get_db_connection() as conn:
+            # Garante que a tabela config existe
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+            # PERSISTENCE: Ensure Packs and Rumble tables exist
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS dungeon_inventory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    item_name TEXT,
+                    rarity TEXT,
+                    atk INTEGER,
+                    def INTEGER,
+                    spd INTEGER,
+                    is_equipped INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS rumble_stats (
+                    user_id INTEGER PRIMARY KEY,
+                    wins INTEGER DEFAULT 0,
+                    kills INTEGER DEFAULT 0,
+                    losses INTEGER DEFAULT 0,
+                    pit_master_count INTEGER DEFAULT 0
+                )
+            """)
+            row = conn.execute("SELECT value FROM config WHERE key = 'audit_channel'").fetchone()
+            if row:
+                global AUDIT_CHANNEL_ID
+                AUDIT_CHANNEL_ID = int(row['value'])
+                print(f"🕵️ PERSISTENCE: Audit Channel restored to {AUDIT_CHANNEL_ID}")
+    except Exception as e:
+        print(f"Audit restoration fail: {e}")
+
+    # Set up references for cogs (FIX for Ship and Shop compatibility)
     bot.get_db_connection = get_db_connection
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
 
-    # Load Core Cogs
+    # --- 3. INJECT UPDATED AUDIT ID INTO COGS ---
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
+    # NEW: Carga EngineControl para habilitar !echostart e !lobby que estão no ignis.py
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
     
-    # Start tasks
+    # Start the Guardian Task
     if not streak_guardian.is_running():
         streak_guardian.start()
+
+    # Start the Top.gg Poster Task
     if not topgg_poster.is_running():
         topgg_poster.start()
     
-    # Load Extensions
-    extensions = [
-        "admin", "classes", "extensions", "ship", "shop", "collect", 
-        "fight", "casino", "ask", "premium", "audit", "thread", 
-        "levels", "react", "counting", "guessnumber", "confession", 
-        "reactionrole", "autoignis", "helper", "cards", "packs", "emoji", "win"
-    ]
-    for ext in extensions:
+    # FIXED: Re-registering with correct positional arguments for current class signature
+    from ignis import LobbyView
+    from autoignis import AutoLobbyView
+    bot.add_view(LobbyView(None, 0)) # Manual Template
+    bot.add_view(AutoLobbyView())     # Automated Template
+
+    # --- REACTION ROLE PERSISTENCE RECOVERY ---
+    try:
+        with get_db_connection() as conn:
+            # FIXED: Creation check added to solve 'no such table' error in logs
+            conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
+            rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
+            mappings = {}
+            for row in rows:
+                m_id = row['message_id']
+                if m_id not in mappings: mappings[m_id] = {}
+                mappings[m_id][row['emoji']] = row['role_id']
+            
+            # STARTUP SHIELD: Prevent import/view failure from blocking boot
+            try:
+                from reactionrole import ReactionRoleView, DesignerLobby
+                bot.add_view(DesignerLobby())
+                for m_id, data in mappings.items():
+                    bot.add_view(ReactionRoleView(data), message_id=m_id)
+            except Exception as e:
+                print(f"⚠️ LOG: Reaction Role recovery bypassed (Broken View): {e}")
+                
+        print(f"📊 PERSISTENCE: {len(mappings)} Reaction Role protocols synchronized.")
+    except Exception as e:
+        print(f"RR Recovery fail: {e}")
+
+    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
+    try: 
+        if not bot.get_cog("AdminSystem"):
+            await bot.load_extension("admin")
+            print("✅ LOG: Admin System is ONLINE.")
+    except Exception as e: print(f"Admin fail: {e}")
+
+    try: 
+        if not bot.get_cog("ClassSystem"):
+            await bot.load_extension("classes")
+            print("✅ LOG: Class System is ONLINE.")
+    except Exception as e: print(f"Class System fail: {e}")
+
+    # INDIVIDUAL SHIELDS FOR EVERY EXTENSION
+    try:
+        if not bot.get_cog("FieryExtensions"):
+            await bot.load_extension("extensions")
+    except Exception as e: print(f"Extension fail: {e}")
+
+    try:
+        if not bot.get_cog("FieryShip"):
+            await bot.load_extension("ship")
+    except Exception as e: print(f"Ship fail: {e}")
+
+    try: await bot.load_extension("shop")
+    except Exception as e: print(f"Shop fail: {e}")
+
+    try: await bot.load_extension("collect")
+    except Exception as e: print(f"Collect fail: {e}")
+
+    try:
+        await bot.load_extension("fight")
+        print("✅ LOG: Fight System is ONLINE.")
+    except Exception as e: print(f"Fight fail: {e}")
+
+    try:
+        await bot.load_extension("casino")
+        print("✅ LOG: Casino System is ONLINE.")
+    except Exception as e: print(f"Casino fail: {e}")
+    
+    try:
+        await bot.load_extension("ask")
+        # --- FIXED: REGISTRATION FOR ASK PERSISTENT VIEWS ---
         try:
-            await bot.load_extension(ext)
-            print(f"✅ Loaded: {ext}")
-        except Exception as e:
-            print(f"❌ Failed {ext}: {e}")
+            from ask import InitialView, RecipientView, PlayView
+            bot.add_view(InitialView(None, None, None))
+            bot.add_view(RecipientView(None, None))
+            bot.add_view(PlayView(None, None))
+        except ImportError: pass
+        print("✅ LOG: Ask System (Persistent) is ONLINE.")
+    except Exception as e: print(f"Ask fail: {e}")
+
+    try:
+        await bot.load_extension("premium")
+        print("✅ LOG: Premium System is ONLINE.")
+    except Exception as e: print(f"Premium fail: {e}")
+
+    try:
+        if not bot.get_cog("AuditManager"):
+            await bot.load_extension("audit")
+            print("✅ LOG: Audit Manager is ONLINE.")
+    except Exception as e: print(f"Audit fail: {e}")
+
+    try:
+        await bot.load_extension("thread")
+        print("✅ LOG: Thread System is ONLINE.")
+    except Exception as e: print(f"Thread fail: {e}")
+
+    try:
+        await bot.load_extension("levels")
+        print("✅ LOG: Text Level System is ONLINE.")
+    except Exception as e: print(f"Levels fail: {e}")
+
+    try:
+        if not bot.get_cog("AutoReact"):
+            await bot.load_extension("react")
+            print("✅ LOG: Auto-React System is ONLINE.")
+    except Exception as e: print(f"React fail: {e}")
+
+    try:
+        if not bot.get_cog("Counting"):
+            await bot.load_extension("counting")
+            print("✅ LOG: Counting System is ONLINE.")
+    except Exception as e: print(f"Counting fail: {e}")
+
+    try:
+        if not bot.get_cog("GuessNumber"):
+            await bot.load_extension("guessnumber")
+            print("✅ LOG: Guess Number System is ONLINE.")
+    except Exception as e: print(f"GuessNumber fail: {e}")
+
+    try:
+        if not bot.get_cog("ConfessionSystem"):
+            await bot.load_extension("confession")
+            from confession import ConfessionSubmissionView
+            conf_cog = bot.get_cog("ConfessionSystem")
+            if conf_cog:
+                main_mod = sys.modules['__main__']
+                bot.add_view(ConfessionSubmissionView(main_mod, bot, conf_cog.review_channel_id))
+            print("✅ LOG: Confession System is ONLINE.")
+    except Exception as e: print(f"Confession fail: {e}")
+
+    try:
+        await bot.load_extension("reactionrole")
+        print("✅ LOG: Reaction Role System is ONLINE.")
+    except Exception as e: print(f"RR System fail: {e}")
+    
+    try:
+        await bot.load_extension("autoignis")
+        print("✅ LOG: Automated Ignis is ONLINE.")
+    except Exception as e: print(f"AutoIgnis fail: {e}")
+
+    try:
+        if not bot.get_cog("HelperSystem"):
+            await bot.load_extension("helper")
+            print("✅ LOG: Helper System (Refresh Protocol) is ONLINE.")
+    except Exception as e: print(f"Helper fail: {e}")
+
+    try:
+        if not bot.get_cog("CardSystem"):
+            await bot.load_extension("cards")
+            print("✅ LOG: Card System is ONLINE.")
+    except Exception as e: print(f"Card System fail: {e}")
+
+    try:
+        if not bot.get_cog("DungeonPacks"):
+            await bot.load_extension("packs")
+            print("✅ LOG: Dungeon Packs & Rumble System is ONLINE.")
+    except Exception as e: print(f"Packs fail: {e}")
+
+    try:
+        if not bot.get_cog("EmojiSystem"):
+            await bot.load_extension("emoji")
+            print("✅ LOG: Emoji Extraction System is ONLINE.")
+    except Exception as e: print(f"Emoji fail: {e}")
+    
+    try:
+        if not bot.get_cog("WinSystem"):
+            await bot.load_extension("win")
+            print("✅ LOG: High-Yield Extraction (win.py) is ONLINE.")
+    except Exception as e: print(f"Win System fail: {e}")
+
+    # --- ADDED: LOADER FOR MATH (COUNTING GAME) ---
+    try:
+        await bot.load_extension("utilis")
+        print("✅ LOG: Math Protocol is ONLINE.")
+    except Exception as e: print(f"Math fail: {e}")
 
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
 
 @bot.event
+async def on_command_error(ctx, error):
+    # This will print to your Railway/Console log why a command failed
+    print(f"⚠️ [COMMAND ERROR] {ctx.command} failed: {error}")
+    await ctx.send(f"❌ **System Error:** {error}")
+
+@bot.command()
+async def test(ctx):
+    """Emergency System Verification"""
+    await ctx.send("✅ **System Link Established.** The bot is hearing commands.")
+
+@bot.event
 async def on_message(message):
     if message.author.bot: 
         return
+
+    # Process all commands first
     await bot.process_commands(message)
 
-# --- REBUILT ASYNC MAIN ENTRY ---
-async def start_up_fiery():
-    # Start the web server on a side road so it doesn't block the highway
+    # RESTORATION POINT: Handle security logic for Cogs AFTER command processing attempt
+    ctx = await bot.get_context(message)
+    
+    if ctx.valid and ctx.command:
+        # Check if the command is NOT in the main bot (meaning it is in a Cog)
+        if ctx.command.cog is not None:
+            try:
+                command_cog = ctx.command.cog_name
+                admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
+                
+                if command_cog in admin_cogs:
+                    admin_roles = ["Admin", "Moderator"]
+                    
+                    # --- ADDED: IGNIS ADMIN ROLE CHECK ---
+                    ignis_admin_role_id = None
+                    with get_db_connection() as conn:
+                        row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
+                        if row: ignis_admin_role_id = row[0]
+                    
+                    # Check if user has standard roles OR the specific Ignis Admin role
+                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
+                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    
+                    # Skip denial if they have the ignis role, standard staff role, or are bot owner
+                    if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
+                        denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                                 f"Neural link signature rejected for {message.author.mention}.\n"
+                                                 "Required: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
+                        await message.reply(embed=denied_emb)
+            except Exception:
+                pass
+
+async def main_thread_fix():
+    # --- WEB SERVER THREADING FIX ---
+    # Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
-    async with bot:
-        await bot.start(TOKEN)
+    try:
+        async with bot: 
+            await bot.start(TOKEN)
+    except KeyboardInterrupt: pass
+    finally:
+        if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try:
-        asyncio.run(start_up_fiery())
-    except KeyboardInterrupt:
-        pass
+    try: asyncio.run(main_thread_fix())
+    except KeyboardInterrupt: pass
