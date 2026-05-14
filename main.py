@@ -116,7 +116,8 @@ init_db()
 
 # ===== 3. CORE HELPERS & AUDIT REDIRECTS =====
 async def send_audit_log(user_id, amount, source, xp=0):
-    # FIXED: Now pulls from the global AUDIT_CHANNEL_ID that audit.py updates live
+    # FIXED: Uses global keyword to ensure we use the updated ID from database
+    global AUDIT_CHANNEL_ID
     await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp)
 
 def fiery_embed(title, description, color=0xFF4500):
@@ -597,7 +598,10 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
 async def on_ready():
     print("--- STARTING SYSTEM INITIALIZATION ---")
     
-    # --- AUDIT PERSISTENCE RETRIEVAL ---
+    # --- 1. LOAD CONFIG FIRST (Critical for Audit Sync) ---
+    load_game_config()
+    
+    # --- 2. AUDIT PERSISTENCE RETRIEVAL ---
     try:
         with get_db_connection() as conn:
             # Garante que a tabela config existe
@@ -637,6 +641,7 @@ async def on_ready():
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
 
+    # --- 3. INJECT UPDATED AUDIT ID INTO COGS ---
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
@@ -646,8 +651,6 @@ async def on_ready():
 
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
-    
-    load_game_config()
     
     # Start the Guardian Task
     if not streak_guardian.is_running():
