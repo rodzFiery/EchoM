@@ -99,7 +99,7 @@ def load_game_config():
 def init_db():
     # FIXED: Initialize via db_module
     db_module.init_db()
-    # ADDED: Ensure the relationships table used by shop/ship is initialized centrally
+    # ADDED: Ensure all required tables and columns exist
     with get_db_connection() as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS relationships (
                 user_one INTEGER,
@@ -109,14 +109,22 @@ def init_db():
                 passive_income REAL DEFAULT 0.0,
                 PRIMARY KEY (user_one, user_two)
             )""")
-        # ADDED: Fix for OperationalError: no such table: card_mastery
+        
+        # CREATE TABLE FIRST
         conn.execute("""CREATE TABLE IF NOT EXISTS card_mastery (
                 user_id INTEGER PRIMARY KEY,
                 mastery_level INTEGER DEFAULT 1,
                 mastery_xp INTEGER DEFAULT 0,
                 cards_collected INTEGER DEFAULT 0
             )""")
-        # ADDED: Ensure ignis_settings exists for on_message check
+        
+        # SCHEMA MIGRATION: Check for mastery_key column
+        cursor = conn.execute("PRAGMA table_info(card_mastery)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'mastery_key' not in columns:
+            conn.execute("ALTER TABLE card_mastery ADD COLUMN mastery_key TEXT DEFAULT 'None'")
+            print("🛠️ DATABASE: Added missing 'mastery_key' column to card_mastery.")
+
         conn.execute("""CREATE TABLE IF NOT EXISTS ignis_settings (
                 guild_id INTEGER PRIMARY KEY,
                 role_id INTEGER
