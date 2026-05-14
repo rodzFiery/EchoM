@@ -232,8 +232,7 @@ class EngineControl(commands.Cog):
         
         view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
         
-        # --- ADDED: Persistent View Registration ---
-        # This tells the bot to keep listening for these buttons even after a restart
+        # --- FIXED: Direct Persistent View Registration ---
         self.bot.add_view(view)
 
         if engine: 
