@@ -194,7 +194,8 @@ def run_web_server():
     # O Railway usa a porta 8080 por padrão para Networking Público
     port = int(os.environ.get("PORT", 8080))
     try:
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        # FIXED: Added threaded=True to prevent Flask from blocking the Discord bot start
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
     except OSError:
         # FIXED: Prevent crash if port is already bound by another module
         print(f"⚠️ Port {port} already in use. Web server is likely already running.")
@@ -206,6 +207,10 @@ def run_web_server():
 async def topgg_poster():
     """Automatically posts server count to Top.gg every 30 minutes."""
     if not TOPGG_TOKEN:
+        return
+
+    # Safety check for bot.user availability during startup
+    if not bot.user:
         return
 
     url = f"https://top.gg/api/bots/{bot.user.id}/stats"
@@ -285,8 +290,11 @@ async def balance(ctx, member: discord.Member = None):
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # ===== 7. UPDATED PROFILE DOSSIER COMMAND (!me) =====
 
@@ -492,8 +500,11 @@ async def buytitle(ctx, *, title_choice: str = None):
     shop = bot.get_cog("ShopSystem")
     if not shop:
         embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        else:
+            return await ctx.send(embed=embed)
     pass
 
 # FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
@@ -507,13 +518,19 @@ async def favor(ctx):
     
     if user['balance'] < cost:
         embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        else:
+            return await ctx.send(embed=embed)
     
     if not ext:
         embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        else:
+            return await ctx.send(embed=embed)
 
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (cost, ctx.author.id))
@@ -521,8 +538,11 @@ async def favor(ctx):
     
     await ext.activate_peak_heat(ctx)
     embed = fiery_embed("MASTER'S FAVOR", f"🔥 <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
 
@@ -532,8 +552,11 @@ async def favor(ctx):
 @bot.command()
 async def ping(ctx):
     embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # --- STREAK GUARDIAL PROTOCOL START ---
 @bot.command()
@@ -548,8 +571,11 @@ async def togglealerts(ctx):
     
     status_text = "ENABLED" if new_status == 1 else "DISABLED"
     embed = fiery_embed("ALERT PROTOCOL UPDATED", f"Public Guardian pings for your soul are now **{status_text}**.")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 @tasks.loop(hours=1)
 async def streak_guardian():
@@ -887,9 +913,11 @@ async def on_message(message):
                         row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
                         if row: ignis_admin_role_id = row[0]
                     
+                    # FIXED: Added getattr to handle cases where author roles aren't cached yet
+                    author_roles = getattr(message.author, 'roles', [])
                     # Check if user has standard roles OR the specific Ignis Admin role
-                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
-                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    has_ignis_role = any(role.id == ignis_admin_role_id for role in author_roles)
+                    is_staff = any(role.name in admin_roles for role in author_roles)
                     
                     # Skip denial if they have the ignis role, standard staff role, or are bot owner
                     if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
