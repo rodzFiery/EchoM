@@ -39,6 +39,21 @@ class Collect(commands.Cog):
         
         self.hourly_log = {} 
         self.reaction_buffer = {} 
+        
+        # --- NEW: INITIALIZE TABLES AND SYNC HANDCODED CHANNELS ---
+        with self.get_db_connection() as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS collect_channels (
+                            channel_id INTEGER PRIMARY KEY, 
+                            guild_id INTEGER, 
+                            xp_rate INTEGER, 
+                            flame_rate INTEGER)""")
+            
+            # Auto-sync handcoded channels to DB (using hardcoded primary guild ID)
+            main_guild_id = 1131610405102432296 
+            for cid, (xp, fl) in SELFIE_CHANNELS.items():
+                conn.execute("INSERT OR IGNORE INTO collect_channels VALUES (?, ?, ?, ?)", (cid, main_guild_id, xp, fl))
+            conn.commit()
+
         self.audit_task.start()
         self.vibration_report_task.start()
 
@@ -54,6 +69,25 @@ class Collect(commands.Cog):
         except:
             pass
         return DEFAULT_AUDIT_CHANNEL_ID
+
+    @commands.command(name="collectadmin")
+    @commands.has_permissions(administrator=True)
+    async def set_collect_channel(self, ctx, channel: discord.TextChannel):
+        """Admin command to establish a new collection stage for this server."""
+        xp_reward = 20000
+        flame_reward = 50000
+        
+        with self.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO collect_channels (channel_id, guild_id, xp_rate, flame_rate) VALUES (?, ?, ?, ?)",
+                         (channel.id, ctx.guild.id, xp_reward, flame_reward))
+            conn.commit()
+            
+        main_mod = sys.modules['__main__']
+        embed = main_mod.fiery_embed("🛰️ COLLECTION STAGE CALIBRATED", 
+            f"Stage {channel.mention} is now linked to the Red Room frequencies.\n\n"
+            f"**Server:** {ctx.guild.name}\n"
+            f"**Yield:** `{flame_reward}` Flames / `{xp_reward}` XP per submission.", color=0x00FF00)
+        await ctx.send(embed=embed)
 
     async def send_immediate_audit(self, guild_id, user_id, xp, flames, source_desc, channel_name=None):
         """ADDED: Sends an immediate erotic log to the audit channel for every action."""
@@ -146,9 +180,14 @@ class Collect(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-        if message.channel.id in SELFIE_CHANNELS:
+            
+        # FIXED: Look up channel settings in DB to allow independent server stages
+        with self.get_db_connection() as conn:
+            row = conn.execute("SELECT xp_rate, flame_rate FROM collect_channels WHERE channel_id = ?", (message.channel.id,)).fetchone()
+            
+        if row:
             if message.attachments:
-                xp, flames = SELFIE_CHANNELS[message.channel.id]
+                xp, flames = row[0], row[1]
                 self.update_user_stats(message.guild.id, message.author.id, xp, flames, channel_id=message.channel.id)
 
     @commands.Cog.listener()
@@ -203,7 +242,11 @@ class Collect(commands.Cog):
                     for chan_id, count in stats['pics'].items():
                         chan = self.bot.get_channel(chan_id)
                         chan_name = chan.name if chan else f"Stage {chan_id}"
-                        xp_rate, flame_rate = SELFIE_CHANNELS.get(chan_id, (0, 0))
+                        # Look up rate in DB for precise calculation
+                        with self.get_db_connection() as conn:
+                            rate = conn.execute("SELECT xp_rate, flame_rate FROM collect_channels WHERE channel_id = ?", (chan_id,)).fetchone()
+                        
+                        xp_rate, flame_rate = rate if rate else (0, 0)
                         total_f = count * flame_rate
                         total_x = count * xp_rate
                         calc_details.append(f"📸 **#{chan_name}:** `{count}` posts × ({flame_rate}F / {xp_rate}XP) = **{total_f:,}F / {total_x:,}XP**")
@@ -295,7 +338,11 @@ class Collect(commands.Cog):
                 for chan_id, count in stats['pics'].items():
                     chan = self.bot.get_channel(chan_id)
                     chan_name = chan.name if chan else f"Stage {chan_id}"
-                    xp_rate, flame_rate = SELFIE_CHANNELS.get(chan_id, (0, 0))
+                    
+                    with self.get_db_connection() as conn:
+                        rate = conn.execute("SELECT xp_rate, flame_rate FROM collect_channels WHERE channel_id = ?", (chan_id,)).fetchone()
+                    
+                    xp_rate, flame_rate = rate if rate else (0, 0)
                     total_f = count * flame_rate
                     total_x = count * xp_rate
                     calc_details.append(f"📸 **#{chan_name}:** `{count}` posts × ({flame_rate}F / {xp_rate}XP) = **{total_f:,}F / {total_x:,}XP**")
@@ -340,12 +387,13 @@ class Collect(commands.Cog):
         if not self.reaction_buffer:
             return
         
-        # FIXED: This summary needs to use the dynamic ID
-        # Since reaction_buffer doesn't store guild_id, it uses fallback logic
-        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
-        if not audit_channel:
-            try: audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
-            except: return
+        # FIXED: Summary uses dynamic ID based on the first buffered user's guild
+        first_user = next(iter(self.reaction_buffer))
+        gid = self.hourly_log.get(first_user, {}).get('guild_id', 0)
+        chan_id = await self.get_dynamic_audit_id(gid)
+        audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
+        
+        if not audit_channel: return
         
         embed = discord.Embed(
             title="🕵️ VELVET FEED: MASS REACTIONS REPORT",
