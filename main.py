@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -307,7 +306,7 @@ async def me(ctx, member: discord.Member = None):
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
         
         wins_rank = wins_row['r'] if wins_row else "?"
-        kills_rank = kills_row['r'] if kills_rank else "?"
+        kills_rank = kills_row['r'] if kills_row else "?"
         duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
 
         # Fetch Victims from duel_history
