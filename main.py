@@ -676,11 +676,8 @@ async def on_ready():
     if not topgg_poster.is_running():
         topgg_poster.start()
     
-    # FIXED: Re-registering with correct positional arguments for current class signature
-    from ignis import LobbyView
-    from autoignis import AutoLobbyView
-    bot.add_view(LobbyView(None, 0)) # Manual Template
-    bot.add_view(AutoLobbyView())     # Automated Template
+    # FIXED: Handled exclusively inside setup_hook and ignis.py to prevent "Interaction Failed"
+    # Manual add_view here was conflicting with persistent guild_id requirements.
 
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
@@ -769,7 +766,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis"
+        "emoji", "win", "utilis", "ignis"
     ]
     for e in exts:
         try:
