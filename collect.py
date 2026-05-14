@@ -58,8 +58,16 @@ class Collect(commands.Cog):
         
         main_mod = sys.modules['__main__']
         
-        # ADDED: Reward admin with 25k XP and 50k Flames for calibration
-        await main_mod.update_user_stats_async(ctx.author.id, xp=25000, flames=50000, source="Collection Stage Calibration")
+        # FIXED: Separation of rewards to prevent TypeError with update_user_stats_async
+        try:
+            # Grant Flames to Admin
+            await main_mod.update_user_stats_async(ctx.author.id, amount=50000, source="Calibration Bounty")
+            # Grant XP to Admin manually via DB
+            with self.get_db_connection() as conn:
+                conn.execute("UPDATE users SET xp = xp + ? WHERE id = ?", (25000, ctx.author.id))
+                conn.commit()
+        except Exception as e:
+            print(f"Bounty Error: {e}")
         
         embed = main_mod.fiery_embed("🛰️ COLLECTION STAGE INITIALIZED", 
             f"The Master has added {channel.mention} to the voyeur network.\n\n"
@@ -173,6 +181,7 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return
 
+        # Separate logs by guild
         guild_groups = {}
         for uid, stats in self.hourly_log.items():
             gid = stats['guild_id']
@@ -180,6 +189,7 @@ class Collect(commands.Cog):
             guild_groups[gid][uid] = stats
 
         for guild_id, logs in guild_groups.items():
+            # SYNC: Pull the audit channel from audit.py configuration
             audit_channel = await self.sync_audit_channel(guild_id)
             if not audit_channel: continue
 
@@ -243,9 +253,9 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return await ctx.send("The sensors are clear. No new activity to report in the ledger.")
         
-        chan_id = await self.sync_audit_channel(ctx.guild.id)
-        if not chan_id: return
-        audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
+        # SYNC: Dynamically find where audit.py says to post
+        audit_channel = await self.sync_audit_channel(ctx.guild.id)
+        if not audit_channel: return
 
         image_path = "LobbyTopRight.jpg"
         file = None
@@ -275,9 +285,9 @@ class Collect(commands.Cog):
             guild_vibe_groups[gid].append((uid, data['count']))
 
         for guild_id, reactions in guild_vibe_groups.items():
-            chan_id = await self.sync_audit_channel(guild_id)
-            if not chan_id: continue
-            audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
+            # SYNC: Pull the audit channel from audit.py configuration
+            audit_channel = await self.sync_audit_channel(guild_id)
+            if not audit_channel: continue
             
             embed = discord.Embed(title="🕵️ VELVET FEED: MASS REACTIONS REPORT", description="Reaction display report follows.", color=0x800080, timestamp=datetime.now(timezone.utc))
             image_path = "LobbyTopRight.jpg"
