@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone, time
 import database as db_module
 DATABASE_PATH = db_module.DATABASE_PATH
 
-# Configuration (This acts as the default if not changed by !audit)
-DEFAULT_AUDIT_CHANNEL_ID = 1498445812823490580
+# Configuration (Initial fallback)
+DEFAULT_AUDIT_CHANNEL_ID = 1438810509322223677
 
 # Channel Mapping: ChannelID -> (XP, Flames)
 SELFIE_CHANNELS = {
@@ -45,15 +45,24 @@ class Collect(commands.Cog):
     def get_db_connection(self):
         return db_module.get_db_connection()
 
-    async def send_immediate_audit(self, user_id, xp, flames, source_desc, channel_name=None):
+    async def get_dynamic_audit_id(self, guild_id):
+        """FIX: Pulls the channel set by !audit from the database."""
+        try:
+            with self.get_db_connection() as conn:
+                row = conn.execute("SELECT value FROM guild_config WHERE guild_id = ? AND key = 'audit_channel'", (guild_id,)).fetchone()
+                if row: return int(row[0])
+        except:
+            pass
+        return DEFAULT_AUDIT_CHANNEL_ID
+
+    async def send_immediate_audit(self, guild_id, user_id, xp, flames, source_desc, channel_name=None):
         """ADDED: Sends an immediate erotic log to the audit channel for every action."""
-        # FIXED: Pulling dynamically from self so !audit changes work instantly
-        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
+        # FIXED: Fetching dynamic ID from database
+        chan_id = await self.get_dynamic_audit_id(guild_id)
+        audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
+        
         if not audit_channel:
-            try:
-                audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
-            except:
-                return
+            return
         
         user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
         
@@ -85,7 +94,7 @@ class Collect(commands.Cog):
         else:
             await audit_channel.send(embed=embed)
 
-    def update_user_stats(self, user_id, xp, flames, channel_id=None, is_reaction=False, is_fight=False, hg_kill=0, hg_fb=False, hg_play=False, hg_rank=0, badge=None, ship_partner=None):
+    def update_user_stats(self, guild_id, user_id, xp, flames, channel_id=None, is_reaction=False, is_fight=False, hg_kill=0, hg_fb=False, hg_play=False, hg_rank=0, badge=None, ship_partner=None):
         with self.get_db_connection() as conn:
             conn.execute(
                 "UPDATE users SET xp = xp + ?, balance = balance + ? WHERE id = ?",
@@ -94,7 +103,7 @@ class Collect(commands.Cog):
             conn.commit()
         
         if user_id not in self.hourly_log:
-            self.hourly_log[user_id] = {'xp': 0, 'flames': 0, 'pics': {}, 'reactions': 0, 'fights': 0, 'hg_kills': 0, 'hg_first_bloods': 0, 'hg_plays': 0, 'hg_top1': 0, 'hg_top2': 0, 'hg_top3': 0, 'hg_top4': 0, 'hg_top5': 0, 'badges': [], 'ships': []}
+            self.hourly_log[user_id] = {'guild_id': guild_id, 'xp': 0, 'flames': 0, 'pics': {}, 'reactions': 0, 'fights': 0, 'hg_kills': 0, 'hg_first_bloods': 0, 'hg_plays': 0, 'hg_top1': 0, 'hg_top2': 0, 'hg_top3': 0, 'hg_top4': 0, 'hg_top5': 0, 'badges': [], 'ships': []}
         
         self.hourly_log[user_id]['xp'] += xp
         self.hourly_log[user_id]['flames'] += flames
@@ -124,22 +133,22 @@ class Collect(commands.Cog):
             
             chan = self.bot.get_channel(channel_id)
             c_name = chan.name if chan else str(channel_id)
-            asyncio.create_task(self.send_immediate_audit(user_id, xp, flames, "Exhibition (Capture)", c_name))
+            asyncio.create_task(self.send_immediate_audit(guild_id, user_id, xp, flames, "Exhibition (Capture)", c_name))
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
         if message.channel.id in SELFIE_CHANNELS:
             if message.attachments:
                 xp, flames = SELFIE_CHANNELS[message.channel.id]
-                self.update_user_stats(message.author.id, xp, flames, channel_id=message.channel.id)
+                self.update_user_stats(message.guild.id, message.author.id, xp, flames, channel_id=message.channel.id)
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
-        if payload.user_id == self.bot.user.id:
+        if payload.user_id == self.bot.user.id or not payload.guild_id:
             return
-        self.update_user_stats(payload.user_id, 25, 25, is_reaction=True)
+        self.update_user_stats(payload.guild_id, payload.user_id, 25, 25, is_reaction=True)
 
     @tasks.loop(time=[time(hour=21, minute=0, second=0)])
     async def audit_task(self):
@@ -147,89 +156,93 @@ class Collect(commands.Cog):
         if not self.hourly_log:
             return
 
-        # FIXED: Pulling dynamically from self for !audit support
-        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
-        if not audit_channel:
-            try:
-                audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
-            except:
-                return
+        # FIXED: Multi-guild summary logic
+        guild_groups = {}
+        for uid, stats in self.hourly_log.items():
+            gid = stats['guild_id']
+            if gid not in guild_groups: guild_groups[gid] = {}
+            guild_groups[gid][uid] = stats
 
-        image_path = "LobbyTopRight.jpg"
-        file = None
-        
-        embed = discord.Embed(
-            title="🌅 THE MASTER'S DAILY CLIMAX: 09:00 PM 🌅",
-            description="The sun sets over the dungeon. The daily ledger is finalized. Every groan, every fight, and every display of skin has been calculated.",
-            color=0x8b0000, 
-            timestamp=datetime.now(timezone.utc)
-        )
+        for guild_id, logs in guild_groups.items():
+            chan_id = await self.get_dynamic_audit_id(guild_id)
+            audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
+            if not audit_channel: continue
 
-        if os.path.exists(image_path):
-            file = discord.File(image_path, filename="harvest.jpg")
-            embed.set_thumbnail(url="attachment://harvest.jpg")
-
-        ping_list = []
-        for user_id, stats in self.hourly_log.items():
-            user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            user_mention = user.mention if user else f"Subject {user_id}"
-            ping_list.append(user_mention)
+            image_path = "LobbyTopRight.jpg"
+            file = None
             
-            calc_details = []
-            if stats.get('reactions', 0) > 0:
-                calc_details.append(f"🫦 **Reactions:** `{stats['reactions']}` × (25F / 25XP) = **{stats['reactions']*25:,}**")
-            
-            if stats.get('pics'):
-                for chan_id, count in stats['pics'].items():
-                    chan = self.bot.get_channel(chan_id)
-                    chan_name = chan.name if chan else f"Stage {chan_id}"
-                    xp_rate, flame_rate = SELFIE_CHANNELS.get(chan_id, (0, 0))
-                    total_f = count * flame_rate
-                    total_x = count * xp_rate
-                    calc_details.append(f"📸 **#{chan_name}:** `{count}` posts × ({flame_rate}F / {xp_rate}XP) = **{total_f:,}F / {total_x:,}XP**")
-
-            calculation_resume = "\n".join(calc_details) if calc_details else "_No passive extraction detected._"
-            game_report = ""
-            if stats.get('fights', 0) > 0:
-                game_report += f"\n⚔️ **1v1 Fights Initiated:** {stats['fights']}"
-            
-            if stats.get('hg_plays', 0) > 0:
-                placements = []
-                if stats.get('hg_top1', 0) > 0: placements.append(f"🥇x{stats['hg_top1']}")
-                if stats.get('hg_top2', 0) > 0: placements.append(f"🥈x{stats['hg_top2']}")
-                if stats.get('hg_top3', 0) > 0: placements.append(f"🥉x{stats['hg_top3']}")
-                if stats.get('hg_top4', 0) > 0: placements.append(f"🏅x{stats['hg_top4']} (4th)")
-                if stats.get('hg_top5', 0) > 0: placements.append(f"🎖️x{stats['hg_top5']} (5th)")
-                placement_str = " | ".join(placements) if placements else "No Top 5 finishes"
-
-                game_report += f"\n🏹 **Hunger Games:** {stats['hg_plays']} Plays | 💀 {stats['hg_kills']} Kills"
-                if stats.get('hg_first_bloods', 0) > 0:
-                    game_report += f" | 🩸 **FB:** {stats['hg_first_bloods']}"
-                game_report += f"\n🏆 **Placements:** {placement_str}"
-            
-            status_report = ""
-            if stats.get('ships'):
-                status_report += f"\n💖 **High-Lust Ships (75%+):** {', '.join(stats['ships'])}"
-            if stats.get('badges'):
-                status_report += f"\n🏅 **Achievements/Tiers:** {', '.join(stats['badges'])}"
-
-            value = (
-                f"💰 **Total Extracted Flames:** `{stats['flames']:,}`\n"
-                f"⛓️ **Total Obedience XP Won:** `+{stats['xp']:,}`\n"
-                f"📊 **Extraction Breakdown:**\n{calculation_resume}\n"
-                f"━━━━━━━━━━━━━━"
-                f"{game_report}"
-                f"{status_report}\n\n"
-                f"*The Master has confirmed your daily extraction value.*"
+            embed = discord.Embed(
+                title="🌅 THE MASTER'S DAILY CLIMAX: 09:00 PM 🌅",
+                description="The sun sets over the dungeon. The daily ledger is finalized. Every groan, every fight, and every display of skin has been calculated.",
+                color=0x8b0000, 
+                timestamp=datetime.now(timezone.utc)
             )
-            embed.add_field(name=f"👤 {user.name.upper() if user else 'Unknown Asset'}", value=value, inline=False)
 
-        embed.set_footer(text="🔞 THE DAILY LEDGER IS SEALED 🔞")
-        content = "⛓️ **DAILY HARVEST PINGS:** " + ", ".join(ping_list)
-        if file:
-            await audit_channel.send(content=content, embed=embed, file=file)
-        else:
-            await audit_channel.send(content=content, embed=embed)
+            if os.path.exists(image_path):
+                file = discord.File(image_path, filename="harvest.jpg")
+                embed.set_thumbnail(url="attachment://harvest.jpg")
+
+            ping_list = []
+            for user_id, stats in logs.items():
+                user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+                user_mention = user.mention if user else f"Subject {user_id}"
+                ping_list.append(user_mention)
+                
+                calc_details = []
+                if stats.get('reactions', 0) > 0:
+                    calc_details.append(f"🫦 **Reactions:** `{stats['reactions']}` × (25F / 25XP) = **{stats['reactions']*25:,}**")
+                
+                if stats.get('pics'):
+                    for chan_id, count in stats['pics'].items():
+                        chan = self.bot.get_channel(chan_id)
+                        chan_name = chan.name if chan else f"Stage {chan_id}"
+                        xp_rate, flame_rate = SELFIE_CHANNELS.get(chan_id, (0, 0))
+                        total_f = count * flame_rate
+                        total_x = count * xp_rate
+                        calc_details.append(f"📸 **#{chan_name}:** `{count}` posts × ({flame_rate}F / {xp_rate}XP) = **{total_f:,}F / {total_x:,}XP**")
+
+                calculation_resume = "\n".join(calc_details) if calc_details else "_No passive extraction detected._"
+                game_report = ""
+                if stats.get('fights', 0) > 0:
+                    game_report += f"\n⚔️ **1v1 Fights Initiated:** {stats['fights']}"
+                
+                if stats.get('hg_plays', 0) > 0:
+                    placements = []
+                    if stats.get('hg_top1', 0) > 0: placements.append(f"🥇x{stats['hg_top1']}")
+                    if stats.get('hg_top2', 0) > 0: placements.append(f"🥈x{stats['hg_top2']}")
+                    if stats.get('hg_top3', 0) > 0: placements.append(f"🥉x{stats['hg_top3']}")
+                    if stats.get('hg_top4', 0) > 0: placements.append(f"🏅x{stats['hg_top4']} (4th)")
+                    if stats.get('hg_top5', 0) > 0: placements.append(f"🎖️x{stats['hg_top5']} (5th)")
+                    placement_str = " | ".join(placements) if placements else "No Top 5 finishes"
+
+                    game_report += f"\n🏹 **Hunger Games:** {stats['hg_plays']} Plays | 💀 {stats['hg_kills']} Kills"
+                    if stats.get('hg_first_bloods', 0) > 0:
+                        game_report += f" | 🩸 **FB:** {stats['hg_first_bloods']}"
+                    game_report += f"\n🏆 **Placements:** {placement_str}"
+                
+                status_report = ""
+                if stats.get('ships'):
+                    status_report += f"\n💖 **High-Lust Ships (75%+):** {', '.join(stats['ships'])}"
+                if stats.get('badges'):
+                    status_report += f"\n🏅 **Achievements/Tiers:** {', '.join(stats['badges'])}"
+
+                value = (
+                    f"💰 **Total Extracted Flames:** `{stats['flames']:,}`\n"
+                    f"⛓️ **Total Obedience XP Won:** `+{stats['xp']:,}`\n"
+                    f"📊 **Extraction Breakdown:**\n{calculation_resume}\n"
+                    f"━━━━━━━━━━━━━━"
+                    f"{game_report}"
+                    f"{status_report}\n\n"
+                    f"*The Master has confirmed your daily extraction value.*"
+                )
+                embed.add_field(name=f"👤 {user.name.upper() if user else 'Unknown Asset'}", value=value, inline=False)
+
+            embed.set_footer(text="🔞 THE DAILY LEDGER IS SEALED 🔞")
+            content = "⛓️ **DAILY HARVEST PINGS:** " + ", ".join(ping_list)
+            if file:
+                await audit_channel.send(content=content, embed=embed, file=file)
+            else:
+                await audit_channel.send(content=content, embed=embed)
         
         self.hourly_log.clear()
 
@@ -242,11 +255,11 @@ class Collect(commands.Cog):
         
         await ctx.send("Master detected. Generating immediate synchronization report...")
         
-        # FIXED: Pulling dynamically from self for !audit support
-        audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
+        # FIXED: Pulling dynamic ID from database
+        chan_id = await self.get_dynamic_audit_id(ctx.guild.id)
+        audit_channel = self.bot.get_channel(chan_id) or await self.bot.fetch_channel(chan_id)
         if not audit_channel:
-            try: audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
-            except: return
+            return
 
         image_path = "LobbyTopRight.jpg"
         file = None
@@ -262,6 +275,7 @@ class Collect(commands.Cog):
 
         ping_list = []
         for user_id, stats in self.hourly_log.items():
+            if stats['guild_id'] != ctx.guild.id: continue
             user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
             user_mention = user.mention if user else f"Subject {user_id}"
             ping_list.append(user_mention)
@@ -319,7 +333,8 @@ class Collect(commands.Cog):
         if not self.reaction_buffer:
             return
         
-        # FIXED: Pulling dynamically from self for !audit support
+        # FIXED: This summary needs to use the dynamic ID
+        # Since reaction_buffer doesn't store guild_id, it uses fallback logic
         audit_channel = self.bot.get_channel(self.AUDIT_CHANNEL_ID)
         if not audit_channel:
             try: audit_channel = await self.bot.fetch_channel(self.AUDIT_CHANNEL_ID)
