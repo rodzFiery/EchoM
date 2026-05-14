@@ -201,10 +201,6 @@ def run_web_server():
     except Exception as e:
         print(f"⚠️ Web Server bypass: {e}")
 
-# Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
-if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
-    threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
-
 # --- TOP.GG STATS POSTER PROTOCOL ---
 @tasks.loop(minutes=30)
 async def topgg_poster():
@@ -905,7 +901,12 @@ async def on_message(message):
             except Exception:
                 pass
 
-async def main():
+async def main_entry():
+    # --- WEB SERVER THREADING FIX ---
+    # Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
+    if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+        threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
+
     try:
         async with bot: 
             await bot.start(TOKEN)
@@ -914,5 +915,5 @@ async def main():
         if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try: asyncio.run(main())
+    try: asyncio.run(main_entry())
     except KeyboardInterrupt: pass
