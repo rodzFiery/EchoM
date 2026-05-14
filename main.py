@@ -535,7 +535,7 @@ async def ping(ctx):
     file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
     await ctx.send(file=file, embed=embed)
 
-# --- STREAK GUARDIAN PROTOCOL START ---
+# --- STREAK GUARDIAL PROTOCOL START ---
 @bot.command()
 async def togglealerts(ctx):
     """Toggles whether you receive public pings from the Streak Guardian."""
@@ -698,8 +698,7 @@ async def on_ready():
     except Exception as e:
         print(f"RR Recovery fail: {e}")
 
-    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
-    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
+    # Load Extensions
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
@@ -901,9 +900,9 @@ async def on_message(message):
             except Exception:
                 pass
 
-async def main_entry():
+async def main():
     # --- WEB SERVER THREADING FIX ---
-    # Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
+    # Start the web server in a background thread inside the main entry point
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
@@ -915,5 +914,5 @@ async def main_entry():
         if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try: asyncio.run(main_entry())
+    try: asyncio.run(main())
     except KeyboardInterrupt: pass
