@@ -1062,17 +1062,12 @@ class PersistentLobbyLauncher(commands.Cog):
     """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks."""
     def __init__(self, bot):
         self.bot = bot
+        # FIXED: Registration happens in the constructor to catch early events
+        self.bot.add_view(LobbyView(owner=None, edition=0))
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # We register a 'Template' of the LobbyView. 
-        # Because we used custom_id in the buttons, Discord will map clicks to this view
-        # even if it's not the exact same instance as before.
-        import sys as _sys
-        main = sys.modules['__main__']
-        # owner=None is okay because is_staff check and DB checks will handle the logic
-        self.bot.add_view(LobbyView(owner=None, edition=0))
-        print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
+        print("⛓️ Ignis Persistence Protocol: Global Lobby View Registered.")
 
 async def setup(bot):
     import sys as _sys_setup
