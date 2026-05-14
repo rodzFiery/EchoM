@@ -10,6 +10,34 @@ class EmojiSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def check_permissions(self, interaction_or_ctx):
+        """Helper to check if user is Server Owner or has the designated Admin Role."""
+        # Bot Owner always has access
+        if await self.bot.is_owner(interaction_or_ctx.user if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author):
+            return True
+            
+        guild = interaction_or_ctx.guild
+        user = interaction_or_ctx.user if isinstance(interaction_or_ctx, discord.Interaction) else interaction_or_ctx.author
+        
+        # 1. Check if user is Server Owner
+        if guild.owner_id == user.id:
+            return True
+            
+        # 2. Check Database for designated !adminrole
+        main_mod = sys.modules['__main__']
+        try:
+            with main_mod.get_db_connection() as conn:
+                # We pull from guild_config (synced with audit.py/admin.py logic)
+                res = conn.execute("SELECT value FROM guild_config WHERE guild_id = ? AND key = 'admin_role'", (guild.id,)).fetchone()
+                if res:
+                    admin_role_id = int(res[0])
+                    if any(role.id == admin_role_id for role in user.roles):
+                        return True
+        except:
+            pass
+            
+        return False
+
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         """GLOBAL LISTENER: Handles individual steals and the 'Steal All' protocol."""
@@ -20,17 +48,15 @@ class EmojiSystem(commands.Cog):
         if not custom_id.startswith("fiery_"):
             return
 
+        # NEW PERMISSION CHECK
+        if not await self.check_permissions(interaction):
+            return await interaction.response.send_message("❌ **Neural Lock:** You do not have the required clearance level.", ephemeral=True)
+
         main_mod = sys.modules['__main__']
         
-        # Security: Master Only
-        if not await self.bot.is_owner(interaction.user):
-            return await interaction.response.send_message("❌ **Neural Lock:** Access restricted to the Master.", ephemeral=True)
-
         # --- PROTOCOL: STEAL ALL ---
         if custom_id.startswith("fiery_all:"):
             await interaction.response.defer(ephemeral=True)
-            # The IDs are stored in the custom_id separated by pipes |
-            # Format: fiery_all:ID,ANIM,NAME|ID,ANIM,NAME...
             data_string = custom_id.replace("fiery_all:", "")
             emoji_list = data_string.split("|")
             
@@ -47,7 +73,7 @@ class EmojiSystem(commands.Cog):
                         async with session.get(url) as resp:
                             if resp.status == 200:
                                 img = await resp.read()
-                                await interaction.guild.create_custom_emoji(name=e_name, image=img, reason="Mass Harvest")
+                                await interaction.guild.create_custom_emoji(name=e_name, image=img, reason=f"Mass Harvest by {interaction.user}")
                                 success_count += 1
                             else:
                                 errors.append(f"Failed {e_name} (CDN Error)")
@@ -60,9 +86,6 @@ class EmojiSystem(commands.Cog):
                     continue
 
             result_msg = f"✅ **Mass Assimilation Complete.**\nSuccessfully added `{success_count}` assets."
-            if errors:
-                result_msg += f"\n⚠️ **Notes:** {errors[0]}"
-            
             return await interaction.followup.send(embed=main_mod.fiery_embed("🛰️ MASS HARVEST RESULT", result_msg), ephemeral=True)
 
         # --- PROTOCOL: INDIVIDUAL STEAL ---
@@ -83,9 +106,12 @@ class EmojiSystem(commands.Cog):
                 await interaction.followup.send(f"❌ **System Error:** `{e}`", ephemeral=True)
 
     @commands.command(name="stealemoji")
-    @commands.is_owner()
     async def harvest_recent(self, ctx):
-        """Scans last 15m of traffic for emojis with an option to Steal All."""
+        """Scans last 15m of traffic for emojis."""
+        # NEW PERMISSION CHECK
+        if not await self.check_permissions(ctx):
+            return await ctx.send("❌ **Access Denied:** Administrator clearance required.")
+
         main_mod = sys.modules['__main__']
         status_msg = await ctx.send("🛰️ **Scanning frequencies...**")
         
@@ -110,7 +136,6 @@ class EmojiSystem(commands.Cog):
             view = discord.ui.View(timeout=None)
             all_data_payload = []
 
-            # Individual Buttons (Up to 24 to leave room for 'Steal All')
             for e in found_emojis[:24]:
                 btn_emoji = discord.PartialEmoji(name=e['name'], id=int(e['id']), animated=(e['anim']=="1"))
                 view.add_item(discord.ui.Button(
@@ -120,11 +145,9 @@ class EmojiSystem(commands.Cog):
                 ))
                 all_data_payload.append(f"{e['id']},{e['anim']},{e['name']}")
 
-            # THE "STEAL ALL" BUTTON
-            # We compress the data into the custom_id (max 100 chars, so we limit payload if needed)
             payload = "|".join(all_data_payload)
-            if len(payload) > 80: # Discord custom_id limit is 100
-                payload = payload[:80].rsplit('|', 1)[0] # Safety cut
+            if len(payload) > 80:
+                payload = payload[:80].rsplit('|', 1)[0]
 
             view.add_item(discord.ui.Button(
                 label="STEAL ALL ASSETS",
