@@ -30,16 +30,9 @@ class AuditManager(commands.Cog):
             with db_module.get_db_connection() as conn:
                 # Table ensures each guild has its own independent audit channel
                 conn.execute("CREATE TABLE IF NOT EXISTS guild_config (guild_id INTEGER, key TEXT, value TEXT, PRIMARY KEY (guild_id, key))")
-                # Ensure key matches 'audit_channel' for collect.py to find it
+                # ADDED: Logic to ensure the specific Guild ID is the primary filter
                 conn.execute("INSERT OR REPLACE INTO guild_config (guild_id, key, value) VALUES (?, 'audit_channel', ?)", (ctx.guild.id, str(primary_id)))
                 conn.commit()
-            
-            # FIXED: Reward admin using manual DB for XP and correct kwarg for flames
-            await main_mod.update_user_stats_async(ctx.author.id, amount=50000, source="Audit Calibration")
-            with db_module.get_db_connection() as conn:
-                conn.execute("UPDATE users SET xp = xp + ? WHERE id = ?", (25000, ctx.author.id))
-                conn.commit()
-                
         except Exception as e:
             print(f"⚠️ Persistence Error: {e}")
 
@@ -48,11 +41,10 @@ class AuditManager(commands.Cog):
         embed = main_mod.fiery_embed("🕵️ AUDIT PROTOCOL UPDATED", 
             f"The Master has redirected the voyeur frequencies for this sector.\n\n"
             f"**New Audit Target(s):** {channel_mentions}\n"
-            f"**System Status:** Logs for **{ctx.guild.name}** are now independent.\n\n"
-            f"🎁 **Master's Bounty:** {ctx.author.mention} rewarded with **25,000 XP** and **50,000 Flames**.", color=0x00FF00)
+            f"**System Status:** Logs for **{ctx.guild.name}** are now independent.", color=0x00FF00)
         
         if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File(image_path := "LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
             await ctx.send(file=file, embed=embed)
         else:
