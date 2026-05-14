@@ -28,7 +28,8 @@ from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
-        # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
+        # FIX: Added a static custom_id to the View itself via the super() or just ensuring timeout is None
+        # To make it truly persistent, the buttons inside MUST have fixed custom_ids (which they do).
         super().__init__(timeout=None)
         self.owner = owner
         self.edition = edition
@@ -1061,8 +1062,9 @@ class PersistentLobbyLauncher(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # owner=None is okay because is_staff check and DB checks will handle the logic
-        self.bot.add_view(LobbyView(owner=None, edition=0))
+        # FIX: Register the view with EXACTLY the same custom_ids for buttons to match Discord's signature
+        # We don't need guild_id here because buttons logic handles everything from the interaction itself
+        self.bot.add_view(LobbyView())
         print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
 
 async def setup(bot):
