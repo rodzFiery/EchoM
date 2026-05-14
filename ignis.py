@@ -27,7 +27,7 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner, edition, guild_id=None):
+    def __init__(self, owner=None, edition=0, guild_id=None):
         # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
         self.owner = owner
@@ -168,7 +168,11 @@ class LobbyView(discord.ui.View):
             await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
             
             # Dispatch as background task
-            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), self.edition))
+            # FIXED: Handle case where edition might be 0 during rehydration
+            import sys as _sys_main
+            main_m = _sys_main.modules['__main__']
+            curr_edition = self.edition if self.edition != 0 else getattr(main_m, 'game_edition', 1)
+            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), curr_edition))
             self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
@@ -358,7 +362,7 @@ class IgnisEngine(commands.Cog):
             if level <= 15: xp_needed = 2500
             elif level <= 30: xp_needed = 5000
             elif level <= 60: xp_needed = 7500
-            else: xp_needed = 5000
+            else: xp_needed = 500
         return level
 
     @commands.command(name="reset_arena")
@@ -1062,8 +1066,8 @@ class PersistentLobbyLauncher(commands.Cog):
     """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks."""
     def __init__(self, bot):
         self.bot = bot
-        # FIXED: Registration happens in the constructor to catch early events
-        self.bot.add_view(LobbyView(owner=None, edition=0))
+        # FIXED: View re-registration with persistent_views protocol
+        self.bot.add_view(LobbyView())
 
     @commands.Cog.listener()
     async def on_ready(self):
