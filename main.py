@@ -316,10 +316,13 @@ async def me(ctx, member: discord.Member = None):
         if duel_wins_row: duel_rank = duel_wins_row['r']
 
         # Fetch Victims from duel_history
-        victims = conn.execute("""
-            SELECT loser_id, win_count FROM duel_history 
-            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
-        """, (target.id,)).fetchall()
+        try:
+            victims = conn.execute("""
+                SELECT loser_id, win_count FROM duel_history 
+                WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
+            """, (target.id,)).fetchall()
+        except:
+            victims = []
 
     # Echo Rank Logic - FIXED: Boundary Check to prevent IndexError
     lvl = u['fiery_level']
@@ -344,9 +347,12 @@ async def me(ctx, member: discord.Member = None):
         owner_text = f"Bound to <@{u['spouse']}> (Married)"
     else:
         with get_db_connection() as conn:
-            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
-            if contract_data:
-                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+            try:
+                contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
+                if contract_data:
+                    owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+            except:
+                pass
 
     # Embed Creation
     embed = discord.Embed(title=f"😻 {target.display_name}'s Dossier", color=0xFF0000)
@@ -757,7 +763,7 @@ async def on_message(message):
 
 # --- CORE EXTENSION LOADING LOOP ---
 async def load_all_extensions():
-    # FIXED: The actual loop that was missing to physically load the .py files
+    # FIXED: Ensure all .py modules are physically loaded and view templates registered
     exts = [
         "admin", "classes", "extensions", "ship", "shop", "collect", 
         "fight", "casino", "ask", "premium", "audit", "thread", 
@@ -769,15 +775,16 @@ async def load_all_extensions():
         try:
             await bot.load_extension(e)
             print(f"✅ LOG: {e.capitalize()} System is ONLINE.")
-            # --- ASK VIEW FIX ---
+            
+            # --- VIEW PERSISTENCE SYNC ---
             if e == "ask":
                 try:
                     from ask import InitialView, RecipientView, PlayView
-                    bot.add_view(InitialView(None, None)) # Corrected arg count
+                    bot.add_view(InitialView(None, None))
                     bot.add_view(RecipientView(None, None))
                     bot.add_view(PlayView(None, None))
-                except Exception: pass
-            # --- CONFESSION VIEW FIX ---
+                except: pass
+            
             if e == "confession":
                 try:
                     from confession import ConfessionSubmissionView
@@ -785,15 +792,15 @@ async def load_all_extensions():
                     if cog:
                         main_mod = sys.modules['__main__']
                         bot.add_view(ConfessionSubmissionView(main_mod, bot, cog.review_channel_id))
-                except Exception: pass
+                except: pass
+                
         except Exception as err:
             print(f"❌ Extension {e} fail: {err}")
 
 @bot.event
 async def setup_hook():
-    # This runs before the bot starts and is the standard for D.py 2.0 extension loading
+    # Runs before bot starts
     await load_all_extensions()
-    # Web server needs to run in a separate thread to not block the bot
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
