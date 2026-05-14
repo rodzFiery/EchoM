@@ -27,7 +27,7 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner=None, edition=0, guild_id=None):
+    def __init__(self, owner, edition, guild_id=None):
         # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
         self.owner = owner
@@ -168,11 +168,7 @@ class LobbyView(discord.ui.View):
             await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
             
             # Dispatch as background task
-            # FIXED: Handle case where edition might be 0 during rehydration
-            import sys as _sys_main
-            main_m = _sys_main.modules['__main__']
-            curr_edition = self.edition if self.edition != 0 else getattr(main_m, 'game_edition', 1)
-            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), curr_edition))
+            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), self.edition))
             self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
@@ -196,16 +192,6 @@ class EngineControl(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO ignis_settings (guild_id, role_id) VALUES (?, ?)", (ctx.guild.id, role.id))
             conn.commit()
         await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as an **Ignis Admin**."))
-
-    @commands.command(name="igniscount")
-    @commands.has_permissions(administrator=True)
-    async def set_ignis_count(self, ctx, number: int):
-        """Recalibrates the current Hangrygames Edition number."""
-        import sys
-        main = sys.modules['__main__']
-        main.game_edition = number
-        self.save_game_config()
-        await ctx.send(embed=self.fiery_embed("System Recalibrated", f"✅ The Master has adjusted the ledger. Next session will be **Edition #{number}**."))
 
     @commands.command()
     async def echostart(self, ctx):
@@ -236,7 +222,8 @@ class EngineControl(commands.Cog):
         
         view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
         
-        # --- FIXED: Direct Persistent View Registration ---
+        # --- ADDED: Persistent View Registration ---
+        # This tells the bot to keep listening for these buttons even after a restart
         self.bot.add_view(view)
 
         if engine: 
@@ -362,7 +349,7 @@ class IgnisEngine(commands.Cog):
             if level <= 15: xp_needed = 2500
             elif level <= 30: xp_needed = 5000
             elif level <= 60: xp_needed = 7500
-            else: xp_needed = 500
+            else: xp_needed = 5000
         return level
 
     @commands.command(name="reset_arena")
@@ -1066,12 +1053,17 @@ class PersistentLobbyLauncher(commands.Cog):
     """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks."""
     def __init__(self, bot):
         self.bot = bot
-        # FIXED: View re-registration with persistent_views protocol
-        self.bot.add_view(LobbyView())
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print("⛓️ Ignis Persistence Protocol: Global Lobby View Registered.")
+        # We register a 'Template' of the LobbyView. 
+        # Because we used custom_id in the buttons, Discord will map clicks to this view
+        # even if it's not the exact same instance as before.
+        import sys as _sys
+        main = sys.modules['__main__']
+        # owner=None is okay because is_staff check and DB checks will handle the logic
+        self.bot.add_view(LobbyView(owner=None, edition=0))
+        print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
 
 async def setup(bot):
     import sys as _sys_setup
