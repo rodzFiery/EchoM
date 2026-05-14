@@ -115,10 +115,10 @@ def init_db():
 init_db()
 
 # ===== 3. CORE HELPERS & AUDIT REDIRECTS =====
-async def send_audit_log(user_id, amount, source, xp=0):
-    # FIXED: Uses global keyword to ensure we use the updated ID from database
+async def send_audit_log(user_id, amount, source, xp=0, guild_id=None):
+    # FIXED: Added guild_id parameter to pass down to utilis
     global AUDIT_CHANNEL_ID
-    await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp)
+    await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp, guild_id)
 
 def fiery_embed(title, description, color=0xFF4500):
     # REDIRECTED TO utilis.py body logic
@@ -131,7 +131,7 @@ def get_user(user_id):
 # --- REDIRECTED TO prizes.py ---
 # FIXED: Updated signature to ensure all positional arguments are handled
 async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0, deaths=0, source="System", 
-                                  get_user_func=None, bot_obj=None, db_func=None, class_dict=None, nsfw=None, audit_func=None):
+                                  get_user_func=None, bot_obj=None, db_func=None, class_dict=None, nsfw=None, audit_func=None, guild_id=None):
     
     # Use provided funcs or fall back to globals defined in main.py
     g_user = get_user_func or get_user
@@ -140,7 +140,12 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
     c_dict = class_dict or CLASSES
     # Logic: Full NSFW OR Basic NSFW triggers special prize pools/logic
     n_mode = nsfw if nsfw is not None else (nsfw_mode_active or basic_nsfw_active)
-    a_log = audit_func or send_audit_log
+    
+    # Internal logic to wrap audit_log with the correct guild_id context
+    async def wrapped_audit(uid, amt, src, x):
+        await send_audit_log(uid, amt, src, x, guild_id=guild_id)
+
+    a_log = audit_func or wrapped_audit
 
     await prizes_module.update_user_stats_async(user_id, amount, xp_gain, wins, kills, deaths, source, g_user, b_obj, d_func, c_dict, n_mode, a_log)
 
