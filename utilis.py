@@ -144,6 +144,20 @@ class DungeonCounter(commands.Cog):
         desc = f"Protocol **MATH** initialized. The Master will only monitor numbers in {target.mention}."
         await ctx.send(embed=fiery_embed(self.bot, False, "MATH PROTOCOL SET", desc))
 
+    @commands.command(name="mathfix")
+    @commands.has_permissions(manage_channels=True)
+    async def math_fix_count(self, ctx, new_number: int):
+        """FORCE SEQUENCE: Sets the current count to a specific number."""
+        if self.designated_channel == 0:
+            return await ctx.send("❌ **Error:** No math channel designated yet. Use `!math` first.")
+
+        self.counts[self.designated_channel] = new_number
+        self.save_count(new_number)
+        
+        desc = f"The Master has recalibrated the sequence. The current count is now **{new_number}**.\n\n" \
+               f"The next required number is **{new_number + 1}**."
+        await ctx.send(embed=fiery_embed(self.bot, False, "MATH PROTOCOL ADJUSTED", desc))
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot: return
