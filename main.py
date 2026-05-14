@@ -116,7 +116,7 @@ init_db()
 
 # ===== 3. CORE HELPERS & AUDIT REDIRECTS =====
 async def send_audit_log(user_id, amount, source, xp=0, guild_id=None):
-    # FIXED: Added guild_id parameter to pass down to utilis
+    # FIXED: Uses global keyword and passes guild_id for dynamic lookup
     global AUDIT_CHANNEL_ID
     await utilis.send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp, guild_id)
 
@@ -141,7 +141,7 @@ async def update_user_stats_async(user_id, amount=0, xp_gain=0, wins=0, kills=0,
     # Logic: Full NSFW OR Basic NSFW triggers special prize pools/logic
     n_mode = nsfw if nsfw is not None else (nsfw_mode_active or basic_nsfw_active)
     
-    # Internal logic to wrap audit_log with the correct guild_id context
+    # FIXED: Wrapper captures guild_id from the original call
     async def wrapped_audit(uid, amt, src, x):
         await send_audit_log(uid, amt, src, x, guild_id=guild_id)
 
