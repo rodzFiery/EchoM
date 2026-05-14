@@ -201,7 +201,7 @@ def run_web_server():
     except Exception as e:
         print(f"⚠️ Web Server bypass: {e}")
 
-# Inicia o servidor em segundo plano apenas se não estiver rodando
+# Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
 if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
     threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
