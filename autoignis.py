@@ -81,7 +81,6 @@ class IgnisAuto(commands.Cog):
         except: pass
 
         self.current_auto_lobby = None
-        # NEW: Track the last processed window to prevent double-firing or missed-firing
         self.last_processed_window = None 
         
         if self.auto_enabled:
