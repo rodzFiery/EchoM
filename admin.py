@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
