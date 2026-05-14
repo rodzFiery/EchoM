@@ -99,7 +99,7 @@ def load_game_config():
 def init_db():
     # FIXED: Initialize via db_module
     db_module.init_db()
-    # ADDED: Ensure all required tables and columns exist
+    # ADDED: Ensure the relationships table used by shop/ship is initialized centrally
     with get_db_connection() as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS relationships (
                 user_one INTEGER,
@@ -108,26 +108,6 @@ def init_db():
                 shared_luck REAL DEFAULT 0.0,
                 passive_income REAL DEFAULT 0.0,
                 PRIMARY KEY (user_one, user_two)
-            )""")
-        
-        # FIXED: Added missing card_mastery table initialization
-        conn.execute("""CREATE TABLE IF NOT EXISTS card_mastery (
-                user_id INTEGER PRIMARY KEY,
-                mastery_level INTEGER DEFAULT 1,
-                mastery_xp INTEGER DEFAULT 0,
-                cards_collected INTEGER DEFAULT 0,
-                mastery_key TEXT DEFAULT 'None'
-            )""")
-        
-        # Check for mastery_key column in case table already existed
-        cursor = conn.execute("PRAGMA table_info(card_mastery)")
-        columns = [column[1] for column in cursor.fetchall()]
-        if 'mastery_key' not in columns:
-            conn.execute("ALTER TABLE card_mastery ADD COLUMN mastery_key TEXT DEFAULT 'None'")
-
-        conn.execute("""CREATE TABLE IF NOT EXISTS ignis_settings (
-                guild_id INTEGER PRIMARY KEY,
-                role_id INTEGER
             )""")
         conn.commit()
 
@@ -264,11 +244,6 @@ async def beg(ctx):
     await worknranks.handle_work_command(ctx, bot, "beg", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 @bot.command()
-async def slut(ctx): 
-    # FIXED: ADDED MISSING SLUT COMMAND
-    await worknranks.handle_work_command(ctx, bot, "slut", (600, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
-
-@bot.command()
 async def cumcleaner(ctx): 
     await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
@@ -287,6 +262,10 @@ async def mystery(ctx):
 @bot.command()
 async def flirt(ctx): 
     await worknranks.handle_work_command(ctx, bot, "flirt", (700, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
+@bot.command()
+async def slut(ctx): 
+    await worknranks.handle_work_command(ctx, bot, "slut", (600, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 # ===== 6. CORE PERIODIC REWARDS SYSTEM (REMOVED TO daily.py) =====
 
@@ -309,12 +288,8 @@ async def balance(ctx, member: discord.Member = None):
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
-    
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 # ===== 7. UPDATED PROFILE DOSSIER COMMAND (!me) =====
 
@@ -341,13 +316,10 @@ async def me(ctx, member: discord.Member = None):
         if duel_wins_row: duel_rank = duel_wins_row['r']
 
         # Fetch Victims from duel_history
-        try:
-            victims = conn.execute("""
-                SELECT loser_id, win_count FROM duel_history 
-                WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
-            """, (target.id,)).fetchall()
-        except:
-            victims = []
+        victims = conn.execute("""
+            SELECT loser_id, win_count FROM duel_history 
+            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
+        """, (target.id,)).fetchall()
 
     # Echo Rank Logic - FIXED: Boundary Check to prevent IndexError
     lvl = u['fiery_level']
@@ -372,12 +344,9 @@ async def me(ctx, member: discord.Member = None):
         owner_text = f"Bound to <@{u['spouse']}> (Married)"
     else:
         with get_db_connection() as conn:
-            try:
-                contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
-                if contract_data:
-                    owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
-            except:
-                pass
+            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
+            if contract_data:
+                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
 
     # Embed Creation
     embed = discord.Embed(title=f"😻 {target.display_name}'s Dossier", color=0xFF0000)
@@ -526,10 +495,8 @@ async def buytitle(ctx, *, title_choice: str = None):
     shop = bot.get_cog("ShopSystem")
     if not shop:
         embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        return await ctx.send(embed=embed)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
     pass
 
 # FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
@@ -543,17 +510,13 @@ async def favor(ctx):
     
     if user['balance'] < cost:
         embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        return await ctx.send(embed=embed)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
     
     if not ext:
         embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
-        return await ctx.send(embed=embed)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
 
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (cost, ctx.author.id))
@@ -561,11 +524,8 @@ async def favor(ctx):
     
     await ext.activate_peak_heat(ctx)
     embed = fiery_embed("MASTER'S FAVOR", f"🔥 <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 # ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
 
@@ -575,11 +535,8 @@ async def favor(ctx):
 @bot.command()
 async def ping(ctx):
     embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 # --- STREAK GUARDIAN PROTOCOL START ---
 @bot.command()
@@ -594,11 +551,8 @@ async def togglealerts(ctx):
     
     status_text = "ENABLED" if new_status == 1 else "DISABLED"
     embed = fiery_embed("ALERT PROTOCOL UPDATED", f"Public Guardian pings for your soul are now **{status_text}**.")
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 @tasks.loop(hours=1)
 async def streak_guardian():
@@ -697,42 +651,35 @@ async def on_ready():
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
 
-    # --- 3. RE-REGISTER PERSISTENT VIEWS ---
-    from ignis import LobbyView
-    from autoignis import AutoLobbyView
-    bot.add_view(LobbyView(None, 0))
-    bot.add_view(AutoLobbyView())
-
-    # --- 4. CENTRALIZED EXTENSION LOADING ---
-    # FIXED: This loop ensures all your .py modules are initialized correctly
-    extensions = [
-        "admin", "classes", "extensions", "ship", "shop", "collect", 
-        "fight", "casino", "ask", "premium", "audit", "thread", 
-        "levels", "react", "counting", "guessnumber", "confession", 
-        "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis"
-    ]
-
-    for ext in extensions:
-        try:
-            await bot.load_extension(ext)
-            print(f"✅ LOG: {ext.capitalize()} System is ONLINE.")
-        except Exception as e:
-            print(f"❌ LOG: {ext} fail: {e}")
-
-    # --- 5. INJECT CORE COGS ---
+    # --- 3. INJECT UPDATED AUDIT ID INTO COGS ---
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
+    # NEW: Carga EngineControl para habilitar !echostart e !lobby que estão no ignis.py
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
+    
+    # Start the Guardian Task
+    if not streak_guardian.is_running():
+        streak_guardian.start()
 
-    # --- 6. REACTION ROLE PERSISTENCE RECOVERY ---
+    # Start the Top.gg Poster Task
+    if not topgg_poster.is_running():
+        topgg_poster.start()
+    
+    # FIXED: Re-registering with correct positional arguments for current class signature
+    from ignis import LobbyView
+    from autoignis import AutoLobbyView
+    bot.add_view(LobbyView(None, 0)) # Manual Template
+    bot.add_view(AutoLobbyView())     # Automated Template
+
+    # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
         with get_db_connection() as conn:
+            # FIXED: Creation check added to solve 'no such table' error in logs
             conn.execute("CREATE TABLE IF NOT EXISTS reaction_roles (message_id INTEGER, emoji TEXT, role_id INTEGER)")
             rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
             mappings = {}
@@ -741,6 +688,7 @@ async def on_ready():
                 if m_id not in mappings: mappings[m_id] = {}
                 mappings[m_id][row['emoji']] = row['role_id']
             
+            # STARTUP SHIELD: Prevent import/view failure from blocking boot
             try:
                 from reactionrole import ReactionRoleView, DesignerLobby
                 bot.add_view(DesignerLobby())
@@ -753,33 +701,12 @@ async def on_ready():
     except Exception as e:
         print(f"RR Recovery fail: {e}")
 
-    # --- 7. PERSISTENT VIEWS FOR OTHER COGS ---
-    try:
-        from ask import InitialView, RecipientView, PlayView
-        bot.add_view(InitialView(None, None, None))
-        bot.add_view(RecipientView(None, None))
-        bot.add_view(PlayView(None, None))
-    except: pass
-
-    try:
-        from confession import ConfessionSubmissionView
-        conf_cog = bot.get_cog("ConfessionSystem")
-        if conf_cog:
-            main_mod = sys.modules['__main__']
-            bot.add_view(ConfessionSubmissionView(main_mod, bot, conf_cog.review_channel_id))
-    except: pass
-
-    # Background Tasks
-    if not streak_guardian.is_running():
-        streak_guardian.start()
-    if not topgg_poster.is_running():
-        topgg_poster.start()
-    
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
 
 @bot.event
 async def on_command_error(ctx, error):
+    # This will print to your Railway/Console log why a command failed
     print(f"⚠️ [COMMAND ERROR] {ctx.command} failed: {error}")
     await ctx.send(f"❌ **System Error:** {error}")
 
@@ -792,29 +719,85 @@ async def test(ctx):
 async def on_message(message):
     if message.author.bot: 
         return
+
+    # Process all commands first
     await bot.process_commands(message)
+
+    # RESTORATION POINT: Handle security logic for Cogs AFTER command processing attempt
     ctx = await bot.get_context(message)
+    
     if ctx.valid and ctx.command:
+        # Check if the command is NOT in the main bot (meaning it is in a Cog)
         if ctx.command.cog is not None:
             try:
                 command_cog = ctx.command.cog_name
                 admin_cogs = ["AdminSystem", "AuditManager", "ReactionRoleSystem"]
+                
                 if command_cog in admin_cogs:
                     admin_roles = ["Admin", "Moderator"]
+                    
+                    # --- ADDED: IGNIS ADMIN ROLE CHECK ---
                     ignis_admin_role_id = None
                     with get_db_connection() as conn:
                         row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
                         if row: ignis_admin_role_id = row[0]
+                    
+                    # Check if user has standard roles OR the specific Ignis Admin role
                     has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
                     is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    
+                    # Skip denial if they have the ignis role, standard staff role, or are bot owner
                     if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
-                        denied_emb = fiery_embed("🚫 ACCESS DENIED", f"Neural link signature rejected for {message.author.mention}.\nRequired: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
+                        denied_emb = fiery_embed("🚫 ACCESS DENIED", 
+                                                 f"Neural link signature rejected for {message.author.mention}.\n"
+                                                 "Required: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
                         await message.reply(embed=denied_emb)
-            except Exception: pass
+            except Exception:
+                pass
 
-async def main_thread_fix():
+# --- CORE EXTENSION LOADING LOOP ---
+async def load_all_extensions():
+    # FIXED: The actual loop that was missing to physically load the .py files
+    exts = [
+        "admin", "classes", "extensions", "ship", "shop", "collect", 
+        "fight", "casino", "ask", "premium", "audit", "thread", 
+        "levels", "react", "counting", "guessnumber", "confession", 
+        "reactionrole", "autoignis", "helper", "cards", "packs", 
+        "emoji", "win", "utilis"
+    ]
+    for e in exts:
+        try:
+            await bot.load_extension(e)
+            print(f"✅ LOG: {e.capitalize()} System is ONLINE.")
+            # --- ASK VIEW FIX ---
+            if e == "ask":
+                try:
+                    from ask import InitialView, RecipientView, PlayView
+                    bot.add_view(InitialView(None, None)) # Corrected arg count
+                    bot.add_view(RecipientView(None, None))
+                    bot.add_view(PlayView(None, None))
+                except Exception: pass
+            # --- CONFESSION VIEW FIX ---
+            if e == "confession":
+                try:
+                    from confession import ConfessionSubmissionView
+                    cog = bot.get_cog("ConfessionSystem")
+                    if cog:
+                        main_mod = sys.modules['__main__']
+                        bot.add_view(ConfessionSubmissionView(main_mod, bot, cog.review_channel_id))
+                except Exception: pass
+        except Exception as err:
+            print(f"❌ Extension {e} fail: {err}")
+
+@bot.event
+async def setup_hook():
+    # This runs before the bot starts and is the standard for D.py 2.0 extension loading
+    await load_all_extensions()
+    # Web server needs to run in a separate thread to not block the bot
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
+
+async def main():
     try:
         async with bot: 
             await bot.start(TOKEN)
@@ -823,5 +806,5 @@ async def main_thread_fix():
         if not bot.is_closed(): await bot.close()
 
 if __name__ == "__main__": 
-    try: asyncio.run(main_thread_fix())
+    try: asyncio.run(main())
     except KeyboardInterrupt: pass
