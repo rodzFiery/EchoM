@@ -8,8 +8,7 @@ class Achievements(commands.Cog):
         self.bot = bot
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
-        # FIXED: Now defaults to None; will be pulled from DB per guild
-        self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", None)
+        # Removed hardcoded ID - logic now fetches dynamically in check_and_log
 
     def generate_fiery_scale(self):
         """ADDED: Generates the specialized Master's Scale for all achievements."""
@@ -34,45 +33,36 @@ class Achievements(commands.Cog):
 
     def get_achievement_summary(self, user_id):
         """Generates a high-quality summary of highest reached tiers for the winner card."""
-        # FIX: Using local connection context to prevent interference with other database tasks
         with self.get_db_connection() as conn:
             u = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         
         if not u: 
             return "No achievements yet.."
 
-        # Define high-tier milestone sets
         t_master_scale = self.generate_fiery_scale()
         t_high = t_master_scale + [15000, 25000, 50000]
-        t_streaks = list(range(2, 51)) # Expanded streaks to 50
+        t_streaks = list(range(2, 51))
 
         lines = []
         
-        # 1. First Blood Milestone (Killer)
         fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
         if fb: lines.append(f"Blood pro: {fb}")
         
-        # 2. Total Wins Milestone
         wins = self.get_tier(u['wins'] if 'wins' in u.keys() else 0, t_master_scale)
         if wins: lines.append(f"Wins: {wins}")
         
-        # 3. Total Kills Milestone
         kills = self.get_tier(u['kills'] if 'kills' in u.keys() else 0, t_high)
         if kills: lines.append(f"Kills: {kills}")
         
-        # 4. Max Win Streak Milestone
         streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in u.keys() else 0, t_streaks)
         if streak: lines.append(f"Streak: {streak}x")
         
-        # 5. Max Kill Streak Milestone (Killing Spree)
         ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
         if ks: lines.append(f"Kill Spree: {ks}x")
 
-        # 6. First Blood (Death) Milestone
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
         if fbd: lines.append(f"First death: {fbd}")
 
-        # 7. ADDED: Commands/Interactions Milestone (Neural Level)
         cmd_count = u['commands_used'] if 'commands_used' in u.keys() else 0
         neural = self.get_tier(cmd_count, t_high)
         if neural: lines.append(f"Neural Sync: {neural}")
@@ -80,8 +70,8 @@ class Achievements(commands.Cog):
         return "\n".join(lines) if lines else "No achievements yet.."
 
     # --- REAL-TIME AUDIT LOGGING ---
-    async def check_and_log_achievements(self, user_id, category, current_value, guild_id=None):
-        """ADDED: Checks if the current value exactly matches a milestone tier and logs it to audit."""
+    async def check_and_log_achievements(self, user_id, category, current_value, guild_id):
+        """ADDED: Fetches guild-specific audit channel and logs milestones."""
         t_master_scale = self.generate_fiery_scale()
         t_high = t_master_scale + [15000, 25000, 50000]
         t_streaks = list(range(3, 51))
@@ -100,25 +90,18 @@ class Achievements(commands.Cog):
         }
         
         if category in tier_map and current_value in tier_map[category]:
-            # NEW: Retrieve the specific audit channel for this guild from the database
-            target_channel_id = None
-            if guild_id:
-                with self.get_db_connection() as conn:
-                    row = conn.execute("SELECT audit_channel_id FROM guild_settings WHERE guild_id = ?", (guild_id,)).fetchone()
-                    if row:
-                        target_channel_id = row['audit_channel_id']
+            # NEW: Lookup channel ID from the table managed by your audit.py
+            with self.get_db_connection() as conn:
+                res = conn.execute("SELECT channel_id FROM audit_settings WHERE guild_id = ?", (guild_id,)).fetchone()
             
-            # Fallback to hardcoded only if DB fails and attribute exists
-            audit_channel_id = target_channel_id or self.AUDIT_CHANNEL_ID
-            if not audit_channel_id:
+            if not res:
                 return
 
-            audit_channel = self.bot.get_channel(audit_channel_id)
+            audit_channel = self.bot.get_channel(res['channel_id'])
             
             if audit_channel:
                 user = await self.bot.fetch_user(user_id)
                 
-                # Extended Dynamic wording
                 if category == "Kill Streak" and current_value >= 10:
                     special_note = "A GODLIKE RAMPAGE HAS BEEN RECORDED."
                 elif category == "Kill Streak":
@@ -145,17 +128,6 @@ class Achievements(commands.Cog):
                 else:
                     await audit_channel.send(content=f"Achievement Protocol: {user.mention}", embed=embed)
 
-    @commands.command(name="setaudit")
-    @commands.has_permissions(administrator=True)
-    async def set_audit_channel(self, ctx, channel: discord.TextChannel):
-        """ADMIN ONLY: Sets the channel where achievement milestones will be logged."""
-        with self.get_db_connection() as conn:
-            # Ensure table exists (Add-only logic)
-            conn.execute("CREATE TABLE IF NOT EXISTS guild_settings (guild_id INTEGER PRIMARY KEY, audit_channel_id INTEGER)")
-            conn.execute("INSERT OR REPLACE INTO guild_settings (guild_id, audit_channel_id) VALUES (?, ?)", (ctx.guild.id, channel.id))
-        
-        await ctx.send(f"✅ **Audit Protocol Initialized:** Milestones will now be logged in {channel.mention}")
-
     @commands.command(name="achievements")
     async def view_achievements(self, ctx, member: discord.Member = None):
         """Displays a full breakdown of the user's achievements across all categories."""
@@ -172,7 +144,6 @@ class Achievements(commands.Cog):
 
         ach_msg = []
         
-        # Core Combat Tiers
         fb = self.get_tier(u['first_bloods'] or 0, t_master_scale)
         if fb: ach_msg.append(f"🩸 **First Bloods:** {fb}")
         
@@ -191,16 +162,13 @@ class Achievements(commands.Cog):
         ks = self.get_tier(u['max_kill_streak'] or 0, t_streaks)
         if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
 
-        # ADDED: Neural Connection Tiers (Activity)
         cmds = self.get_tier(u.get('commands_used', 0), t_high)
         if cmds: ach_msg.append(f"🧠 **Neural Sync:** {cmds}")
         
-        # Placement Tracking
         top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
         top = self.get_tier(top_total, t_high)
         if top: ach_msg.append(f"🎖️ **Finalist Rank:** {top}")
 
-        # ADDED: Social/Marriage Tiers
         marriage_count = u.get('total_marriages', 0)
         m_tier = self.get_tier(marriage_count, [1, 5, 10, 25, 50])
         if m_tier: ach_msg.append(f"💍 **Marriage Tiers:** {m_tier}")
@@ -208,7 +176,6 @@ class Achievements(commands.Cog):
         embed = self.fiery_embed(f"🏆 {member.display_name}'s Achievement Vault", 
                                   "\n".join(ach_msg) if ach_msg else "No milestones reached yet.")
         
-        # Organized Stat Fields
         embed.add_field(name="⚔️ Combat Records", 
                         value=f"Kills: **{u['kills']}**\nWins: **{u['wins']}**\nMax Streak: **{u['max_kill_streak']}**", inline=True)
         
@@ -218,7 +185,6 @@ class Achievements(commands.Cog):
         embed.add_field(name="🛡️ Battle History", 
                         value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u.get('lobbies_created', 0)}**", inline=True)
 
-        # Activity Field
         embed.add_field(name="🧠 Neural Interface", 
                         value=f"Sync Level: **{u.get('commands_used', 0)}**\nSpouse Points: **{u.get('spouse_points', 0)}**", inline=False)
 
