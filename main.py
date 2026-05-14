@@ -109,6 +109,18 @@ def init_db():
                 passive_income REAL DEFAULT 0.0,
                 PRIMARY KEY (user_one, user_two)
             )""")
+        # ADDED: Fix for OperationalError: no such table: card_mastery
+        conn.execute("""CREATE TABLE IF NOT EXISTS card_mastery (
+                user_id INTEGER PRIMARY KEY,
+                mastery_level INTEGER DEFAULT 1,
+                mastery_xp INTEGER DEFAULT 0,
+                cards_collected INTEGER DEFAULT 0
+            )""")
+        # ADDED: Ensure ignis_settings exists for on_message check
+        conn.execute("""CREATE TABLE IF NOT EXISTS ignis_settings (
+                guild_id INTEGER PRIMARY KEY,
+                role_id INTEGER
+            )""")
         conn.commit()
 
 init_db()
@@ -244,6 +256,11 @@ async def beg(ctx):
     await worknranks.handle_work_command(ctx, bot, "beg", (500, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
 @bot.command()
+async def slut(ctx): 
+    # ADDED: Logic for slut command which was missing but present in user intent
+    await worknranks.handle_work_command(ctx, bot, "slut", (600, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
+
+@bot.command()
 async def cumcleaner(ctx): 
     await worknranks.handle_work_command(ctx, bot, "cumcleaner", (800, 20000), get_user, update_user_stats_async, fiery_embed, get_db_connection, FieryLexicon, nsfw_mode_active)
 
@@ -284,8 +301,12 @@ async def balance(ctx, member: discord.Member = None):
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # ===== 7. UPDATED PROFILE DOSSIER COMMAND (!me) =====
 
@@ -312,10 +333,13 @@ async def me(ctx, member: discord.Member = None):
         if duel_wins_row: duel_rank = duel_wins_row['r']
 
         # Fetch Victims from duel_history
-        victims = conn.execute("""
-            SELECT loser_id, win_count FROM duel_history 
-            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
-        """, (target.id,)).fetchall()
+        try:
+            victims = conn.execute("""
+                SELECT loser_id, win_count FROM duel_history 
+                WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
+            """, (target.id,)).fetchall()
+        except:
+            victims = []
 
     # Echo Rank Logic - FIXED: Boundary Check to prevent IndexError
     lvl = u['fiery_level']
@@ -329,7 +353,7 @@ async def me(ctx, member: discord.Member = None):
     
     # Check for Last Hangrygames Winner Title
     engine = bot.get_cog("IgnisEngine")
-    if (nsfw_mode_active or basic_nsfw_active) and engine and engine.last_winner_id == target.id:
+    if (nsfw_mode_active or basic_nsfw_active) and engine and hasattr(engine, 'last_winner_id') and engine.last_winner_id == target.id:
         titles.append("⛓️ HANGRYGAMES LEAD 🔞")
 
     badge_display = " ".join(titles) if titles else "No badges yet."
@@ -340,9 +364,12 @@ async def me(ctx, member: discord.Member = None):
         owner_text = f"Bound to <@{u['spouse']}> (Married)"
     else:
         with get_db_connection() as conn:
-            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
-            if contract_data:
-                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+            try:
+                contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (target.id,)).fetchone()
+                if contract_data:
+                    owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+            except:
+                pass
 
     # Embed Creation
     embed = discord.Embed(title=f"😻 {target.display_name}'s Dossier", color=0xFF0000)
@@ -452,7 +479,7 @@ async def echo(ctx):
         "• `!balance`: Check your current vault of Flames.\n"
         "• `!daily` / `!weekly` / `!monthly`: Recurring stipend claims.\n"
         "• `!work`: Professional extraction (Premium only).\n"
-        "• `!beg` / `!flirt` / `!pimp`: Various work-tier extractions.\n"
+        "• `!beg` / `!flirt` / `!pimp` / `!slut`: Various work-tier extractions.\n"
         "• `!mystery`: High-variance gamble on reward amount.")
 
     # Page 6: Master Protocols
@@ -491,8 +518,11 @@ async def buytitle(ctx, *, title_choice: str = None):
     shop = bot.get_cog("ShopSystem")
     if not shop:
         embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        return await ctx.send(embed=embed)
+    # Placeholder for actual buytitle logic if needed
     pass
 
 # FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
@@ -506,13 +536,17 @@ async def favor(ctx):
     
     if user['balance'] < cost:
         embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        return await ctx.send(embed=embed)
     
     if not ext:
         embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        return await ctx.send(file=file, embed=embed)
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
+        return await ctx.send(embed=embed)
 
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (cost, ctx.author.id))
@@ -520,8 +554,11 @@ async def favor(ctx):
     
     await ext.activate_peak_heat(ctx)
     embed = fiery_embed("MASTER'S FAVOR", f"🔥 <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
 
@@ -531,8 +568,11 @@ async def favor(ctx):
 @bot.command()
 async def ping(ctx):
     embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 # --- STREAK GUARDIAN PROTOCOL START ---
 @bot.command()
@@ -547,8 +587,11 @@ async def togglealerts(ctx):
     
     status_text = "ENABLED" if new_status == 1 else "DISABLED"
     embed = fiery_embed("ALERT PROTOCOL UPDATED", f"Public Guardian pings for your soul are now **{status_text}**.")
-    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-    await ctx.send(file=file, embed=embed)
+    if os.path.exists("LobbyTopRight.jpg"):
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(embed=embed)
 
 @tasks.loop(hours=1)
 async def streak_guardian():
@@ -647,7 +690,25 @@ async def on_ready():
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
 
-    # --- 3. INJECT UPDATED AUDIT ID INTO COGS ---
+    # --- 3. LOAD ALL EXTENSIONS ---
+    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
+    extensions = [
+        "admin", "classes", "extensions", "ship", "shop", "collect", 
+        "fight", "casino", "ask", "premium", "audit", "thread", 
+        "levels", "react", "counting", "guessnumber", "confession", 
+        "reactionrole", "autoignis", "helper", "cards", "packs", 
+        "emoji", "win", "utilis"
+    ]
+
+    for ext in extensions:
+        try:
+            await bot.load_extension(ext)
+            print(f"✅ LOG: {ext.capitalize()} System is ONLINE.")
+        except Exception as e:
+            print(f"❌ LOG: {ext.capitalize()} fail: {e}")
+
+    # --- 4. INJECT UPDATED AUDIT ID INTO COGS ---
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
@@ -697,154 +758,21 @@ async def on_ready():
     except Exception as e:
         print(f"RR Recovery fail: {e}")
 
-    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
-    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
-    try: 
-        if not bot.get_cog("AdminSystem"):
-            await bot.load_extension("admin")
-            print("✅ LOG: Admin System is ONLINE.")
-    except Exception as e: print(f"Admin fail: {e}")
-
-    try: 
-        if not bot.get_cog("ClassSystem"):
-            await bot.load_extension("classes")
-            print("✅ LOG: Class System is ONLINE.")
-    except Exception as e: print(f"Class System fail: {e}")
-
-    # INDIVIDUAL SHIELDS FOR EVERY EXTENSION
+    # --- PERSISTENT VIEWS FOR OTHER COGS ---
     try:
-        if not bot.get_cog("FieryExtensions"):
-            await bot.load_extension("extensions")
-    except Exception as e: print(f"Extension fail: {e}")
+        from ask import InitialView, RecipientView, PlayView
+        bot.add_view(InitialView(None, None, None))
+        bot.add_view(RecipientView(None, None))
+        bot.add_view(PlayView(None, None))
+    except: pass
 
     try:
-        if not bot.get_cog("FieryShip"):
-            await bot.load_extension("ship")
-    except Exception as e: print(f"Ship fail: {e}")
-
-    try: await bot.load_extension("shop")
-    except Exception as e: print(f"Shop fail: {e}")
-
-    try: await bot.load_extension("collect")
-    except Exception as e: print(f"Collect fail: {e}")
-
-    try:
-        await bot.load_extension("fight")
-        print("✅ LOG: Fight System is ONLINE.")
-    except Exception as e: print(f"Fight fail: {e}")
-
-    try:
-        await bot.load_extension("casino")
-        print("✅ LOG: Casino System is ONLINE.")
-    except Exception as e: print(f"Casino fail: {e}")
-    
-    try:
-        await bot.load_extension("ask")
-        # --- FIXED: REGISTRATION FOR ASK PERSISTENT VIEWS ---
-        try:
-            from ask import InitialView, RecipientView, PlayView
-            bot.add_view(InitialView(None, None, None))
-            bot.add_view(RecipientView(None, None))
-            bot.add_view(PlayView(None, None))
-        except ImportError: pass
-        print("✅ LOG: Ask System (Persistent) is ONLINE.")
-    except Exception as e: print(f"Ask fail: {e}")
-
-    try:
-        await bot.load_extension("premium")
-        print("✅ LOG: Premium System is ONLINE.")
-    except Exception as e: print(f"Premium fail: {e}")
-
-    try:
-        if not bot.get_cog("AuditManager"):
-            await bot.load_extension("audit")
-            print("✅ LOG: Audit Manager is ONLINE.")
-    except Exception as e: print(f"Audit fail: {e}")
-
-    try:
-        await bot.load_extension("thread")
-        print("✅ LOG: Thread System is ONLINE.")
-    except Exception as e: print(f"Thread fail: {e}")
-
-    try:
-        await bot.load_extension("levels")
-        print("✅ LOG: Text Level System is ONLINE.")
-    except Exception as e: print(f"Levels fail: {e}")
-
-    try:
-        if not bot.get_cog("AutoReact"):
-            await bot.load_extension("react")
-            print("✅ LOG: Auto-React System is ONLINE.")
-    except Exception as e: print(f"React fail: {e}")
-
-    try:
-        if not bot.get_cog("Counting"):
-            await bot.load_extension("counting")
-            print("✅ LOG: Counting System is ONLINE.")
-    except Exception as e: print(f"Counting fail: {e}")
-
-    try:
-        if not bot.get_cog("GuessNumber"):
-            await bot.load_extension("guessnumber")
-            print("✅ LOG: Guess Number System is ONLINE.")
-    except Exception as e: print(f"GuessNumber fail: {e}")
-
-    try:
-        if not bot.get_cog("ConfessionSystem"):
-            await bot.load_extension("confession")
-            from confession import ConfessionSubmissionView
-            conf_cog = bot.get_cog("ConfessionSystem")
-            if conf_cog:
-                main_mod = sys.modules['__main__']
-                bot.add_view(ConfessionSubmissionView(main_mod, bot, conf_cog.review_channel_id))
-            print("✅ LOG: Confession System is ONLINE.")
-    except Exception as e: print(f"Confession fail: {e}")
-
-    try:
-        await bot.load_extension("reactionrole")
-        print("✅ LOG: Reaction Role System is ONLINE.")
-    except Exception as e: print(f"RR System fail: {e}")
-    
-    try:
-        await bot.load_extension("autoignis")
-        print("✅ LOG: Automated Ignis is ONLINE.")
-    except Exception as e: print(f"AutoIgnis fail: {e}")
-
-    try:
-        if not bot.get_cog("HelperSystem"):
-            await bot.load_extension("helper")
-            print("✅ LOG: Helper System (Refresh Protocol) is ONLINE.")
-    except Exception as e: print(f"Helper fail: {e}")
-
-    try:
-        if not bot.get_cog("CardSystem"):
-            await bot.load_extension("cards")
-            print("✅ LOG: Card System is ONLINE.")
-    except Exception as e: print(f"Card System fail: {e}")
-
-    try:
-        if not bot.get_cog("DungeonPacks"):
-            await bot.load_extension("packs")
-            print("✅ LOG: Dungeon Packs & Rumble System is ONLINE.")
-    except Exception as e: print(f"Packs fail: {e}")
-
-    try:
-        if not bot.get_cog("EmojiSystem"):
-            await bot.load_extension("emoji")
-            print("✅ LOG: Emoji Extraction System is ONLINE.")
-    except Exception as e: print(f"Emoji fail: {e}")
-    
-    try:
-        if not bot.get_cog("WinSystem"):
-            await bot.load_extension("win")
-            print("✅ LOG: High-Yield Extraction (win.py) is ONLINE.")
-    except Exception as e: print(f"Win System fail: {e}")
-
-    # --- ADDED: LOADER FOR MATH (COUNTING GAME) ---
-    try:
-        await bot.load_extension("utilis")
-        print("✅ LOG: Math Protocol is ONLINE.")
-    except Exception as e: print(f"Math fail: {e}")
+        from confession import ConfessionSubmissionView
+        conf_cog = bot.get_cog("ConfessionSystem")
+        if conf_cog:
+            main_mod = sys.modules['__main__']
+            bot.add_view(ConfessionSubmissionView(main_mod, bot, conf_cog.review_channel_id))
+    except: pass
 
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
