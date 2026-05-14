@@ -64,7 +64,14 @@ class Collect(commands.Cog):
         if not audit_channel:
             return
         
-        user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
+        # FIXED: Ensuring user is a Discord object, not a DB row
+        guild = self.bot.get_guild(guild_id)
+        user = None
+        if guild:
+            user = guild.get_member(user_id)
+        
+        if not user:
+            user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
         
         embed = discord.Embed(
             title="🕵️ VOYEUR FEED: ACTIVITY DETECTED",
