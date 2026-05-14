@@ -194,13 +194,16 @@ def run_web_server():
     # O Railway usa a porta 8080 por padrão para Networking Público
     port = int(os.environ.get("PORT", 8080))
     try:
-        # FIXED: Added threaded=True to prevent Flask from blocking the bot start
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except OSError:
         # FIXED: Prevent crash if port is already bound by another module
         print(f"⚠️ Port {port} already in use. Web server is likely already running.")
     except Exception as e:
         print(f"⚠️ Web Server bypass: {e}")
+
+# Inicia o servidor em segundo plano apenas se não estiver rodando e não houver conflito
+if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
+    threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
 
 # --- TOP.GG STATS POSTER PROTOCOL ---
 @tasks.loop(minutes=30)
@@ -286,11 +289,8 @@ async def balance(ctx, member: discord.Member = None):
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
     embed = fiery_embed(f"{target.display_name}'s Vault", f"💰 **Current Balance:** {u['balance']} Flames\n⛓️ **Class:** {user_class}")
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 # ===== 7. UPDATED PROFILE DOSSIER COMMAND (!me) =====
 
@@ -300,21 +300,15 @@ async def me(ctx, member: discord.Member = None):
     target = member or ctx.author
     u = get_user(target.id)
     
-    # Initialize variables to avoid UnboundLocalError
-    wins_rank = "?"
-    kills_rank = "?"
-    duel_rank = "?"
-    victims = []
-
     with get_db_connection() as conn:
         # Calculate Rankings
         wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (u['wins'],)).fetchone()
         kills_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (u['kills'],)).fetchone()
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u['duel_wins'],)).fetchone()
         
-        if wins_row: wins_rank = wins_row['r']
-        if kills_row: kills_rank = kills_row['r']
-        if duel_wins_row: duel_rank = duel_wins_row['r']
+        wins_rank = wins_row['r'] if wins_row else "?"
+        kills_rank = kills_row['r'] if kills_row else "?"
+        duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
 
         # Fetch Victims from duel_history
         victims = conn.execute("""
@@ -496,12 +490,8 @@ async def buytitle(ctx, *, title_choice: str = None):
     shop = bot.get_cog("ShopSystem")
     if not shop:
         embed = fiery_embed("Market Error", "❌ The Black Market is currently closed.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
-        return
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
     pass
 
 # FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
@@ -515,21 +505,13 @@ async def favor(ctx):
     
     if user['balance'] < cost:
         embed = fiery_embed("Favor Rejected", f"❌ Master's Favor is expensive. You need {cost:,} Flames.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
-        return
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
     
     if not ext:
         embed = fiery_embed("System Offline", "❌ The Master is currently unavailable.")
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
-        return
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        return await ctx.send(file=file, embed=embed)
 
     with get_db_connection() as conn:
         conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (cost, ctx.author.id))
@@ -537,11 +519,8 @@ async def favor(ctx):
     
     await ext.activate_peak_heat(ctx)
     embed = fiery_embed("MASTER'S FAVOR", f"🔥 <@{ctx.author.id}> has bribed the Master. **PEAK HEAT IS NOW ACTIVE!**", color=0xFF0000)
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 # ===== 8. ADMIN COMMANDS (HANDLED BY admin.py) =====
 
@@ -551,13 +530,10 @@ async def favor(ctx):
 @bot.command()
 async def ping(ctx):
     embed = fiery_embed("Neural Sync", f"🏓 Pong! Neural Latency: **{round(bot.latency * 1000)}ms**")
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
-# --- STREAK GUARDIAL PROTOCOL START ---
+# --- STREAK GUARDIAN PROTOCOL START ---
 @bot.command()
 async def togglealerts(ctx):
     """Toggles whether you receive public pings from the Streak Guardian."""
@@ -570,11 +546,8 @@ async def togglealerts(ctx):
     
     status_text = "ENABLED" if new_status == 1 else "DISABLED"
     embed = fiery_embed("ALERT PROTOCOL UPDATED", f"Public Guardian pings for your soul are now **{status_text}**.")
-    if os.path.exists("LobbyTopRight.jpg"):
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
-    else:
-        await ctx.send(embed=embed)
+    file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+    await ctx.send(file=file, embed=embed)
 
 @tasks.loop(hours=1)
 async def streak_guardian():
@@ -723,7 +696,8 @@ async def on_ready():
     except Exception as e:
         print(f"RR Recovery fail: {e}")
 
-    # Load Extensions
+    # CARREGAMENTO AUTOMÁTICO DO ADMIN, CLASSES E EXTENSÕES
+    # FIXED: Wrapped in individual try blocks to ensure one crash doesn't stop the economy commands
     try: 
         if not bot.get_cog("AdminSystem"):
             await bot.load_extension("admin")
@@ -913,9 +887,8 @@ async def on_message(message):
                         if row: ignis_admin_role_id = row[0]
                     
                     # Check if user has standard roles OR the specific Ignis Admin role
-                    author_roles = getattr(message.author, 'roles', [])
-                    has_ignis_role = any(role.id == ignis_admin_role_id for role in author_roles)
-                    is_staff = any(role.name in admin_roles for role in author_roles)
+                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
+                    is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
                     
                     # Skip denial if they have the ignis role, standard staff role, or are bot owner
                     if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
@@ -927,12 +900,6 @@ async def on_message(message):
                 pass
 
 async def main():
-    # --- WEB SERVER THREADING FIX ---
-    # Start the web server in a background thread inside the main entry point
-    if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
-        # FIXED: Start thread exactly once before running bot.start()
-        threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
-
     try:
         async with bot: 
             await bot.start(TOKEN)
