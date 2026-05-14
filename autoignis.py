@@ -46,7 +46,7 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
-        # FIXED: Corrected the f-string syntax to prevent unterminated literal error
+        # FIXED: Removed literal line break inside the f-string expression to prevent SyntaxError
         embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS
 ```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
