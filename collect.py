@@ -58,16 +58,14 @@ class Collect(commands.Cog):
         
         main_mod = sys.modules['__main__']
         
-        # FIXED: Separation of rewards to prevent TypeError with update_user_stats_async
+        # FIXED: Reward admin with separate calls to avoid TypeError in update_user_stats_async
         try:
-            # Grant Flames to Admin
-            await main_mod.update_user_stats_async(ctx.author.id, amount=50000, source="Calibration Bounty")
-            # Grant XP to Admin manually via DB
+            await main_mod.update_user_stats_async(ctx.author.id, amount=50000, source="Collection Stage Calibration")
             with self.get_db_connection() as conn:
                 conn.execute("UPDATE users SET xp = xp + ? WHERE id = ?", (25000, ctx.author.id))
                 conn.commit()
-        except Exception as e:
-            print(f"Bounty Error: {e}")
+        except:
+            pass
         
         embed = main_mod.fiery_embed("🛰️ COLLECTION STAGE INITIALIZED", 
             f"The Master has added {channel.mention} to the voyeur network.\n\n"
