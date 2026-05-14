@@ -3,8 +3,10 @@ try:
     import audioop
 except ImportError:
     try:
-        from aiohttp import audioop
-    except:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
         pass 
 
 import discord
@@ -44,6 +46,7 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
+        # FIXED: Removed literal line break inside the f-string block to prevent SyntaxError
         embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n
 ```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
