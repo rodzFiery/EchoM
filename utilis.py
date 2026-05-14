@@ -8,20 +8,27 @@ import random # Ensure random is available for the new logic
 
 # ===== CORE HELPERS & AUDIT =====
 
-async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
+async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0, guild_id=None):
     """UPDATED: Guild-Independent Audit Logging System"""
     
     # --- INDEPENDENT LOOKUP LOGIC ---
     target_channel_id = AUDIT_CHANNEL_ID
     
-    try:
-        with db_module.get_db_connection() as conn:
-            pass 
-    except:
-        pass
+    if guild_id:
+        try:
+            with db_module.get_db_connection() as conn:
+                res = conn.execute("SELECT value FROM guild_config WHERE guild_id = ? AND key = 'audit_channel'", (guild_id,)).fetchone()
+                if res:
+                    target_channel_id = int(res[0])
+        except:
+            pass
 
     channel = bot.get_channel(target_channel_id)
-    if not channel: return
+    if not channel:
+        try:
+            channel = await bot.fetch_channel(target_channel_id)
+        except:
+            return
     
     try:
         user = await bot.fetch_user(user_id)
@@ -62,7 +69,7 @@ async def send_audit_log(bot, AUDIT_CHANNEL_ID, user_id, amount, source, xp=0):
 def fiery_embed(bot, nsfw_mode_active, title, description, color=0xFF4500):
     """ADDED: Centralized Embed Styler"""
     ext = bot.get_cog("FieryExtensions")
-    if (ext and ext.master_present) or nsfw_mode_active:
+    if (ext and hasattr(ext, 'master_present') and ext.master_present) or nsfw_mode_active:
         color = 0x8B0000 
     
     embed = discord.Embed(title=f" {title.upper()} ", description=description, color=color)
