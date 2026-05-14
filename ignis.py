@@ -27,7 +27,7 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner, edition, guild_id=None):
+    def __init__(self, owner=None, edition=0, guild_id=None):
         # FIX: Changed timeout to None so the lobby doesn't "fail" while waiting for players
         super().__init__(timeout=None)
         self.owner = owner
@@ -168,7 +168,11 @@ class LobbyView(discord.ui.View):
             await interaction.channel.send("🔞 **THE LIGHTS GO OUT... ECHO HANGRYGAMES EDITION HAS BEGUN!**")
             
             # Dispatch as background task
-            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), self.edition))
+            # FIXED: Determine correct edition number during reboot
+            import sys as _sys_m
+            main_mod = _sys_m.modules['__main__']
+            final_edition = self.edition if self.edition != 0 else getattr(main_mod, "game_edition", 1)
+            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), final_edition))
             self.stop()
         else:
             # DEBUG: If the cog isn't found, tell the owner
@@ -1056,11 +1060,6 @@ class PersistentLobbyLauncher(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # We register a 'Template' of the LobbyView. 
-        # Because we used custom_id in the buttons, Discord will map clicks to this view
-        # even if it's not the exact same instance as before.
-        import sys as _sys
-        main = sys.modules['__main__']
         # owner=None is okay because is_staff check and DB checks will handle the logic
         self.bot.add_view(LobbyView(owner=None, edition=0))
         print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
