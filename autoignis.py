@@ -46,9 +46,8 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
-        # FIXED: Removed literal line break inside the f-string block to prevent SyntaxError
-        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n
-```\n*Ready to be broken in the Master's image.*", inline=False)
+        # FIXED: Removed the raw literal line break from the code to stop the SyntaxError
+        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n```\n*Ready to be broken in the Master's image.*", inline=False)
         await interaction.response.edit_message(embed=embed, view=self)
 
 class IgnisAuto(commands.Cog):
@@ -165,7 +164,8 @@ class IgnisAuto(commands.Cog):
             )
             
             image_path = "LobbyTopRight.jpg"
-            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
+            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
+```\n*Awaiting the harvest...*", inline=False)
             
             embed.add_field(
                 name="⛓️ Dungeon Protocol",
@@ -234,8 +234,8 @@ class IgnisAuto(commands.Cog):
             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
             "This lobby will close at the next 30-minute mark.", color=0x00FF00)
         
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
-```", inline=False)
+        # FIXED: Removed raw line break here as well to protect this command
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```", inline=False)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
 
         image_path = "LobbyTopRight.jpg"
