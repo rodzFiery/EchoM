@@ -16,9 +16,10 @@ class DesignerLobby(discord.ui.View):
         await interaction.response.send_message("🛠️ Designer Suite access initiated. Please use `!setroles` to configure new links.", ephemeral=True)
 
 class ReactionRoleButton(discord.ui.Button):
-    def __init__(self, emoji, role_id):
-        # Preservation of the custom_id structure for persistence
-        super().__init__(style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=f"rr:{role_id}")
+    def __init__(self, emoji, role_id, count=0):
+        # FIXED: Dynamic numerical counter string formatting embedded natively into the label protocol
+        label_text = f"({count})" if count > 0 else None
+        super().__init__(style=discord.ButtonStyle.secondary, label=label_text, emoji=emoji, custom_id=f"rr:{role_id}")
         self.role_id = role_id
 
     async def callback(self, interaction: discord.Interaction):
@@ -33,11 +34,21 @@ class ReactionRoleButton(discord.ui.Button):
             await interaction.user.add_roles(role)
             await interaction.response.send_message(f"🔒 **ACCESS GRANTED:** {role.name} assigned.", ephemeral=True)
 
+        # UPDATED: Recalculate dynamic tracking numbers and refresh the view structure in real-time
+        updated_count = len(role.members)
+        self.label = f"({updated_count})" if updated_count > 0 else None
+        await interaction.message.edit(view=self.view)
+
 class ReactionRoleView(discord.ui.View):
-    def __init__(self, mappings):
+    def __init__(self, mappings, guild=None):
         super().__init__(timeout=None)
         for emoji, role_id in mappings.items():
-            self.add_item(ReactionRoleButton(emoji, role_id))
+            initial_count = 0
+            if guild:
+                role_obj = guild.get_role(int(role_id))
+                if role_obj:
+                    initial_count = len(role_obj.members)
+            self.add_item(ReactionRoleButton(emoji, role_id, count=initial_count))
 
 class ReactionRoleSystem(commands.Cog):
     def __init__(self, bot):
@@ -102,7 +113,7 @@ class ReactionRoleSystem(commands.Cog):
                 await ctx.send(f"⚠️ **TEXT TOO LARGE:** Your text is {len(rules_content)} chars. Cutting to fit 4096...")
                 rules_content = rules_content[:4090] + "..."
 
-            # --- ADDED: STEP 5 - IMAGE UPLOAD/LINK SELECTION ---
+            # --- ADDED: STEP 5 - IMAGE UPLOAD/LINK SELECTION (.JPG SUPPORT) ---
             await ctx.send("🖼️ **STEP 5:** Upload a **.jpg image** attachment or paste an image URL. (Type `none` to skip).")
             msg = await self.bot.wait_for("message", check=check, timeout=90.0)
             embed_image_url = None
@@ -117,12 +128,12 @@ class ReactionRoleSystem(commands.Cog):
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
             
-            # Apply image if provided
+            # Apply image parameter if provided by user
             if embed_image_url:
                 embed.set_image(url=embed_image_url)
             
-            # Use the cleaned emoji
-            view = ReactionRoleView({target_emoji: target_role.id})
+            # Use the cleaned emoji and pass guild context to calculate numbers dynamically
+            view = ReactionRoleView({target_emoji: target_role.id}, guild=ctx.guild)
             
             try:
                 final_msg = await target_channel.send(embed=embed, view=view)
