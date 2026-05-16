@@ -50,7 +50,8 @@ class AutoLobbyView(discord.ui.View):
         embed.set_field_at(
             0, 
             name="🧙‍♂️ REGISTERED SINNERS", 
-            value=f"""```fix\nTOTAL: {len(self.participants)} SOULS\n```\n*Ready to be broken in the Master's image.*""", 
+            value=f"""```fix\nTOTAL: {len(self.participants)} SOULS\n
+```\n*Ready to be broken in the Master's image.*""", 
             inline=False
         )
         await interaction.response.edit_message(embed=embed, view=self)
@@ -157,10 +158,7 @@ class IgnisAuto(commands.Cog):
             # 2. Start NEW lobby for the next 30 minutes
             self.current_auto_lobby = AutoLobbyView()
             
-            lobby_desc = (
-                "🔞 **The scent of worn leather and cold iron fills the air.**\n\n"
-                "By entering, you submit your soul to the Master's algorithms for the next 30 minutes."
-            )
+            lobby_desc = """🔞 **The scent of worn leather and cold iron fills the air.**\n\nBy entering, you submit your soul to the Master's algorithms for the next 30 minutes."""
 
             embed = main.fiery_embed(
                 "🔞 AUTOMATED RED ROOM CYCLE", 
@@ -169,14 +167,11 @@ class IgnisAuto(commands.Cog):
             )
             
             image_path = "LobbyTopRight.jpg"
-            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
-```\n*Awaiting the harvest...*", inline=False)
+            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="""```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*""", inline=False)
             
             embed.add_field(
                 name="⛓️ Dungeon Protocol",
-                value=(
-                    "• **The Execution:** Once the timer hits zero, the session begins automatically.\n"
-                ),
+                value="""• **The Execution:** Once the timer hits zero, the session begins automatically.\n""",
                 inline=False
             )
             
@@ -241,7 +236,8 @@ class IgnisAuto(commands.Cog):
             color=0x00FF00
         )
         
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```", inline=False)
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="""```fix\nTOTAL: 0 SOULS\n
+```""", inline=False)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
 
         image_path = "LobbyTopRight.jpg"
@@ -271,7 +267,7 @@ class IgnisAuto(commands.Cog):
                 conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_role', ?)", (str(role.id),))
                 conn.commit()
         except: pass
-        embed = main.fiery_embed("Auto-Ignis Ping Config", f"🔔 **Lobby pings enabled.**\n\nThe role {role.mention} will now be summoned every hour at `:00` to face the Red Room.", color=0x00FF00)
+        embed = main.fiery_embed("Auto-Ignis Ping Config", f"""🔔 **Lobby pings enabled.**\n\nThe role {role.mention} will now be summoned every hour at `:00` to face the Red Room.""", color=0x00FF00)
         await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
@@ -291,21 +287,21 @@ class IgnisAuto(commands.Cog):
                 conn.commit()
         except: pass
 
-        embed = main.fiery_embed("Auto-Ignis Terminated", "🛑 **The Automated Cycle has been halted.**\n\nThe gears have stopped turning and the registration ledger is cleared. The Master has revoked the automated protocol.", color=0xFF0000)
+        embed = main.fiery_embed("Auto-Ignis Terminated", """🛑 **The Automated Cycle has been halted.**\n\nThe gears have stopped turning and the registration ledger is cleared. The Master has revoked the automated protocol.""", color=0xFF0000)
         await ctx.send(embed=embed)
 
     @commands.command(name="autolobby")
     async def autolobby_status(self, ctx):
         """Checks the current souls registered for the Automated Cycle."""
         if not self.current_auto_lobby:
-            embed = main.fiery_embed("Automated Lobby", "No active cycle is currently gathering souls.")
+            embed = main.fiery_embed("Automated Lobby", """No active cycle is currently gathering souls.""")
             return await ctx.send(embed=embed)
         participants = self.current_auto_lobby.participants
         if not participants:
-            embed = main.fiery_embed("Automated Lobby", "The automated room is currently empty.")
+            embed = main.fiery_embed("Automated Lobby", """The automated room is currently empty.""")
             return await ctx.send(embed=embed)
         mentions = [f"<@{p_id}>" for p_id in participants]
-        embed = main.fiery_embed("Upcoming Souls", f"Queued for next automated execution:\n\n" + "\n".join(mentions), color=0x5865F2)
+        embed = main.fiery_embed("Upcoming Souls", f"""Queued for next automated execution:\n\n""" + "\n".join(mentions), color=0x5865F2)
         image_path = "LobbyTopRight.jpg"
         if os.path.exists(image_path):
             file = discord.File(image_path, filename="lobby.jpg")
