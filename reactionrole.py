@@ -4,6 +4,7 @@ import sqlite3
 import asyncio
 import os
 import io
+import json
 from datetime import datetime
 
 # --- ADDED: DesignerLobby (The missing piece main.py was looking for) ---
@@ -163,7 +164,7 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="ticket")
     @commands.has_permissions(administrator=True)
     async def set_ticket_lobby(self, ctx):
-        """Guided step-by-step setup to create a custom ticket lobby embedding text and custom image choices."""
+        """Guided step-by-step setup to create a custom ticket lobby with fully personalized buttons and images."""
         
         def check(m):
             return m.author == ctx.author and m.channel == ctx.channel
@@ -181,8 +182,8 @@ class ReactionRoleSystem(commands.Cog):
             msg = await self.bot.wait_for("message", check=check, timeout=120.0)
             lobby_desc = msg.content
 
-            # Step 3: Custom Upload/Link Selection (Replacing the automatic ticket.png)
-            await ctx.send("🖼️ **STEP 3:** Upload a **custom image attachment** or paste a image link for this panel. (Type `none` to skip).")
+            # Step 3: Custom Upload/Link Selection
+            await ctx.send("🖼️ **STEP 3:** Upload a **custom image attachment** or paste an image link for this panel. (Type `none` to skip).")
             msg = await self.bot.wait_for("message", check=check, timeout=90.0)
             ticket_image_url = None
             
@@ -191,6 +192,37 @@ class ReactionRoleSystem(commands.Cog):
                     ticket_image_url = msg.attachments[0].url
                 elif msg.content.startswith("http"):
                     ticket_image_url = msg.content.strip()
+
+            # Step 4: Button Quantity Personalization
+            await ctx.send("🔢 **STEP 4:** How many **custom buttons** would you like to build for this lobby? (Maximum of 5).")
+            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            try:
+                btn_count = int(msg.content.strip())
+                if not (1 <= btn_count <= 5):
+                    return await ctx.send("❌ Total buttons must be between 1 and 5. Protocol terminated.")
+            except ValueError:
+                return await ctx.send("❌ Please enter a valid number configuration.")
+
+            # Step 5: Loop to gather personalized Button Labels and Emojis
+            button_configs = []
+            for i in range(btn_count):
+                await ctx.send(f"🏷️ **BUTTON {i+1} NAME:** Enter the label text for Button #{i+1} (e.g., Verification).")
+                msg_label = await self.bot.wait_for("message", check=check, timeout=60.0)
+                label_text = msg_label.content.strip()
+
+                await ctx.send(f"✨ **BUTTON {i+1} EMOJI:** Send the emoji bound to Button #{i+1} (Standard or custom).")
+                msg_emoji = await self.bot.wait_for("message", check=check, timeout=60.0)
+                raw_emoji = msg_emoji.content.strip()
+
+                if raw_emoji.startswith("<:") or raw_emoji.startswith("<a:"):
+                    try:
+                        resolved_emoji = discord.PartialEmoji.from_str(raw_emoji)
+                    except Exception:
+                        resolved_emoji = raw_emoji
+                else:
+                    resolved_emoji = raw_emoji
+
+                button_configs.append({"label": label_text, "emoji": str(resolved_emoji)})
 
             # Execute Config Mapping Pushes
             with sqlite3.connect("database.db") as conn:
@@ -213,12 +245,13 @@ class ReactionRoleSystem(commands.Cog):
             if ticket_image_url:
                 embed.set_image(url=ticket_image_url)
 
-            view = TicketLobbyView()
+            # Generate the personalized layout view
+            view = TicketLobbyView(button_configs)
             await target_channel.send(embed=embed, view=view)
-            await ctx.send(f"✅ **SUCCESS:** Ticket Lobby successfully engineered and deployed inside {target_channel.mention}")
+            await ctx.send(f"✅ **SUCCESS:** Personalized Ticket Lobby successfully engineered and deployed inside {target_channel.mention}")
 
         except asyncio.TimeoutError:
-            await ctx.send("⌛ **TIMEOUT:** Verification protocol took too long. Restart configuration with `!ticket`.")
+            await ctx.send("⌛ **TIMEOUT:** Configuration sequence timed out. Restart with `!ticket`.")
 
     @commands.command(name="ticketadmin")
     @commands.has_permissions(administrator=True)
@@ -348,25 +381,22 @@ class ReactionRoleSystem(commands.Cog):
 
 # --- NEW TICKET UI COMPONENTS ---
 
+class TicketCustomButton(discord.ui.Button):
+    def __init__(self, label, emoji, index):
+        # Dynamically map the button features to a persistent generic custom_id structure
+        super().__init__(style=discord.ButtonStyle.secondary, label=label, emoji=emoji, custom_id=f"tkt_customized:{index}")
+        self.category_slug = label.lower().replace(" ", "_")
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.view.create_ticket(interaction, self.category_slug)
+
 class TicketLobbyView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, button_configs=None):
         super().__init__(timeout=None)
-
-    @discord.ui.button(label="VERIFICATION", style=discord.ButtonStyle.secondary, emoji="🔞", custom_id="tkt:verification")
-    async def verification(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "verification")
-
-    @discord.ui.button(label="SUPPORT", style=discord.ButtonStyle.secondary, emoji="💬", custom_id="tkt:support")
-    async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "support")
-
-    @discord.ui.button(label="TECH ISSUES", style=discord.ButtonStyle.secondary, emoji="⚙️", custom_id="tkt:technical")
-    async def technical(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "technical")
-
-    @discord.ui.button(label="DRAMAS", style=discord.ButtonStyle.secondary, emoji="🚨", custom_id="tkt:drama")
-    async def dramas(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, "drama")
+        # If initialized by setup loop or persistent register reload
+        if button_configs:
+            for idx, cfg in enumerate(button_configs):
+                self.add_item(TicketCustomButton(label=cfg['label'], emoji=cfg['emoji'], index=idx))
 
     async def create_ticket(self, interaction: discord.Interaction, category: str):
         # Fetch and Increment config
@@ -408,7 +438,7 @@ class TicketLobbyView(discord.ui.View):
         
         # FORMATTED NAME: ticket[number]-[category]
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket{current_num}-{category}",
+            name=f"ticket{current_num}-{category.replace('_', '-')}",
             overwrites=overwrites,
             category=target_category,
             topic=f"Asset ID: {interaction.user.id} | Session #{current_num}"
@@ -419,7 +449,7 @@ class TicketLobbyView(discord.ui.View):
 
         # Send greeting in ticket
         tkt_embed = discord.Embed(
-            title=f"⛓️ SESSION #{current_num} INITIATED: {category.upper()}",
+            title=f"⛓️ SESSION #{current_num} INITIATED: {category.upper().replace('_', ' ')}",
             description=f"Welcome {interaction.user.mention}. State your business clearly. "
                         "The Staff has been notified of your presence.",
             color=0x8B0000
@@ -432,7 +462,7 @@ class TicketLobbyView(discord.ui.View):
         if admin_chan:
             log = discord.Embed(title=f"🚨 NEW SESSION OPENED: #{current_num}", color=0xFFD700)
             log.add_field(name="Asset", value=interaction.user.mention, inline=True)
-            log.add_field(name="Category", value=category.upper(), inline=True)
+            log.add_field(name="Category", value=category.upper().replace('_', ' '), inline=True)
             log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
             await admin_chan.send(embed=log)
 
@@ -509,6 +539,7 @@ class TicketControls(discord.ui.View):
 async def setup(bot):
     await bot.add_cog(ReactionRoleSystem(bot))
     # Required for persistent buttons to work after restart
+    # MODIFIED: Passing placeholder lists to allow registration validation on system start without static buttons crashing
     bot.add_view(TicketLobbyView())
     bot.add_view(TicketControls())
     bot.add_view(DesignerLobby())
