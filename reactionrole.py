@@ -162,41 +162,63 @@ class ReactionRoleSystem(commands.Cog):
     # --- NEW TICKET COMMANDS ---
     @commands.command(name="ticket")
     @commands.has_permissions(administrator=True)
-    async def set_ticket_lobby(self, ctx, channel: discord.TextChannel):
-        """Sets the channel where the ticket embed and buttons will appear."""
-        with sqlite3.connect("database.db") as conn:
-            # FIX: Ensure all columns are handled for the INSERT OR REPLACE logic
-            conn.execute("""
-                INSERT INTO ticket_config (guild_id, lobby_channel) 
-                VALUES (?, ?) 
-                ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel
-            """, (ctx.guild.id, channel.id))
-            conn.commit()
+    async def set_ticket_lobby(self, ctx):
+        """Guided step-by-step setup to create a custom ticket lobby embedding text and custom image choices."""
         
-        embed = discord.Embed(
-            title="📩 Contact the Staff",
-            description="Select a protocol below to open a private line. Every word is recorded.\n\n"
-                        "🔞 **VERIFICATION:** Prove your identity and claim your rank.\n"
-                        "💬 **SUPPORT:** General inquiries and server guidance.\n"
-                        "⚙️ **TECH ISSUES:** Report glitches in the neural link.\n"
-                        "🚨 **DRAMAS:** Report conflicts or asset misbehavior.",
-            color=0x8B0000
-        )
-        embed.set_footer(text="Echo Ticket System | Secure Neural Link")
-        
-        # --- ADDED: LARGE SCALE IMAGE PROTOCOL ---
-        file = None
-        if os.path.exists("ticket.png"):
-            file = discord.File("ticket.png", filename="ticket.png")
-            embed.set_image(url="attachment://ticket.png")
+        def check(m):
+            return m.author == ctx.author and m.channel == ctx.channel
 
-        view = TicketLobbyView()
-        if file:
-            await channel.send(file=file, embed=embed, view=view)
-        else:
-            await channel.send(embed=embed, view=view)
+        try:
+            # Step 1: Target Channel
+            await ctx.send("🎯 **STEP 1:** Mention the **channel** where the ticket lobby panel should be sent (e.g., #support).")
+            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
+            if not target_channel:
+                return await ctx.send("❌ Invalid channel. Cancelled protocol.")
+
+            # Step 2: Content Copy Design
+            await ctx.send("📝 **STEP 2:** Type the **description copy** that will appear in your support lobby panel embed.")
+            msg = await self.bot.wait_for("message", check=check, timeout=120.0)
+            lobby_desc = msg.content
+
+            # Step 3: Custom Upload/Link Selection (Replacing the automatic ticket.png)
+            await ctx.send("🖼️ **STEP 3:** Upload a **custom image attachment** or paste a image link for this panel. (Type `none` to skip).")
+            msg = await self.bot.wait_for("message", check=check, timeout=90.0)
+            ticket_image_url = None
             
-        await ctx.send(f"✅ Ticket Lobby deployed in {channel.mention}")
+            if msg.content.strip().lower() != "none":
+                if msg.attachments:
+                    ticket_image_url = msg.attachments[0].url
+                elif msg.content.startswith("http"):
+                    ticket_image_url = msg.content.strip()
+
+            # Execute Config Mapping Pushes
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("""
+                    INSERT INTO ticket_config (guild_id, lobby_channel) 
+                    VALUES (?, ?) 
+                    ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel
+                """, (ctx.guild.id, target_channel.id))
+                conn.commit()
+
+            # Build Custom Embed Core Layout
+            embed = discord.Embed(
+                title="📩 Contact the Staff",
+                description=lobby_desc,
+                color=0x8B0000
+            )
+            embed.set_footer(text="Echo Ticket System | Secure Neural Link")
+            
+            # Map custom picture choices dynamically if selected
+            if ticket_image_url:
+                embed.set_image(url=ticket_image_url)
+
+            view = TicketLobbyView()
+            await target_channel.send(embed=embed, view=view)
+            await ctx.send(f"✅ **SUCCESS:** Ticket Lobby successfully engineered and deployed inside {target_channel.mention}")
+
+        except asyncio.TimeoutError:
+            await ctx.send("⌛ **TIMEOUT:** Verification protocol took too long. Restart configuration with `!ticket`.")
 
     @commands.command(name="ticketadmin")
     @commands.has_permissions(administrator=True)
