@@ -102,9 +102,24 @@ class ReactionRoleSystem(commands.Cog):
                 await ctx.send(f"⚠️ **TEXT TOO LARGE:** Your text is {len(rules_content)} chars. Cutting to fit 4096...")
                 rules_content = rules_content[:4090] + "..."
 
-            # Step 5: Final Deployment
+            # --- ADDED: STEP 5 - IMAGE UPLOAD/LINK SELECTION ---
+            await ctx.send("🖼️ **STEP 5:** Upload a **.jpg image** attachment or paste an image URL. (Type `none` to skip).")
+            msg = await self.bot.wait_for("message", check=check, timeout=90.0)
+            embed_image_url = None
+            
+            if msg.content.strip().lower() != "none":
+                if msg.attachments:
+                    embed_image_url = msg.attachments[0].url
+                elif msg.content.startswith("http"):
+                    embed_image_url = msg.content.strip()
+
+            # Step 6: Final Deployment
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
+            
+            # Apply image if provided
+            if embed_image_url:
+                embed.set_image(url=embed_image_url)
             
             # Use the cleaned emoji
             view = ReactionRoleView({target_emoji: target_role.id})
