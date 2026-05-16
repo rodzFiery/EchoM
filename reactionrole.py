@@ -58,6 +58,9 @@ class ReactionRoleSystem(commands.Cog):
             
             # --- NEW ARCHIVE TABLE ---
             conn.execute("CREATE TABLE IF NOT EXISTS ticket_archives (ticket_id TEXT PRIMARY KEY, guild_id INTEGER, asset_name TEXT, category TEXT, content TEXT, timestamp TEXT)")
+            
+            # --- ADDED: AUTOROLE CONFIG TABLE ---
+            conn.execute("CREATE TABLE IF NOT EXISTS autorole_config (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
             conn.commit()
 
     @commands.command(name="setroles")
@@ -250,6 +253,41 @@ class ReactionRoleSystem(commands.Cog):
         
         buffer = io.BytesIO(row['content'].encode('utf-8'))
         await ctx.send(content=f"📑 **TRANSCRIPT RECOVERY:** `{ticket_id}`", file=discord.File(buffer, filename=f"recovered-{ticket_id}.txt"))
+
+    # --- ADDED: AUTOROLE COMMAND SYSTEM ---
+    @commands.command(name="autorole")
+    @commands.has_permissions(administrator=True)
+    async def set_autorole(self, ctx, role: discord.Role = None):
+        """Sets or disables the role assigned automatically to joining members."""
+        with sqlite3.connect("database.db") as conn:
+            if role is None:
+                conn.execute("DELETE FROM autorole_config WHERE guild_id = ?", (ctx.guild.id,))
+                conn.commit()
+                return await ctx.send("♻️ **AUTOROLE PROTOCOL DEACTIVATED:** New assets will no longer receive baseline links automatically.")
+            
+            conn.execute("""
+                INSERT INTO autorole_config (guild_id, role_id) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET role_id=excluded.role_id
+            """, (ctx.guild.id, role.id))
+            conn.commit()
+        await ctx.send(f"✅ **AUTOROLE PROTOCOL ENGAGED:** Joining members will now automatically be bound to the {role.mention} role matrix.")
+
+    # --- ADDED: MEMBER JOIN LISTENER FOR AUTOROLE ---
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """Assigns the configured autorole to new assets upon arrival."""
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT role_id FROM autorole_config WHERE guild_id = ?", (member.guild.id,)).fetchone()
+        
+        if row and row['role_id']:
+            role = member.guild.get_role(int(row['role_id']))
+            if role:
+                try:
+                    await member.add_roles(role)
+                except Exception as e:
+                    print(f"Failed to assign autorole in guild {member.guild.id}: {e}")
 
 # --- NEW TICKET UI COMPONENTS ---
 
