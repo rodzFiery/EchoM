@@ -97,11 +97,19 @@ class ReactionRoleSystem(commands.Cog):
             if not target_role:
                 return await ctx.send("❌ Invalid role. Restart the command.")
 
-            # Step 3: Emoji Selection
-            await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click.")
+            # Step 3: Emoji Selection (Multi-Server Custom Custom Emoji Support)
+            await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click. (Standard or custom server emojis are supported).")
             msg = await self.bot.wait_for("message", check=check, timeout=60.0)
-            # FIX: Ensure emoji is cleaned of spaces/newlines
-            target_emoji = msg.content.strip() 
+            raw_content = msg.content.strip()
+            
+            # MULTI-SERVER SYNC: Convert custom client strings into valid PartialEmoji objects if custom
+            if raw_content.startswith("<:") or raw_content.startswith("<a:"):
+                try:
+                    target_emoji = discord.PartialEmoji.from_str(raw_content)
+                except Exception:
+                    return await ctx.send("❌ Failed to process the custom emoji structure. Make sure the bot is inside the host server.")
+            else:
+                target_emoji = raw_content
 
             # Step 4: Content Design
             await ctx.send("📝 **STEP 4:** Type the **message/rules** that will appear in the embed.")
@@ -132,7 +140,7 @@ class ReactionRoleSystem(commands.Cog):
             if embed_image_url:
                 embed.set_image(url=embed_image_url)
             
-            # Use the cleaned emoji and pass guild context to calculate numbers dynamically
+            # Pass custom/standard mapping data and guild context to determine current counters
             view = ReactionRoleView({target_emoji: target_role.id}, guild=ctx.guild)
             
             try:
@@ -140,9 +148,10 @@ class ReactionRoleSystem(commands.Cog):
             except discord.HTTPException as e:
                 return await ctx.send(f"❌ **DEPLOYMENT FAILED:** {e}\nCheck if the bot has access to the emoji or if the role ID is valid.")
 
-            # Store in DB
+            # Store string conversion representation in database logs
+            db_emoji_str = str(target_emoji)
             with sqlite3.connect("database.db") as conn:
-                conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (final_msg.id, target_emoji, target_role.id))
+                conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (final_msg.id, db_emoji_str, target_role.id))
                 conn.commit()
 
             await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention}!")
