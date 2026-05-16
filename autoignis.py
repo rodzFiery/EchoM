@@ -46,9 +46,13 @@ class AutoLobbyView(discord.ui.View):
         
         embed = interaction.message.embeds[0]
         # VISUAL UPDATE: Enhanced Participant Counter
-        # FIXED: Removed the raw literal line break from the code to stop the SyntaxError
-        embed.set_field_at(0, name="🧙‍♂️ REGISTERED SINNERS", value=f"```fix\nTOTAL: {len(self.participants)} SOULS\n
-```\n*Ready to be broken in the Master's image.*", inline=False)
+        # FIXED: Converted to triple quotes so layout changes cannot trigger a SyntaxError
+        embed.set_field_at(
+            0, 
+            name="🧙‍♂️ REGISTERED SINNERS", 
+            value=f"""```fix\nTOTAL: {len(self.participants)} SOULS\n```\n*Ready to be broken in the Master's image.*""", 
+            inline=False
+        )
         await interaction.response.edit_message(embed=embed, view=self)
 
 class IgnisAuto(commands.Cog):
@@ -165,7 +169,8 @@ class IgnisAuto(commands.Cog):
             )
             
             image_path = "LobbyTopRight.jpg"
-            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*", inline=False)
+            embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
+```\n*Awaiting the harvest...*", inline=False)
             
             embed.add_field(
                 name="⛓️ Dungeon Protocol",
@@ -229,17 +234,14 @@ class IgnisAuto(commands.Cog):
         current_minute_block = 0 if now.minute < 30 else 30
         self.last_processed_window = f"{now.hour}_{current_minute_block}"
 
-        # FIXED: Enclosed multiline description correctly inside a single string tuple to avoid syntax errors
+        # FIXED: Converted to triple quotes here as well to make it structurally bulletproof
         embed = main.fiery_embed(
             "🔞 AUTOMATED RED ROOM: INITIALIZED", 
-            ("🥀 **Automated Pit set and synchronized.**\n\n"
-             "The Master has claimed this territory. Registration is now open for the first cycle.\n"
-             "This lobby will close at the next 30-minute mark."), 
+            """🥀 **Automated Pit set and synchronized.**\n\nThe Master has claimed this territory. Registration is now open for the first cycle.\nThis lobby will close at the next 30-minute mark.""", 
             color=0x00FF00
         )
         
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n
-```", inline=False)
+        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="```fix\nTOTAL: 0 SOULS\n```", inline=False)
         embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
 
         image_path = "LobbyTopRight.jpg"
