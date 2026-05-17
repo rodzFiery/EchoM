@@ -100,20 +100,21 @@ class Counting(commands.Cog):
 
         if total > 0 and total % 50 == 0:
             is_weekend = datetime.now().weekday() >= 5
-            reward = 40000 if is_weekend else 20000
+            # FIXED: Updated prize outputs straight to 1,000,000 baseline / 2,000,000 weekend multipliers
+            reward = 2000000 if is_weekend else 1000000
             theme_title = "🔥 DOUBLE FLAME WEEKEND" if is_weekend else "📜 NEURAL COUNTING CERTIFICATE"
             
             await main_mod.update_user_stats_async(user_id, amount=reward, source=f"Counting Milestone: {total}")
             
             embed = main_mod.fiery_embed(theme_title, 
-                                        f"### 🎖️ MILESTONE REACHED: {total}\n"
-                                        f"Asset {message.author.mention}, your numerical precision is efficient.\n\n"
-                                        f"**Reward Granted:** `{reward:,} Flames` {'(2x Weekend Bonus!)' if is_weekend else ''}\n"
-                                        f"**Status:** `Verified & Synchronized`\n\n"
-                                        f"\"*The Red Room appreciates your consistency.*\"", color=0xFF4500 if is_weekend else 0x00FF00)
+                                         f"### 🎖️ MILESTONE REACHED: {total}\n"
+                                         f"Asset {message.author.mention}, your numerical precision is efficient.\n\n"
+                                         f"**Reward Granted:** `{reward:,} Flames` {'(2x Weekend Bonus!)' if is_weekend else ''}\n"
+                                         f"**Status:** `Verified & Synchronized`\n\n"
+                                         f"\"*The Red Room appreciates your consistency.*\"", color=0xFF4500 if is_weekend else 0x00FF00)
             await message.channel.send(embed=embed)
 
-    async def check_community_milestone(self, message):
+    def check_community_milestone(self, message):
         """Logic for community-wide milestones reached in this server (1000, 2000, etc.)."""
         main_mod = sys.modules['__main__']
         guild_id = message.guild.id
@@ -127,11 +128,11 @@ class Counting(commands.Cog):
             
         if total_community > 0 and total_community % 1000 == 0:
             embed = main_mod.fiery_embed("🛰️ SECTOR MILESTONE ACHIEVED",
-                                        f"### 🌐 COLLECTIVE PRECISION: {total_community:,}\n"
-                                        f"Attention assets of **{message.guild.name}**.\n\n"
-                                        f"This sector has successfully synchronized `{total_community:,}` verified numbers into the neural network.\n"
-                                        f"Local efficiency has increased. The Red Room is watching.\n\n"
-                                        f"**Status:** `Optimization Successful`", color=0x9B59B6)
+                                         f"### 🌐 COLLECTIVE PRECISION: {total_community:,}\n"
+                                         f"Attention assets of **{message.guild.name}**.\n\n"
+                                         f"This sector has successfully synchronized `{total_community:,}` verified numbers into the neural network.\n"
+                                         f"Local efficiency has increased. The Red Room is watching.\n\n"
+                                         f"**Status:** `Optimization Successful`", color=0x9B59B6)
             await message.channel.send(content="@here", embed=embed)
 
     async def check_global_goal(self, message):
@@ -159,11 +160,11 @@ class Counting(commands.Cog):
             await asyncio.to_thread(record_goal)
 
             embed = main_mod.fiery_embed("🌍 UNIVERSAL NEURAL SYNC",
-                                        f"### 🏆 GLOBAL GOAL REACHED: {total_global:,}\n"
-                                        f"The Echo has achieved a massive milestone across all sectors.\n\n"
-                                        f"**Global Badge Granted:** `[{badge_name}]`\n"
-                                        f"All synchronized assets have been updated with this clearance level.\n\n"
-                                        f"*The Red Room has expanded its reach.*", color=0xFFD700)
+                                         f"### 🏆 GLOBAL GOAL REACHED: {total_global:,}\n"
+                                         f"The Echo has achieved a massive milestone across all sectors.\n\n"
+                                         f"**Global Badge Granted:** `[{badge_name}]`\n"
+                                         f"All synchronized assets have been updated with this clearance level.\n\n"
+                                         f"*The Red Room has expanded its reach.*", color=0xFFD700)
             await message.channel.send(embed=embed)
 
     @tasks.loop(minutes=1)
@@ -284,7 +285,7 @@ class Counting(commands.Cog):
                 total_local = conn.execute("SELECT SUM(count) FROM local_counting WHERE guild_id = ?", (guild_id,)).fetchone()
                 ruiner = conn.execute("SELECT ruiner_id, COUNT(*) as fails FROM counting_runs WHERE guild_id = ? GROUP BY ruiner_id ORDER BY fails DESC LIMIT 1", (guild_id,)).fetchone()
                 return record[0] or 0, total_local[0] or 0, ruiner
-        high_score, total_inputs, top_ruiner = await asyncio.to_thread(fetch_guild_metrics)
+High_score, total_inputs, top_ruiner = await asyncio.to_thread(fetch_guild_metrics)
         current = self.current_counts.get(guild_id, 0)
         ruiner_mention = f"<@{top_ruiner[0]}> ({top_ruiner[1]} fails)" if top_ruiner else "None"
         desc = (f"### 🏙️ SECTOR AUDIT: {ctx.guild.name.upper()}\n"
