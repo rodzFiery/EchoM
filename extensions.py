@@ -126,19 +126,17 @@ class FieryExtensions(commands.Cog):
         pings_str = " ".join(pings) if pings else ""
 
         desc = (
-            f"🔞 **THE GRAND EXHIBITION DECREE HAS LANDED...**\n"
-            f"*The smoke clears, leaving the weak stripped bare for our collection records.*\n\n"
-            f"🩸 **FIRST BLOOD DISGRACE:** {fb}\n"
-            f"└ *Status:* **STRIPPED & PUBLICLY EXPOSED**\n"
-            f"└ *Note:* `Fastest collapse in the pit. The cameras are locked on your skin.`\n\n"
-            f"🥀 **SUICIDE FALLOUT:** {suicides_list}\n"
-            f"└ *Status:* **FORCED EXPOSURE PENALTY**\n"
-            f"└ *Note:* `Fumbling under the weight of the chains? No privacy for broken pets here.`\n\n"
+            f"🩸 **FIRST DEATH:** {fb}\n"
+            f"└ *Flash**\n"
+            f"└ *Note:* `The cameras are locked on you.`\n\n"
+            f"🪓 **SUICIDES:** {suicides_list}\n"
+            f"└ *Flash**\n"
+            f"└ *Note:* `No privacy for broken pets here.`\n\n"
             f"🌋 **LEGENDARY EVENT WIPES:** {wiped_list}\n"
             f"└ *Status:* **CURTAINS RIPPED OPEN**\n"
-            f"└ *Note:* `Caught completely off-guard. Stand still and let the gallery look.`\n\n"
-            f"👑 **CHAMPION'S SUPREME DECREE:** <@{winner_id}>\n"
-            f"└ *The Master has given you full dominance over the grid, pet. You are authorized to select **3** more victims for total exposure right now. Command the room by typing:* \n"
+            f"└ *Note:* `Caught completely off-guard.`\n\n"
+            f"👑 **CHAMPION'S SUPREME:** <@{winner_id}>\n"
+            f"└ *The Master has given you full dominance over the community, pet. You are authorized to select **3** more victims to flash. Command the room by typing:* \n"
             f"`!flash @user1 @user2 @user3`"
         )
         
