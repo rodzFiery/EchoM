@@ -34,6 +34,8 @@ class Achievements(commands.Cog):
     def get_achievement_summary(self, user_id):
         """Generates a high-quality summary of highest reached tiers for the winner card."""
         with self.get_db_connection() as conn:
+            # FIXED: Enforced sqlite3.Row assignment to allow dictionary access by key name safely
+            conn.row_factory = sqlite3.Row
             u = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         
         if not u: 
@@ -92,6 +94,7 @@ class Achievements(commands.Cog):
         if category in tier_map and current_value in tier_map[category]:
             # NEW: Lookup channel ID from the table managed by your audit.py
             with self.get_db_connection() as conn:
+                conn.row_factory = sqlite3.Row
                 res = conn.execute("SELECT channel_id FROM audit_settings WHERE guild_id = ?", (guild_id,)).fetchone()
             
             if not res:
@@ -133,6 +136,8 @@ class Achievements(commands.Cog):
         """Displays a full breakdown of the user's achievements across all categories."""
         member = member or ctx.author
         with self.get_db_connection() as conn:
+            # FIXED: Enforced sqlite3.Row assignment to allow dictionary access by key name safely
+            conn.row_factory = sqlite3.Row
             u = conn.execute("SELECT * FROM users WHERE id = ?", (member.id,)).fetchone()
         
         if not u: 
