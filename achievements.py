@@ -171,14 +171,14 @@ class Achievements(commands.Cog):
         fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in user_keys else 0, t_master_scale)
         if fbd: ach_msg.append(f"⚰️ **First Blood (Victim):** {fbd}")
         
-        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
+        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_master_scale)
         if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
 
         # FIXED: Changed from .get() to explicit bracket notation check to resolve Row AttributeError
         cmds = self.get_tier(u['commands_used'] if 'commands_used' in user_keys else 0, t_high)
         if cmds: ach_msg.append(f"🧠 **Neural Sync:** {cmds}")
         
-        top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
+        top_total = (u['top_2'] if 'top_2' in user_keys else 0) + (u['top_3'] if 'top_3' in user_keys else 0) + (u['top_4'] if 'top_4' in user_keys else 0) + (u['top_5'] if 'top_5' in user_keys else 0)
         top = self.get_tier(top_total, t_high)
         if top: ach_msg.append(f"🎖️ **Finalist Rank:** {top}")
 
@@ -191,13 +191,13 @@ class Achievements(commands.Cog):
                                   "\n".join(ach_msg) if ach_msg else "No milestones reached yet.")
         
         embed.add_field(name="⚔️ Combat Records", 
-                        value=f"Kills: **{u['kills']}**\nWins: **{u['wins']}**\nMax Streak: **{u['max_kill_streak']}**", inline=True)
+                        value=f"Kills: **{u['kills'] if 'kills' in user_keys else 0}**\nWins: **{u['wins'] if 'wins' in user_keys else 0}**\nMax Streak: **{u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0}**", inline=True)
         
         embed.add_field(name="🩸 Blood Ties", 
-                        value=f"Killer: **{u['first_bloods']}**\nVictim: **{u['first_deaths']}**\nKD Ratio: **{round(u['kills']/(u['deaths'] if u['deaths'] else 1), 2)}**", inline=True)
+                        value=f"Killer: **{u['first_bloods'] if 'first_bloods' in user_keys else 0}**\nVictim: **{u['first_deaths'] if 'first_deaths' in user_keys else 0}**\nKD Ratio: **{round((u['kills'] if 'kills' in user_keys else 0)/((u['deaths'] if 'deaths' in user_keys else 0) if ('deaths' in user_keys and u['deaths']) else 1), 2)}**", inline=True)
         
         embed.add_field(name="🛡️ Battle History", 
-                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u['lobbies_created'] if 'lobbies_created' in user_keys else 0}**", inline=True)
+                        value=f"Matches: **{u['games_played'] if 'games_played' in user_keys else 0}**\nFinalist: **{top_total}**\nCreated: **{u['lobbies_created'] if 'lobbies_created' in user_keys else 0}**", inline=True)
 
         embed.add_field(name="🧠 Neural Interface", 
                         value=f"Sync Level: **{u['commands_used'] if 'commands_used' in user_keys else 0}**\nSpouse Points: **{u['spouse_points'] if 'spouse_points' in user_keys else 0}**", inline=False)
@@ -211,5 +211,20 @@ class Achievements(commands.Cog):
 
 async def setup(bot):
     main_module = sys.modules['__main__']
-    await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
+    
+    # AUTOMATIC MIGRATION: Ensure all fields exist inside the database schema on start to block IndexErrors
+    with main_module.get_db_connection() as conn:
+        needed_columns = [
+            "first_bloods", "games_played", "wins", "kills", "deaths",
+            "first_deaths", "max_kill_streak", "max_win_streak", 
+            "commands_used", "top_2", "top_3", "top_4", "top_5", 
+            "total_marriages", "lobbies_created", "spouse_points"
+        ]
+        for col in needed_columns:
+            try:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT 0")
+            except sqlite3.OperationalError:
+                pass  # Column already exists safely
+        conn.commit()
+
     await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
