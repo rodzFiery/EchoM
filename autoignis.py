@@ -70,6 +70,9 @@ class IgnisAuto(commands.Cog):
         self.ping_role_id = getattr(main_module, "AUTO_IGNIS_ROLE", 0)
         self.auto_enabled = True # Default state
         
+        # ADDED: Master Owner ID alignment for custom verification checks
+        self.MASTER_OWNER_ID = 1482648173016252439
+        
         # ADDED: Lock to prevent race conditions (multiple games)
         self._lock = asyncio.Lock()
 
@@ -93,6 +96,14 @@ class IgnisAuto(commands.Cog):
 
     def cog_unload(self):
         self.auto_loop.cancel()
+
+    # ADDED: Custom internal check to verify owner status manually
+    async def is_server_or_bot_owner(self, ctx):
+        if ctx.author.id == self.MASTER_OWNER_ID:
+            return True
+        if ctx.author.id == ctx.guild.owner_id:
+            return True
+        return await self.bot.is_owner(ctx.author)
 
     @tasks.loop(seconds=5) # RUN CONCURRENT VERIFICATIONS AT SHORT FREQUENCY FOR THREADLOCKING
     async def auto_loop(self):
@@ -199,9 +210,12 @@ class IgnisAuto(commands.Cog):
         await self.bot.wait_until_ready()
 
     @commands.command(name="setauto")
-    @commands.is_owner()
     async def set_auto_channel(self, ctx):
         """Sets the current channel as the Automated Ignis Pit and saves it."""
+        # FIXED: Removed is_owner decorator and applied fluid checking to allow both server and bot owners
+        if not await self.is_server_or_bot_owner(ctx):
+            return await ctx.send("❌ **Access Denied:** This protocol is locked to the Server Owner or Bot Architect.")
+
         import sys
         main_module = sys.modules['__main__']
         
@@ -235,9 +249,12 @@ class IgnisAuto(commands.Cog):
             self.auto_loop.restart()
 
     @commands.command(name="autoignis")
-    @commands.is_owner()
     async def set_auto_ping_role(self, ctx, role: discord.Role):
         """Sets the role to be pinged every hour at .00."""
+        # FIXED: Removed is_owner decorator and applied fluid checking to allow both server and bot owners
+        if not await self.is_server_or_bot_owner(ctx):
+            return await ctx.send("❌ **Access Denied:** This protocol is locked to the Server Owner or Bot Architect.")
+
         import sys
         main_module = sys.modules['__main__']
         self.ping_role_id = role.id
@@ -252,9 +269,12 @@ class IgnisAuto(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="stopautoignis")
-    @commands.is_owner()
     async def stop_auto_ignis(self, ctx):
         """Stops the Automated Ignis cycle immediately."""
+        # FIXED: Removed is_owner decorator and applied fluid checking to allow both server and bot owners
+        if not await self.is_server_or_bot_owner(ctx):
+            return await ctx.send("❌ **Access Denied:** This protocol is locked to the Server Owner or Bot Architect.")
+
         import sys
         main_module = sys.modules['__main__']
         
