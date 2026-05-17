@@ -106,7 +106,7 @@ class FieryExtensions(commands.Cog):
             log_emb.color = 0xFF00FF
             await audit_chan.send(embed=log_emb)
 
-    # ADDED: Dynamic internal post-match router to execute immediate multi-target flash demands during Grand Exhibition events
+    # FIXED: Re-allocated logic variables to generate a highly intensive, sassy, and fully persistent post-match recap layout card
     async def process_nsfw_match_recap(self, channel, match_id, winner_id):
         import sys
         main = sys.modules['__main__']
@@ -126,13 +126,20 @@ class FieryExtensions(commands.Cog):
         pings_str = " ".join(pings) if pings else ""
 
         desc = (
-            f"🔞 **THE GRAND EXHIBITION PROTOCOL EVALUATION**\n\n"
-            f"🩸 **FIRST BLOOD:** {fb}\n└ *Status:* **STRIPPED & EXPOSED**\n\n"
-            f"🥀 **SUICIDE FALLOUT:** {suicides_list}\n└ *Status:* **FORCED EXPOSURE**\n\n"
-            f"🌋 **LEGENDARY WIPES:** {wiped_list}\n└ *Status:* **CURTAINS OPENED**\n\n"
-            f"👑 **CHAMPION'S PRIVILEGE:** <@{winner_id}>\n"
-            f"└ *Demand:* You are authorized to select **3** additional victims immediately. "
-            f"Command the pit by typing:\n`!flash @user1 @user2 @user3`"
+            f"🔞 **THE GRAND EXHIBITION DECREE HAS LANDED...**\n"
+            f"*The smoke clears, leaving the weak stripped bare for our collection records.*\n\n"
+            f"🩸 **FIRST BLOOD DISGRACE:** {fb}\n"
+            f"└ *Status:* **STRIPPED & PUBLICLY EXPOSED**\n"
+            f"└ *Note:* `Fastest collapse in the pit. The cameras are locked on your skin.`\n\n"
+            f"🥀 **SUICIDE FALLOUT:** {suicides_list}\n"
+            f"└ *Status:* **FORCED EXPOSURE PENALTY**\n"
+            f"└ *Note:* `Fumbling under the weight of the chains? No privacy for broken pets here.`\n\n"
+            f"🌋 **LEGENDARY EVENT WIPES:** {wiped_list}\n"
+            f"└ *Status:* **CURTAINS RIPPED OPEN**\n"
+            f"└ *Note:* `Caught completely off-guard. Stand still and let the gallery look.`\n\n"
+            f"👑 **CHAMPION'S SUPREME DECREE:** <@{winner_id}>\n"
+            f"└ *The Master has given you full dominance over the grid, pet. You are authorized to select **3** more victims for total exposure right now. Command the room by typing:* \n"
+            f"`!flash @user1 @user2 @user3`"
         )
         
         embed = self.fiery_embed("🔞 GRAND EXHIBITION: HARVEST RECAP", desc, color=0xFF00FF)
