@@ -115,9 +115,10 @@ class FieryExtensions(commands.Cog):
             
         data = self.nsfw_matches_data.pop(match_id, {"first_blood": None, "suicides": [], "wiped": []})
         
-        fb = f"<@{data['first_blood']}>" if data.get("first_blood") else "None"
-        suicides_list = ", ".join([f"<@{s_id}>" for s_id in data.get("suicides", [])]) if data.get("suicides") else "None"
-        wiped_list = ", ".join([f"<@{w_id}>" for w_id in data.get("wiped", [])]) if data.get("wiped") else "None"
+        # FIXED: Modified the element separator mappings to build structured newline lists under each topic header block cleanly
+        fb = f"\n<@{data['first_blood']}>" if data.get("first_blood") else "\nNone"
+        suicides_list = "\n" + "\n".join([f"<@{s_id}>" for s_id in data.get("suicides", [])]) if data.get("suicides") else "\nNone"
+        wiped_list = "\n" + "\n".join([f"<@{w_id}>" for w_id in data.get("wiped", [])]) if data.get("wiped") else "\nNone"
         
         pings = []
         if data.get("first_blood"): pings.append(f"<@{data['first_blood']}>")
@@ -127,14 +128,17 @@ class FieryExtensions(commands.Cog):
 
         desc = (
             f"🩸 **FIRST DEATH:** {fb}\n"
-            f"└ *Flash**\n"
+            f"└ *Flash*\n"
+            f"└ *Note:* `The cameras are locked on you.`\n\n"
             f"🪓 **SUICIDES:** {suicides_list}\n"
-            f"└ *Flash**\n"
+            f"└ *Flash*\n"
+            f"└ *Note:* `No privacy for broken pets here.`\n\n"
             f"🌋 **LEGENDARY EVENT WIPES:** {wiped_list}\n"
-            f"└ *Flash**\n"
+            f"└ *Flash*\n"
+            f"└ *Note:* `Caught completely off-guard.`\n\n"
             f"👑 **CHAMPION'S SUPREME:** <@{winner_id}>\n"
             f"└ *You are authorized to select **3** members to flash:* \n"
-            f"`!flash @user1 @user2 @user3`"
+            f"`**!flash @user1 @user2 @user3**`"
         )
         
         embed = self.fiery_embed("🔞 GRAND EXHIBITION: HARVEST RECAP", desc, color=0xFF00FF)
