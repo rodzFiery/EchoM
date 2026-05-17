@@ -797,7 +797,7 @@ class IgnisEngine(commands.Cog):
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
-                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
+                        # FIXED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
                         if main.nsfw_mode_active or main.basic_nsfw_active:
                             flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
@@ -890,6 +890,11 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
+            # --- ARY FIXED: Moved the Grand Exhibition post-match recap processing call here to explicitly load right after the winner announcement ---
+            ext_recap_cog = self.bot.get_cog("FieryExtensions")
+            if ext_recap_cog:
+                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
+
             # NEW: Basic NSFW Protocol Summary Embed
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
@@ -902,11 +907,6 @@ class IgnisEngine(commands.Cog):
                 )
                 basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
                 await channel.send(embed=basic_emb)
-
-            # --- ADDED: Execute immediate Grand Exhibition post-match processing from extensions cog ---
-            ext_recap_cog = self.bot.get_cog("FieryExtensions")
-            if ext_recap_cog:
-                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
