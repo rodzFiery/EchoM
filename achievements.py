@@ -174,14 +174,16 @@ class Achievements(commands.Cog):
         ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
         if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
 
-        cmds = self.get_tier(u.get('commands_used', 0), t_high)
+        # FIXED: Changed from .get() to explicit bracket notation check to resolve Row AttributeError
+        cmds = self.get_tier(u['commands_used'] if 'commands_used' in user_keys else 0, t_high)
         if cmds: ach_msg.append(f"🧠 **Neural Sync:** {cmds}")
         
         top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
         top = self.get_tier(top_total, t_high)
         if top: ach_msg.append(f"🎖️ **Finalist Rank:** {top}")
 
-        marriage_count = u.get('total_marriages', 0)
+        # FIXED: Changed from .get() to explicit bracket notation check here as well to prevent crashes
+        marriage_count = u['total_marriages'] if 'total_marriages' in user_keys else 0
         m_tier = self.get_tier(marriage_count, [1, 5, 10, 25, 50])
         if m_tier: ach_msg.append(f"💍 **Marriage Tiers:** {m_tier}")
 
@@ -195,10 +197,10 @@ class Achievements(commands.Cog):
                         value=f"Killer: **{u['first_bloods']}**\nVictim: **{u['first_deaths']}**\nKD Ratio: **{round(u['kills']/(u['deaths'] if u['deaths'] else 1), 2)}**", inline=True)
         
         embed.add_field(name="🛡️ Battle History", 
-                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u.get('lobbies_created', 0)}**", inline=True)
+                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u['lobbies_created'] if 'lobbies_created' in user_keys else 0}**", inline=True)
 
         embed.add_field(name="🧠 Neural Interface", 
-                        value=f"Sync Level: **{u.get('commands_used', 0)}**\nSpouse Points: **{u.get('spouse_points', 0)}**", inline=False)
+                        value=f"Sync Level: **{u['commands_used'] if 'commands_used' in user_keys else 0}**\nSpouse Points: **{u['spouse_points'] if 'spouse_points' in user_keys else 0}**", inline=False)
 
         embed.set_image(url=member.display_avatar.with_size(1024).url)
         embed.set_thumbnail(url=member.display_avatar.url)
