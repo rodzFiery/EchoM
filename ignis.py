@@ -425,8 +425,8 @@ class IgnisEngine(commands.Cog):
             bg.paste(av_winner, (40, 150), av_winner)
             bg.paste(av_loser, (540, 150), av_loser)
             
-            draw = ImageDraw.Draw(bg)
             # THICKER CROSS FOR MASSIVE SCALE
+            draw = ImageDraw.Draw(bg)
             draw.line((400, 220, 600, 480), fill=(220, 220, 220), width=25)
             draw.line((600, 220, 400, 480), fill=(220, 220, 220), width=25)
             
@@ -617,6 +617,19 @@ class IgnisEngine(commands.Cog):
                     if not first_blood_recorded:
                         first_loser_member = channel.guild.get_member(victim['id'])
                         first_blood_recorded = True
+                        # --- ADDED: Cache raw ID logs directly to support the micro NSFW evaluation card ---
+                        ext_cog = self.bot.get_cog("FieryExtensions")
+                        if ext_cog:
+                            if channel.id not in ext_cog.nsfw_matches_data:
+                                ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
+                            ext_cog.nsfw_matches_data[channel.id]["first_blood"] = victim['id']
+                    else:
+                        # --- ADDED: Track individual structural self-terminations cleanly during runtime loops ---
+                        ext_cog = self.bot.get_cog("FieryExtensions")
+                        if ext_cog:
+                            if channel.id not in ext_cog.nsfw_matches_data:
+                                ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
+                            ext_cog.nsfw_matches_data[channel.id]["suicides"].append(victim['id'])
                     
                     if channel.id in self.current_survivors:
                         if victim['id'] in self.current_survivors[channel.id]:
@@ -683,6 +696,19 @@ class IgnisEngine(commands.Cog):
                         if not first_blood_recorded and not first_loser_member:
                              first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
+                             # --- ADDED: Push first blood tracking indexes securely during unexpected legendary event triggers ---
+                             ext_cog = self.bot.get_cog("FieryExtensions")
+                             if ext_cog:
+                                 if channel.id not in ext_cog.nsfw_matches_data:
+                                     ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
+                                 ext_cog.nsfw_matches_data[channel.id]["first_blood"] = loser['id']
+                        else:
+                             # --- ADDED: Map multi-target structural wipes clean to the extension cache array matrix ---
+                             ext_cog = self.bot.get_cog("FieryExtensions")
+                             if ext_cog:
+                                 if channel.id not in ext_cog.nsfw_matches_data:
+                                     ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
+                                 ext_cog.nsfw_matches_data[channel.id]["wiped"].append(loser['id'])
 
                         # Update current survivors map
                         if channel.id in self.current_survivors:
@@ -731,6 +757,12 @@ class IgnisEngine(commands.Cog):
                 # NEW: Capture first loser for Basic NSFW protocol
                 if not first_blood_recorded:
                     first_loser_member = channel.guild.get_member(loser['id'])
+                    # --- ADDED: Push standard first blood execution ID keys straight to storage vectors ---
+                    ext_cog = self.bot.get_cog("FieryExtensions")
+                    if ext_cog:
+                        if channel.id not in ext_cog.nsfw_matches_data:
+                            ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
+                        ext_cog.nsfw_matches_data[channel.id]["first_blood"] = loser['id']
 
                 # Update current survivors map
                 if channel.id in self.current_survivors:
@@ -870,6 +902,11 @@ class IgnisEngine(commands.Cog):
                 )
                 basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
                 await channel.send(embed=basic_emb)
+
+            # --- ADDED: Execute immediate Grand Exhibition post-match processing from extensions cog ---
+            ext_recap_cog = self.bot.get_cog("FieryExtensions")
+            if ext_recap_cog:
+                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
