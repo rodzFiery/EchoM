@@ -105,7 +105,8 @@ class IgnisAuto(commands.Cog):
             # CALCULATE CURRENT WINDOW (:00 or :30)
             # This identifies which 30-minute block we are currently in
             current_minute_block = 0 if now.minute < 30 else 30
-            window_id = f"{now.hour}_{current_minute_block}"
+            # FIXED: Formatted window_id to include the exact year, month, and day to establish a permanent historical slot line
+            window_id = f"{now.strftime('%Y%m%d%H')}_{current_minute_block}"
 
             # If we have already triggered the start/reset for this specific window, skip
             if self.last_processed_window == window_id:
@@ -227,7 +228,7 @@ class IgnisAuto(commands.Cog):
         
         next_run_time = target_time.replace(minute=next_m, second=0, microsecond=0)
         current_minute_block = 0 if now.minute < 30 else 30
-        self.last_processed_window = f"{now.hour}_{current_minute_block}"
+        self.last_processed_window = f"{now.strftime('%Y%m%d%H')}_{current_minute_block}"
 
         # FIXED: Converted to triple quotes here as well to make it structurally bulletproof
         embed = main.fiery_embed(
