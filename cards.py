@@ -145,7 +145,7 @@ class PokedexView(discord.ui.View):
         if interaction.user.id != self.target.id:
             return await interaction.response.send_message("This is not your archive, toy.", ephemeral=True)
         
-        self.current_category = select.values[0]
+        self.self.current_category = select.values[0]
         await self.update_display(interaction)
 
     async def update_display(self, interaction):
@@ -323,7 +323,7 @@ class CardSystem(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO card_config (key, value) VALUES ('spawn_channel', ?)", (str(channel.id),))
             conn.commit()
         
-        embed = main_mod.fiery_embed("🛰️ COORDINATES SYNCHRONIZED", 
+        embed = main_mod.fiery_embed("Coordinates Synchronized", 
             f"The Master has locked the card emergence point to {channel.mention}.\n\n"
             f"**Status:** Emergence protocols are now active in this sector.", color=0x00FF00)
         await ctx.send(embed=embed)
@@ -342,7 +342,12 @@ class CardSystem(commands.Cog):
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
-        # FIXED: Enforced server localization check by pulling exclusively from the active message context guild footprint
+        # FIXED: Enforced server localization by forcing an API chunk fetch to clean internal cross-server member leaks completely
+        try:
+            await guild.chunk()
+        except:
+            pass
+
         members = [m for m in guild.members if not m.bot]
         if not members: return
         target_member = random.choice(members)
