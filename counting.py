@@ -1,3 +1,14 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
 import discord
 from discord.ext import commands, tasks
 import sys
@@ -114,7 +125,7 @@ class Counting(commands.Cog):
                                          f"\"*The Red Room appreciates your consistency.*\"", color=0xFF4500 if is_weekend else 0x00FF00)
             await message.channel.send(embed=embed)
 
-    def check_community_milestone(self, message):
+    async def check_community_milestone(self, message):
         """Logic for community-wide milestones reached in this server (1000, 2000, etc.)."""
         main_mod = sys.modules['__main__']
         guild_id = message.guild.id
@@ -285,7 +296,7 @@ class Counting(commands.Cog):
                 total_local = conn.execute("SELECT SUM(count) FROM local_counting WHERE guild_id = ?", (guild_id,)).fetchone()
                 ruiner = conn.execute("SELECT ruiner_id, COUNT(*) as fails FROM counting_runs WHERE guild_id = ? GROUP BY ruiner_id ORDER BY fails DESC LIMIT 1", (guild_id,)).fetchone()
                 return record[0] or 0, total_local[0] or 0, ruiner
-High_score, total_inputs, top_ruiner = await asyncio.to_thread(fetch_guild_metrics)
+        high_score, total_inputs, top_ruiner = await asyncio.to_thread(fetch_guild_metrics)
         current = self.current_counts.get(guild_id, 0)
         ruiner_mention = f"<@{top_ruiner[0]}> ({top_ruiner[1]} fails)" if top_ruiner else "None"
         desc = (f"### 🏙️ SECTOR AUDIT: {ctx.guild.name.upper()}\n"
