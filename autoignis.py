@@ -94,22 +94,14 @@ class IgnisAuto(commands.Cog):
     def cog_unload(self):
         self.auto_loop.cancel()
 
-    @tasks.loop(seconds=10) # CHECK FREQUENTLY (10s) TO PREVENT MISSING THE START
+    @tasks.loop(seconds=5) # RUN CONCURRENT VERIFICATIONS AT SHORT FREQUENCY FOR THREADLOCKING
     async def auto_loop(self):
         await self.bot.wait_until_ready()
         
         # APPLY LOCK: Only one execution of this block can happen at once
         async with self._lock:
-            now = datetime.now()
-            
-            # CALCULATE CURRENT WINDOW (:00 or :30)
-            # This identifies which 30-minute block we are currently in
-            current_minute_block = 0 if now.minute < 30 else 30
-            # FIXED: Formatted window_id to include the exact year, month, and day to establish a permanent historical slot line
-            window_id = f"{now.strftime('%Y%m%d%H')}_{current_minute_block}"
-
-            # If we have already triggered the start/reset for this specific window, skip
-            if self.last_processed_window == window_id:
+            # CHECK EXCLUSION STATE AT RUNTIME TO PREVENT DUPLICATE THREAD OVERLAPS
+            if self.last_processed_window == "running_cycle":
                 return
 
             # FIXED: Added check to prevent 404 NotFound errors on deployment
@@ -120,42 +112,8 @@ class IgnisAuto(commands.Cog):
             if not channel:
                 return
 
-            # 1. Process the previous lobby if it exists (BEFORE updating window tracker)
-            if self.current_auto_lobby:
-                # Disable previous view buttons
-                for item in self.current_auto_lobby.children:
-                    item.disabled = True
-
-                if len(self.current_auto_lobby.participants) >= 2:
-                    ignis_engine = self.bot.get_cog("IgnisEngine")
-
-                    if ignis_engine:
-                        await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
-                        
-                        import sys
-                        main_module = sys.modules['__main__']
-                        edition = getattr(main_module, "game_edition", 1)
-                        
-                        battle_participants = list(self.current_auto_lobby.participants)
-                        
-                        # Trigger the actual battle logic from IgnisEngine
-                        # FIXED: Pass the local channel object directly into the runner. IgnisEngine handles localized server auditing natively using the channel context footprint
-                        asyncio.create_task(ignis_engine.start_battle(
-                            channel, 
-                            battle_participants, 
-                            edition
-                        ))
-                        
-                        if hasattr(main_module, "game_edition"):
-                            main_module.game_edition += 1
-                            main_module.save_game_config()
-                    else:
-                        await channel.send("❌ Error: IgnisEngine not found. System failure.")
-                else:
-                    await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
-
-            # UPDATE TRACKER IMMEDIATELY AFTER PROCESSING PREVIOUS GAME
-            self.last_processed_window = window_id
+            # ENGAGE STATE LOCK INSIDE RUNTIME OBJECTS
+            self.last_processed_window = "running_cycle"
 
             # 2. Start NEW lobby for the next 30 minutes
             self.current_auto_lobby = AutoLobbyView()
@@ -177,22 +135,64 @@ class IgnisAuto(commands.Cog):
                 inline=False
             )
             
-            next_run_time = now.replace(minute=0 if now.minute >= 30 else 30, second=0, microsecond=0)
-            if now.minute >= 30:
-                next_run_time += timedelta(hours=1)
+            now = datetime.now()
+            next_run_time = now + timedelta(seconds=LOBBY_DURATION)
 
-            embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
+            embed.set_footer(text=f"Registration Closes: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
 
             content = None
-            if now.minute < 5 and self.ping_role_id != 0: 
+            if self.ping_role_id != 0: 
                 content = f"<@&{self.ping_role_id}>"
 
             if os.path.exists(image_path):
                 file = discord.File(image_path, filename="auto_lobby.jpg")
                 embed.set_thumbnail(url="attachment://auto_lobby.jpg")
-                await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
+                lobby_msg = await channel.send(content=content, file=file, embed=embed, view=self.current_auto_lobby)
             else:
-                await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
+                lobby_msg = await channel.send(content=content, embed=embed, view=self.current_auto_lobby)
+
+            # SUSPEND RE-RUNS: Force the async processor to hold and collect sign-ups for exactly 30 minutes
+            await asyncio.sleep(LOBBY_DURATION)
+
+            # 1. Process the previous lobby if it exists (BEFORE updating window tracker)
+            if self.current_auto_lobby:
+                # Disable previous view buttons
+                for item in self.current_auto_lobby.children:
+                    item.disabled = True
+                try:
+                    await lobby_msg.edit(view=self.current_auto_lobby)
+                except:
+                    pass
+
+                if len(self.current_auto_lobby.participants) >= 2:
+                    ignis_engine = self.bot.get_cog("IgnisEngine")
+
+                    if ignis_engine:
+                        await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
+                        
+                        import sys
+                        main_module = sys.modules['__main__']
+                        edition = getattr(main_module, "game_edition", 1)
+                        
+                        battle_participants = list(self.current_auto_lobby.participants)
+                        
+                        # FIXED: Used direct keyword await syntax to hold loop execution threads completely until match tasks conclude
+                        await ignis_engine.start_battle(
+                            channel, 
+                            battle_participants, 
+                            edition
+                        )
+                        
+                        if hasattr(main_module, "game_edition"):
+                            main_module.game_edition += 1
+                            main_module.save_game_config()
+                    else:
+                        await channel.send("❌ Error: IgnisEngine not found. System failure.")
+                else:
+                    await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+
+            # RE-ENABLE SEQUENTIAL LOOPS BY DROPPING DESIRED FLAGS AFTER COMPLETE ROUND EVALUATIONS
+            self.last_processed_window = None
 
     @auto_loop.before_loop
     async def before_auto_loop(self):
@@ -217,19 +217,8 @@ class IgnisAuto(commands.Cog):
                 conn.commit()
         except: pass
         
-        self.current_auto_lobby = AutoLobbyView()
-        now = datetime.now()
-        
-        if now.minute < 30:
-            next_m = 30
-            target_time = now
-        else:
-            next_m = 0
-            target_time = now + timedelta(hours=1)
-        
-        next_run_time = target_time.replace(minute=next_m, second=0, microsecond=0)
-        current_minute_block = 0 if now.minute < 30 else 30
-        self.last_processed_window = f"{now.strftime('%Y%m%d%H')}_{current_minute_block}"
+        self.last_processed_window = None
+        self.current_auto_lobby = None
 
         # FIXED: Converted to triple quotes here as well to make it structurally bulletproof
         embed = main.fiery_embed(
@@ -238,17 +227,7 @@ class IgnisAuto(commands.Cog):
             color=0x00FF00
         )
         
-        embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="""```fix\nTOTAL: 0 SOULS\n
-```""", inline=False)
-        embed.set_footer(text=f"Next Execution: {next_run_time.strftime('%H:%M:%S')} (Synchronization Active)")
-
-        image_path = "LobbyTopRight.jpg"
-        if os.path.exists(image_path):
-            file = discord.File(image_path, filename="auto_lobby.jpg")
-            embed.set_thumbnail(url="attachment://auto_lobby.jpg")
-            await ctx.send(file=file, embed=embed, view=self.current_auto_lobby)
-        else:
-            await ctx.send(embed=embed, view=self.current_auto_lobby)
+        await ctx.send(embed=embed)
         
         if not self.auto_loop.is_running():
             self.auto_loop.start()
@@ -282,6 +261,7 @@ class IgnisAuto(commands.Cog):
         self.auto_loop.cancel()
         self.auto_enabled = False
         self.current_auto_lobby = None
+        self.last_processed_window = None
         
         try:
             with main_module.get_db_connection() as conn:
