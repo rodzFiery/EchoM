@@ -9,6 +9,8 @@ import asyncio
 class EmojiSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # FIXED: Store scanned assets in a runtime memory cache to bypass the 100-character custom_id Discord API ceiling
+        self.last_scanned_batch = []
 
     async def check_permissions(self, interaction_or_ctx):
         """Helper to check if user is Server Owner or has the designated Admin Role."""
@@ -57,31 +59,32 @@ class EmojiSystem(commands.Cog):
         # --- PROTOCOL: STEAL ALL ---
         if custom_id.startswith("fiery_all:"):
             await interaction.response.defer(ephemeral=True)
-            data_string = custom_id.replace("fiery_all:", "")
-            emoji_list = data_string.split("|")
+            
+            # FIXED: Read elements directly from our clean runtime array property instead of parsing a corrupted sliced string
+            if not self.last_scanned_batch:
+                return await interaction.followup.send(embed=main_mod.fiery_embed("🛰️ MASS HARVEST RESULT", "❌ **Error:** No active scan batch detected in cache memory."), ephemeral=True)
             
             success_count = 0
             errors = []
 
-            for entry in emoji_list:
+            for e in self.last_scanned_batch:
                 try:
-                    e_id, e_anim, e_name = entry.split(",")
-                    ext = "gif" if e_anim == "1" else "png"
-                    url = f"https://cdn.discordapp.com/emojis/{e_id}.{ext}"
+                    ext = "gif" if e['anim'] == "1" else "png"
+                    url = f"https://cdn.discordapp.com/emojis/{e['id']}.{ext}"
                     
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url) as resp:
                             if resp.status == 200:
                                 img = await resp.read()
-                                await interaction.guild.create_custom_emoji(name=e_name, image=img, reason=f"Mass Harvest by {interaction.user}")
+                                await interaction.guild.create_custom_emoji(name=e['name'], image=img, reason=f"Mass Harvest by {interaction.user}")
                                 success_count += 1
                             else:
-                                errors.append(f"Failed {e_name} (CDN Error)")
-                except discord.HTTPException as e:
-                    if e.code == 30008:
+                                errors.append(f"Failed {e['name']} (CDN Error)")
+                except discord.HTTPException as err:
+                    if err.code == 30008:
                         errors.append("Server limit reached.")
                         break
-                    errors.append(f"Error {e_name}: {e.text}")
+                    errors.append(f"Error {e['name']}: {err.text}")
                 except Exception:
                     continue
 
@@ -134,26 +137,24 @@ class EmojiSystem(commands.Cog):
                 return await status_msg.edit(content=None, embed=main_mod.fiery_embed("📡 SCAN COMPLETE", "No assets detected.", color=0xFFFF00))
 
             view = discord.ui.View(timeout=None)
-            all_data_payload = []
+            
+            # FIXED: Assign elements securely to our internal cache memory property list
+            self.last_scanned_batch = found_emojis[:24]
 
-            for e in found_emojis[:24]:
+            for e in self.last_scanned_batch:
                 btn_emoji = discord.PartialEmoji(name=e['name'], id=int(e['id']), animated=(e['anim']=="1"))
                 view.add_item(discord.ui.Button(
                     style=discord.ButtonStyle.secondary,
                     emoji=btn_emoji,
                     custom_id=f"fiery_steal:{e['id']}:{e['anim']}:{e['name']}"
                 ))
-                all_data_payload.append(f"{e['id']},{e['anim']},{e['name']}")
 
-            payload = "|".join(all_data_payload)
-            if len(payload) > 80:
-                payload = payload[:80].rsplit('|', 1)[0]
-
+            # FIXED: Use a safe, static, short custom_id keyword to execute the collection task
             view.add_item(discord.ui.Button(
                 label="STEAL ALL ASSETS",
                 style=discord.ButtonStyle.danger,
                 emoji="🔥",
-                custom_id=f"fiery_all:{payload}"
+                custom_id="fiery_all:execute"
             ))
             
             embed = main_mod.fiery_embed("🛰️ NEURAL HARVESTER", f"Detected **{len(found_emojis)}** unique frequencies.\n\nSelect one to assimilate or trigger a mass harvest.")
