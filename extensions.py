@@ -133,11 +133,11 @@ class FieryExtensions(commands.Cog):
             f"└ *Flash**\n"
             f"└ *Note:* `No privacy for broken pets here.`\n\n"
             f"🌋 **LEGENDARY EVENT WIPES:** {wiped_list}\n"
-            f"└ *Status:* **CURTAINS RIPPED OPEN**\n"
+            f"└ *Flash**\n"
             f"└ *Note:* `Caught completely off-guard.`\n\n"
             f"👑 **CHAMPION'S SUPREME:** <@{winner_id}>\n"
-            f"└ *The Master has given you full dominance over the community, pet. You are authorized to select **3** more victims to flash. Command the room by typing:* \n"
-            f"`!flash @user1 @user2 @user3`"
+            f"└ *You are authorized to select **3** members to flash:* \n"
+            f"`**!flash @user1 @user2 @user3**`"
         )
         
         embed = self.fiery_embed("🔞 GRAND EXHIBITION: HARVEST RECAP", desc, color=0xFF00FF)
