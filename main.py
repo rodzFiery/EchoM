@@ -109,6 +109,7 @@ def init_db():
                 passive_income REAL DEFAULT 0.0,
                 PRIMARY KEY (user_one, user_two)
             )""")
+        conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
         conn.commit()
 
 init_db()
@@ -670,7 +671,7 @@ async def on_ready():
     
     # Start the Guardian Task
     if not streak_guardian.is_running():
-        streak_guardian.start()
+        stream_guardian.start()
 
     # Start the Top.gg Poster Task
     if not topgg_poster.is_running():
@@ -739,21 +740,22 @@ async def on_message(message):
                 if command_cog in admin_cogs:
                     admin_roles = ["Admin", "Moderator"]
                     
-                    # --- ADDED: IGNIS ADMIN ROLE CHECK ---
+                    # --- ADDED: MULTI-SERVER ADMIN ROLE CHECK FROM SCOPED CONFIG CONFIGURATIONS ---
                     ignis_admin_role_id = None
                     with get_db_connection() as conn:
-                        row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (message.guild.id,)).fetchone()
-                        if row: ignis_admin_role_id = row[0]
+                        row = conn.execute("SELECT value FROM config WHERE key = ?", (f"admin_role_{message.guild.id}",)).fetchone()
+                        if row and row['value']: ignis_admin_role_id = int(row['value'])
                     
                     # Check if user has standard roles OR the specific Ignis Admin role
-                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', []))
+                    has_ignis_role = any(role.id == ignis_admin_role_id for role in getattr(message.author, 'roles', [])) if ignis_admin_role_id else False
                     is_staff = any(role.name in admin_roles for role in getattr(message.author, 'roles', []))
+                    is_server_owner = message.author.id == message.guild.owner_id
                     
-                    # Skip denial if they have the ignis role, standard staff role, or are bot owner
-                    if not is_staff and not has_ignis_role and not await bot.is_owner(message.author):
+                    # Skip denial if they have the ignis role, standard staff role, are server owner, or bot owner
+                    if not is_staff and not has_ignis_role and not is_server_owner and not await bot.is_owner(message.author):
                         denied_emb = fiery_embed("🚫 ACCESS DENIED", 
                                                  f"Neural link signature rejected for {message.author.mention}.\n"
-                                                 "Required: **ADMIN**, **MODERATOR**, or designated **IGNIS ADMIN** role.", color=0xFF0000)
+                                                 "Required: **ADMIN**, **MODERATOR**, **SERVER OWNER**, or server designated **ADMIN ROLE**.", color=0xFF0000)
                         await message.reply(embed=denied_emb)
             except Exception:
                 pass
