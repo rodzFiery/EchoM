@@ -30,6 +30,9 @@ class FieryExtensions(commands.Cog):
         self.last_nsfw_winner = None
         self.last_nsfw_recap = "No Hangrygames yet."
         
+        # ADDED: Operational cache memory structure to hold real-time game logs for NSFW summary execution cards
+        self.nsfw_matches_data = {}
+        
         # Start background loops
         self.quest_reset_loop.start()
         
@@ -45,7 +48,7 @@ class FieryExtensions(commands.Cog):
                     last_interaction TIMESTAMP
                 )
             """)
-            conn.commit()
+            conn.execute("COMMIT")
 
     def cog_unload(self):
         self.quest_reset_loop.cancel()
@@ -102,6 +105,38 @@ class FieryExtensions(commands.Cog):
             log_emb.description = f"🔞 **VOYEUR NOTE:** {ctx.author.display_name} has selected {victim1.display_name}, {victim2.display_name}, and {victim3.display_name} for total exposure. The cameras are recording their shame."
             log_emb.color = 0xFF00FF
             await audit_chan.send(embed=log_emb)
+
+    # ADDED: Dynamic internal post-match router to execute immediate multi-target flash demands during Grand Exhibition events
+    async def process_nsfw_match_recap(self, channel, match_id, winner_id):
+        import sys
+        main = sys.modules['__main__']
+        if not main.nsfw_mode_active:
+            return
+            
+        data = self.nsfw_matches_data.pop(match_id, {"first_blood": None, "suicides": [], "wiped": []})
+        
+        fb = f"<@{data['first_blood']}>" if data.get("first_blood") else "None"
+        suicides_list = ", ".join([f"<@{s_id}>" for s_id in data.get("suicides", [])]) if data.get("suicides") else "None"
+        wiped_list = ", ".join([f"<@{w_id}>" for w_id in data.get("wiped", [])]) if data.get("wiped") else "None"
+        
+        pings = []
+        if data.get("first_blood"): pings.append(f"<@{data['first_blood']}>")
+        if data.get("suicides"): pings.extend([f"<@{s_id}>" for s_id in data["suicides"]])
+        if data.get("wiped"): pings.extend([f"<@{w_id}>" for w_id in data["wiped"]])
+        pings_str = " ".join(pings) if pings else ""
+
+        desc = (
+            f"🔞 **THE GRAND EXHIBITION PROTOCOL EVALUATION**\n\n"
+            f"🩸 **FIRST BLOOD:** {fb}\n└ *Status:* **STRIPPED & EXPOSED**\n\n"
+            f"🥀 **SUICIDE FALLOUT:** {suicides_list}\n└ *Status:* **FORCED EXPOSURE**\n\n"
+            f"🌋 **LEGENDARY WIPES:** {wiped_list}\n└ *Status:* **CURTAINS OPENED**\n\n"
+            f"👑 **CHAMPION'S PRIVILEGE:** <@{winner_id}>\n"
+            f"└ *Demand:* You are authorized to select **3** additional victims immediately. "
+            f"Command the pit by typing:\n`!flash @user1 @user2 @user3`"
+        )
+        
+        embed = self.fiery_embed("🔞 GRAND EXHIBITION: HARVEST RECAP", desc, color=0xFF00FF)
+        await channel.send(content=pings_str if pings_str else None, embed=embed)
 
     # ==========================================
     # 🔥 HEAT SYSTEM (Used by !favor)
@@ -171,7 +206,7 @@ class FieryExtensions(commands.Cog):
             expiry = expiry_dt.isoformat()
             conn.execute("INSERT OR REPLACE INTO contracts (dominant_id, submissive_id, expiry) VALUES (?, ?, ?)", 
                          (dom_id, ctx.author.id, expiry))
-            conn.commit()
+            conn.execute("COMMIT")
 
         dom_user = await self.bot.fetch_user(dom_id)
         await ctx.send(embed=self.fiery_embed("Ownership Sealed", 
@@ -224,7 +259,7 @@ class FieryExtensions(commands.Cog):
                         count = count + 1,
                         last_interaction = ?
                 """, (pair_key, datetime.now().isoformat(), datetime.now().isoformat()))
-                conn.commit()
+                conn.execute("COMMIT")
 
     @commands.command(name="gallery")
     async def gallery(self, ctx):
@@ -266,8 +301,8 @@ class FieryExtensions(commands.Cog):
                     
                     # Interesting State Logic
                     if count > 100: state = "⚡ **DANGEROUS**"
-                    elif count > 50: state = "🔥 **ELECTRIC**"
-                    elif count > 20: state = "🫦 **SIMMERING**"
+                    if count > 50: state = "🔥 **ELECTRIC**"
+                    if count > 20: state = "🫦 **SIMMERING**"
                     else: state = "☁️ **MISTY**"
 
                     filled = "■" * (min(tension_pct, 100) // 10)
@@ -362,7 +397,7 @@ class FieryExtensions(commands.Cog):
         u_id = ctx.author.id
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (u_id,))
-            conn.commit()
+            conn.execute("COMMIT")
             q = conn.execute("SELECT * FROM quests WHERE user_id = ?", (u_id,)).fetchone()
 
         embed = discord.Embed(title="📜 THE MASTER'S LEDGER: CLEAR DEMANDS", color=0xFFD700)
@@ -453,7 +488,7 @@ class FieryExtensions(commands.Cog):
             last_reset_row = conn.execute("SELECT last_reset FROM quests WHERE user_id = 0").fetchone()
             if not last_reset_row:
                 conn.execute("INSERT OR IGNORE INTO quests (user_id, last_reset) VALUES (0, ?)", (now.isoformat(),))
-                conn.commit()
+                conn.execute("COMMIT")
                 return
             last_reset = datetime.fromisoformat(last_reset_row['last_reset'])
 
@@ -484,7 +519,7 @@ class FieryExtensions(commands.Cog):
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
                     await audit_chan.send("🚨 **WEEKLY PURGE:** Weekly Ordeals reset.")
-            conn.commit()
+            conn.execute("COMMIT")
 
     @quest_reset_loop.before_loop
     async def before_loops(self):
@@ -509,7 +544,7 @@ class FieryExtensions(commands.Cog):
             current = res[0] if res else 0
             new_val = current + amount
             conn.execute(f"UPDATE quests SET {quest_key} = ? WHERE user_id = ?", (new_val, user_id))
-            conn.commit()
+            conn.execute("COMMIT")
 
             goal = goals.get(quest_key, 999999)
             if current < goal and new_val >= goal:
