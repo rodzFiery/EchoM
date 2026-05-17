@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import sys
 import os
+import sqlite3
 
 class Achievements(commands.Cog):
     def __init__(self, bot, get_db_connection, fiery_embed):
