@@ -1,3 +1,14 @@
+# FIX: Python 3.13 compatibility shim for audioop
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+        import sys
+        sys.modules['audioop'] = audioop
+    except ImportError:
+        pass 
+
 import discord
 from discord.ext import commands, tasks
 import sys
@@ -13,7 +24,7 @@ class HelperSystem(commands.Cog):
         self.bot = bot
         self.data_file = "ping_limits.json"
         self.purge_file = "auto_purge_configs.json"
-        # Storage for ping cooldowns: {role_id: cooldown_minutes}
+        # STORAGE CHANGED: Loaded safely from the core database config table instead of volatile files
         self.ping_cooldowns = self.load_persistent_limits()
         # Storage for auto-purge: {channel_id: minutes}
         self.purge_configs = self.load_purge_configs()
@@ -23,21 +34,23 @@ class HelperSystem(commands.Cog):
         self.auto_purge_loop.start()
 
     def load_persistent_limits(self):
-        """Loads limits from the JSON file on startup."""
-        if os.path.exists(self.data_file):
-            try:
-                with open(self.data_file, "r") as f:
-                    data = json.load(f)
-                    # Convert string keys from JSON back to integers
-                    return {int(k): v for k, v in data.items()}
-            except:
-                return {}
-        return {}
+        """FIXED: Loads role limits directly from the central database to guarantee deployment persistence."""
+        main_mod = sys.modules['__main__']
+        try:
+            with main_mod.get_db_connection() as conn:
+                rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'ping_limit_%'").fetchall()
+                limits = {}
+                for row in rows:
+                    role_id_part = row['key'].replace('ping_limit_', '')
+                    if role_id_part.isdigit():
+                        limits[int(role_id_part)] = int(row['value'])
+                return limits
+        except:
+            return {}
 
     def save_persistent_limits(self):
-        """Saves current limits to the JSON file."""
-        with open(self.data_file, "w") as f:
-            json.dump(self.ping_cooldowns, f)
+        """Saves current limits to the database (Stub kept line-by-line for system compatibility)."""
+        pass
 
     def load_purge_configs(self):
         """Loads auto-purge configurations from JSON."""
@@ -80,7 +93,7 @@ class HelperSystem(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """Enforcement listener: Handles pings without deleting messages."""
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
         for role_id, cooldown_mins in self.ping_cooldowns.items():
@@ -264,7 +277,15 @@ class HelperSystem(commands.Cog):
             return await ctx.send("❌ **Neural error:** Timer cannot be negative.")
         
         self.ping_cooldowns[role.id] = minutes
-        self.save_persistent_limits()
+        
+        # FIXED: Writes directly into the SQLite database config table to prevent losing setups during deployment
+        main_mod = sys.modules['__main__']
+        try:
+            with main_mod.get_db_connection() as conn:
+                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"ping_limit_{role.id}", str(minutes)))
+                conn.commit()
+        except Exception as e:
+            print(f"Database sync issue in limit command: {e}")
         
         try:
             await role.edit(mentionable=False)
@@ -278,7 +299,16 @@ class HelperSystem(commands.Cog):
         """Removes the ping cooldown."""
         if role.id in self.ping_cooldowns:
             del self.ping_cooldowns[role.id]
-            self.save_persistent_limits()
+            
+            # FIXED: Deletes the config record key clean out of SQLite database to mirror the local status drop
+            main_mod = sys.modules['__main__']
+            try:
+                with main_mod.get_db_connection() as conn:
+                    conn.execute("DELETE FROM config WHERE key = ?", (f"ping_limit_{role.id}",))
+                    conn.commit()
+            except Exception as e:
+                print(f"Database sync issue in unlimit command: {e}")
+                
             if role.id in self.last_ping_time:
                 del self.last_ping_time[role.id]
             await ctx.send(f"🔓 **COOLDOWN DEACTIVATED:** {role.mention} restored to normal.")
