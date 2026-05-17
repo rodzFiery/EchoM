@@ -48,27 +48,28 @@ class Achievements(commands.Cog):
 
         lines = []
         
-        # FIXED: Removed the broken .keys() conversion entirely. sqlite3.Row supports direct 'in' checking!
+        # FIXED: Explicitly string-cast keys array to resolve dictionary parsing mismatches
+        user_keys = list(u.keys())
         
-        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u else 0, t_master_scale)
+        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in user_keys else 0, t_master_scale)
         if fb: lines.append(f"Blood pro: {fb}")
         
-        wins = self.get_tier(u['wins'] if 'wins' in u else 0, t_master_scale)
+        wins = self.get_tier(u['wins'] if 'wins' in user_keys else 0, t_master_scale)
         if wins: lines.append(f"Wins: {wins}")
         
-        kills = self.get_tier(u['kills'] if 'kills' in u else 0, t_high)
+        kills = self.get_tier(u['kills'] if 'kills' in user_keys else 0, t_high)
         if kills: lines.append(f"Kills: {kills}")
         
-        streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in u else 0, t_streaks)
+        streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in user_keys else 0, t_streaks)
         if streak: lines.append(f"Streak: {streak}x")
         
-        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u woods else 0, t_streaks)
+        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
         if ks: lines.append(f"Kill Spree: {ks}x")
 
-        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u else 0, t_master_scale)
+        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in user_keys else 0, t_master_scale)
         if fbd: lines.append(f"First death: {fbd}")
 
-        cmd_count = u['commands_used'] if 'commands_used' in u else 0
+        cmd_count = u['commands_used'] if 'commands_used' in user_keys else 0
         neural = self.get_tier(cmd_count, t_high)
         if neural: lines.append(f"Neural Sync: {neural}")
 
@@ -152,34 +153,37 @@ class Achievements(commands.Cog):
 
         ach_msg = []
         
-        # FIXED: Removed the broken .keys() reference here as well to fix the Index Error forever
+        # FIXED: Explicitly string-cast keys array here as well to protect command execution block
+        user_keys = list(u.keys())
         
-        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u else 0, t_master_scale)
+        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in user_keys else 0, t_master_scale)
         if fb: ach_msg.append(f"🩸 **First Bloods:** {fb}")
         
-        gp = self.get_tier(u['games_played'] if 'games_played' in u else 0, t_master_scale)
+        gp = self.get_tier(u['games_played'] if 'games_played' in user_keys else 0, t_master_scale)
         if gp: ach_msg.append(f"🎮 **Participations:** {gp}")
         
-        wins = self.get_tier(u['wins'] if 'wins' in u else 0, t_master_scale)
+        wins = self.get_tier(u['wins'] if 'wins' in user_keys else 0, t_master_scale)
         if wins: ach_msg.append(f"🏆 **Total Wins:** {wins}")
         
-        kills = self.get_tier(u['kills'] if 'kills' in u else 0, t_high)
+        kills = self.get_tier(u['kills'] if 'kills' in user_keys else 0, t_high)
         if kills: ach_msg.append(f"💀 **Total Kills:** {kills}")
         
-        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u else 0, t_master_scale)
+        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in user_keys else 0, t_master_scale)
         if fbd: ach_msg.append(f"⚰️ **First Blood (Victim):** {fbd}")
         
-        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u else 0, t_streaks)
+        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
         if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
 
-        cmds = self.get_tier(u['commands_used'] if 'commands_used' in u else 0, t_high)
+        # FIXED: Changed from .get() to explicit bracket notation check to resolve Row AttributeError
+        cmds = self.get_tier(u['commands_used'] if 'commands_used' in user_keys else 0, t_high)
         if cmds: ach_msg.append(f"🧠 **Neural Sync:** {cmds}")
         
         top_total = (u['top_2'] or 0) + (u['top_3'] or 0) + (u['top_4'] or 0) + (u['top_5'] or 0)
         top = self.get_tier(top_total, t_high)
         if top: ach_msg.append(f"🎖️ **Finalist Rank:** {top}")
 
-        marriage_count = u['total_marriages'] if 'total_marriages' in u else 0
+        # FIXED: Changed from .get() to explicit bracket notation check here as well to prevent crashes
+        marriage_count = u['total_marriages'] if 'total_marriages' in user_keys else 0
         m_tier = self.get_tier(marriage_count, [1, 5, 10, 25, 50])
         if m_tier: ach_msg.append(f"💍 **Marriage Tiers:** {m_tier}")
 
@@ -193,10 +197,10 @@ class Achievements(commands.Cog):
                         value=f"Killer: **{u['first_bloods']}**\nVictim: **{u['first_deaths']}**\nKD Ratio: **{round(u['kills']/(u['deaths'] if u['deaths'] else 1), 2)}**", inline=True)
         
         embed.add_field(name="🛡️ Battle History", 
-                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u['lobbies_created'] if 'lobbies_created' in u else 0}**", inline=True)
+                        value=f"Matches: **{u['games_played']}**\nFinalist: **{top_total}**\nCreated: **{u['lobbies_created'] if 'lobbies_created' in user_keys else 0}**", inline=True)
 
         embed.add_field(name="🧠 Neural Interface", 
-                        value=f"Sync Level: **{u['commands_used'] if 'commands_used' in u else 0}**\nSpouse Points: **{u['spouse_points'] if 'spouse_points' in u else 0}**", inline=False)
+                        value=f"Sync Level: **{u['commands_used'] if 'commands_used' in user_keys else 0}**\nSpouse Points: **{u['spouse_points'] if 'spouse_points' in user_keys else 0}**", inline=False)
 
         embed.set_image(url=member.display_avatar.with_size(1024).url)
         embed.set_thumbnail(url=member.display_avatar.url)
@@ -207,4 +211,5 @@ class Achievements(commands.Cog):
 
 async def setup(bot):
     main_module = sys.modules['__main__']
+    await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
     await bot.add_cog(Achievements(bot, main_module.get_db_connection, main_module.fiery_embed))
