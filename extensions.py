@@ -48,7 +48,7 @@ class FieryExtensions(commands.Cog):
                     last_interaction TIMESTAMP
                 )
             """)
-            conn.execute("COMMIT")
+            # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
 
     def cog_unload(self):
         self.quest_reset_loop.cancel()
@@ -213,7 +213,7 @@ class FieryExtensions(commands.Cog):
             expiry = expiry_dt.isoformat()
             conn.execute("INSERT OR REPLACE INTO contracts (dominant_id, submissive_id, expiry) VALUES (?, ?, ?)", 
                          (dom_id, ctx.author.id, expiry))
-            conn.execute("COMMIT")
+            # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
 
         dom_user = await self.bot.fetch_user(dom_id)
         await ctx.send(embed=self.fiery_embed("Ownership Sealed", 
@@ -266,7 +266,7 @@ class FieryExtensions(commands.Cog):
                         count = count + 1,
                         last_interaction = ?
                 """, (pair_key, datetime.now().isoformat(), datetime.now().isoformat()))
-                conn.execute("COMMIT")
+                # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
 
     @commands.command(name="gallery")
     async def gallery(self, ctx):
@@ -308,8 +308,8 @@ class FieryExtensions(commands.Cog):
                     
                     # Interesting State Logic
                     if count > 100: state = "⚡ **DANGEROUS**"
-                    if count > 50: state = "🔥 **ELECTRIC**"
-                    if count > 20: state = "🫦 **SIMMERING**"
+                    elif count > 50: state = "🔥 **ELECTRIC**"
+                    elif count > 20: state = "🫦 **SIMMERING**"
                     else: state = "☁️ **MISTY**"
 
                     filled = "■" * (min(tension_pct, 100) // 10)
@@ -404,7 +404,7 @@ class FieryExtensions(commands.Cog):
         u_id = ctx.author.id
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (u_id,))
-            conn.execute("COMMIT")
+            # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
             q = conn.execute("SELECT * FROM quests WHERE user_id = ?", (u_id,)).fetchone()
 
         embed = discord.Embed(title="📜 THE MASTER'S LEDGER: CLEAR DEMANDS", color=0xFFD700)
@@ -495,7 +495,7 @@ class FieryExtensions(commands.Cog):
             last_reset_row = conn.execute("SELECT last_reset FROM quests WHERE user_id = 0").fetchone()
             if not last_reset_row:
                 conn.execute("INSERT OR IGNORE INTO quests (user_id, last_reset) VALUES (0, ?)", (now.isoformat(),))
-                conn.execute("COMMIT")
+                # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
                 return
             last_reset = datetime.fromisoformat(last_reset_row['last_reset'])
 
@@ -526,7 +526,7 @@ class FieryExtensions(commands.Cog):
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
                     await audit_chan.send("🚨 **WEEKLY PURGE:** Weekly Ordeals reset.")
-            conn.execute("COMMIT")
+            # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
 
     @quest_reset_loop.before_loop
     async def before_loops(self):
@@ -551,7 +551,7 @@ class FieryExtensions(commands.Cog):
             current = res[0] if res else 0
             new_val = current + amount
             conn.execute(f"UPDATE quests SET {quest_key} = ? WHERE user_id = ?", (new_val, user_id))
-            conn.execute("COMMIT")
+            # FIXED: Removed manual COMMIT to allow the connection context manager to close transactions cleanly
 
             goal = goals.get(quest_key, 999999)
             if current < goal and new_val >= goal:
