@@ -23,6 +23,7 @@ class RankTopView(discord.ui.View):
         desc = "### 🏆 NEURAL TEXTING LEADERBOARD\n"
         desc += "*The most active frequencies in the Red Room.*\n\n"
         
+        # SERVER ISOLATION: Explicitly track page index while presenting localized assets
         for i, row in enumerate(current_page_data, start=start+1):
             user_id, lvl, xp = row
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"`#{i}`"
@@ -52,47 +53,53 @@ class RankTopView(discord.ui.View):
 class TextLevelSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Local cache for the Level-Up announcement channel
-        self.level_channel_id = None
-        # Local cache for level-to-role mappings
-        self.level_roles = {}
-        self.load_config()
-        # Cooldown to prevent spamming (1 message per 10 seconds counts for XP)
+        # Local caches changed to guild-mapped structures to ensure total server separation
+        self.guild_channels = {}
+        self.guild_roles = {}
         self._cooldown = commands.CooldownMapping.from_cooldown(1, 10, commands.BucketType.user)
 
-    def load_config(self):
-        """Load level-up channel ID and roles from the database config."""
+    def load_guild_config(self, guild_id):
+        """Loads specific configuration arrays bound exclusively to a target server ID footprint."""
         main_mod = sys.modules['__main__']
+        guild_key = str(guild_id)
         try:
             with main_mod.get_db_connection() as conn:
-                # Load Level Channel
-                row = conn.execute("SELECT value FROM config WHERE key = 'level_up_channel'").fetchone()
-                if row: self.level_channel_id = int(row['value'])
+                # Localize Level Channel
+                ch_row = conn.execute("SELECT value FROM config WHERE key = ?", (f"level_ch_{guild_key}",)).fetchone()
+                self.guild_channels[guild_key] = int(ch_row['value']) if ch_row else None
                 
-                # Load Level Roles
-                role_row = conn.execute("SELECT value FROM config WHERE key = 'level_roles'").fetchone()
-                if role_row: self.level_roles = json.loads(role_row['value'])
-        except: pass
+                # Localize Level Roles
+                rl_row = conn.execute("SELECT value FROM config WHERE key = ?", (f"level_rl_{guild_key}",)).fetchone()
+                self.guild_roles[guild_key] = json.loads(rl_row['value']) if rl_row else {}
+        except:
+            if guild_key not in self.guild_channels: self.guild_channels[guild_key] = None
+            if guild_key not in self.guild_roles: self.guild_roles[guild_key] = {}
 
-    def save_config(self):
-        """Save level-up channel ID and roles."""
+    def save_guild_config(self, guild_id):
+        """Saves configuration fields isolated by unique guild signatures to block cross-contamination."""
         main_mod = sys.modules['__main__']
+        guild_key = str(guild_id)
+        ch_val = self.guild_channels.get(guild_key)
+        rl_val = self.guild_roles.get(guild_key, {})
         with main_mod.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
-                         ('level_up_channel', str(self.level_channel_id)))
+                         (f"level_ch_{guild_key}", str(ch_val) if ch_val else None))
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", 
-                         ('level_roles', json.dumps(self.level_roles)))
+                         (f"level_rl_{guild_key}", json.dumps(rl_val)))
             conn.commit()
 
     def get_xp_needed(self, level):
         """Formula: Level 1 needs 100 XP, increasing by 50 per level."""
         return 100 + (level * 50)
 
-    async def check_achievement(self, user, current_count, previous_count, category):
+    async def check_achievement(self, user, current_count, previous_count, category, guild_id):
         """Logic for 500-step milestones up to 500,000 with Profile Data."""
         if current_count > previous_count and current_count % 500 == 0 and current_count <= 500000:
             main_mod = sys.modules['__main__']
-            channel = self.bot.get_channel(self.level_channel_id) if self.level_channel_id else None
+            guild_key = str(guild_id)
+            self.load_guild_config(guild_id)
+            target_ch_id = self.guild_channels.get(guild_key)
+            channel = self.bot.get_channel(target_ch_id) if target_ch_id else None
             
             # PULLING DATA FROM main.py get_user
             u_data = await asyncio.to_thread(main_mod.get_user, user.id)
@@ -145,8 +152,9 @@ class TextLevelSystem(commands.Cog):
     async def set_level_channel(self, ctx, channel: discord.TextChannel = None):
         """Sets the channel where Level Up messages are recorded."""
         target = channel or ctx.channel
-        self.level_channel_id = target.id
-        self.save_config()
+        guild_key = str(ctx.guild.id)
+        self.guild_channels[guild_key] = target.id
+        self.save_guild_config(ctx.guild.id)
         
         main_mod = sys.modules['__main__']
         embed = main_mod.fiery_embed("📈 LEVEL PROTOCOL UPDATED", 
@@ -157,8 +165,10 @@ class TextLevelSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def set_level_role(self, ctx, level: int, role: discord.Role):
         """Maps a specific level to a Discord role."""
-        self.level_roles[str(level)] = role.id
-        self.save_config()
+        guild_key = str(ctx.guild.id)
+        if guild_key not in self.guild_roles: self.guild_roles[guild_key] = {}
+        self.guild_roles[guild_key][str(level)] = role.id
+        self.save_guild_config(ctx.guild.id)
         
         main_mod = sys.modules['__main__']
         embed = main_mod.fiery_embed("🛡️ ROLE PROTOCOL SEALED", 
@@ -168,8 +178,14 @@ class TextLevelSystem(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         """Track reactions for achievements."""
-        if payload.member and payload.member.bot: return
+        if not payload.guild_id: return
         main_mod = sys.modules['__main__']
+        
+        # Verify member context via gateway payload parsing
+        guild = self.bot.get_guild(payload.guild_id)
+        if not guild: return
+        member = payload.member or guild.get_member(payload.user_id)
+        if not member or member.bot: return
         
         def update_reaction_data():
             with main_mod.get_db_connection() as conn:
@@ -190,11 +206,7 @@ class TextLevelSystem(commands.Cog):
         curr, prev = await asyncio.to_thread(update_reaction_data)
         if curr is None: return
         
-        guild = self.bot.get_guild(payload.guild_id)
-        if guild:
-            member = payload.member or guild.get_member(payload.user_id)
-            if member:
-                await self.check_achievement(member, curr, prev, "Reactions Given")
+        await self.check_achievement(member, curr, prev, "Reactions Given", payload.guild_id)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -203,6 +215,11 @@ class TextLevelSystem(commands.Cog):
 
         main_mod = sys.modules['__main__']
         user_id = message.author.id
+        guild_id = message.guild.id
+        guild_key = str(guild_id)
+
+        # Ensure server configuration states are loaded cleanly in-memory
+        self.load_guild_config(guild_id)
 
         # --- ACHIEVEMENT TRACKING (Messages) ---
         def update_msg_count():
@@ -222,7 +239,7 @@ class TextLevelSystem(commands.Cog):
         
         curr_msg, prev_msg = await asyncio.to_thread(update_msg_count)
         if curr_msg is not None:
-            await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent")
+            await self.check_achievement(message.author, curr_msg, prev_msg, "Messages Sent", guild_id)
 
         # Cooldown check for XP (Independent from Achievement counter)
         bucket = self._cooldown.get_bucket(message)
@@ -261,8 +278,9 @@ class TextLevelSystem(commands.Cog):
         if new_lvl is None: return
 
         if did_level_up:
-            if str(new_lvl) in self.level_roles:
-                role_id = self.level_roles[str(new_lvl)]
+            roles_pool = self.guild_roles.get(guild_key, {})
+            if str(new_lvl) in roles_pool:
+                role_id = roles_pool[str(new_lvl)]
                 role = message.guild.get_role(role_id)
                 if role:
                     try: 
@@ -276,8 +294,9 @@ class TextLevelSystem(commands.Cog):
                                 f"**Privilege Granted:** {role.mention}", color=0x2ECC71)
                             await audit_channel.send(embed=audit_emb)
 
-                        if self.level_channel_id:
-                            lvl_channel = self.bot.get_channel(self.level_channel_id)
+                        target_ch_id = self.guild_channels.get(guild_key)
+                        if target_ch_id:
+                            lvl_channel = self.bot.get_channel(target_ch_id)
                             if lvl_channel:
                                 u_data = await asyncio.to_thread(main_mod.get_user, message.author.id)
                                 cert_desc = (f"### 👑 ELITE CONQUEST: LEVEL {new_lvl}\n"
@@ -292,8 +311,9 @@ class TextLevelSystem(commands.Cog):
                                 await lvl_channel.send(embed=cert_emb)
                     except: pass
 
-            if self.level_channel_id:
-                lvl_channel = self.bot.get_channel(self.level_channel_id)
+            target_ch_id = self.guild_channels.get(guild_key)
+            if target_ch_id:
+                lvl_channel = self.bot.get_channel(target_ch_id)
                 if lvl_channel:
                     embed = main_mod.fiery_embed("✨ NEURAL ASCENSION", 
                         f"Congratulations {message.author.mention}.\n\n"
@@ -334,6 +354,9 @@ class TextLevelSystem(commands.Cog):
         """ULTIMATE NEURAL DIAGNOSTIC: Detailed Level, Stats, and Milestones."""
         target = member or ctx.author
         main_mod = sys.modules['__main__']
+        guild_key = str(ctx.guild.id)
+        
+        self.load_guild_config(ctx.guild.id)
         
         # PULL PROFILE DATA FROM MAIN
         u_data = await asyncio.to_thread(main_mod.get_user, target.id)
@@ -352,10 +375,11 @@ class TextLevelSystem(commands.Cog):
         needed = self.get_xp_needed(lvl)
         
         next_role_info = "None Available"
-        sorted_lvls = sorted([int(k) for k in self.level_roles.keys()])
+        roles_pool = self.guild_roles.get(guild_key, {})
+        sorted_lvls = sorted([int(k) for k in roles_pool.keys()])
         for l in sorted_lvls:
             if l > lvl:
-                role = ctx.guild.get_role(self.level_roles[str(l)])
+                role = ctx.guild.get_role(roles_pool[str(l)])
                 next_role_info = f"{role.mention if role else 'Unknown'} at **Level {l}**"
                 break
 
@@ -368,7 +392,8 @@ class TextLevelSystem(commands.Cog):
         desc += f"*Tracking Status: {'🟢 ACTIVE' if status == 1 else '🔴 DISABLED'}*\n\n"
         
         desc += "📉 **LEVEL PROGRESSION**\n"
-        desc += f"```ml\nLevel: {lvl} | Progress: {percent}% \n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}\n```\n"
+        desc += f"```ml\nLevel: {lvl} | Progress: {percent}% \n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}\n
+```\n"
         
         desc += "📂 **FREQUENCY ARCHIVE**\n"
         desc += f"➤ **Total Messages:** `{msgs:,}`\n"
@@ -384,7 +409,6 @@ class TextLevelSystem(commands.Cog):
         desc += f"└─ `Capital:` **{u_data['balance']:,} Flames**\n"
         desc += f"└─ `Current Class:` **{u_data['class']}**\n"
         desc += f"└─ `Premium Tier:` **{u_data['premium_type'] or 'Standard'}**\n\n"
-        
         desc += "*Your existence is recorded. The Echo remembers everything.*"
 
         embed = main_mod.fiery_embed("ECHO LEVEL PROFILE", desc, color=0x00FFFF)
@@ -399,18 +423,28 @@ class TextLevelSystem(commands.Cog):
 
     @commands.command(name="ranktop")
     async def ranktop(self, ctx):
-        """Displays the top texting levels with pagination."""
+        """Displays the top texting levels with strict local-server pagination."""
         main_mod = sys.modules['__main__']
         
         def fetch_top():
             with main_mod.get_db_connection() as conn:
                 return conn.execute("SELECT id, text_level, text_xp FROM users WHERE level_status = 1 AND (text_level > 0 OR text_xp > 0) ORDER BY text_level DESC, text_xp DESC").fetchall()
 
-        data = await asyncio.to_thread(fetch_top)
-        if not data:
+        raw_data = await asyncio.to_thread(fetch_top)
+        if not raw_data:
             return await ctx.send("The ledger is empty or all assets have hidden their frequencies.")
 
-        view = RankTopView(ctx, data, main_mod)
+        # STRICT SERVER FILTER: Retain profiles ONLY if they are active members of the executing server
+        filtered_data = []
+        for row in raw_data:
+            user_id = row[0]
+            if ctx.guild.get_member(user_id) is not None:
+                filtered_data.append(row)
+
+        if not filtered_data:
+            return await ctx.send("❌ **Local Separation Active:** No active assets found matching this server's footprint.")
+
+        view = RankTopView(ctx, filtered_data, main_mod)
         await ctx.send(embed=view.create_embed(), view=view)
 
 async def setup(bot):
