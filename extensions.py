@@ -129,13 +129,10 @@ class FieryExtensions(commands.Cog):
         desc = (
             f"🩸 **FIRST DEATH:** {fb}\n"
             f"└ *Flash*\n"
-            f"└ *Note:* `The cameras are locked on you.`\n\n"
             f"🪓 **SUICIDES:** {suicides_list}\n"
             f"└ *Flash*\n"
-            f"└ *Note:* `No privacy for broken pets here.`\n\n"
             f"🌋 **LEGENDARY EVENT WIPES:** {wiped_list}\n"
             f"└ *Flash*\n"
-            f"└ *Note:* `Caught completely off-guard.`\n\n"
             f"👑 **CHAMPION'S SUPREME:** <@{winner_id}>\n"
             f"└ *You are authorized to select **3** members to flash:* \n"
             f"`**!flash @user1 @user2 @user3**`"
