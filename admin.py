@@ -31,19 +31,22 @@ class AdminSystem(commands.Cog):
         # ADDED: Hardcoded Master Owner ID for the new account
         self.MASTER_OWNER_ID = 1482648173016252439
         
-        # ADDED: Load Admin Role from persistence
-        import sys
-        main_module = sys.modules['__main__']
+        # Local cache dict mapping server IDs to their specific admin roles
+        self.guild_admin_roles = {}
         
-        # PERSISTENCE FIX: Check database for existing admin role before defaulting to 0
+        # Ensure dynamic system configuration schema properties are initialized safely
         with self.get_db_connection() as conn:
-            # Ensure config table exists (safety check)
             conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-            res = conn.execute("SELECT value FROM config WHERE key = 'admin_role_id'").fetchone()
-            db_role_id = int(res[0]) if res else 0
-            
-        self.ADMIN_ROLE_ID = db_role_id
-        main_module.ADMIN_ROLE_ID = db_role_id
+
+    def load_guild_admin_role(self, guild_id):
+        """Helper method to load a specific server's administrator role string from tables."""
+        guild_key = str(guild_id)
+        try:
+            with self.get_db_connection() as conn:
+                res = conn.execute("SELECT value FROM config WHERE key = ?", (f"admin_role_{guild_key}",)).fetchone()
+                self.guild_admin_roles[guild_key] = int(res[0]) if res and res[0] else 0
+        except:
+            self.guild_admin_roles[guild_key] = 0
 
     # ADDED: Custom internal check to verify owner status manually
     async def is_master_owner(self, ctx):
@@ -55,35 +58,36 @@ class AdminSystem(commands.Cog):
     @commands.command()
     async def setadminrole(self, ctx, role: discord.Role):
         """Sets the global role that can bypass standard command restrictions."""
-        # CHECK: Allow Bot Owner OR Server Administrator
+        # CHECK: Allow Bot Owner, Server Owner, or Server Administrator
         is_owner = await self.is_master_owner(ctx)
+        is_server_owner = ctx.author.id == ctx.guild.owner_id
         is_server_admin = ctx.author.guild_permissions.administrator
 
-        if not (is_owner or is_server_admin):
-            return await ctx.send("❌ **Access Denied:** You must be the Bot Owner or a Server Administrator to define the Master Role.")
+        if not (is_owner or is_server_owner or is_server_admin):
+            return await ctx.send("❌ **Access Denied:** You must be the Bot Owner, Server Owner, or an Administrator to define the Master Role.")
 
-        import sys
-        main_module = sys.modules['__main__']
+        guild_key = str(ctx.guild.id)
+        self.guild_admin_roles[guild_key] = role.id
         
-        self.ADMIN_ROLE_ID = role.id
-        main_module.ADMIN_ROLE_ID = role.id
-        
-        # Persist to database config table
+        # Persist to database config table using a unique server-isolated identifier key
         with self.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('admin_role_id', ?)", (str(role.id),))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"admin_role_{guild_key}", str(role.id)))
             conn.commit()
             
-        embed = self.fiery_embed("Security Protocol Updated", f"✅ The role {role.mention} has been granted **Master Access** to administrative commands.")
+        embed = self.fiery_embed("Security Protocol Updated", f"✅ The role {role.mention} has been granted **Master Access** to administrative commands on this server.")
         await ctx.send(embed=embed)
 
     # ===== NSFW Special Commands =====
     @commands.command()
     async def nsfwtime(self, ctx):
-        # UPDATED: Added Role Check
+        # UPDATED: Added Guild Isolation and Role Check
         is_owner = await self.is_master_owner(ctx)
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
         
-        if not (is_owner or has_admin_role):
+        if not (is_owner or ctx.author.id == ctx.guild.owner_id or has_admin_role):
             return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
 
         # FIXED: Removed 'import main' to prevent circular import crash
@@ -98,11 +102,14 @@ class AdminSystem(commands.Cog):
 
     @commands.command()
     async def nomorensfw(self, ctx):
-        # UPDATED: Added Role Check
+        # UPDATED: Added Guild Isolation and Role Check
         is_owner = await self.is_master_owner(ctx)
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
         
-        if not (is_owner or has_admin_role):
+        if not (is_owner or ctx.author.id == ctx.guild.owner_id or has_admin_role):
             return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
 
         # FIXED: Removed 'import main' to prevent circular import crash
@@ -119,9 +126,12 @@ class AdminSystem(commands.Cog):
     async def basicnsfw(self, ctx):
         """Activates Basic NSFW: First death flashes, Winner picks one victim to flash."""
         is_owner = await self.is_master_owner(ctx)
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
         
-        if not (is_owner or has_admin_role):
+        if not (is_owner or ctx.author.id == ctx.guild.owner_id or has_admin_role):
             return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
 
         import sys
@@ -139,9 +149,12 @@ class AdminSystem(commands.Cog):
     async def nomorebasic(self, ctx):
         """Deactivates Basic NSFW mode."""
         is_owner = await self.is_master_owner(ctx)
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
         
-        if not (is_owner or has_admin_role):
+        if not (is_owner or ctx.author.id == ctx.guild.owner_id or has_admin_role):
             return await ctx.send("❌ Access Denied: Requires Owner or Admin Role.")
 
         import sys
@@ -155,11 +168,14 @@ class AdminSystem(commands.Cog):
 
     @commands.command()
     async def grantbadge(self, ctx, member: discord.Member, badge: str):
-        # UPDATED: Added Role Check
+        # UPDATED: Added Guild Isolation and Role Check
         is_owner = await self.is_master_owner(ctx)
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
         
-        if not (is_owner or has_admin_role):
+        if not (is_owner or ctx.author.id == ctx.guild.owner_id or has_admin_role):
             return await ctx.send("❌ Access Denied.")
 
         u = self.get_user(member.id)
@@ -184,9 +200,14 @@ class AdminSystem(commands.Cog):
         """Master command to grant flames to a user based on Admin permissions or role."""
         is_owner = await self.is_master_owner(ctx)
         is_admin = ctx.author.guild_permissions.administrator
-        has_admin_role = any(role.id == self.ADMIN_ROLE_ID for role in ctx.author.roles) if self.ADMIN_ROLE_ID != 0 else False
+        is_server_owner = ctx.author.id == ctx.guild.owner_id
+        
+        guild_key = str(ctx.guild.id)
+        self.load_guild_admin_role(ctx.guild.id)
+        target_role_id = self.guild_admin_roles.get(guild_key, 0)
+        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
 
-        if not (is_owner or is_admin or has_admin_role):
+        if not (is_owner or is_server_owner or is_admin or has_admin_role):
             embed = self.fiery_embed("Access Denied", "❌ Only those with Administrative authority, the Admin Role, or the Bot Owner hold the keys to the furnace.")
             return await ctx.send(embed=embed)
 
