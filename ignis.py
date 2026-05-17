@@ -277,8 +277,6 @@ class WinnerStatsView(discord.ui.View):
     async def view_breakdown_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = discord.Embed(title="📊 VOYEUR INTERACTIVE ANALYSIS", color=0xFFD700)
         embed.add_field(name="💦 ECHO EXPERIENCE RECAP", value=self.payload.get("breakdown_text", "N/A"), inline=True)
-        embed.add_field(name="📊 SERVER RANKINGS INDEX", value=self.payload.get("rank_text", "N/A"), inline=True)
-        embed.add_field(name="🏛️ VICTOR'S LIFETIME LEGACY", value=self.payload.get("legacy_text", "N/A"), inline=False)
         embed.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=self.payload.get("streak_text", "N/A"), inline=False)
         embed.add_field(name="🔥 TARGET STANDING STATUS", value=self.payload.get("standing_text", "N/A"), inline=False)
         embed.add_field(name="💰 ALLOCATED PRIZE CAPITAL", value=self.payload.get("prize_text", "N/A"), inline=False)
@@ -816,7 +814,7 @@ class IgnisEngine(commands.Cog):
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
-                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
+                        # FIXED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
                         if main.nsfw_mode_active or main.basic_nsfw_active:
                             flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
@@ -1045,14 +1043,17 @@ class IgnisEngine(commands.Cog):
             standing_text = f"Rank {lvl}: **{rank_name}**"
             prize_text = f"**Flames:** {total_flames_won}"
 
-            # FIXED: Removed technical text blocks from main view card embed definition
-            win_card.description = f"### 👑 CONGRATULATIONS {winner_member.mention}\n*You have successfully survived the session and established complete dominance over the sector.*"
+            # FIXED: Main card embed description now strictly keeps the localized server ranks and lifetime legacy text layout blocks visible
+            win_card.description = (
+                f"### 👑 CONGRATULATIONS {winner_member.mention}\n"
+                f"*You have successfully survived the session and established complete dominance over the sector.*\n\n"
+                f"**📊 SERVER RANKINGS INDEX:**\n{rank_text}\n\n"
+                f"**🏛️ VICTOR'S LIFETIME LEGACY:**\n{legacy_text}"
+            )
 
             # PACK PACKLOAD DATA FOR INTERACTIVE DIALOG OVERRIDES
             breakdown_payload = {
                 "breakdown_text": breakdown_text,
-                "rank_text": rank_text,
-                "legacy_text": legacy_text,
                 "streak_text": streak_text,
                 "standing_text": standing_text,
                 "prize_text": prize_text,
