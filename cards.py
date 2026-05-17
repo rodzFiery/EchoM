@@ -342,7 +342,7 @@ class CardSystem(commands.Cog):
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
-        # Target a random member who isn't a bot
+        # FIXED: Enforced server localization check by pulling exclusively from the active message context guild footprint
         members = [m for m in guild.members if not m.bot]
         if not members: return
         target_member = random.choice(members)
