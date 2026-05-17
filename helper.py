@@ -72,17 +72,16 @@ class HelperSystem(commands.Cog):
     @tasks.loop(minutes=1)
     async def auto_purge_loop(self):
         """Background task to scrub channels based on set timers."""
-        for channel_id, minutes in list(self.purge_configs.items()):
+        for channel_id, messages_limit in list(self.purge_configs.items()):
             channel = self.bot.get_channel(channel_id)
             if not channel:
                 continue
             
             try:
-                cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
-                
+                # FIXED: Removed timestamp cutoff matching to ensure it purges every single unpinned message up to the targeted cap limit
                 if channel.permissions_for(channel.guild.me).manage_messages:
-                    # FIX: Added limit=None to ensure it scans beyond the default 100 messages
-                    await channel.purge(before=cutoff, check=lambda m: not m.pinned, bulk=True, limit=None)
+                    # FIXED: Utilizes the parameter choice as a numerical boundary count ceiling to scrub all traffic records directly
+                    await channel.purge(check=lambda m: not m.pinned, bulk=True, limit=messages_limit)
             except Exception as e:
                 print(f"⚠️ Auto-Purge Fail in {channel_id}: {e}")
 
@@ -156,14 +155,14 @@ class HelperSystem(commands.Cog):
 
     @commands.command(name="autopurge")
     @commands.has_permissions(manage_channels=True)
-    async def autopurge(self, ctx, time_setting: str = None):
-        """Sets automatic message scrubbing for this channel. Options: 5m, 10m, 15m, 1h, 2h, off"""
-        if not time_setting:
-            return await ctx.send("❓ **Usage:** `!autopurge <5m/10m/15m/1h/2h/off>`")
+    async def autopurge(self, ctx, limit_setting: str = None):
+        """Sets automatic message scrubbing for this channel. Options: 5, 10, 20, 50, 100, off"""
+        if not limit_setting:
+            return await ctx.send("❓ **Usage:** `!autopurge <5/10/20/50/100/off>`")
 
-        time_setting = time_setting.lower()
+        limit_setting = limit_setting.lower()
         
-        if time_setting == "off":
+        if limit_setting == "off":
             if ctx.channel.id in self.purge_configs:
                 del self.purge_configs[ctx.channel.id]
                 self.save_purge_configs()
@@ -171,20 +170,20 @@ class HelperSystem(commands.Cog):
             return await ctx.send("ℹ️ Auto-purge is not active here.")
 
         mapping = {
-            "5m": 5, "10m": 10, "15m": 15,
-            "1h": 60, "2h": 120
+            "5": 5, "10": 10, "20": 20,
+            "50": 50, "100": 100
         }
 
-        if time_setting not in mapping:
-            return await ctx.send("❌ **Invalid Timer.** Choose: 5m, 10m, 15m, 1h, 2h, or off.")
+        if limit_setting not in mapping:
+            return await ctx.send("❌ **Invalid Boundary.** Choose a target footprint: 5, 10, 20, 50, 100, or off.")
 
-        minutes = mapping[time_setting]
-        self.purge_configs[ctx.channel.id] = minutes
+        messages_cap = mapping[limit_setting]
+        self.purge_configs[ctx.channel.id] = messages_cap
         self.save_purge_configs()
 
         embed = discord.Embed(
             title="🧹 AUTO-PURGE ACTIVATED",
-            description=f"This channel is now under a scrubbing protocol.\nAll messages older than **{time_setting}** will be automatically deleted.",
+            description=f"This channel is now under an absolute verification scrubbing protocol.\nEvery single message sequence up to **{limit_setting}** entries will be scrubbed automatically every minute.",
             color=0x3498DB
         )
         embed.set_footer(text="Pinned messages are safe from the scrub.")
