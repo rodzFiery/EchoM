@@ -14,10 +14,10 @@ RANKS = [
     "Grand Submissive", "High Priest of Pain", "Abyssal Thrall", "Velvet Master", "Iron Sovereign", "Dungeon Monarch", "Eternal Consort", "Supreme Dominant", "God of the Pit", "Absolute Master"
 ]
 CLASSES = {
-    "Dominant": {"bonus": "20% Flames", "desc": "Dictate the flow."},
-    "Submissive": {"bonus": "25% XP", "desc": "Absorb the discipline."},
-    "Switch": {"bonus": "14% Flames/XP", "desc": "Versatile pleasure."},
-    "Exhibitionist": {"bonus": "40% Flames, -20% XP", "desc": "Pure display."}
+    "Dominant": {"bonus": "20% Flames", "bonus_flames": 1.20, "bonus_xp": 1.00, "desc": "Dictate the flow."},
+    "Submissive": {"bonus": "25% XP", "bonus_flames": 1.00, "bonus_xp": 1.25, "desc": "Absorb the discipline."},
+    "Switch": {"bonus": "14% Flames/XP", "bonus_flames": 1.14, "bonus_xp": 1.14, "desc": "Versatile pleasure."},
+    "Exhibitionist": {"bonus": "40% Flames, -20% XP", "bonus_flames": 1.40, "bonus_xp": 0.80, "desc": "Pure display."}
 }
 
 # --- REBUILT ECONOMY HANDLER (ALIGNED) ---
@@ -148,10 +148,14 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         duel_wins_row = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE duel_wins > ?", (u_duel_wins,)).fetchone()
         duel_rank = duel_wins_row['r'] if duel_wins_row else "?"
 
-        victims = conn.execute("""
-            SELECT loser_id, win_count FROM duel_history 
-            WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
-        """, (member.id,)).fetchall()
+        max_history_check = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='duel_history'").fetchone()
+        if max_history_check:
+            victims = conn.execute("""
+                SELECT loser_id, win_count FROM duel_history 
+                WHERE winner_id = ? ORDER BY win_count DESC LIMIT 5
+            """, (member.id,)).fetchall()
+        else:
+            victims = []
     
     lvl = u['fiery_level'] if (u and u['fiery_level']) else 1
     # FIXED: Boundary Check for RANKS list to prevent IndexError
@@ -203,9 +207,11 @@ async def handle_me_command(ctx, member, get_user, get_db_connection, fiery_embe
         owner_text = f"Bound to <@{spouse_id}> (Married)"
     else:
         with get_db_connection() as conn:
-            contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (member.id,)).fetchone()
-            if contract_data:
-                owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
+            contract_check = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='contracts'").fetchone()
+            if contract_check:
+                contract_data = conn.execute("SELECT dominant_id FROM contracts WHERE submissive_id = ?", (member.id,)).fetchone()
+                if contract_data:
+                    owner_text = f"Bound to <@{contract_data['dominant_id']}> (Contract)"
     embed.add_field(name="🔒 Ownership Status", value=f"**{owner_text}**", inline=False)
 
     ach_cog = bot.get_cog("Achievements")
