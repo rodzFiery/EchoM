@@ -146,10 +146,11 @@ class IgnisAuto(commands.Cog):
                 inline=False
             )
             
-            now = datetime.now()
+            # TIMEZONE FIXED: Forced datetime evaluation mapping to leverage strict timezone-aware UTC indicators
+            now = datetime.now(timezone.utc)
             next_run_time = now + timedelta(seconds=LOBBY_DURATION)
 
-            embed.set_footer(text=f"Registration Closes: {next_run_time.strftime('%H:%M:%S')} (Strict 30m Cycle)")
+            embed.set_footer(text=f"Registration Closes: {next_run_time.strftime('%H:%M:%S')} UTC (Sequential 30m Window)")
 
             content = None
             if self.ping_role_id != 0: 
