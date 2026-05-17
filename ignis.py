@@ -907,11 +907,6 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # --- ARY FIXED: Moved the Grand Exhibition post-match recap processing call here to explicitly load right after the winner announcement ---
-            ext_recap_cog = self.bot.get_cog("FieryExtensions")
-            if ext_recap_cog:
-                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
-
             # NEW: Basic NSFW Protocol Summary Embed
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
@@ -1063,6 +1058,11 @@ class IgnisEngine(commands.Cog):
             # ATTACH INTERACTIVE BUTTONS INTERFACE
             stats_view = WinnerStatsView(breakdown_payload)
             await channel.send(embed=win_card, view=stats_view)
+
+            # FIXED: Relocated the Harvest recap execution block down here to output at the absolute end of the match lifecycle chain
+            ext_recap_cog = self.bot.get_cog("FieryExtensions")
+            if ext_recap_cog:
+                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
         except Exception as e:
             print(f"# CRITICAL ENGINE FAILURE: {e}")
