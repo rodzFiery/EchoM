@@ -48,25 +48,28 @@ class Achievements(commands.Cog):
 
         lines = []
         
-        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in u.keys() else 0, t_master_scale)
+        # FIXED: Explicitly string-cast keys array to resolve dictionary parsing mismatches
+        user_keys = list(u.keys())
+        
+        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in user_keys else 0, t_master_scale)
         if fb: lines.append(f"Blood pro: {fb}")
         
-        wins = self.get_tier(u['wins'] if 'wins' in u.keys() else 0, t_master_scale)
+        wins = self.get_tier(u['wins'] if 'wins' in user_keys else 0, t_master_scale)
         if wins: lines.append(f"Wins: {wins}")
         
-        kills = self.get_tier(u['kills'] if 'kills' in u.keys() else 0, t_high)
+        kills = self.get_tier(u['kills'] if 'kills' in user_keys else 0, t_high)
         if kills: lines.append(f"Kills: {kills}")
         
-        streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in u.keys() else 0, t_streaks)
+        streak = self.get_tier(u['max_win_streak'] if 'max_win_streak' in user_keys else 0, t_streaks)
         if streak: lines.append(f"Streak: {streak}x")
         
-        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in u.keys() else 0, t_streaks)
+        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
         if ks: lines.append(f"Kill Spree: {ks}x")
 
-        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in u.keys() else 0, t_master_scale)
+        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in user_keys else 0, t_master_scale)
         if fbd: lines.append(f"First death: {fbd}")
 
-        cmd_count = u['commands_used'] if 'commands_used' in u.keys() else 0
+        cmd_count = u['commands_used'] if 'commands_used' in user_keys else 0
         neural = self.get_tier(cmd_count, t_high)
         if neural: lines.append(f"Neural Sync: {neural}")
 
@@ -150,22 +153,25 @@ class Achievements(commands.Cog):
 
         ach_msg = []
         
-        fb = self.get_tier(u['first_bloods'] or 0, t_master_scale)
+        # FIXED: Explicitly string-cast keys array here as well to protect command execution block
+        user_keys = list(u.keys())
+        
+        fb = self.get_tier(u['first_bloods'] if 'first_bloods' in user_keys else 0, t_master_scale)
         if fb: ach_msg.append(f"🩸 **First Bloods:** {fb}")
         
-        gp = self.get_tier(u['games_played'] or 0, t_master_scale)
+        gp = self.get_tier(u['games_played'] if 'games_played' in user_keys else 0, t_master_scale)
         if gp: ach_msg.append(f"🎮 **Participations:** {gp}")
         
-        wins = self.get_tier(u['wins'] or 0, t_master_scale)
+        wins = self.get_tier(u['wins'] if 'wins' in user_keys else 0, t_master_scale)
         if wins: ach_msg.append(f"🏆 **Total Wins:** {wins}")
         
-        kills = self.get_tier(u['kills'] or 0, t_high)
+        kills = self.get_tier(u['kills'] if 'kills' in user_keys else 0, t_high)
         if kills: ach_msg.append(f"💀 **Total Kills:** {kills}")
         
-        fbd = self.get_tier(u['first_deaths'] or 0, t_master_scale)
+        fbd = self.get_tier(u['first_deaths'] if 'first_deaths' in user_keys else 0, t_master_scale)
         if fbd: ach_msg.append(f"⚰️ **First Blood (Victim):** {fbd}")
         
-        ks = self.get_tier(u['max_kill_streak'] or 0, t_streaks)
+        ks = self.get_tier(u['max_kill_streak'] if 'max_kill_streak' in user_keys else 0, t_streaks)
         if ks >= 3: ach_msg.append(f"🔥 **Killing Spree:** {ks}x")
 
         cmds = self.get_tier(u.get('commands_used', 0), t_high)
