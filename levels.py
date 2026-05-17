@@ -392,8 +392,7 @@ class TextLevelSystem(commands.Cog):
         desc += f"*Tracking Status: {'🟢 ACTIVE' if status == 1 else '🔴 DISABLED'}*\n\n"
         
         desc += "📉 **LEVEL PROGRESSION**\n"
-        desc += f"```ml\nLevel: {lvl} | Progress: {percent}% \n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}\n
-```\n"
+        desc += f"```ml\nLevel: {lvl} | Progress: {percent}%\n[{bar}]\n{xp:,} / {needed:,} XP to Level {lvl + 1}```\n"
         
         desc += "📂 **FREQUENCY ARCHIVE**\n"
         desc += f"➤ **Total Messages:** `{msgs:,}`\n"
