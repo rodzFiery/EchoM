@@ -267,6 +267,25 @@ class EngineControl(commands.Cog):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
+# --- NOVO COMPONENTE: WINNER ADVANCED BREAKDOWN VIEW ---
+class WinnerStatsView(discord.ui.View):
+    def __init__(self, breakdown_payload):
+        super().__init__(timeout=None)
+        self.payload = breakdown_payload
+
+    @discord.ui.button(label="📊 View Breakdown", style=discord.ButtonStyle.secondary, custom_id="fiery_winner_breakdown")
+    async def view_breakdown_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = discord.Embed(title="📊 VOYEUR INTERACTIVE ANALYSIS", color=0xFFD700)
+        embed.add_field(name="💦 ECHO EXPERIENCE RECAP", value=self.payload.get("breakdown_text", "N/A"), inline=True)
+        embed.add_field(name="📊 SERVER RANKINGS INDEX", value=self.payload.get("rank_text", "N/A"), inline=True)
+        embed.add_field(name="🏛️ VICTOR'S LIFETIME LEGACY", value=self.payload.get("legacy_text", "N/A"), inline=False)
+        embed.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=self.payload.get("streak_text", "N/A"), inline=False)
+        embed.add_field(name="🔥 TARGET STANDING STATUS", value=self.payload.get("standing_text", "N/A"), inline=False)
+        embed.add_field(name="💰 ALLOCATED PRIZE CAPITAL", value=self.payload.get("prize_text", "N/A"), inline=False)
+        embed.add_field(name="🏅 CONSECUTIVE ACHIEVEMENTS", value=self.payload.get("ach_text", "N/A"), inline=False)
+        embed.set_footer(text="🔞 Ephemeral Data Clearance Level 4 | Persists on Main Ledger")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 class IgnisEngine(commands.Cog):
     def __init__(self, bot, update_user_stats, get_user, fiery_embed, get_db_connection, ranks, classes, audit_channel_id):
         self.bot = bot
@@ -890,6 +909,11 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
+            # --- ARY FIXED: Moved the Grand Exhibition post-match recap processing call here to explicitly load right after the winner announcement ---
+            ext_recap_cog = self.bot.get_cog("FieryExtensions")
+            if ext_recap_cog:
+                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
+
             # NEW: Basic NSFW Protocol Summary Embed
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
@@ -902,11 +926,6 @@ class IgnisEngine(commands.Cog):
                 )
                 basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
                 await channel.send(embed=basic_emb)
-
-            # --- ADDED: Execute immediate Grand Exhibition post-match processing from extensions cog ---
-            ext_recap_cog = self.bot.get_cog("FieryExtensions")
-            if ext_recap_cog:
-                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
@@ -969,7 +988,7 @@ class IgnisEngine(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
-            win_card = discord.Embed(title=f"👑 Echogames Winner 👑 # {edition}", color=0xFFD700)
+            win_card = discord.Embed(title=f"👑 Echogames Supreme Victor # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
@@ -991,8 +1010,6 @@ class IgnisEngine(commands.Cog):
                             f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
-            
-            win_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=True)
             
             with self.get_db_connection() as conn:
                 w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u.get('wins', 0),)).fetchone()
@@ -1017,22 +1034,34 @@ class IgnisEngine(commands.Cog):
                 lifetime_flame_pool = total_arena_wins * 15000 
             
             rank_text = f"🏆 **Wins:** Rank #{w_rank}\n⚔️ **Kills:** Rank #{k_rank}\n🎮 **Games:** Rank #{g_rank}"
-            win_card.add_field(name="📊 SERVER STATS", value=rank_text, inline=True)
             
             legacy_text = (f"👑 **Total Arena Wins:** {total_arena_wins}\n"
                            f"📝 **Total Participations:** {total_participations}\n"
                            f"🔥 **Lifetime Arena Flames:** {lifetime_flame_pool:,}F")
-            win_card.add_field(name="🏛️ VICTOR'S LEGACY", value=legacy_text, inline=False)
             
             streak_text = (f"⚡ **Current Win Streak:** {current_streak}\n"
                            f"🌌 **All-Time Max Streak:** {max_streak}")
-            win_card.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=streak_text, inline=False)
             
-            win_card.add_field(name="🔥 STANDING", value=f"Rank {lvl}: **{rank_name}**", inline=False)
-            win_card.add_field(name="💰 PRIZE POOL", value=f"**Flames:** {total_flames_won}", inline=False)
-            win_card.add_field(name="🏅 ACHIEVEMENTS", value=ach_text, inline=False)
+            standing_text = f"Rank {lvl}: **{rank_name}**"
+            prize_text = f"**Flames:** {total_flames_won}"
+
+            # FIXED: Removed technical text blocks from main view card embed definition
+            win_card.description = f"### 👑 CONGRATULATIONS {winner_member.mention}\n*You have successfully survived the session and established complete dominance over the sector.*"
+
+            # PACK PACKLOAD DATA FOR INTERACTIVE DIALOG OVERRIDES
+            breakdown_payload = {
+                "breakdown_text": breakdown_text,
+                "rank_text": rank_text,
+                "legacy_text": legacy_text,
+                "streak_text": streak_text,
+                "standing_text": standing_text,
+                "prize_text": prize_text,
+                "ach_text": ach_text
+            }
             
-            await channel.send(embed=win_card)
+            # ATTACH INTERACTIVE BUTTONS INTERFACE
+            stats_view = WinnerStatsView(breakdown_payload)
+            await channel.send(embed=win_card, view=stats_view)
 
         except Exception as e:
             print(f"# CRITICAL ENGINE FAILURE: {e}")
