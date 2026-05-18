@@ -191,7 +191,7 @@ def paypal_webhook():
     return "OK", 200
 
 def run_web_server():
-    # O Railway usa a porta 8080 por padrão para Networking Público
+    # O Railway usa a porta 8081 por padrão para Networking Público
     port = int(os.environ.get("PORT", 8081))
     try:
         app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
