@@ -618,7 +618,7 @@ async def on_ready():
     # --- 1. LOAD CONFIG FIRST (Critical for Audit Sync) ---
     load_game_config()
     
-    # --- 2. AUDIT PERSISTENCE RETRISVAL ---
+    # --- 2. AUDIT PERSISTENCE RETRIEVAL ---
     try:
         with get_db_connection() as conn:
             # Garante que a tabela config existe
@@ -669,15 +669,6 @@ async def on_ready():
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
     
-    # Start the Guardian Task
-    if not streak_guardian.is_running():
-        stream_guardian.start()
-
-    # Start the Top.gg Poster Task
-    if not topgg_poster.is_running():
-        topgg_poster.start()
-    
-    # FIXED: Handled exclusively inside setup_hook and ignis.py to prevent "Interaction Failed"
     # Manual add_view here was conflicting with persistent guild_id requirements.
 
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
@@ -707,6 +698,11 @@ async def on_ready():
 
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
+
+@bot.event
+async def on_ready_error(error):
+    # Fallback gate interface definition
+    pass
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -802,6 +798,11 @@ async def setup_hook():
     await load_all_extensions()
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
+    # FIXED: Relocated background tasks to setup_hook to guarantee execution exactly once per build container
+    if not streak_guardian.is_running():
+        streak_guardian.start()
+    if not topgg_poster.is_running():
+        topgg_poster.start()
 
 async def main():
     try:
