@@ -294,7 +294,7 @@ class IgnisEngine(commands.Cog):
         self.ranks = ranks
         self.classes = classes
         # FIXED: Pulled dynamically from main module to support the !audit system
-        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", audit_channel_id)
+        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         
         # INDEPENDENCE FIX: Use Guild IDs for tracking
         self.active_battles = set() # Set of channel IDs (unique across Discord)
@@ -617,6 +617,7 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"**Tribute Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
 
+            # FIXED: Added fine-tuned event execution pauses to shield loops against file write spikes
             await asyncio.sleep(4)
             try:
                 await channel.send(FieryLexicon.get_intro())
@@ -625,6 +626,9 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
+                # FIXED: Injected explicit thread yields to allow engine socket handling without connection freezes
+                await asyncio.sleep(0.1)
+
                 # --- FIX: SUICIDE CHECK MOVED INTO CORE LOOP FLOW ---
                 # MOVED: Check happens at start of every iteration (10% chance)
                 if random.random() < 0.10 and len(fighters) > 2:
@@ -906,6 +910,11 @@ class IgnisEngine(commands.Cog):
                 await channel.send(FieryLexicon.get_winner_announcement(winner_member.mention))
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
+
+            # --- ARY FIXED: Moved the Grand Exhibition post-match recap processing call here to explicitly load right after the winner announcement ---
+            ext_recap_cog = self.bot.get_cog("FieryExtensions")
+            if ext_recap_cog:
+                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
             # NEW: Basic NSFW Protocol Summary Embed
             import sys as _sys_end
