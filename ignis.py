@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -294,9 +293,8 @@ class IgnisEngine(commands.Cog):
         self.ranks = ranks
         self.classes = classes
         
-        # FIXED: Registered audit variable locally immediately on init to avoid dynamic context AttributeError blocks
+        # FIXED: Explicit assignment to avoid AttributeError
         self.audit_channel_id = audit_channel_id
-        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         
         # INDEPENDENCE FIX: Use Guild IDs for tracking
         self.active_battles = set() # Set of channel IDs (unique across Discord)
@@ -533,8 +531,8 @@ class IgnisEngine(commands.Cog):
         first_blood_recorded = False
         # NEW: Track first loser for Basic NSFW protocol
         first_loser_member = None
-        import sys as _sys
-        self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
+        
+        # FIXED: Directly use pre-initialized attribute
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
