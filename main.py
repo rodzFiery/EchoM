@@ -613,7 +613,12 @@ async def send_streak_ping(channel, user_id, tier, elapsed):
 
 @bot.event
 async def on_ready():
-    print("--- STARTING SYSTEM INITIALIZATION ---")
+    # STARTUP SHIELD: Only run logic if bot hasn't already initialized
+    if hasattr(bot, "initialized"): 
+        return
+    bot.initialized = True
+    
+    print("--- STARTING SYSTEM INITIALIZATION (FIRST RUN ONLY) ---")
     
     # --- 1. LOAD CONFIG FIRST (Critical for Audit Sync) ---
     load_game_config()
@@ -669,8 +674,6 @@ async def on_ready():
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
     
-    # Manual add_view here was conflicting with persistent guild_id requirements.
-
     # --- REACTION ROLE PERSISTENCE RECOVERY ---
     try:
         with get_db_connection() as conn:
@@ -698,11 +701,6 @@ async def on_ready():
 
     await bot.change_presence(activity=discord.Game(name="EchoGames"))
     print(f"✅ LOG: {bot.user} is ONLINE.")
-
-@bot.event
-async def on_ready_error(error):
-    # Fallback gate interface definition
-    pass
 
 @bot.event
 async def on_command_error(ctx, error):
