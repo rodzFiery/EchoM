@@ -293,7 +293,9 @@ class IgnisEngine(commands.Cog):
         self.get_db_connection = get_db_connection
         self.ranks = ranks
         self.classes = classes
-        # FIXED: Pulled dynamically from main module to support the !audit system
+        
+        # FIXED: Registered audit variable locally immediately on init to avoid dynamic context AttributeError blocks
+        self.audit_channel_id = audit_channel_id
         self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         
         # INDEPENDENCE FIX: Use Guild IDs for tracking
@@ -617,7 +619,6 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"**Tribute Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
 
-            # FIXED: Added fine-tuned event execution pauses to shield loops against file write spikes
             await asyncio.sleep(4)
             try:
                 await channel.send(FieryLexicon.get_intro())
@@ -910,11 +911,6 @@ class IgnisEngine(commands.Cog):
                 await channel.send(FieryLexicon.get_winner_announcement(winner_member.mention))
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
-
-            # --- ARY FIXED: Moved the Grand Exhibition post-match recap processing call here to explicitly load right after the winner announcement ---
-            ext_recap_cog = self.bot.get_cog("FieryExtensions")
-            if ext_recap_cog:
-                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
 
             # NEW: Basic NSFW Protocol Summary Embed
             import sys as _sys_end
