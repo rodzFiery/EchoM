@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -266,23 +267,6 @@ class EngineControl(commands.Cog):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
-# --- NOVO COMPONENTE: WINNER ADVANCED BREAKDOWN VIEW ---
-class WinnerStatsView(discord.ui.View):
-    def __init__(self, breakdown_payload):
-        super().__init__(timeout=None)
-        self.payload = breakdown_payload
-
-    @discord.ui.button(label="📊 View Breakdown", style=discord.ButtonStyle.secondary, custom_id="fiery_winner_breakdown")
-    async def view_breakdown_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(title="📊 VOYEUR INTERACTIVE ANALYSIS", color=0xFFD700)
-        embed.add_field(name="💦 ECHO EXPERIENCE RECAP", value=self.payload.get("breakdown_text", "N/A"), inline=True)
-        embed.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=self.payload.get("streak_text", "N/A"), inline=False)
-        embed.add_field(name="🔥 TARGET STANDING STATUS", value=self.payload.get("standing_text", "N/A"), inline=False)
-        embed.add_field(name="💰 ALLOCATED PRIZE CAPITAL", value=self.payload.get("prize_text", "N/A"), inline=False)
-        embed.add_field(name="🏅 CONSECUTIVE ACHIEVEMENTS", value=self.payload.get("ach_text", "N/A"), inline=False)
-        embed.set_footer(text="🔞 Ephemeral Data Clearance Level 4 | Persists on Main Ledger")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
 class IgnisEngine(commands.Cog):
     def __init__(self, bot, update_user_stats, get_user, fiery_embed, get_db_connection, ranks, classes, audit_channel_id):
         self.bot = bot
@@ -292,9 +276,8 @@ class IgnisEngine(commands.Cog):
         self.get_db_connection = get_db_connection
         self.ranks = ranks
         self.classes = classes
-        
-        # FIXED: Explicit assignment to avoid AttributeError
-        self.audit_channel_id = audit_channel_id
+        # FIXED: Pulled dynamically from main module to support the !audit system
+        self.audit_channel_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", audit_channel_id)
         
         # INDEPENDENCE FIX: Use Guild IDs for tracking
         self.active_battles = set() # Set of channel IDs (unique across Discord)
@@ -442,8 +425,8 @@ class IgnisEngine(commands.Cog):
             bg.paste(av_winner, (40, 150), av_winner)
             bg.paste(av_loser, (540, 150), av_loser)
             
-            # THICKER CROSS FOR MASSIVE SCALE
             draw = ImageDraw.Draw(bg)
+            # THICKER CROSS FOR MASSIVE SCALE
             draw.line((400, 220, 600, 480), fill=(220, 220, 220), width=25)
             draw.line((600, 220, 400, 480), fill=(220, 220, 220), width=25)
             
@@ -531,8 +514,8 @@ class IgnisEngine(commands.Cog):
         first_blood_recorded = False
         # NEW: Track first loser for Basic NSFW protocol
         first_loser_member = None
-        
-        # FIXED: Directly use pre-initialized attribute
+        import sys as _sys
+        self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
 
         try:
@@ -625,9 +608,6 @@ class IgnisEngine(commands.Cog):
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
-                # FIXED: Injected explicit thread yields to allow engine socket handling without connection freezes
-                await asyncio.sleep(0.1)
-
                 # --- FIX: SUICIDE CHECK MOVED INTO CORE LOOP FLOW ---
                 # MOVED: Check happens at start of every iteration (10% chance)
                 if random.random() < 0.10 and len(fighters) > 2:
@@ -637,19 +617,6 @@ class IgnisEngine(commands.Cog):
                     if not first_blood_recorded:
                         first_loser_member = channel.guild.get_member(victim['id'])
                         first_blood_recorded = True
-                        # --- ADDED: Cache raw ID logs directly to support the micro NSFW evaluation card ---
-                        ext_cog = self.bot.get_cog("FieryExtensions")
-                        if ext_cog:
-                            if channel.id not in ext_cog.nsfw_matches_data:
-                                ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
-                            ext_cog.nsfw_matches_data[channel.id]["first_blood"] = victim['id']
-                    else:
-                        # --- ADDED: Track individual structural self-terminations cleanly during runtime loops ---
-                        ext_cog = self.bot.get_cog("FieryExtensions")
-                        if ext_cog:
-                            if channel.id not in ext_cog.nsfw_matches_data:
-                                ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
-                            ext_cog.nsfw_matches_data[channel.id]["suicides"].append(victim['id'])
                     
                     if channel.id in self.current_survivors:
                         if victim['id'] in self.current_survivors[channel.id]:
@@ -716,19 +683,6 @@ class IgnisEngine(commands.Cog):
                         if not first_blood_recorded and not first_loser_member:
                              first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
-                             # --- ADDED: Push first blood tracking indexes securely during unexpected legendary event triggers ---
-                             ext_cog = self.bot.get_cog("FieryExtensions")
-                             if ext_cog:
-                                 if channel.id not in ext_cog.nsfw_matches_data:
-                                     ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
-                                 ext_cog.nsfw_matches_data[channel.id]["first_blood"] = loser['id']
-                        else:
-                             # --- ADDED: Map multi-target structural wipes clean to the extension cache array matrix ---
-                             ext_cog = self.bot.get_cog("FieryExtensions")
-                             if ext_cog:
-                                 if channel.id not in ext_cog.nsfw_matches_data:
-                                     ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
-                                 ext_cog.nsfw_matches_data[channel.id]["wiped"].append(loser['id'])
 
                         # Update current survivors map
                         if channel.id in self.current_survivors:
@@ -777,12 +731,6 @@ class IgnisEngine(commands.Cog):
                 # NEW: Capture first loser for Basic NSFW protocol
                 if not first_blood_recorded:
                     first_loser_member = channel.guild.get_member(loser['id'])
-                    # --- ADDED: Push standard first blood execution ID keys straight to storage vectors ---
-                    ext_cog = self.bot.get_cog("FieryExtensions")
-                    if ext_cog:
-                        if channel.id not in ext_cog.nsfw_matches_data:
-                            ext_cog.nsfw_matches_data[channel.id] = {"first_blood": None, "suicides": [], "wiped": []}
-                        ext_cog.nsfw_matches_data[channel.id]["first_blood"] = loser['id']
 
                 # Update current survivors map
                 if channel.id in self.current_survivors:
@@ -817,7 +765,7 @@ class IgnisEngine(commands.Cog):
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
-                        # FIXED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
+                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
                         if main.nsfw_mode_active or main.basic_nsfw_active:
                             flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
@@ -984,7 +932,7 @@ class IgnisEngine(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
-            win_card = discord.Embed(title=f"👑 Echogames Supreme Victor # {edition}", color=0xFFD700)
+            win_card = discord.Embed(title=f"👑 Echogames Winner 👑 # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
@@ -1006,6 +954,8 @@ class IgnisEngine(commands.Cog):
                             f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
+            
+            win_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=True)
             
             with self.get_db_connection() as conn:
                 w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u.get('wins', 0),)).fetchone()
@@ -1030,42 +980,22 @@ class IgnisEngine(commands.Cog):
                 lifetime_flame_pool = total_arena_wins * 15000 
             
             rank_text = f"🏆 **Wins:** Rank #{w_rank}\n⚔️ **Kills:** Rank #{k_rank}\n🎮 **Games:** Rank #{g_rank}"
+            win_card.add_field(name="📊 SERVER STATS", value=rank_text, inline=True)
             
             legacy_text = (f"👑 **Total Arena Wins:** {total_arena_wins}\n"
                            f"📝 **Total Participations:** {total_participations}\n"
                            f"🔥 **Lifetime Arena Flames:** {lifetime_flame_pool:,}F")
+            win_card.add_field(name="🏛️ VICTOR'S LEGACY", value=legacy_text, inline=False)
             
             streak_text = (f"⚡ **Current Win Streak:** {current_streak}\n"
                            f"🌌 **All-Time Max Streak:** {max_streak}")
+            win_card.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=streak_text, inline=False)
             
-            standing_text = f"Rank {lvl}: **{rank_name}**"
-            prize_text = f"**Flames:** {total_flames_won}"
-
-            # FIXED: Main card embed description now strictly keeps the localized server ranks and lifetime legacy text layout blocks visible
-            win_card.description = (
-                f"### 👑 CONGRATULATIONS {winner_member.mention}\n"
-                f"*You have successfully survived the session and established complete dominance over the sector.*\n\n"
-                f"**📊 SERVER RANKINGS INDEX:**\n{rank_text}\n\n"
-                f"**🏛️ VICTOR'S LIFETIME LEGACY:**\n{legacy_text}"
-            )
-
-            # PACK PACKLOAD DATA FOR INTERACTIVE DIALOG OVERRIDES
-            breakdown_payload = {
-                "breakdown_text": breakdown_text,
-                "streak_text": streak_text,
-                "standing_text": standing_text,
-                "prize_text": prize_text,
-                "ach_text": ach_text
-            }
+            win_card.add_field(name="🔥 STANDING", value=f"Rank {lvl}: **{rank_name}**", inline=False)
+            win_card.add_field(name="💰 PRIZE POOL", value=f"**Flames:** {total_flames_won}", inline=False)
+            win_card.add_field(name="🏅 ACHIEVEMENTS", value=ach_text, inline=False)
             
-            # ATTACH INTERACTIVE BUTTONS INTERFACE
-            stats_view = WinnerStatsView(breakdown_payload)
-            await channel.send(embed=win_card, view=stats_view)
-
-            # FIXED: Relocated the Harvest recap execution block down here to output at the absolute end of the match lifecycle chain
-            ext_recap_cog = self.bot.get_cog("FieryExtensions")
-            if ext_recap_cog:
-                await ext_recap_cog.process_nsfw_match_recap(channel, channel.id, winner_final['id'])
+            await channel.send(embed=win_card)
 
         except Exception as e:
             print(f"# CRITICAL ENGINE FAILURE: {e}")
