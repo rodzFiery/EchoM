@@ -200,6 +200,16 @@ class EngineControl(commands.Cog):
         await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as an **Ignis Admin**."))
 
     @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def setignis(self, ctx, number: int):
+        """Manually sets the next game edition number."""
+        import sys
+        main = sys.modules['__main__']
+        main.game_edition = number
+        self.save_game_config()
+        await ctx.send(f"✅ Next game edition set to **#{number}**.")
+
+    @commands.command()
     async def echostart(self, ctx):
         import sys
         main = sys.modules['__main__']
@@ -944,7 +954,7 @@ class IgnisEngine(commands.Cog):
             u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
 
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
