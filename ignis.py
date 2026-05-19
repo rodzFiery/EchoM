@@ -639,7 +639,13 @@ class IgnisEngine(commands.Cog):
                     if not first_blood_recorded:
                         first_loser_member = channel.guild.get_member(victim['id'])
                         first_blood_recorded = True
-                    
+                        
+                        import sys as _sys_mod
+                        main = _sys_mod.modules['__main__']
+                        if main.nsfw_mode_active or main.basic_nsfw_active:
+                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                            await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
+
                     suicide_victims.append(channel.guild.get_member(victim['id']))
                     
                     if channel.id in self.current_survivors:
@@ -702,6 +708,11 @@ class IgnisEngine(commands.Cog):
                         if not first_blood_recorded and not first_loser_member:
                              first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
+                             import sys as _sys_mod
+                             main = _sys_mod.modules['__main__']
+                             if main.nsfw_mode_active or main.basic_nsfw_active:
+                                 flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                                 await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                         legendary_victims.append(channel.guild.get_member(loser['id']))
 
@@ -752,6 +763,12 @@ class IgnisEngine(commands.Cog):
                 # NEW: Capture first loser for Basic NSFW protocol
                 if not first_blood_recorded:
                     first_loser_member = channel.guild.get_member(loser['id'])
+                    import sys as _sys_mod
+                    main = _sys_mod.modules['__main__']
+                    if main.nsfw_mode_active or main.basic_nsfw_active:
+                        flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                        await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
+                    first_blood_recorded = True
 
                 # Update current survivors map
                 if channel.id in self.current_survivors:
@@ -779,11 +796,7 @@ class IgnisEngine(commands.Cog):
                     await channel.send(embed=bounty_emb, files=files)
 
                 with self.get_db_connection() as conn:
-                    if not first_blood_recorded:
-                        conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
-                        fxp_log[winner['id']]["first_kill"] = 1000
-                        first_blood_recorded = True
-
+                    # Note: first_blood_recorded handling is already moved inside the individual loser capture logic above
                     conn.execute("UPDATE users SET current_kill_streak = current_kill_streak + 1 WHERE id = ?", (winner['id'],))
                     conn.execute("UPDATE users SET max_kill_streak = MAX(max_kill_streak, current_kill_streak) WHERE id = ?", (winner['id'],))
                     conn.execute("UPDATE users SET current_kill_streak = 0, current_win_streak = 0 WHERE id = ?", (loser['id'],))
@@ -892,14 +905,6 @@ class IgnisEngine(commands.Cog):
                 nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
                 
                 await channel.send(embed=nsfw_embed)
-
-            # --- FIRST BLOOD ANNOUNCEMENT RESTORED ---
-            if first_loser_member:
-                import sys as _sys_mod
-                main = _sys_mod.modules['__main__']
-                if main.nsfw_mode_active or main.basic_nsfw_active:
-                    flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
-                    await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
