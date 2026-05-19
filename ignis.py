@@ -876,22 +876,30 @@ class IgnisEngine(commands.Cog):
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
-                # Prepare members lists
-                first_death_str = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
-                suicide_str = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
-                legendary_str = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
+                # Compile lists of members
+                f_death = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
+                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
+                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
                 
                 # Simple, direct NSFW recap embed
                 nsfw_embed = discord.Embed(
                     title="🔞 NSFW PROTOCOL: RECAP 🔞",
                     color=0xFF00FF
                 )
-                nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=first_death_str, inline=False)
-                nsfw_embed.add_field(name="🥀 SUICIDES", value=suicide_str, inline=False)
-                nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=legendary_str, inline=False)
+                nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=f_death, inline=False)
+                nsfw_embed.add_field(name="🥀 SUICIDES", value=s_victims, inline=False)
+                nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
                 nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
                 
                 await channel.send(embed=nsfw_embed)
+
+            # --- FIRST BLOOD ANNOUNCEMENT RESTORED ---
+            if first_loser_member:
+                import sys as _sys_mod
+                main = _sys_mod.modules['__main__']
+                if main.nsfw_mode_active or main.basic_nsfw_active:
+                    flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                    await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
