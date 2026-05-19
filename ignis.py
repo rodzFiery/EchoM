@@ -876,19 +876,22 @@ class IgnisEngine(commands.Cog):
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
-                # Compile lists of members
-                f_death = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
-                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
-                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
+                # Prepare members lists
+                first_death_str = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
+                suicide_str = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
+                legendary_str = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
                 
-                nsfw_desc = (
-                    f"💀 **FIRST DEATH:** {f_death}\n"
-                    f"🥀 **SUICIDES:** {s_victims}\n"
-                    f"⚔️ **WIPED (LEGENDARY):** {l_victims}\n\n"
-                    f"👑 **WINNER'S DECREE:** {winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS."
+                # Simple, direct NSFW recap embed
+                nsfw_embed = discord.Embed(
+                    title="🔞 NSFW PROTOCOL: RECAP 🔞",
+                    color=0xFF00FF
                 )
-                nsfw_emb = self.fiery_embed("🔞 NSFW PROTOCOL: RECAP", nsfw_desc, color=0xFF00FF)
-                await channel.send(embed=nsfw_emb)
+                nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=first_death_str, inline=False)
+                nsfw_embed.add_field(name="🥀 SUICIDES", value=suicide_str, inline=False)
+                nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=legendary_str, inline=False)
+                nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
+                
+                await channel.send(embed=nsfw_embed)
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
