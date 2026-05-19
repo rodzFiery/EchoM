@@ -531,8 +531,11 @@ class IgnisEngine(commands.Cog):
         
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
-        # NEW: Track first loser for Basic NSFW protocol
+        # TRACKING FOR NSFW SUMMARY
         first_loser_member = None
+        suicide_victims = []
+        legendary_victims = []
+
         import sys as _sys
         self.audit_channel_id = getattr(_sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
         audit_channel = self.bot.get_channel(self.audit_channel_id)
@@ -637,6 +640,8 @@ class IgnisEngine(commands.Cog):
                         first_loser_member = channel.guild.get_member(victim['id'])
                         first_blood_recorded = True
                     
+                    suicide_victims.append(channel.guild.get_member(victim['id']))
+                    
                     if channel.id in self.current_survivors:
                         if victim['id'] in self.current_survivors[channel.id]:
                             self.current_survivors[channel.id].remove(victim['id'])
@@ -657,11 +662,6 @@ class IgnisEngine(commands.Cog):
                     s_emb.set_image(url="attachment://suicide.png")
                     
                     await channel.send(file=s_file, embed=s_emb)
-                    
-                    import sys as _s_sys
-                    main_s = _s_sys.modules['__main__']
-                    if main_s.nsfw_mode_active or main_s.basic_nsfw_active:
-                        await channel.send(embed=self.fiery_embed("Public Exposure", f"🔞 **SUICIDE FALLOUT:** {victim['name']}'s broken form is stripped and exposed to the pit.", color=0xFF00FF))
                     
                     await asyncio.sleep(5)
                     if len(fighters) <= 1: break
@@ -702,6 +702,8 @@ class IgnisEngine(commands.Cog):
                         if not first_blood_recorded and not first_loser_member:
                              first_blood_recorded = True
                              first_loser_member = channel.guild.get_member(loser['id'])
+
+                        legendary_victims.append(channel.guild.get_member(loser['id']))
 
                         # Update current survivors map
                         if channel.id in self.current_survivors:
@@ -781,13 +783,6 @@ class IgnisEngine(commands.Cog):
                         conn.execute("UPDATE users SET first_bloods = first_bloods + 1 WHERE id = ?", (winner['id'],))
                         fxp_log[winner['id']]["first_kill"] = 1000
                         first_blood_recorded = True
-                        
-                        import sys as _sys_mod
-                        main = _sys_mod.modules['__main__']
-                        # UPDATED: Checks for both full NSFW and Basic NSFW for first blood automatic flash
-                        if main.nsfw_mode_active or main.basic_nsfw_active:
-                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {loser['name']} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
-                            await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     conn.execute("UPDATE users SET current_kill_streak = current_kill_streak + 1 WHERE id = ?", (winner['id'],))
                     conn.execute("UPDATE users SET max_kill_streak = MAX(max_kill_streak, current_kill_streak) WHERE id = ?", (winner['id'],))
@@ -877,18 +872,19 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # NEW: Basic NSFW Protocol Summary Embed
+            # --- NSFW SUMMARY EMBED ---
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
-            if main_end.basic_nsfw_active:
-                basic_desc = (
-                    f"🔞 **NSFW PROTOCOL: LIMITED EXPOSURE SUMMARY**\n\n"
-                    f"💀 **First Sacrifice:** {first_loser_member.mention if first_loser_member else 'Unknown'} was exposed first and must flash.\n"
-                    f"👑 **Winner's Decree:** {winner_member.mention}, the Master grants you **ONE** flash command. "
-                    f"Use `!getnaked @user` to pick your victim now."
+            if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
+                flashing_members = [first_loser_member] + suicide_victims + legendary_victims
+                flashing_list = ", ".join([m.mention for m in flashing_members if m]) if flashing_members else "None"
+                
+                nsfw_desc = (
+                    f"💀 **FLASH REQUIRED:** {flashing_list}\n"
+                    f"👑 **Winner's Decree:** {winner_member.mention}, choose 3 victims to flash via `!flash @xx @xx @xx`."
                 )
-                basic_emb = self.fiery_embed("NSFW SESSION RECAP", basic_desc, color=0xFF00FF)
-                await channel.send(embed=basic_emb)
+                nsfw_emb = self.fiery_embed("🔞 NSFW PROTOCOL: RECAP", nsfw_desc, color=0xFF00FF)
+                await channel.send(embed=nsfw_emb)
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
