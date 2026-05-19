@@ -26,6 +26,15 @@ import aiohttp
 # Importação do Lexicon para as frases de efeito
 from lexicon import FieryLexicon
 
+class WinnerDetailsView(discord.ui.View):
+    def __init__(self, details_embed):
+        super().__init__(timeout=None)
+        self.details_embed = details_embed
+
+    @discord.ui.button(label="View Full Breakdown", style=discord.ButtonStyle.primary, emoji="📜", custom_id="fiery_winner_details")
+    async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
+
 class LobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
         # FIX: Added a static custom_id to the View itself via the super() or just ensuring timeout is None
@@ -942,38 +951,34 @@ class IgnisEngine(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
+            # --- PREPARE WINNER CARD EMBEDS ---
             win_card = discord.Embed(title=f"👑 Echogames Winner 👑 # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
+            # --- DETAILS EMBED ---
             log_win = fxp_log[winner_final['id']]
-            
-            # Row to Dict conversion
             winner_raw_fin = self.get_user(winner_final['id'])
             winner_user_db_fin = dict(winner_raw_fin) if winner_raw_fin else {}
-
             u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
             elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
-
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
+            details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
                             f"⚔️ **Kills:** {log_win['kills']} XP\n"
                             f"🩸 **First Kill:** {log_win['first_kill']} XP\n"
                             f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
-            
-            win_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=True)
+            details_card.add_field(name="💦 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=False)
             
             with self.get_db_connection() as conn:
                 w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u.get('wins', 0),)).fetchone()
                 w_rank = w_rank_query['r'] if w_rank_query else "N/A"
-                
                 k_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE kills > ?", (f_u.get('kills', 0),)).fetchone()
                 k_rank = k_rank_query['r'] if k_rank_query else "N/A"
-                
                 g_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE games_played > ?", (f_u.get('games_played', 0),)).fetchone()
                 g_rank = g_rank_query['r'] if g_rank_query else "N/A"
                 
@@ -999,13 +1004,14 @@ class IgnisEngine(commands.Cog):
             
             streak_text = (f"⚡ **Current Win Streak:** {current_streak}\n"
                            f"🌌 **All-Time Max Streak:** {max_streak}")
-            win_card.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=streak_text, inline=False)
+            details_card.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=streak_text, inline=False)
+            details_card.add_field(name="🔥 STANDING", value=f"Rank {lvl}: **{rank_name}**", inline=False)
+            details_card.add_field(name="💰 PRIZE POOL", value=f"**Flames:** {total_flames_won}", inline=False)
+            details_card.add_field(name="🏅 ACHIEVEMENTS", value=ach_text, inline=False)
             
-            win_card.add_field(name="🔥 STANDING", value=f"Rank {lvl}: **{rank_name}**", inline=False)
-            win_card.add_field(name="💰 PRIZE POOL", value=f"**Flames:** {total_flames_won}", inline=False)
-            win_card.add_field(name="🏅 ACHIEVEMENTS", value=ach_text, inline=False)
-            
-            await channel.send(embed=win_card)
+            view = WinnerDetailsView(details_card)
+            self.bot.add_view(view)
+            await channel.send(embed=win_card, view=view)
 
         except Exception as e:
             print(f"# CRITICAL ENGINE FAILURE: {e}")
@@ -1075,6 +1081,7 @@ class PersistentLobbyLauncher(commands.Cog):
         # FIX: Register the view with EXACTLY the same custom_ids for buttons to match Discord's signature
         # We don't need guild_id here because buttons logic handles everything from the interaction itself
         self.bot.add_view(LobbyView())
+        self.bot.add_view(WinnerDetailsView(None))
         print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
 
 async def setup(bot):
