@@ -82,7 +82,7 @@ class LobbyView(discord.ui.View):
 
         # Update local list from DB to ensure sync after restart
         with engine.get_db_connection() as conn:
-            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            rows = engine.get_db_connection().execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
             self.participants = [r[0] for r in rows]
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
@@ -876,12 +876,16 @@ class IgnisEngine(commands.Cog):
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
-                flashing_members = [first_loser_member] + suicide_victims + legendary_victims
-                flashing_list = ", ".join([m.mention for m in flashing_members if m]) if flashing_members else "None"
+                # Compile lists of members
+                f_death = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
+                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
+                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
                 
                 nsfw_desc = (
-                    f"💀 **FLASH REQUIRED:** {flashing_list}\n"
-                    f"👑 **Winner's Decree:** {winner_member.mention}, choose 3 victims to flash via `!flash @xx @xx @xx`."
+                    f"💀 **FIRST DEATH:** {f_death}\n"
+                    f"🥀 **SUICIDES:** {s_victims}\n"
+                    f"⚔️ **WIPED (LEGENDARY):** {l_victims}\n\n"
+                    f"👑 **WINNER'S DECREE:** {winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS."
                 )
                 nsfw_emb = self.fiery_embed("🔞 NSFW PROTOCOL: RECAP", nsfw_desc, color=0xFF00FF)
                 await channel.send(embed=nsfw_emb)
