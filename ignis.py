@@ -899,6 +899,9 @@ class IgnisEngine(commands.Cog):
                 possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if first_loser_member else None] + [v.id for v in suicide_victims] + [v.id for v in legendary_victims] + [winner_member.id]]
                 random_flasher = random.choice(possible_flashers).mention if possible_flashers else "No other survivors"
                 
+                # Force ping message content
+                ping_content = f"🔞 **NSFW PROTOCOL PINGS:** {first_loser_member.mention if first_loser_member else ''} {' '.join([v.mention for v in suicide_victims])} {' '.join([v.mention for v in legendary_victims])} {winner_member.mention}"
+                
                 # Simple, direct NSFW recap embed
                 nsfw_embed = discord.Embed(
                     title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -910,7 +913,7 @@ class IgnisEngine(commands.Cog):
                 nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=f"{random_flasher} (FLASH)", inline=False)
                 nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
                 
-                await channel.send(embed=nsfw_embed)
+                await channel.send(content=ping_content, embed=nsfw_embed)
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
