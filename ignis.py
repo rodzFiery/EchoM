@@ -894,6 +894,11 @@ class IgnisEngine(commands.Cog):
                 s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
                 l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
                 
+                # Pick one random survivor to flash
+                all_participants = [channel.guild.get_member(p_id) for p_id in participants]
+                possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if first_loser_member else None] + [v.id for v in suicide_victims] + [v.id for v in legendary_victims] + [winner_member.id]]
+                random_flasher = random.choice(possible_flashers).mention if possible_flashers else "No other survivors"
+                
                 # Simple, direct NSFW recap embed
                 nsfw_embed = discord.Embed(
                     title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -902,6 +907,7 @@ class IgnisEngine(commands.Cog):
                 nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=f_death, inline=False)
                 nsfw_embed.add_field(name="🥀 SUICIDES", value=s_victims, inline=False)
                 nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
+                nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=f"{random_flasher} (FLASH)", inline=False)
                 nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
                 
                 await channel.send(embed=nsfw_embed)
