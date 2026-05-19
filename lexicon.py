@@ -74,7 +74,6 @@ class FieryLexicon:
         "🔞 **The Red Room doesn’t forgive. It only forgets the broken.**"
     ]
 
-    # 🔥 BDSM MODULAR BATTLE SENTENCES (Sensual & Flirty Dirty)
     OPENERS = [
         "**{winner}** gripped the silk tie of **{loser}** until they gasped with a blush,", 
         "With a look of absolute desire, **{winner}** pinned **{loser}**'s wrists over their head,",
@@ -173,7 +172,7 @@ class FieryLexicon:
         "**{winner}** pressed a freezing coin against **{loser}**'s sensitive, exposed skin,",
         "**{winner}** yanked the leash of **{loser}** until they fell and couldn't rise,",
         "**{winner}** used their fingers to stretch **{loser}** until they were wide and ruined,",
-        "**{winner}** forced **{loser}** to beg for the release that would never come,"
+        "**{winner}** forced **{loser}** to beg for the release that would never come"
     ]
 
     ACTIONS = [
@@ -534,12 +533,6 @@ class FieryLexicon:
         "🔞 **THE SHAME PILLAR:** **{losers}** were tied to a tall, thin pillar and left to be mocked by the gallery!",
         "🧪 **THE EUPHORIA SHOCK:** **{losers}** were struck with a device that caused them to have a massive, painful orgasm that left them incapacitated!",
         "⛓️ **THE WEB OF LIES:** **{losers}** were trapped in a complex web that forced them to confess their most shameful truths to be released!",
-        "🔞 **THE FINAL USE:** **{losers}** were designated as the Master's personal footstools for the rest of the event!",
-        "🫦 **THE SILENT SCREAM:** **{losers}** had their mouths magically sealed shut until they could prove their absolute obedience!",
-        "⛓️ **THE CHAINED PROCESSION:** **{losers}** were forced to walk on all fours, wearing heavy, uncomfortable collars until they fell!",
-        "🔞 **THE PUBLIC BRANDING:** **{losers}** were branded with the 'Loser' symbol by the Master's own hand!",
-        "🧪 **THE SENSORY VOID:** **{losers}** were plunged into a room where they could feel nothing but the Master's cold commands!",
-        "⛓️ **THE RITUAL OF ROPES:** **{losers}** were tied into such intricate, painful knots that they were stuck for hours!",
         "🔞 **THE ULTIMATE DEGRADATION:** **{losers}** were forced to act as living, breathing trash cans for the elite guests!",
         "🫦 **THE LAST TEASE:** **{losers}** were teased to the point of sobbing, then left with absolutely nothing!",
         "⛓️ **THE SHAMEFUL SPECTACLE:** **{losers}** were put in a transparent display case in the center of the Pit for everyone to laugh at!",
@@ -559,7 +552,6 @@ class FieryLexicon:
         "🧪 **THE FINAL BREAKING:** **{losers}** were broken so thoroughly they could no longer remember their own names!"
     ]
 
-    # Economia mais leve e sensual (DOUBLED)
     ECONOMY_MESSAGES = {
         "work": [
             "⛓️ {user} spent hours polishing the Master's boots with their tongue until they shone. Earned **{reward}** Flames.",
@@ -711,7 +703,7 @@ class FieryLexicon:
             "🫦 {user} whimpered while being lead by their piercings through the pit. Earned **{reward}** Flames.",
             "🫦 {user} begged to be used as a target for the Master's personal playthings. Earned **{reward}** Flames.",
             "🫦 {user} offered to have their safe-word taken away for a week. Earned **{reward}** Flames.",
-            "🫦 {user} crawled behind the Master's guests, collecting their discarded ash. Earned **{reward}** Flames.",
+            "🫦 {user} crawled behind the Master's guests, collecting discarded ash. Earned **{reward}** Flames.",
             "🫦 {user} begged to be placed in a sensory deprivation tank for **{reward}** Flames.",
             "🫦 {user} offered to have their body painted with the Master's logo. Earned **{reward}** Flames.",
             "🫦 {user} whimpered while being groomed like a prize-winning pet. Earned **{reward}** Flames.",
@@ -1464,7 +1456,7 @@ class FieryLexicon:
             "🫦 {user} promised to kneel only for the Master but surrendered to a guest. Earned **{reward}** Flames.",
             "🫦 {user} performed a 'Silent Siren' show in the center of the Pit. Earned **{reward}** Flames.",
             "🫦 {user} teased the Master by slowly tracing the outline of their own restrictive gear. Earned **{reward}** Flames.",
-            "🫦 {user} promised a night of ecstasy but provided only 5 minutes of intense edge-torture. Earned **{reward}** Flames.",
+            "🫦 {user} promised a night of absolute bliss but provided only 5 minutes of intense edge-torture. Earned **{reward}** Flames.",
             "🫦 {user} used their fingers to tease a guest until they were sobbing with frustration. Earned **{reward}** Flames.",
             "🫦 {user} performed a 'Breathless Tease' while suspended and completely immobile. Earned **{reward}** Flames.",
             "🫦 {user} teased the Master by slowly peeling back their own, skin-tight latex suit. Earned **{reward}** Flames.",
@@ -1495,12 +1487,13 @@ class FieryLexicon:
             "🫦 {user} performed a 'Sensory Tease' involving ice, fire, and total silence. Earned **{reward}** Flames.",
             "🫦 {user} teased a donor by slowly tracing the line of their own silk tie with a dagger. Earned **{reward}** Flames.",
             "🫦 {user} seduced a high-rank with a single, whispered command that they never obeyed. Earned **{reward}** Flames.",
-            "🫦 {user} promised to belong to the one who gave the most Flames, then teased them for 2 hours. Earned **{reward}** Flames.",
+            "🫦 {user} promised to belong to the one who could correctly guess their favorite toy, then teased them for 2 hours. Earned **{reward}** Flames.",
             "🫦 {user} performed a 'Gagged Siren' show while pinned against the dungeon wall. Earned **{reward}** Flames.",
             "🫦 {user} used their mouth to tease the Master's private secretary for the entire evening. Earned **{reward}** Flames."
         ]
     }
-@classmethod
+    
+    @classmethod
     def get_intro(cls): 
         if not cls.INTRO_MESSAGES: return "🔞 **The Red Room opens.**"
         return random.choice(cls.INTRO_MESSAGES)
