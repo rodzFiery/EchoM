@@ -643,7 +643,7 @@ class IgnisEngine(commands.Cog):
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
                         if main.nsfw_mode_active or main.basic_nsfw_active:
-                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     suicide_victims.append(channel.guild.get_member(victim['id']))
@@ -711,7 +711,7 @@ class IgnisEngine(commands.Cog):
                              import sys as _sys_mod
                              main = _sys_mod.modules['__main__']
                              if main.nsfw_mode_active or main.basic_nsfw_active:
-                                 flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                                 flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                                  await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                         legendary_victims.append(channel.guild.get_member(loser['id']))
@@ -766,7 +766,7 @@ class IgnisEngine(commands.Cog):
                     import sys as _sys_mod
                     main = _sys_mod.modules['__main__']
                     if main.nsfw_mode_active or main.basic_nsfw_active:
-                        flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.display_name} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                        flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                         await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
                     first_blood_recorded = True
 
