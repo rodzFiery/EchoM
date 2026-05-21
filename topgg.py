@@ -30,7 +30,7 @@ class TopGG(commands.Cog):
             "matchme", "shiphistory", "marry", "divorce", "bestfriend", 
             "submit", "lustprofile", "lovescore", "matchmaking", "bondtrial", 
             "torture", "fuck", "duel", "fightecho", "shop", "sell", 
-            "inv", "checkbuffs", "limit", "react"
+            "inv", "checkbuffs", "limit", "react", "echostart", "flash"
         ]
         
         # 3. Register the Global Interceptor when the bot boots
