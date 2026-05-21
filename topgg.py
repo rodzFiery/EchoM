@@ -95,9 +95,8 @@ class TopGG(commands.Cog):
             
         target_id = self.bot_id or self.bot.user.id
         embed = self.bot.fiery_embed(
-            "🚫 LOCK PROTOCOL: VOTE REQUIRED", 
-            f"This neural pathway requires active validation.\n"
-            f"Please vote here to unlock this sequence for the next 12 hours:\n"
+            "🚫 LOCK PROTOCOL: VOTE REQUIRED",
+            f"Please vote here to unlock commands for the next 12 hours:\n"
             f"🔗 https://top.gg/bot/{target_id}/vote"
         )
         
