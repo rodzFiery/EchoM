@@ -291,22 +291,22 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="echoon")
     @commands.is_owner()
     async def echo_on(self, ctx):
-        """Elevates all guilds the bot is currently in to Full Premium."""
+        """Elevates this specific guild to Full Premium."""
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
-            for guild in self.bot.guilds:
-                conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)", 
-                             (guild.id, '10. Full Premium', p_date))
+            conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)", 
+                         (ctx.guild.id, '10. Full Premium', p_date))
             conn.commit()
-        await ctx.send(embed=self.fiery_embed("PROTOCOL: GLOBAL OVERRIDE", f"👑 {len(self.bot.guilds)} SERVERS ELEVATED TO GOD MODE.", color=0xFFD700))
+        await ctx.send(embed=self.fiery_embed("PROTOCOL: SERVER OVERRIDE", f"👑 {ctx.guild.name} ELEVATED TO GOD MODE.", color=0xFFD700))
 
     @commands.command(name="echooff")
     @commands.is_owner()
     async def echo_off(self, ctx):
+        """Resets this specific guild to Standard Access."""
         with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM server_premium")
+            conn.execute("DELETE FROM server_premium WHERE guild_id = ?", (ctx.guild.id,))
             conn.commit()
-        await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", "🌑 ALL SERVERS RESET TO STANDARD ACCESS.", color=0x808080))
+        await ctx.send(embed=self.fiery_embed("PROTOCOL: SYSTEM PURGE", f"🌑 {ctx.guild.name} RESET TO STANDARD ACCESS.", color=0x808080))
 
     @staticmethod
     def is_premium():
