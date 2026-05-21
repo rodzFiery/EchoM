@@ -3,29 +3,20 @@ from discord.ext import commands
 import sqlite3
 import os
 import sys
-import urllib.parse  # ADDED: To generate secure payment links
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 import asyncio
-import aiohttp # ADDED: For more stable asynchronous requests
-from aiohttp import web # ADDED: For Webhook Listener
+import aiohttp
+from aiohttp import web
 
 # --- PAYPAL CONFIGURATION (AUTOMATIC WEBHOOK INTEGRATION) ---
 PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CURRENCY = "USD"
 
-# --- RECONFIGURED ELITE PLANS (MAX 10 - ABSOLUTELY SYNCED) ---
+# --- RECONFIGURED ELITE PLANS (SINGLE PACK) ---
 PREMIUM_PLANS = {
-    "1. Starter Core": {"cost": 5.5, "perks": "Classes + Economy + Shop", "color": 0x3498DB},
-    "2. Combatant": {"cost": 5.0, "perks": "Echo HangryGames + 1v1 Arena", "color": 0xE74C3C},
-    "3. High Roller": {"cost": 4.5, "perks": "Casino + Economy Expansion", "color": 0x9B59B6},
-    "4. Social Elite": {"cost": 3.5, "perks": "Ship System + Ask-to-DM", "color": 0xFD79A8},
-    "5. Battle Master": {"cost": 8.5, "perks": "Echo HG + Arena + Classes", "color": 0xE67E22},
-    "6. Wealth Architect": {"cost": 6.5, "perks": "Economy + Shop + Utility", "color": 0xF1C40F},
-    "7. Executioner Bundle": {"cost": 10.5, "perks": "Classes + Echo + Arena + Casino", "color": 0xD63031},
-    "8. Dungeon Merchant": {"cost": 7.5, "perks": "Shop + Econ + Social Access", "color": 0x27AE60},
-    "9. Utility Pro": {"cost": 4.0, "perks": "Utility + Economy Access", "color": 0x74B9FF},
-    "10. Full Premium": {"cost": 19.5, "perks": "ALL SYSTEMS UNLOCKED (GOD MODE)", "color": 0xFFD700}
+    "Server Premium": {"cost": 15.0, "perks": "Full Server-Wide Unlock", "color": 0xFFD700}
 }
 
 class PremiumShopView(discord.ui.View):
@@ -35,28 +26,18 @@ class PremiumShopView(discord.ui.View):
         self.get_db_connection = get_db_connection
         self.fiery_embed = fiery_embed
         self.update_user_stats = update_user_stats
-        self.page = 0
-        self.pages = self.chunk_plans()
         self.update_buttons()
-
-    def chunk_plans(self):
-        keys = list(PREMIUM_PLANS.keys())
-        return [keys[i:i + 3] for i in range(0, len(keys), 3)]
 
     def update_buttons(self):
         self.clear_items()
-        self.add_item(self.prev_page)
-        self.add_item(self.next_page)
-        
-        current_keys = self.pages[self.page]
-        for key in current_keys:
-            button = discord.ui.Button(
-                label=f"BUY {key[:15]}...", 
-                style=discord.ButtonStyle.success,
-                custom_id=f"buy_{key}"
-            )
-            button.callback = self.make_callback(key)
-            self.add_item(button)
+        key = "Server Premium"
+        button = discord.ui.Button(
+            label=f"BUY {key}", 
+            style=discord.ButtonStyle.success,
+            custom_id=f"buy_{key}"
+        )
+        button.callback = self.make_callback(key)
+        self.add_item(button)
 
     def make_callback(self, plan_name):
         async def callback(interaction: discord.Interaction):
@@ -64,47 +45,19 @@ class PremiumShopView(discord.ui.View):
         return callback
 
     def create_embed(self):
-        current_keys = self.pages[self.page]
-        desc = "### 🛡️  ELITE ASSET ACQUISITION GATEWAY  🛡️\n"
-        desc += "*Select your access level. Automatic activation via Protocol V4.*\n\n"
+        key = "Server Premium"
+        plan = PREMIUM_PLANS[key]
+        desc = "### 🛡️ ELITE SERVER UNLOCK 🛡️\n"
+        desc += "*Unlock full premium privileges for your entire server for 30 days.*\n\n"
+        desc += f"➤ **PLAN:** {key}\n"
+        desc += f"➤ **PRICE:** ${plan['cost']:,.2f} USD / Month\n"
+        desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n"
         
-        for key in current_keys:
-            plan = PREMIUM_PLANS[key]
-            p30, p60, p90, p180 = plan['cost'], plan['cost']*2, plan['cost']*2.8, plan['cost']*5.0
-            
-            desc += f"➤ **{key.upper()}**\n"
-            desc += f"```ml\n"
-            desc += f" [ 30 Days ] : ${p30:,.2f} USD\n"
-            desc += f" [ 60 Days ] : ${p60:,.2f} USD\n"
-            desc += f" [ 90 Days ] : ${p90:,.2f} USD (HOT)\n"
-            desc += f" [ 180 Days] : ${p180:,.2f} USD (SAVINGS)\n"
-            desc += f"```\n"
-            desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n\n"
-            
-        embed = self.fiery_embed(f"PREMIUM CATALOG │ PAGE {self.page + 1}/{len(self.pages)}", desc)
+        embed = self.fiery_embed("PREMIUM GATEWAY", desc)
         embed.set_author(name="THE MASTER'S EXECUTIVE BOUTIQUE", icon_url=self.ctx.author.display_avatar.url)
         return embed
 
-    @discord.ui.button(label="PREVIOUS PAGE", style=discord.ButtonStyle.secondary, emoji="◀️", row=4)
-    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page > 0:
-            self.page -= 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.create_embed(), view=self)
-        else:
-            await interaction.response.send_message("❌ First page reached.", ephemeral=True)
-
-    @discord.ui.button(label="NEXT PAGE", style=discord.ButtonStyle.secondary, emoji="▶️", row=4)
-    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < len(self.pages) - 1:
-            self.page += 1
-            self.update_buttons()
-            await interaction.response.edit_message(embed=self.create_embed(), view=self)
-        else:
-            await interaction.response.send_message("❌ Last page reached.", ephemeral=True)
-
     async def send_audit_report(self, interaction, plan_name, cost, action="INVOICE GENERATED"):
-        """Sync with audit.py system to log market activity."""
         main_mod = sys.modules['__main__']
         audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
         channel = interaction.client.get_channel(audit_id)
@@ -124,7 +77,6 @@ class PremiumShopView(discord.ui.View):
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
-        # Target is strictly the Guild ID (G-prefix for webhook handling)
         custom_data = f"G{interaction.guild.id}|{plan_name}|30"
         query = {
             "business": PAYPAL_EMAIL,
@@ -144,10 +96,9 @@ class PremiumShopView(discord.ui.View):
                                 f"💎 **Plan:** `{plan_name}`\n"
                                 f"💵 **Total:** `${plan['cost']} USD`\n\n"
                                 f"✅ [CLICK HERE TO FINALIZE ON PAYPAL]({paypal_url})\n\n"
-                                f"⏳ *The system will unlock premium for the entire server upon payment.*")
+                                f"⏳ *The system will unlock 30 days of premium for this server upon payment.*")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        # Log to Audit Channel
         await self.send_audit_report(interaction, plan_name, plan['cost'])
 
 class PremiumSystem(commands.Cog):
@@ -160,7 +111,6 @@ class PremiumSystem(commands.Cog):
         self.webhook_task = self.bot.loop.create_task(self.start_webhook_server())
 
     async def start_webhook_server(self):
-        """Starts the local web server to listen for PayPal Webhooks."""
         app = web.Application()
         app.router.add_post('/webhook', self.handle_paypal_webhook)
         runner = web.AppRunner(app)
@@ -170,7 +120,6 @@ class PremiumSystem(commands.Cog):
         await site.start()
 
     async def handle_paypal_webhook(self, request):
-        """Processes incoming PayPal signals and activates server premium."""
         data = await request.post()
         if data.get('payment_status') == 'Completed':
             custom = data.get('custom', '')
@@ -188,9 +137,7 @@ class PremiumSystem(commands.Cog):
         return web.Response(text="OK")
 
     async def log_admin_action(self, guild_name, plan_name, action):
-        """Helper to log manual overrides to audit channel."""
-        main_mod = sys.modules['__main__']
-        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", self.AUDIT_CHANNEL_ID)
+        audit_id = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", self.AUDIT_CHANNEL_ID)
         channel = self.bot.get_channel(audit_id)
         if channel:
             embed = self.fiery_embed("⚖️ ADMINISTRATIVE SERVER OVERRIDE", 
@@ -201,7 +148,6 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="premium")
     async def premium_shop(self, ctx):
-        """Opens the Premium Subscription Lobby."""
         view = PremiumShopView(ctx, self.get_db_connection, self.fiery_embed, self.update_user_stats)
         embed = view.create_embed()
         
@@ -215,13 +161,8 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="activate")
     @commands.is_owner()
     @commands.has_permissions(administrator=True)
-    async def activate_premium(self, ctx, guild_id: int, plan_number: int):
-        """Manually activate premium for a specific server."""
-        plan_list = list(PREMIUM_PLANS.keys())
-        if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Invalid plan.")
-            
-        plan_name = plan_list[plan_number - 1]
+    async def activate_premium(self, ctx, guild_id: int):
+        plan_name = "Server Premium"
         p_date = datetime.now().isoformat()
         
         with self.get_db_connection() as conn:
@@ -235,14 +176,8 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="testpay")
     @commands.is_owner()
     @commands.has_permissions(administrator=True)
-    async def test_payment(self, ctx, plan_number: int):
-        """Tests the server-wide payment webhook logic."""
-        plan_list = list(PREMIUM_PLANS.keys())
-        if plan_number < 1 or plan_number > len(plan_list):
-            return await ctx.send("❌ Invalid plan index (1-10).")
-        
-        plan_name = plan_list[plan_number - 1]
-        # Payload uses G prefix to tell webhook it is a server
+    async def test_payment(self, ctx):
+        plan_name = "Server Premium"
         payload = {'payment_status': 'Completed', 'custom': f"G{ctx.guild.id}|{plan_name}|30"}
         
         port = os.environ.get("PORT", "8080")
@@ -272,7 +207,6 @@ class PremiumSystem(commands.Cog):
 
     @commands.command(name="premiumstatus")
     async def premium_status(self, ctx):
-        """Displays the premium status of the current server."""
         with self.get_db_connection() as conn:
             s = conn.execute("SELECT premium_type, premium_date FROM server_premium WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
         
@@ -291,7 +225,6 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="checkservers")
     @commands.is_owner()
     async def check_servers(self, ctx):
-        """Displays a list of all servers the bot is currently in."""
         guild_list = [f"• {g.name} (ID: {g.id})" for g in self.bot.guilds]
         embed = self.fiery_embed("🌐 BOT SERVER DIRECTORY", "\n".join(guild_list))
         await ctx.send(embed=embed)
@@ -299,18 +232,16 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="echoon")
     @commands.is_owner()
     async def echo_on(self, ctx):
-        """Elevates this specific guild to Full Premium."""
         p_date = datetime.now().isoformat()
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)", 
-                         (ctx.guild.id, '10. Full Premium', p_date))
+                         (ctx.guild.id, 'Server Premium', p_date))
             conn.commit()
         await ctx.send(embed=self.fiery_embed("PROTOCOL: SERVER OVERRIDE", f"👑 {ctx.guild.name} ELEVATED TO GOD MODE.", color=0xFFD700))
 
     @commands.command(name="echooff")
     @commands.is_owner()
     async def echo_off(self, ctx):
-        """Resets this specific guild to Standard Access."""
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM server_premium WHERE guild_id = ?", (ctx.guild.id,))
             conn.commit()
@@ -319,7 +250,6 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="echooffall")
     @commands.is_owner()
     async def echo_off_all(self, ctx):
-        """Resets ALL servers to Standard Access."""
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM server_premium")
             conn.commit()
