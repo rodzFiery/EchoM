@@ -24,7 +24,7 @@ class TopGG(commands.Cog):
             "slots", "bendover", "setclass", "dominant", "submissive", 
             "switch", "exhibitionist", "countstats", "serverstats", 
             "countinglb", "countingtop", "globalgoal", "goalhistory", 
-            "ask", "contract", "accept", "ship", "match3some", "flirtyship", 
+            "contract", "accept", "ship", "match3some", "flirtyship", 
             "matchme", "shiphistory", "marry", "divorce", "bestfriend", 
             "submit", "lustprofile", "lovescore", "matchmaking", "bondtrial", 
             "torture", "fuck", "duel", "fightecho", "shop", "sell", 
