@@ -704,6 +704,10 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
+    # --- ADDED: Ignore the silent lock protocol failures ---
+    if isinstance(error, commands.CheckFailure):
+        return
+
     # This will print to your Railway/Console log why a command failed
     print(f"⚠️ [COMMAND ERROR] {ctx.command} failed: {error}")
     await ctx.send(f"❌ **System Error:** {error}")
