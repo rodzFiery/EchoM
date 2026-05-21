@@ -288,6 +288,14 @@ class PremiumSystem(commands.Cog):
         embed = self.fiery_embed("PRIVATE SERVER OVERVIEW", desc, color=0xFFD700)
         await ctx.send(embed=embed)
 
+    @commands.command(name="checkservers")
+    @commands.is_owner()
+    async def check_servers(self, ctx):
+        """Displays a list of all servers the bot is currently in."""
+        guild_list = [f"• {g.name} (ID: {g.id})" for g in self.bot.guilds]
+        embed = self.fiery_embed("🌐 BOT SERVER DIRECTORY", "\n".join(guild_list))
+        await ctx.send(embed=embed)
+
     @commands.command(name="echoon")
     @commands.is_owner()
     async def echo_on(self, ctx):
