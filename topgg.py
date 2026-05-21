@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 import os
-import db_module
+import database as db_module # FIXED: Matches the import alias used in main.py
 
 class TopGG(commands.Cog):
     def __init__(self, bot):
@@ -30,7 +30,7 @@ class TopGG(commands.Cog):
             "matchme", "shiphistory", "marry", "divorce", "bestfriend", 
             "submit", "lustprofile", "lovescore", "matchmaking", "bondtrial", 
             "torture", "fuck", "duel", "fightecho", "shop", "sell", 
-            "inv", "checkbuffs", "limit", "react", "echostart", "flash"
+            "inv", "checkbuffs", "limit", "react"
         ]
         
         # 3. Register the Global Interceptor when the bot boots
