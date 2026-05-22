@@ -109,6 +109,49 @@ class PremiumSystem(commands.Cog):
         self.update_user_stats = update_user_stats
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
         self.webhook_task = self.bot.loop.create_task(self.start_webhook_server())
+        
+        # --- ADDED: GLOBAL PREMIUM COMMAND LIST ---
+        self.premium_commands = [
+            "setadminrole", "audit", "collectadmin", "setcards", "setconfessreview", 
+            "setconfesspost", "setconfesspost2", "confesspanel", "setcounting", 
+            "set_ignis_admin", "setlevelchannel", "react", "achievements", "balance", 
+            "ranking", "hall", "streaks", "quests", "ask", "dice", "blackjack", 
+            "roulette", "slots", "stealemoji", "echopurge", "limit", "echostart", 
+            "autorole", "setroles", "ticket", "match3some", "flirtyship", "matchme", 
+            "matchmaking", "thread", "threadall", "math"
+        ]
+        self.bot.add_check(self.global_premium_interceptor)
+
+    def cog_unload(self):
+        # Cleanly remove the check if the cog is ever reloaded or unloaded
+        self.bot.remove_check(self.global_premium_interceptor)
+
+    async def global_premium_interceptor(self, ctx):
+        """Intercepts all commands and blocks execution if they are on the premium list and the server is not premium."""
+        if not ctx.command:
+            return True
+            
+        if ctx.command.name in self.premium_commands:
+            if ctx.guild is None:
+                await ctx.send("❌ This command must be used in a server.")
+                return False
+                
+            main = sys.modules['__main__']
+            with self.get_db_connection() as conn:
+                serv = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            
+            if serv and serv['premium_type'] not in ['Free', '', None]:
+                return True
+                
+            embed = main.fiery_embed("ACCESS DENIED", "❌ This command requires an active **Server Premium** subscription.\nType `!premium` to unlock all features for this server.")
+            if os.path.exists("LobbyTopRight.jpg"):
+                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+                await ctx.send(file=file, embed=embed)
+            else:
+                await ctx.send(embed=embed)
+            return False
+            
+        return True
 
     async def start_webhook_server(self):
         app = web.Application()
