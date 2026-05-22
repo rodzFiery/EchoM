@@ -11,6 +11,7 @@ class TopGG(commands.Cog):
         self.bot = bot
         self.token = os.getenv("TOPGG_TOKEN")
         self.bot_id = os.getenv("BOT_ID")
+        self.owner_id = 1482648173016252439  # ADDED: Owner bypass ID
         
         self.locked_cogs = [] 
         
@@ -81,6 +82,10 @@ class TopGG(commands.Cog):
 
     async def global_vote_interceptor(self, ctx):
         if not ctx.command:
+            return True
+        
+        # OWNER BYPASS
+        if ctx.author.id == self.owner_id:
             return True
             
         cog_name = ctx.command.cog_name
