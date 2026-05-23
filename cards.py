@@ -53,6 +53,17 @@ class VelvetdexSelect(discord.ui.Select):
         except:
             p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
 
+        # ADDED: Tier-based color mapping for the intel embed
+        tier_colors = {
+            "supreme": 0xFF0000,
+            "legendary": 0xFF8C00,
+            "platine": 0xE5E4E2,
+            "epic": 0x9B59B6,
+            "rare": 0x3498DB,
+            "basic": 0x95A5A6
+        }
+        embed_color = tier_colors.get(tier.lower(), 0xFF69B4)
+
         power_display = (
             f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
             f"**💘 Flirt:** {p.get('Flirt', 0)}/100\n"
@@ -60,8 +71,11 @@ class VelvetdexSelect(discord.ui.Select):
             f"**✨ Magic:** {p.get('Magic', 0)}/100"
         )
 
-        embed = main_mod.fiery_embed(f"🧬 ASSET INTEL: {card_name.upper()}", 
-                                     f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}")
+        embed = discord.Embed(
+            title=f"🧬 ASSET INTEL: {card_name.upper()}",
+            description=f"**Tier:** `{tier.upper()}`\n\n**Classified Intel:**\n*{intel}*\n\n**Power Metrics:**\n{power_display}",
+            color=embed_color
+        )
         
         # ADDED: View with a "Set as Pet" button using a persistent-style custom_id
         # FIXED: card_db_id is passed as the identifying factor
@@ -162,16 +176,17 @@ class PokedexView(discord.ui.View):
 class CardSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # FIX: Track spawns and activity per guild using dictionaries
-        self.spawn_channels = {} 
-        self.activity_pools = {} 
-        self.required_activity = 25 
+        self.spawn_channel_id = 1438810509322223677 
         self.current_card = None
+        
+        # ACTIVITY LOGIC: restored and tied to member-spawns
+        self.activity_pool = 0
+        self.required_activity = 25 
         
         self._init_db()
         
-        # PERSISTENCE: Restore all spawn channels from the central config table
-        self._load_all_configs()
+        # PERSISTENCE: Restore the spawn channel from the central config table
+        self._load_config()
 
         # SERIES DEFINITIONS (Used to flavor the member-cards)
         self.series_types = ["Slut", "Dominator", "Submissive", "Switcher", "Threesomer", "Dirty", "Cummer", "Bossy", "Pimp", "Cum Cleaner"]
@@ -210,7 +225,7 @@ class CardSystem(commands.Cog):
         with main_mod.get_db_connection() as conn:
             # Updated table to include intel and powers
             conn.execute("CREATE TABLE IF NOT EXISTS user_cards (user_id INTEGER, card_name TEXT, tier TEXT, intel TEXT, powers TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
-            conn.execute("CREATE TABLE IF NOT EXISTS card_config (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS card_config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
             # NEW TABLE: To store the pet/companion (added avatar_url column)
             conn.execute("CREATE TABLE IF NOT EXISTS user_pets (user_id INTEGER PRIMARY KEY, card_rowid INTEGER, card_name TEXT, avatar_url TEXT)")
@@ -231,13 +246,13 @@ class CardSystem(commands.Cog):
             
             conn.commit()
 
-    def _load_all_configs(self):
+    def _load_config(self):
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
-                rows = conn.execute("SELECT guild_id, channel_id FROM card_config").fetchall()
-                for row in rows:
-                    self.spawn_channels[row[0]] = row[1]
+                row = conn.execute("SELECT value FROM card_config WHERE key = 'spawn_channel'").fetchone()
+                if row:
+                    self.spawn_channel_id = int(row['value'])
         except:
             pass
 
@@ -254,18 +269,29 @@ class CardSystem(commands.Cog):
         if custom_id == "view_intel_persistent":
             with main_mod.get_db_connection() as conn:
                 row = conn.execute(
-                    "SELECT card_name, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
+                    "SELECT card_name, tier, intel, powers FROM user_cards WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1",
                     (user_id,)
                 ).fetchone()
 
             if not row:
                 return await interaction.response.send_message("❌ Signature data corrupted or archive empty.", ephemeral=True)
 
-            card_name, intel_text, p_raw = row[0], row[1], row[2]
+            card_name, tier, intel_text, p_raw = row[0], row[1], row[2], row[3]
             try:
                 p = json.loads(p_raw)
             except:
                 p = {"Tease": 0, "Flirt": 0, "Sex": 0, "Magic": 0}
+
+            # ADDED: Tier-based color mapping for the intel embed
+            tier_colors = {
+                "supreme": 0xFF0000,
+                "legendary": 0xFF8C00,
+                "platine": 0xE5E4E2,
+                "epic": 0x9B59B6,
+                "rare": 0x3498DB,
+                "basic": 0x95A5A6
+            }
+            embed_color = tier_colors.get(tier.lower(), 0xFF69B4)
 
             power_display = (
                 f"**🔥 Tease:** {p.get('Tease', 0)}/100\n"
@@ -277,7 +303,7 @@ class CardSystem(commands.Cog):
             intel_embed = discord.Embed(
                 title=f"📜 CLASSIFIED: {card_name}",
                 description=f"*{intel_text}*\n\n{power_display}",
-                color=0xFF69B4
+                color=embed_color
             )
             await interaction.response.send_message(embed=intel_embed, ephemeral=True)
 
@@ -316,11 +342,10 @@ class CardSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def setcards(self, ctx, channel: discord.TextChannel):
         """Admin command to bind the card spawn frequency to a channel."""
-        guild_id = ctx.guild.id
-        self.spawn_channels[guild_id] = channel.id
+        self.spawn_channel_id = channel.id
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO card_config (guild_id, channel_id) VALUES (?, ?)", (guild_id, channel.id))
+            conn.execute("INSERT OR REPLACE INTO card_config (key, value) VALUES ('spawn_channel', ?)", (str(channel.id),))
             conn.commit()
         
         embed = main_mod.fiery_embed("Coordinates Synchronized", 
@@ -330,8 +355,8 @@ class CardSystem(commands.Cog):
 
     def get_random_tier(self):
         roll = random.random() * 100
-        if roll < 0.8: return "supreme", 0xFFD700
-        if roll < 4.0: return "legendary", 0xF1C40F
+        if roll < 0.8: return "supreme", 0xFF0000
+        if roll < 4.0: return "legendary", 0xFF8C00
         if roll < 12.0: return "platine", 0xE5E4E2
         if roll < 28.0: return "epic", 0x9B59B6
         if roll < 55.0: return "rare", 0x3498DB
@@ -339,9 +364,7 @@ class CardSystem(commands.Cog):
 
     async def spawn_card(self, guild):
         """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
-        channel_id = self.spawn_channels.get(guild.id)
-        if not channel_id: return
-        channel = self.bot.get_channel(channel_id)
+        channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
         # FIXED: Enforced server localization by forcing an API chunk fetch to clean internal cross-server member leaks completely
@@ -409,13 +432,13 @@ class CardSystem(commands.Cog):
         """The Listener: Increments activity pool and checks for spawn readiness."""
         if message.author.bot or not message.guild: return
         
-        gid = message.guild.id
-        self.activity_pools[gid] = self.activity_pools.get(gid, 0) + 1
+        # Track global server activity
+        self.activity_pool += 1
         
-        if self.activity_pools[gid] >= self.required_activity:
+        if self.activity_pool >= self.required_activity:
             # Chance check lowered to 0.25 (25%) to slow down the high-frequency drops
             if random.random() < 0.25: 
-                self.activity_pools[gid] = 0
+                self.activity_pool = 0
                 await self.spawn_card(message.guild)
 
     async def check_mastery(self, ctx, user_id):
@@ -444,7 +467,10 @@ class CardSystem(commands.Cog):
             conn.commit()
             total_count = conn.execute("SELECT COUNT(*) FROM user_cards WHERE user_id = ?", (user_id,)).fetchone()[0]
 
-        embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=0xFFD700)
+        # Get color based on tier
+        _, color = self.get_random_tier()
+        
+        embed = main_mod.fiery_embed("🔥 ASSET SECURED!", f"{ctx.author.mention} has archived **{card['name']}**!", color=color)
         
         # --- FOOLPROOF WORKAROUND FOR PREVIOUS SYNTAX ERROR ---
         metadata_value = "**Series:** " + str(card['type']) + "\n**Tier:** " + str(card['tier']).upper()
