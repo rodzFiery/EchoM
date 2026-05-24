@@ -64,7 +64,7 @@ class InterrogateModal(discord.ui.Modal, title="Make a question before accept"):
 
     async def on_submit(self, interaction: discord.Interaction):
         req_user = interaction.guild.get_member(self.req_id)
-        embed = discord.Embed(title="👁️ Questions:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
+        embed = discord.Embed(title="👁️ Conversation before accept/deny the request:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
         view = AnswerView()
         alert_msg = await interaction.channel.send(content=req_user.mention, embed=embed, view=view)
         
