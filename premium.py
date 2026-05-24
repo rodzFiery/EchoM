@@ -110,6 +110,9 @@ class PremiumSystem(commands.Cog):
         self.AUDIT_CHANNEL_ID = getattr(sys.modules['__main__'], "AUDIT_CHANNEL_ID", 1438810509322223677)
         self.webhook_task = self.bot.loop.create_task(self.start_webhook_server())
         
+        # --- ADDED: BACKGROUND TASK FOR FREE TRIAL EXPIRATIONS ---
+        self.trial_expiration_task = self.bot.loop.create_task(self.check_trial_expirations())
+        
         # --- ADDED: GLOBAL PREMIUM COMMAND LIST ---
         self.premium_commands = [
             "setadminrole", "audit", "collectadmin", "setcards", "setconfessreview", 
@@ -125,6 +128,36 @@ class PremiumSystem(commands.Cog):
     def cog_unload(self):
         # Cleanly remove the check if the cog is ever reloaded or unloaded
         self.bot.remove_check(self.global_premium_interceptor)
+        
+        # --- ADDED: CANCEL TRIAL TASK ON UNLOAD ---
+        self.trial_expiration_task.cancel()
+
+    async def check_trial_expirations(self):
+        """Background loop to check and remove expired free trials."""
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            try:
+                with self.get_db_connection() as conn:
+                    now_str = datetime.now().isoformat()
+                    expired_trials = conn.execute("SELECT guild_id FROM free_trial_usage WHERE expires_at <= ? AND expires_at IS NOT NULL", (now_str,)).fetchall()
+                    
+                    for row in expired_trials:
+                        g_id = row['guild_id']
+                        
+                        # Ensure we only remove it if they are still on the trial plan
+                        serv = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (g_id,)).fetchone()
+                        if serv and serv['premium_type'] == '10-Day Free Trial':
+                            conn.execute("DELETE FROM server_premium WHERE guild_id = ?", (g_id,))
+                        
+                        # Mark as expired but keep the record so they can't claim again
+                        conn.execute("UPDATE free_trial_usage SET expires_at = NULL WHERE guild_id = ?", (g_id,))
+                    
+                    if expired_trials:
+                        conn.commit()
+            except Exception as e:
+                print(f"[PremiumSystem] Error in check_trial_expirations: {e}")
+            
+            await asyncio.sleep(3600)  # Check every hour
 
     async def global_premium_interceptor(self, ctx):
         """Intercepts all commands and blocks execution if they are on the premium list and the server is not premium."""
@@ -143,7 +176,7 @@ class PremiumSystem(commands.Cog):
             if serv and serv['premium_type'] not in ['Free', '', None]:
                 return True
                 
-            embed = main.fiery_embed("ACCESS DENIED", "❌ This command requires an active **Server Premium** subscription.\nType `!premium` to unlock all features for this server.")
+            embed = main.fiery_embed("ACCESS DENIED", "❌ This command requires an active **Server Premium** subscription.\nType `!premium` to unlock all features for this server.\n\n*Server Owners can also try `!freetrial` once per server!*")
             if os.path.exists("LobbyTopRight.jpg"):
                 file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
                 await ctx.send(file=file, embed=embed)
@@ -200,6 +233,55 @@ class PremiumSystem(commands.Cog):
             await ctx.send(file=file, embed=embed, view=view)
         else:
             await ctx.send(embed=embed, view=view)
+
+    # --- ADDED: FREE TRIAL COMMAND ---
+    @commands.command(name="freetrial")
+    async def free_trial(self, ctx):
+        """Activates a one-time 10-day free premium trial for the server."""
+        if ctx.guild is None:
+            return await ctx.send("❌ This command must be used in a server.")
+            
+        if ctx.author.id != ctx.guild.owner_id:
+            return await ctx.send(embed=self.fiery_embed("ACCESS DENIED", "❌ Only the server owner can activate the free trial.", color=0xFF0000))
+
+        with self.get_db_connection() as conn:
+            # Check if trial was already used
+            used = conn.execute("SELECT * FROM free_trial_usage WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            
+            if used:
+                return await ctx.send(embed=self.fiery_embed("TRIAL UNAVAILABLE", "❌ This server has already claimed its lifetime one-time 10-day free trial.", color=0xFF0000))
+            
+            # Check if server is already premium
+            serv = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            if serv and serv['premium_type'] not in ['Free', '', None]:
+                return await ctx.send(embed=self.fiery_embed("ALREADY PREMIUM", f"❌ This server already has an active premium subscription: **{serv['premium_type']}**.", color=0xFF0000))
+
+            # Activate the trial
+            now = datetime.now()
+            expires_at = now + timedelta(days=10)
+            
+            # Log usage permanently
+            conn.execute("INSERT INTO free_trial_usage (guild_id, used_date, expires_at) VALUES (?, ?, ?)", 
+                         (ctx.guild.id, now.isoformat(), expires_at.isoformat()))
+            
+            # Add to premium table
+            conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)",
+                         (ctx.guild.id, '10-Day Free Trial', now.isoformat()))
+            conn.commit()
+
+        embed = self.fiery_embed("FREE TRIAL ACTIVATED", 
+                                 f"✅ **{ctx.guild.name}** has been granted a 10-Day Free Trial of Server Premium!\n\n"
+                                 f"⏳ **Expires On:** `{expires_at.strftime('%Y-%m-%d %H:%M:%S')}`\n\n"
+                                 f"All elite features are now unlocked for everyone in the server.", color=0x00FF00)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="trial.jpg")
+            embed.set_thumbnail(url="attachment://trial.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
+            
+        await self.log_admin_action(ctx.guild.name, "10-Day Free Trial", "FREE TRIAL CLAIMED")
 
     @commands.command(name="activate")
     @commands.is_owner()
@@ -316,5 +398,7 @@ async def setup(bot):
     main = sys.modules['__main__']
     with main.get_db_connection() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS server_premium (guild_id INTEGER PRIMARY KEY, premium_type TEXT, premium_date TEXT)")
+        # --- ADDED: FREE TRIAL TRACKING TABLE ---
+        conn.execute("CREATE TABLE IF NOT EXISTS free_trial_usage (guild_id INTEGER PRIMARY KEY, used_date TEXT, expires_at TEXT)")
         conn.commit()
     await bot.add_cog(PremiumSystem(bot, main.get_db_connection, main.fiery_embed, main.update_user_stats_async))
