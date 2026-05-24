@@ -6,6 +6,7 @@ import asyncio
 import sys
 import os
 import json
+import io # ADDED: Required for the image buffer
 import aiohttp # ADDED: Required for avatar processing
 from PIL import Image, ImageDraw, ImageFont, ImageFilter # ADDED: For 2030 holographic tech
 
@@ -234,9 +235,28 @@ class CardSystem(commands.Cog):
                 av = Image.open(io.BytesIO(await r.read())).convert("RGBA").resize((600, 600))
         canvas = Image.new("RGBA", (700, 1000), (10, 10, 15, 255))
         draw = ImageDraw.Draw(canvas)
+        
+        # --- ADDED: DYNAMIC HOLOGRAPHIC AURA ---
+        if tier.lower() == "supreme":
+            for w in range(25, 0, -2):
+                draw.rectangle([10-w, 10-w, 690+w, 990+w], outline=(255, 0, 0, int(255 - (w * 10))), width=2)
+        elif tier.lower() == "legendary":
+            for w in range(15, 0, -2):
+                draw.rectangle([10-w, 10-w, 690+w, 990+w], outline=(255, 140, 0, int(255 - (w * 15))), width=2)
+
         draw.rectangle([10, 10, 690, 990], outline=color, width=15)
         canvas.paste(av, (50, 100), av)
-        for i in range(0, 1000, 4): draw.line([(0, i), (700, i)], fill=(255, 255, 255, 15))
+        
+        # --- ADDED: SCANLINE EFFECTS ---
+        if tier.lower() == "supreme":
+            for i in range(0, 1000, 8): 
+                draw.line([(0, i), (700, i)], fill=(255, 50, 50, 40), width=3)
+            for i in range(0, 1000, 25):
+                glitch_y = i + random.randint(-8, 8)
+                draw.line([(0, glitch_y), (700, glitch_y)], fill=(255, 255, 255, 80), width=1)
+        else:
+            for i in range(0, 1000, 4): draw.line([(0, i), (700, i)], fill=(255, 255, 255, 15))
+            
         draw.text((30, 950), f"SYS_SYNC: 0x{random.randint(1000,9999)}-{tier.upper()}", fill=(0, 255, 255, 100))
         buf = io.BytesIO()
         canvas.save(buf, format="PNG")
@@ -275,10 +295,15 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         try:
             with main_mod.get_db_connection() as conn:
+                print("[SYS] Attempting to load spawn_channel_id from database...") # ADDED
                 row = conn.execute("SELECT value FROM card_config WHERE key = 'spawn_channel'").fetchone()
                 if row:
                     self.spawn_channel_id = int(row['value'])
-        except:
+                    print(f"[SYS] Successfully loaded spawn_channel_id: {self.spawn_channel_id}") # ADDED
+                else:
+                    print("[SYS] No spawn_channel_id found in database. Await !setcards command.") # ADDED
+        except Exception as e:
+            print(f"[SYS] Error loading config: {e}") # ADDED
             pass
 
     @commands.Cog.listener()
@@ -405,9 +430,15 @@ class CardSystem(commands.Cog):
 
     async def spawn_card(self, guild):
         """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
-        if not self.spawn_channel_id: return
+        print(f"[SYS] Initiating spawn sequence for {guild.name}...") # ADDED
+        if not self.spawn_channel_id: 
+            print("[SYS] Aborting spawn: spawn_channel_id is currently None.") # ADDED
+            return
         channel = self.bot.get_channel(self.spawn_channel_id)
-        if not channel: return
+        if not channel: 
+            print(f"[SYS] Aborting spawn: Channel ID {self.spawn_channel_id} not found in guild.") # ADDED
+            return
+        print(f"[SYS] Manifestation point locked on: {channel.name}. Proceeding...") # ADDED
 
         # FIXED: Enforced server localization by forcing an API chunk fetch to clean internal cross-server member leaks completely
         try:
