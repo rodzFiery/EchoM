@@ -31,7 +31,7 @@ class AnswerModal(discord.ui.Modal, title="Submit Interrogation Answer"):
         try:
             original_msg = await interaction.channel.fetch_message(self.msg_id)
             embed = original_msg.embeds[0]
-            embed.add_field(name="👁️ INTERROGATION LOG", value=f"**Q:** {self.question}\n**A:** {self.answer.value}", inline=False)
+            embed.add_field(name="👁️ INTERROGATION LOG", value=f"**<@{self.tar_id}>:** {self.question}\n**{interaction.user.mention}:** {self.answer.value}", inline=False)
             await original_msg.edit(embed=embed)
             await interaction.response.send_message("✅ Answer transmitted to the target.", ephemeral=True)
             await interaction.message.delete()
