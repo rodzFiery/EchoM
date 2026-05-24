@@ -77,7 +77,6 @@ class InterrogateModal(discord.ui.Modal, title="Interrogate Asset"):
 # --- ADDED: FEATURE 1 - TRIBUTE/ENCRYPTION MODAL ---
 class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
     tribute = discord.ui.TextInput(label="Encryption Key / Tribute", style=discord.TextStyle.paragraph, placeholder="Why should they accept? Enter your tribute here...", required=True, max_length=1000)
-    blind_mode = discord.ui.TextInput(label="Blind Protocol", style=discord.TextStyle.short, placeholder="Type YES to blur your identity", required=False, max_length=10)
 
     def __init__(self, req_id, tar_id, intents, intent_display):
         super().__init__()
@@ -96,8 +95,6 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
         elif any(i in ["SFW", "Friends only", "Problem Solving"] for i in self.intents):
             intent_color = "cyan"
 
-        is_blind = self.blind_mode.value.strip().upper() == "YES"
-
         with sqlite3.connect("dungeon_ask.db") as conn:
             conn.execute("INSERT INTO tributes VALUES (?, ?, ?)", (self.req_id, self.tar_id, self.tribute.value))
             conn.commit()
@@ -107,17 +104,17 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
         requester_user = interaction.guild.get_member(self.req_id)
 
         cog = interaction.client.get_cog('DungeonAsk')
-        img_buf = await cog.create_dynamic_ask_lobby(requester_user.display_avatar.url, target_user.display_avatar.url, intent_color, is_blind)
+        img_buf = await cog.create_dynamic_ask_lobby(requester_user.display_avatar.url, target_user.display_avatar.url, intent_color)
         file = discord.File(img_buf, filename="dynamic_ask.png")
 
         # --- ORIGINAL LINE BY LINE EMBED BUILDING TRANSPLANTED HERE ---
         final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
-            f"{target_user.mention}, a formal petition to enter your private space has been filed by {'**[REDACTED ASSET]**' if is_blind else requester_user.mention}.\n\n"
+            f"{target_user.mention}, a formal petition to enter your private space has been filed by {requester_user.mention}.\n\n"
             f"### 🫦 INTENT OF CONTACT:\n> {self.intent_display}\n\n"
+            f"### 💬 PAYLOAD / TRIBUTE:\n> {self.tribute.value}\n\n"
             f"** **")
         
-        if not is_blind:
-            final_embed.set_thumbnail(url=requester_user.display_avatar.url)
+        final_embed.set_thumbnail(url=requester_user.display_avatar.url)
         final_embed.color = 0x00BFFF 
         final_embed.set_image(url="attachment://dynamic_ask.png")
 
@@ -204,19 +201,6 @@ class RecipientView(discord.ui.View):
         self.req_id = req_id
         self.tar_id = tar_id
 
-    # --- ADDED: THE ICEBREAKER REVEAL ---
-    @discord.ui.button(label="🔓 Decrypt Payload", style=discord.ButtonStyle.secondary, custom_id="ask_dm_decrypt_v3")
-    async def decrypt(self, inter: discord.Interaction, btn: discord.ui.Button):
-        target_id = self.tar_id or inter.user.id 
-        if inter.user.id != target_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
-        
-        with sqlite3.connect("dungeon_ask.db") as conn:
-            row = conn.execute("SELECT tribute FROM tributes WHERE req_id=? AND tar_id=? ORDER BY ROWID DESC", (self.req_id, target_id)).fetchone()
-        
-        tribute_text = row[0] if row else "No payload provided."
-        await inter.response.send_message(f"🔓 **DECRYPTED TRIBUTE:**\n> {tribute_text}", ephemeral=True)
-
     # --- ADDED: THE INTERROGATION TRIGGER ---
     @discord.ui.button(label="👁️ Interrogate Asset", style=discord.ButtonStyle.primary, custom_id="ask_dm_interrogate_v3")
     async def interrogate(self, inter: discord.Interaction, btn: discord.ui.Button):
@@ -295,8 +279,8 @@ class DungeonAsk(commands.Cog):
             print(f"Visual Error: {e}")
             return None
 
-    # --- ADDED: FEATURE 3 - DYNAMIC SMART CANVAS (Color Grading & Blind) ---
-    async def create_dynamic_ask_lobby(self, u1_url, u2_url, intent_color=None, is_blind=False):
+    # --- ADDED: FEATURE 3 - DYNAMIC SMART CANVAS (Color Grading) ---
+    async def create_dynamic_ask_lobby(self, u1_url, u2_url, intent_color=None):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(u1_url) as r1, session.get(u2_url) as r2:
@@ -309,9 +293,6 @@ class DungeonAsk(commands.Cog):
                 av_size = 350
                 av1 = Image.open(p1_data).convert("RGBA").resize((av_size, av_size))
                 av2 = Image.open(p2_data).convert("RGBA").resize((av_size, av_size))
-                
-                if is_blind:
-                    av1 = av1.filter(ImageFilter.GaussianBlur(15))
                 
                 canvas.paste(av1, (100, 120), av1)
                 canvas.paste(av2, (750, 120), av2)
