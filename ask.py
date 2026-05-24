@@ -18,7 +18,7 @@ with sqlite3.connect("dungeon_ask.db") as conn:
     conn.commit()
 
 # --- ADDED: FEATURE 2 - INTERROGATION SYSTEM COMPONENTS ---
-class AnswerModal(discord.ui.Modal, title="Submit Interrogation Answer"):
+class AnswerModal(discord.ui.Modal, title="Submit an answer"):
     answer = discord.ui.TextInput(label="Your Answer", style=discord.TextStyle.paragraph, required=True)
 
     def __init__(self, tar_id, msg_id, question):
@@ -205,7 +205,7 @@ class RecipientView(discord.ui.View):
         self.tar_id = tar_id
 
     # --- ADDED: THE INTERROGATION TRIGGER ---
-    @discord.ui.button(label="👁️ Interrogate Asset", style=discord.ButtonStyle.primary, custom_id="ask_dm_interrogate_v3")
+    @discord.ui.button(label="👁️ Make a question first", style=discord.ButtonStyle.primary, custom_id="ask_dm_interrogate_v3")
     async def interrogate(self, inter: discord.Interaction, btn: discord.ui.Button):
         target_id = self.tar_id or inter.user.id 
         if inter.user.id != target_id: 
@@ -222,17 +222,17 @@ class RecipientView(discord.ui.View):
         
         main_mod = sys.modules['__main__']
         # Try to find requester from mentions in message content/embed if not set
-        requester_mention = inter.message.content.split('by ')[1].split('.')[0] if "filed by" in inter.message.content else "Asset"
+        requester_mention = inter.message.content.split('by ')[1].split('.')[0] if "filed by" in inter.message.content else "Member"
         
         success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", f"**ACCEPTED.** The request was accepted by {inter.user.mention}.")
         await inter.response.send_message(embed=success_emb)
 
-    @discord.ui.button(label="Reject Advancement", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject_v3")
+    @discord.ui.button(label="Reject DM request", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject_v3")
     async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
         if self.tar_id != 0 and inter.user.id != self.tar_id: 
             return await inter.response.send_message("❌ Access denied.", ephemeral=True)
         main_mod = sys.modules['__main__']
-        fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", f"**DENIED.** {inter.user.mention} has rejected the advances.")
+        fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", f"**DENIED.** {inter.user.mention} has rejected the request.")
         await inter.response.send_message(embed=fail_emb)
 
 class PlayView(discord.ui.View):
