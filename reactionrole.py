@@ -90,35 +90,53 @@ class ReactionRoleSystem(commands.Cog):
         try:
             # Step 1: Target Channel
             guide_msg = await ctx.send("🎯 **STEP 1:** Mention the **channel** where the rules should be sent (e.g., #rules).")
-            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
             if not target_channel:
                 return await ctx.send("❌ Invalid channel. Restart the command.")
 
-            # Step 2: Role Selection
-            await ctx.send(f"👤 **STEP 2:** Mention the **role** to be granted (e.g., @Member).")
-            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
-            target_role = msg.role_mentions[0] if msg.role_mentions else None
-            if not target_role:
-                return await ctx.send("❌ Invalid role. Restart the command.")
+            # --- ADDED: Ask for the number of reaction roles (Up to 25 natively supported by Discord Views) ---
+            await ctx.send("🔢 **STEP 2:** How many **reaction roles** would you like to add to this panel? (Maximum of 25).")
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
+            try:
+                rr_count = int(msg.content.strip())
+                if not (1 <= rr_count <= 25):
+                    return await ctx.send("❌ Total reaction roles must be between 1 and 25. Protocol terminated.")
+            except ValueError:
+                return await ctx.send("❌ Please enter a valid number configuration.")
 
-            # Step 3: Emoji Selection (Multi-Server Custom Custom Emoji Support)
-            await ctx.send("⭐ **STEP 3:** Send the **emoji** you want users to click. (Standard or custom server emojis are supported).")
-            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
-            raw_content = msg.content.strip()
+            mappings = {}
+            db_mappings = []
             
-            # MULTI-SERVER SYNC: Convert custom client strings into valid PartialEmoji objects if custom
-            if raw_content.startswith("<:") or raw_content.startswith("<a:"):
-                try:
-                    target_emoji = discord.PartialEmoji.from_str(raw_content)
-                except Exception:
-                    return await ctx.send("❌ Failed to process the custom emoji structure. Make sure the bot is inside the host server.")
-            else:
-                target_emoji = raw_content
+            # --- ADDED: Loop to gather personalized Roles and Emojis dynamically ---
+            for i in range(rr_count):
+                # Step 3: Role Selection
+                await ctx.send(f"👤 **STEP 3.{i+1}:** Mention the **role** to be granted for button #{i+1} (e.g., @Member).")
+                msg = await self.bot.wait_for("message", check=check, timeout=None)
+                target_role = msg.role_mentions[0] if msg.role_mentions else None
+                if not target_role:
+                    return await ctx.send("❌ Invalid role. Restart the command.")
 
-            # Step 4: Content Design
-            await ctx.send("📝 **STEP 4:** Type the **message/rules** that will appear in the embed.")
-            msg = await self.bot.wait_for("message", check=check, timeout=120.0)
+                # Step 4: Emoji Selection (Multi-Server Custom Custom Emoji Support)
+                await ctx.send(f"⭐ **STEP 4.{i+1}:** Send the **emoji** you want users to click for {target_role.name}. (Standard or custom server emojis are supported).")
+                msg = await self.bot.wait_for("message", check=check, timeout=None)
+                raw_content = msg.content.strip()
+                
+                # MULTI-SERVER SYNC: Convert custom client strings into valid PartialEmoji objects if custom
+                if raw_content.startswith("<:") or raw_content.startswith("<a:"):
+                    try:
+                        target_emoji = discord.PartialEmoji.from_str(raw_content)
+                    except Exception:
+                        return await ctx.send("❌ Failed to process the custom emoji structure. Make sure the bot is inside the host server.")
+                else:
+                    target_emoji = raw_content
+                    
+                mappings[target_emoji] = target_role.id
+                db_mappings.append((str(target_emoji), target_role.id))
+
+            # Step 5: Content Design
+            await ctx.send("📝 **STEP 5:** Type the **message/rules** that will appear in the embed.")
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             rules_content = msg.content
 
             # API Protection: Character Limit Check
@@ -126,9 +144,9 @@ class ReactionRoleSystem(commands.Cog):
                 await ctx.send(f"⚠️ **TEXT TOO LARGE:** Your text is {len(rules_content)} chars. Cutting to fit 4096...")
                 rules_content = rules_content[:4090] + "..."
 
-            # --- ADDED: STEP 5 - IMAGE UPLOAD/LINK SELECTION (.JPG SUPPORT) ---
-            await ctx.send("🖼️ **STEP 5:** Upload a **.jpg image** attachment or paste an image URL. (Type `none` to skip).")
-            msg = await self.bot.wait_for("message", check=check, timeout=90.0)
+            # --- ADDED: STEP 6 - IMAGE UPLOAD/LINK SELECTION (.JPG SUPPORT) ---
+            await ctx.send("🖼️ **STEP 6:** Upload a **.jpg image** attachment or paste an image URL. (Type `none` to skip).")
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             embed_image_url = None
             
             if msg.content.strip().lower() != "none":
@@ -137,7 +155,7 @@ class ReactionRoleSystem(commands.Cog):
                 elif msg.content.startswith("http"):
                     embed_image_url = msg.content.strip()
 
-            # Step 6: Final Deployment
+            # Step 7: Final Deployment
             embed = discord.Embed(title="🧬 NEURAL LINK: PROTOCOL ESTABLISHED", description=rules_content, color=0xFF0000)
             embed.set_footer(text="Echo Protocol | Role Management")
             
@@ -146,7 +164,7 @@ class ReactionRoleSystem(commands.Cog):
                 embed.set_image(url=embed_image_url)
             
             # Pass custom/standard mapping data and guild context to determine current counters
-            view = ReactionRoleView({target_emoji: target_role.id}, guild=ctx.guild)
+            view = ReactionRoleView(mappings, guild=ctx.guild)
             
             try:
                 final_msg = await target_channel.send(embed=embed, view=view)
@@ -154,12 +172,12 @@ class ReactionRoleSystem(commands.Cog):
                 return await ctx.send(f"❌ **DEPLOYMENT FAILED:** {e}\nCheck if the bot has access to the emoji or if the role ID is valid.")
 
             # Store string conversion representation in database logs
-            db_emoji_str = str(target_emoji)
             with sqlite3.connect("database.db") as conn:
-                conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (final_msg.id, db_emoji_str, target_role.id))
+                for db_emoji_str, db_role_id in db_mappings:
+                    conn.execute("INSERT INTO reaction_roles VALUES (?, ?, ?)", (final_msg.id, db_emoji_str, db_role_id))
                 conn.commit()
 
-            await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention}!")
+            await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention} with {rr_count} options!")
 
         except asyncio.TimeoutError:
             await ctx.send("⌛ **TIMEOUT:** You took too long to respond. Restart with `!setroles`.")
@@ -176,19 +194,19 @@ class ReactionRoleSystem(commands.Cog):
         try:
             # Step 1: Target Channel
             await ctx.send("🎯 **STEP 1:** Mention the **channel** where the ticket lobby panel should be sent (e.g., #support).")
-            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
             if not target_channel:
                 return await ctx.send("❌ Invalid channel. Cancelled protocol.")
 
             # Step 2: Content Copy Design
             await ctx.send("📝 **STEP 2:** Type the **description copy** that will appear in your support lobby panel embed.")
-            msg = await self.bot.wait_for("message", check=check, timeout=120.0)
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             lobby_desc = msg.content
 
             # Step 3: Custom Upload/Link Selection
             await ctx.send("🖼️ **STEP 3:** Upload a **custom image attachment** or paste an image link for this panel. (Type `none` to skip).")
-            msg = await self.bot.wait_for("message", check=check, timeout=90.0)
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             ticket_image_url = None
             
             if msg.content.strip().lower() != "none":
@@ -199,7 +217,7 @@ class ReactionRoleSystem(commands.Cog):
 
             # Step 4: Button Quantity Personalization
             await ctx.send("🔢 **STEP 4:** How many **custom buttons** would you like to build for this lobby? (Maximum of 5).")
-            msg = await self.bot.wait_for("message", check=check, timeout=60.0)
+            msg = await self.bot.wait_for("message", check=check, timeout=None)
             try:
                 btn_count = int(msg.content.strip())
                 if not (1 <= btn_count <= 5):
@@ -211,11 +229,11 @@ class ReactionRoleSystem(commands.Cog):
             button_configs = []
             for i in range(btn_count):
                 await ctx.send(f"🏷️ **BUTTON {i+1} NAME:** Enter the label text for Button #{i+1} (e.g., Verification).")
-                msg_label = await self.bot.wait_for("message", check=check, timeout=60.0)
+                msg_label = await self.bot.wait_for("message", check=check, timeout=None)
                 label_text = msg_label.content.strip()
 
                 await ctx.send(f"✨ **BUTTON {i+1} EMOJI:** Send the emoji bound to Button #{i+1} (Standard or custom).")
-                msg_emoji = await self.bot.wait_for("message", check=check, timeout=60.0)
+                msg_emoji = await self.bot.wait_for("message", check=check, timeout=None)
                 raw_emoji = msg_emoji.content.strip()
 
                 if raw_emoji.startswith("<:") or raw_emoji.startswith("<a:"):
