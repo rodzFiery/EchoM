@@ -73,6 +73,10 @@ class ReactionRoleSystem(commands.Cog):
             
             # --- ADDED: AUTOROLE CONFIG TABLE ---
             conn.execute("CREATE TABLE IF NOT EXISTS autorole_config (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
+            
+            # --- ADDED: TICKET BUTTONS TABLE FOR PERSISTENCE ACROSS RESTARTS ---
+            conn.execute("CREATE TABLE IF NOT EXISTS ticket_buttons (guild_id INTEGER, btn_index INTEGER, label TEXT, emoji TEXT)")
+            
             conn.commit()
 
     @commands.command(name="setroles")
@@ -157,7 +161,7 @@ class ReactionRoleSystem(commands.Cog):
 
             await ctx.send(f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention}!")
 
-        except asyncio.timeoutError:
+        except asyncio.TimeoutError:
             await ctx.send("⌛ **TIMEOUT:** You took too long to respond. Restart with `!setroles`.")
 
     # --- NEW TICKET COMMANDS ---
@@ -231,6 +235,12 @@ class ReactionRoleSystem(commands.Cog):
                     VALUES (?, ?) 
                     ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel
                 """, (ctx.guild.id, target_channel.id))
+                
+                # --- ADDED: SAVE BUTTON CONFIGS FOR PERSISTENCE ---
+                conn.execute("DELETE FROM ticket_buttons WHERE guild_id = ?", (ctx.guild.id,))
+                for idx, cfg in enumerate(button_configs):
+                    conn.execute("INSERT INTO ticket_buttons VALUES (?, ?, ?, ?)", (ctx.guild.id, idx, cfg['label'], cfg['emoji']))
+                    
                 conn.commit()
 
             # Build Custom Embed Core Layout
@@ -386,6 +396,8 @@ class TicketCustomButton(discord.ui.Button):
         # Dynamically map the button features to a persistent generic custom_id structure
         super().__init__(style=discord.ButtonStyle.secondary, label=label, emoji=emoji, custom_id=f"tkt_customized:{index}")
         self.category_slug = label.lower().replace(" ", "_")
+        # --- ADDED: ENSURE GLOBALLY UNIQUE CUSTOM ID FOR PERSISTENCE ACROSS REFRESHES ---
+        self.custom_id = f"tkt_customized:{index}:{self.category_slug}"
 
     async def callback(self, interaction: discord.Interaction):
         await self.view.create_ticket(interaction, self.category_slug)
@@ -469,12 +481,20 @@ class TicketLobbyView(discord.ui.View):
         await interaction.response.send_message(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
 
 class ArchiveViewer(discord.ui.View):
-    def __init__(self, ticket_id):
+    # MODIFIED: Default ticket_id to None to allow setup initialization
+    def __init__(self, ticket_id=None):
         super().__init__(timeout=None)
         self.ticket_id = ticket_id
 
     @discord.ui.button(label="VIEW DATA", style=discord.ButtonStyle.secondary, emoji="👁️", custom_id="persistent_view_archive")
     async def view_data(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # --- ADDED: RECOVER ID IF VIEW WAS RESTARTED ---
+        if not getattr(self, 'ticket_id', None) and interaction.message.embeds:
+            try:
+                self.ticket_id = interaction.message.embeds[0].description.split("**")[1]
+            except Exception:
+                pass
+                
         # Trigger the !view command logic via interaction
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = sqlite3.Row
@@ -538,8 +558,42 @@ class TicketControls(discord.ui.View):
 
 async def setup(bot):
     await bot.add_cog(ReactionRoleSystem(bot))
+    
+    # --- ADDED: DYNAMIC PERSISTENCE LOADER ---
+    try:
+        with sqlite3.connect("database.db") as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # 1. Restore Reaction Roles mappings directly onto bot
+            rr_rows = conn.execute("SELECT message_id, emoji, role_id FROM reaction_roles").fetchall()
+            rr_dict = {}
+            for row in rr_rows:
+                msg_id = row["message_id"]
+                if msg_id not in rr_dict:
+                    rr_dict[msg_id] = {}
+                rr_dict[msg_id][row["emoji"]] = row["role_id"]
+            
+            for msg_id, mappings in rr_dict.items():
+                bot.add_view(ReactionRoleView(mappings), message_id=msg_id)
+                
+            # 2. Restore dynamically configured Ticket Lobbies
+            try:
+                guilds = conn.execute("SELECT DISTINCT guild_id FROM ticket_buttons").fetchall()
+                for g in guilds:
+                    guild_id = g["guild_id"]
+                    btns = conn.execute("SELECT label, emoji, btn_index FROM ticket_buttons WHERE guild_id = ? ORDER BY btn_index", (guild_id,)).fetchall()
+                    configs = [{"label": b["label"], "emoji": b["emoji"]} for b in btns]
+                    if configs:
+                        bot.add_view(TicketLobbyView(configs))
+            except sqlite3.OperationalError:
+                pass # Ignores missing table if booting entirely for the very first time
+                
+    except Exception as e:
+        print(f"Failed to restore persistent views: {e}")
+
     # Required for persistent buttons to work after restart
     # MODIFIED: Passing placeholder lists to allow registration validation on system start without static buttons crashing
     bot.add_view(TicketLobbyView())
     bot.add_view(TicketControls())
     bot.add_view(DesignerLobby())
+    bot.add_view(ArchiveViewer()) # ADDED: Ensure archives remain viewable permanently
