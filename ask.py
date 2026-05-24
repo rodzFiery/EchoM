@@ -31,7 +31,11 @@ class AnswerModal(discord.ui.Modal, title="Submit Interrogation Answer"):
         try:
             original_msg = await interaction.channel.fetch_message(self.msg_id)
             embed = original_msg.embeds[0]
-            embed.add_field(name="👁️ INTERROGATION LOG", value=f"**<@{self.tar_id}>:** {self.question}\n**{interaction.user.mention}:** {self.answer.value}", inline=False)
+            
+            # --- MODIFIED: Append logs cleanly into the single layout description block ---
+            desc = embed.description.replace("\n** **", "")
+            embed.description = desc + f"\n**<@{self.tar_id}>:** {self.question}\n**{interaction.user.mention}:** {self.answer.value}\n** **"
+            
             await original_msg.edit(embed=embed)
             await interaction.response.send_message("✅ Answer transmitted to the target.", ephemeral=True)
             await interaction.message.delete()
@@ -64,7 +68,7 @@ class InterrogateModal(discord.ui.Modal, title="Make a question before accept"):
 
     async def on_submit(self, interaction: discord.Interaction):
         req_user = interaction.guild.get_member(self.req_id)
-        embed = discord.Embed(title="👁️ Conversation before accept/deny the request:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
+        embed = discord.Embed(title="👁️ Questions:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
         view = AnswerView()
         alert_msg = await interaction.channel.send(content=req_user.mention, embed=embed, view=view)
         
@@ -107,12 +111,11 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
         img_buf = await cog.create_dynamic_ask_lobby(requester_user.display_avatar.url, target_user.display_avatar.url, intent_color)
         file = discord.File(img_buf, filename="dynamic_ask.png")
 
-        # --- ORIGINAL LINE BY LINE EMBED BUILDING TRANSPLANTED HERE ---
+        # --- MODIFIED: Merged Tribute into a single layout block ready to receive logs ---
         final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
             f"{target_user.mention}, a formal petition to enter your private space has been filed by {requester_user.mention}.\n\n"
             f"### 🫦 INTENT OF CONTACT:\n> {self.intent_display}\n\n"
-            f"### 💬 PAYLOAD / TRIBUTE:\n> {self.tribute.value}\n\n"
-            f"** **")
+            f"### 📜 SECURE PAYLOAD & LOGS\n**Tribute:** {self.tribute.value}\n** **")
         
         final_embed.set_thumbnail(url=requester_user.display_avatar.url)
         final_embed.color = 0x00BFFF 
