@@ -6,6 +6,8 @@ import asyncio
 import sys
 import os
 import json
+import aiohttp # ADDED: Required for avatar processing
+from PIL import Image, ImageDraw, ImageFont, ImageFilter # ADDED: For 2030 holographic tech
 
 # --- NEW COMPONENT: INFO BUTTON ---
 
@@ -220,6 +222,27 @@ class CardSystem(commands.Cog):
             "Always wet and ready for a neural sync.", "Never says no to a 'Dirty' series encounter."
         ]
 
+    # --- ADDED: 2030 HOLOGRAPHIC TECH ---
+    async def create_holographic_card(self, avatar_url, tier):
+        tier_colors = {
+            "supreme": (255, 0, 0), "legendary": (255, 140, 0), "platine": (229, 228, 226),
+            "epic": (155, 89, 182), "rare": (52, 152, 219), "basic": (149, 165, 166)
+        }
+        color = tier_colors.get(tier.lower(), (255, 105, 180))
+        async with aiohttp.ClientSession() as session:
+            async with session.get(avatar_url) as r:
+                av = Image.open(io.BytesIO(await r.read())).convert("RGBA").resize((600, 600))
+        canvas = Image.new("RGBA", (700, 1000), (10, 10, 15, 255))
+        draw = ImageDraw.Draw(canvas)
+        draw.rectangle([10, 10, 690, 990], outline=color, width=15)
+        canvas.paste(av, (50, 100), av)
+        for i in range(0, 1000, 4): draw.line([(0, i), (700, i)], fill=(255, 255, 255, 15))
+        draw.text((30, 950), f"SYS_SYNC: 0x{random.randint(1000,9999)}-{tier.upper()}", fill=(0, 255, 255, 100))
+        buf = io.BytesIO()
+        canvas.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
+
     def _init_db(self):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
@@ -410,6 +433,10 @@ class CardSystem(commands.Cog):
 
         main_mod = sys.modules['__main__']
         
+        # --- CALL THE HOLOGRAPHIC GENERATOR ---
+        img_buf = await self.create_holographic_card(target_member.display_avatar.url, tier_name)
+        file = discord.File(img_buf, filename="card.png")
+        
         desc = (
             f"⚡ **ACTIVITY SPIKE DETECTED:** A soul has manifested in the thermal vents!\n\n"
             f"👤 **Asset:** {target_member.mention}\n"
@@ -418,11 +445,11 @@ class CardSystem(commands.Cog):
         )
         
         embed = main_mod.fiery_embed("🛰️ NEURAL ASSET LOCALIZED", desc, color=color)
-        embed.set_image(url=target_member.display_avatar.url)
+        embed.set_image(url="attachment://card.png")
         embed.set_footer(text=f"Triggered by server activity | {series} series")
         
         # Send main big informational embed
-        await channel.send(embed=embed)
+        await channel.send(embed=embed, file=file)
         
         # Send ONLY the command block for clean copy-paste
         await channel.send(f"!catch {target_member.display_name}")
