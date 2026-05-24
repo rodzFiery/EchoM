@@ -16,6 +16,7 @@ import shutil
 import os
 import json
 import importlib
+import asyncio # ADDED: Required for the live telemetry loop
 from datetime import datetime
 
 class AdminSystem(commands.Cog):
@@ -53,6 +54,65 @@ class AdminSystem(commands.Cog):
         if ctx.author.id == self.MASTER_OWNER_ID:
             return True
         return await self.bot.is_owner(ctx.author)
+
+    # ===== NEW: WAR ROOM TELEMETRY DASHBOARD =====
+    @commands.command(aliases=["dashboard"])
+    async def warroom(self, ctx):
+        """Generates a live, auto-updating telemetry scorecard."""
+        if not await self.is_master_owner(ctx):
+            embed = self.fiery_embed("Access Denied", "❌ This telemetry panel is classified.")
+            return await ctx.send(embed=embed)
+            
+        embed = self.fiery_embed("📡 WAR ROOM TELEMETRY", "Establishing secure link to mainframe...")
+        msg = await ctx.send(embed=embed)
+        
+        async def update_dashboard():
+            while True:
+                try:
+                    # 1. API Latency
+                    latency = round(self.bot.latency * 1000)
+                    
+                    # 2. Database Size
+                    try:
+                        db_size = os.path.getsize(self.DATABASE_PATH)
+                        db_size_mb = round(db_size / (1024 * 1024), 2)
+                    except:
+                        db_size_mb = "Unknown"
+                        
+                    # 3. Active Sessions Protocol
+                    import sys
+                    main_module = sys.modules.get('__main__')
+                    nsfw_active = getattr(main_module, 'nsfw_mode_active', False)
+                    basic_active = getattr(main_module, 'basic_nsfw_active', False)
+                    session_status = "🔴 Full NSFW" if nsfw_active else "🟠 Basic NSFW" if basic_active else "🟢 Standard / Idle"
+                    
+                    # 4. Total Flames Circulation
+                    try:
+                        with self.get_db_connection() as conn:
+                            res = conn.execute("SELECT SUM(flames) FROM users").fetchone()
+                            total_flames = int(res[0]) if res and res[0] else 0
+                    except:
+                        total_flames = "Unknown"
+                        
+                    # Build live embed
+                    live_embed = self.fiery_embed("📡 WAR ROOM: LIVE TELEMETRY", "System scorecard auto-updates every 30 seconds.")
+                    live_embed.add_field(name="📶 API Latency", value=f"`{latency} ms`", inline=True)
+                    live_embed.add_field(name="🗄️ Database Size", value=f"`{db_size_mb} MB`", inline=True)
+                    live_embed.add_field(name="🔞 Current Protocol", value=f"**{session_status}**", inline=True)
+                    live_embed.add_field(name="🔥 Total Flames in Circulation", value=f"**{total_flames:,}**" if isinstance(total_flames, int) else str(total_flames), inline=False)
+                    live_embed.set_footer(text=f"Last Sync: {datetime.now().strftime('%H:%M:%S')} | Deleting this message interrupts signal.")
+                    
+                    await msg.edit(embed=live_embed)
+                    await asyncio.sleep(30)
+                except discord.NotFound:
+                    # If the message is deleted, break the loop safely to save resources
+                    break
+                except Exception as e:
+                    print(f"Dashboard Error: {e}")
+                    await asyncio.sleep(30)
+                    
+        # Launch the live updating task in the background
+        self.bot.loop.create_task(update_dashboard())
 
     # ===== UPDATED: SET ADMIN ROLE COMMAND (OWNER OR SERVER ADMIN) =====
     @commands.command()
@@ -194,21 +254,14 @@ class AdminSystem(commands.Cog):
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
-    # ===== UPDATED: FLAMES COMMAND (PERMISSIONS + ROLE BASED) =====
+    # ===== UPDATED: FLAMES COMMAND (OWNER ONLY) =====
     @commands.command()
     async def flames(self, ctx, member: discord.Member, amount: int):
-        """Master command to grant flames to a user based on Admin permissions or role."""
+        """Master command to grant flames to a user (Bot Owner only)."""
         is_owner = await self.is_master_owner(ctx)
-        is_admin = ctx.author.guild_permissions.administrator
-        is_server_owner = ctx.author.id == ctx.guild.owner_id
-        
-        guild_key = str(ctx.guild.id)
-        self.load_guild_admin_role(ctx.guild.id)
-        target_role_id = self.guild_admin_roles.get(guild_key, 0)
-        has_admin_role = any(role.id == target_role_id for role in ctx.author.roles) if target_role_id != 0 else False
 
-        if not (is_owner or is_server_owner or is_admin or has_admin_role):
-            embed = self.fiery_embed("Access Denied", "❌ Only those with Administrative authority, the Admin Role, or the Bot Owner hold the keys to the furnace.")
+        if not is_owner:
+            embed = self.fiery_embed("Access Denied", "❌ Only the Bot Owner holds the keys to the furnace.")
             return await ctx.send(embed=embed)
 
         try:
