@@ -54,6 +54,8 @@ class ReactionRoleView(discord.ui.View):
 class ReactionRoleSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # --- ADDED: TRACK ACTIVE SETUPS TO PREVENT GHOST LOCKOUTS ---
+        self.active_setups = {}
         self._init_db()
 
     def _init_db(self):
@@ -84,12 +86,22 @@ class ReactionRoleSystem(commands.Cog):
     async def setroles(self, ctx):
         """Guided step-by-step setup for reaction roles."""
         
+        # --- ADDED: REGISTER NEW SESSION TO AUTO-KILL OLD GHOST ONES ---
+        self.active_setups[ctx.author.id] = ctx.message.id
+        
         def check(m):
+            # --- ADDED: GHOST KILLER AND MANUAL CANCEL ---
+            if self.active_setups.get(ctx.author.id) != ctx.message.id:
+                raise asyncio.TimeoutError()
+            if m.content.lower() == 'cancel' and m.author == ctx.author and m.channel == ctx.channel:
+                raise asyncio.TimeoutError()
             return m.author == ctx.author and m.channel == ctx.channel
 
         try:
             # Step 1: Target Channel
-            guide_msg = await ctx.send("🎯 **STEP 1:** Mention the **channel** where the rules should be sent (e.g., #rules).")
+            await ctx.send("🎯 **STEP 1:** Mention the **channel** where the rules should be sent (e.g., #rules).")
+            # --- ADDED: EXPLICIT CANCELLATION INSTRUCTION ---
+            await ctx.send("*(Type `cancel` at any point during this process to safely abort and restart)*")
             msg = await self.bot.wait_for("message", check=check, timeout=None)
             target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
             if not target_channel:
@@ -188,12 +200,22 @@ class ReactionRoleSystem(commands.Cog):
     async def set_ticket_lobby(self, ctx):
         """Guided step-by-step setup to create a custom ticket lobby with fully personalized buttons and images."""
         
+        # --- ADDED: REGISTER NEW SESSION TO AUTO-KILL OLD GHOST ONES ---
+        self.active_setups[ctx.author.id] = ctx.message.id
+        
         def check(m):
+            # --- ADDED: GHOST KILLER AND MANUAL CANCEL ---
+            if self.active_setups.get(ctx.author.id) != ctx.message.id:
+                raise asyncio.TimeoutError()
+            if m.content.lower() == 'cancel' and m.author == ctx.author and m.channel == ctx.channel:
+                raise asyncio.TimeoutError()
             return m.author == ctx.author and m.channel == ctx.channel
 
         try:
             # Step 1: Target Channel
             await ctx.send("🎯 **STEP 1:** Mention the **channel** where the ticket lobby panel should be sent (e.g., #support).")
+            # --- ADDED: EXPLICIT CANCELLATION INSTRUCTION ---
+            await ctx.send("*(Type `cancel` at any point during this process to safely abort and restart)*")
             msg = await self.bot.wait_for("message", check=check, timeout=None)
             target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
             if not target_channel:
@@ -453,6 +475,10 @@ class TicketLobbyView(discord.ui.View):
                 interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
                 admin_role: discord.PermissionOverwrite(read_messages=True, send_messages=True) if admin_role else None
             }
+            # --- ADDED: FIX FOR DELETED ADMIN ROLE CRASH ---
+            if None in overwrites_cat:
+                del overwrites_cat[None]
+                
             target_category = await interaction.guild.create_category(name=cat_name, overwrites=overwrites_cat)
 
         # Create Private Channel
