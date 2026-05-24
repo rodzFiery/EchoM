@@ -252,6 +252,8 @@ class CardSystem(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS card_mastery (user_id INTEGER, mastery_key TEXT, PRIMARY KEY (user_id, mastery_key))")
             # NEW TABLE: To store the pet/companion (added avatar_url column)
             conn.execute("CREATE TABLE IF NOT EXISTS user_pets (user_id INTEGER PRIMARY KEY, card_rowid INTEGER, card_name TEXT, avatar_url TEXT)")
+            # ADDED: PING TABLE
+            conn.execute("CREATE TABLE IF NOT EXISTS supreme_pings (user_id INTEGER PRIMARY KEY)")
             
             # Migration check: add columns if they don't exist in an old DB
             cursor = conn.execute("PRAGMA table_info(user_cards)")
@@ -376,6 +378,22 @@ class CardSystem(commands.Cog):
             f"**Status:** Emergence protocols are now active in this sector.", color=0x00FF00)
         await ctx.send(embed=embed)
 
+    @commands.command()
+    async def supremeping(self, ctx):
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            conn.execute("INSERT OR IGNORE INTO supreme_pings VALUES (?)", (ctx.author.id,))
+            conn.commit()
+        await ctx.send("✅ You will be pinged when a SUPREME card manifests.")
+
+    @commands.command()
+    async def nosupremeping(self, ctx):
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            conn.execute("DELETE FROM supreme_pings WHERE user_id = ?", (ctx.author.id,))
+            conn.commit()
+        await ctx.send("✅ You have been removed from the Supreme Alert protocol.")
+
     def get_random_tier(self):
         roll = random.random() * 100
         if roll < 0.8: return "supreme", 0xFF0000
@@ -444,12 +462,19 @@ class CardSystem(commands.Cog):
             f"💎 **Tier:** `{tier_name.upper()}`"
         )
         
+        # SUPREME PING LOGIC
+        ping_str = ""
+        if tier_name == "supreme":
+            with main_mod.get_db_connection() as conn:
+                pings = conn.execute("SELECT user_id FROM supreme_pings").fetchall()
+                ping_str = " ".join([f"<@{p[0]}>" for p in pings])
+        
         embed = main_mod.fiery_embed("🛰️ NEURAL ASSET LOCALIZED", desc, color=color)
         embed.set_image(url="attachment://card.png")
         embed.set_footer(text=f"Triggered by server activity | {series} series")
         
         # Send main big informational embed
-        await channel.send(embed=embed, file=file)
+        await channel.send(content=ping_str, embed=embed, file=file)
         
         # Send ONLY the command block for clean copy-paste
         await channel.send(f"!catch {target_member.display_name}")
