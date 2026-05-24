@@ -178,7 +178,7 @@ class PokedexView(discord.ui.View):
 class CardSystem(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.spawn_channel_id = 1438810509322223677 
+        self.spawn_channel_id = None 
         self.current_card = None
         
         # ACTIVITY LOGIC: restored and tied to member-spawns
@@ -405,6 +405,7 @@ class CardSystem(commands.Cog):
 
     async def spawn_card(self, guild):
         """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
+        if not self.spawn_channel_id: return
         channel = self.bot.get_channel(self.spawn_channel_id)
         if not channel: return
 
