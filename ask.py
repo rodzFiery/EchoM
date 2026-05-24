@@ -115,7 +115,7 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
         final_embed = main_mod.fiery_embed(" 📩 INCOMING DM REQUEST", 
             f"{target_user.mention}, a formal petition to enter your private space has been filed by {requester_user.mention}.\n\n"
             f"### 🫦 INTENT OF CONTACT:\n> {self.intent_display}\n\n"
-            f"### 📜 SECURE PAYLOAD & LOGS\n**Tribute:** {self.tribute.value}\n** **")
+            f"### 📜 SECURE PAYLOAD & LOGS\n**{requester_user.mention}:** {self.tribute.value}\n** **")
         
         final_embed.set_thumbnail(url=requester_user.display_avatar.url)
         final_embed.color = 0x00BFFF 
