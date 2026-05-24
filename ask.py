@@ -53,7 +53,7 @@ class AnswerView(discord.ui.View):
         orig_msg_id, tar_id, question = row
         await inter.response.send_modal(AnswerModal(tar_id, orig_msg_id, question))
 
-class InterrogateModal(discord.ui.Modal, title="Interrogate Asset"):
+class InterrogateModal(discord.ui.Modal, title="Make a question before accept"):
     question = discord.ui.TextInput(label="Your Question", style=discord.TextStyle.paragraph, required=True)
 
     def __init__(self, req_id, tar_id, msg_id):
@@ -64,7 +64,7 @@ class InterrogateModal(discord.ui.Modal, title="Interrogate Asset"):
 
     async def on_submit(self, interaction: discord.Interaction):
         req_user = interaction.guild.get_member(self.req_id)
-        embed = discord.Embed(title="👁️ ASSET INTERROGATION", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
+        embed = discord.Embed(title="👁️ Questions:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
         view = AnswerView()
         alert_msg = await interaction.channel.send(content=req_user.mention, embed=embed, view=view)
         
