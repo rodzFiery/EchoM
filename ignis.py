@@ -1095,19 +1095,45 @@ class StatusCheck(commands.Cog):
                 else:
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
-# --- NEW: PERSISTENT LOBBY LAUNCHER COG ---
+# --- FIX: PERSISTENT LOBBY LAUNCHER COG ---
 class PersistentLobbyLauncher(commands.Cog):
-    """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks."""
+    """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks per server."""
     def __init__(self, bot):
         self.bot = bot
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # FIX: Register the view with EXACTLY the same custom_ids for buttons to match Discord's signature
-        # We don't need guild_id here because buttons logic handles everything from the interaction itself
-        self.bot.add_view(LobbyView())
+        # FIX: Query unique guild_ids from the database to re-hydrate every server's lobby independently
+        import sys as _sys
+        main = _sys.modules['__main__']
+        
+        # Register the static View for WinnerDetails (does not require guild context)
         self.bot.add_view(WinnerDetailsView(None))
-        print("⛓️  Ignis Persistence Protocol: Global Lobby View Registered.")
+        
+        try:
+            with main.get_db_connection() as conn:
+                # Get all unique guild_ids that have pending lobbies
+                cursor = conn.execute("SELECT DISTINCT guild_id FROM lobby_participants")
+                guilds = cursor.fetchall()
+                
+                engine = self.bot.get_cog("IgnisEngine")
+                
+                for row in guilds:
+                    g_id = row[0]
+                    # Instantiate a specific view for this guild
+                    # We pass g_id so the __init__ can load the specific participants
+                    view = LobbyView(owner=None, edition=0, guild_id=g_id)
+                    
+                    # Register this specific instance
+                    self.bot.add_view(view)
+                    
+                    # Update the engine's memory so it knows about this active lobby
+                    if engine:
+                        engine.current_lobbies[g_id] = view
+                        
+                print(f"⛓️ Ignis Persistence Protocol: Registered {len(guilds)} independent server lobbies.")
+        except Exception as e:
+            print(f"Persistence Rehydration Error: {e}")
 
 async def setup(bot):
     import sys as _sys_setup
