@@ -256,3 +256,6 @@ class Guide(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(Guide(bot))
+    # Important: If you want these buttons to work after a restart,
+    # you must add the following line in your main bot file's setup:
+    # bot.add_view(GuideView(embeds=[]))
