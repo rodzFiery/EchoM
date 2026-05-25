@@ -43,8 +43,6 @@ class Guide(commands.Cog):
 
 **🎒 Assets & Premium**
 `!premium` Perks info
-`!premiumstats` Server limits
-`!premiumstatus` Active days
             """),
             
             main.fiery_embed("🎭 MEMBER: CLASSES", """
@@ -92,7 +90,6 @@ class Guide(commands.Cog):
 `!dungeonbag` Rumble gear
 `!fuck` 1v1 duel challenge
 `!fightecho` PvE fight
-`!flash` Winner's decree
 
 **🎰 Casino**
 `!slots` Slot machine
@@ -121,8 +118,6 @@ class Guide(commands.Cog):
 `!catch` Capture triggered members
 `!pokedex` View collected members
 `!velvetdex` View special velvet collection
-
-**🔔 Access & Pings**
 `!supremeping` Toggle supreme role ping
 `!nosupremeping` Turn off ping
             """),
@@ -164,20 +159,7 @@ class Guide(commands.Cog):
 `!dp` Double act
 `!anal` Heavy act
 `!bendover` Stance
-`!getnaked` Display
 `!torture` Pain trial
-            """),
-
-            main.fiery_embed("⚙️ MEMBER: UTILITY", """
-**🛠️ System Information**
-`!fiery_guide` Read full system manual
-`!gallery` View collected media
-`!serverstats` Global server data
-`!ping` Latency check (ms)
-
-**🔔 Access & Pings**
-`!freetrial` Claim initial trial access
-`!trial` Check remaining trial time
             """),
             
             main.fiery_embed("🔮 MEMBER: MASTER INTERACTION", """
