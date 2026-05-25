@@ -34,7 +34,10 @@ class Guide(commands.Cog):
 `!achievements` Unlocked badges
 
 **🏆 Hierarchy & Status**
-`!mylevel` Current XP & level across all servers
+`!rank` Combat tier
+`!ranking` Global top members
+`!ranktop` Highest levels
+`!mylevel` Current XP & level
 `!streaks` Discipline ranks
 `!hall` Server records
 
@@ -74,8 +77,6 @@ class Guide(commands.Cog):
 **📜 Progression & Goals**
 `!questboard` Active tasks
 `!quests` All available
-`!globalgoal` Server target
-`!goalhistory` Completed goals
 `!collections` Full inventory
 `!buybox` Random gacha box
 `!favor` Bribe to force Peak Heat
@@ -93,17 +94,26 @@ class Guide(commands.Cog):
 `!fightecho` PvE fight
 `!flash` Winner's decree
 
-**🎰 Casino & Numbers**
+**🎰 Casino**
 `!slots` Slot machine
 `!blackjack` Play 21
 `!roulette` Wheel bet
 `!dice` Bet on sum
+
+**🔦 Field Operations**
+`!search` Loot blackouts
+`!switch` Shift combat mode
+            """),
+
+            main.fiery_embed("🔢 MEMBER: COUNTING", """
+**📈 Statistical Tracking**
 `!countinglb` Math top 10
 `!countingtop` Top math stats
 `!countstats` Your personal math numbers
 
-**🔦 Field Operations**
-`!search` Loot blackouts
+**🎯 Goal Tracking**
+`!globalgoal` Server target
+`!goalhistory` Completed goals
             """),
 
             main.fiery_embed("🐾 MEMBER: CATCH MEMBERS", """
@@ -111,6 +121,10 @@ class Guide(commands.Cog):
 `!catch` Capture triggered members
 `!pokedex` View collected members
 `!velvetdex` View special velvet collection
+
+**🔔 Access & Pings**
+`!supremeping` Toggle supreme role ping
+`!nosupremeping` Turn off ping
             """),
 
             main.fiery_embed("💘 MEMBER: BONDS & SOCIAL", """
@@ -162,8 +176,6 @@ class Guide(commands.Cog):
 `!ping` Latency check (ms)
 
 **🔔 Access & Pings**
-`!supremeping` Toggle supreme role ping
-`!nosupremeping` Turn off ping
 `!freetrial` Claim initial trial access
 `!trial` Check remaining trial time
             """),
