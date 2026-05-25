@@ -177,7 +177,7 @@ class Guide(commands.Cog):
             main.fiery_embed("🛠️ ADMIN: SETUP", """
 **⚙️ Base Configuration**
 `!setadminrole` Bind override role
-`!setauto` Toggle auto settings
+`!setauto` Turn ON the auto Echo HG
 `!setlevelchannel` Assign level-up logs
 `!setlevelrole` Milestone ranks
 `!setticket` Setup support desk
@@ -197,22 +197,20 @@ class Guide(commands.Cog):
 
             main.fiery_embed("🛡️ ADMIN: MODERATION", """
 **🛡️ Enforcement**
-`!limit` Cap user stats
-`!unlimit` Uncap user stats
+`!limit` Cap user pings
+`!unlimit` Uncap user pings
 `!checklimits` View cooldowns
 `!leveloff` Disable XP gain
 `!basicnsfw` Enable SFW mode
 `!nomorebasic` Strict mode enforcement
 `!nomorensfw` Global NSFW ban lock
 `!nsfwtime` Activate 2x event
-`!openpit` Unlock locked arena
+`!openpit` Echo RoyalRumble
 
 **🧹 Cleanup & Logs**
 `!audit` Set transaction ledger
 `!trigger_audit` Force ledger log
-`!autopurge` Auto-wipe chat
 `!autorole` Toggle auto-assign roles
-`!check_servers` View connected guilds
 
 **📸 Media & Math**
 `!react` Set image reaction
@@ -223,11 +221,6 @@ class Guide(commands.Cog):
 
             main.fiery_embed("⚙️ ADMIN: SYSTEM & TECH", """
 **🎛️ Core Engine**
-`!backup` DB to file
-`!refresh` Sync cogs
-`!reload` Reboot cog
-`!debug_cmd` System errors
-`!view` Active config
 `!warroom` Mod hub
 `!collectadmin` Wipe collections
 `!archives` Save archive data
@@ -243,22 +236,17 @@ class Guide(commands.Cog):
 `!ticketcategory` Group setup
 
 **💰 Currency & Pit Automation**
-`!flames` Add/Sub currency
 `!activate_premium` Grant sub to user
 `!autoignis` Hourly pit
 `!stopautoignis` Halt auto pit
 `!startrumble` Force rumble
-`!echostart` Open pit
+`!echostart` Echo hangrygames
 `!reset_arena` Clear lobby
-`!echoon` Free access
-`!echooff` Lock access
-`!echooffall` Hard lock
-`!echopurge` Pit wipe
+`!echopurge` Clean messages
 
 **🔧 Misc Utilities**
-`!testpay` Check IPN
 `!stealemoji` Copy emote
-`!math` Set math channel
+`!math` Set math channel to flash
 `!mathfix` Calibrate math
 `!grantbadge` Award custom title
             """)
