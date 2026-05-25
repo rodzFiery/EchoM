@@ -28,20 +28,94 @@ class Guide(commands.Cog):
     @commands.command(name="guide")
     async def guide(self, ctx):
         pages = [
-            main.fiery_embed("📜 MEMBER: IDENTITY & PROFILE", 
-                "`!me`: View dossier. `!rank`: Check combat tier. `!ranking`: Global top members. `!ranktop`: Highest levels. `!mylevel`: Current XP & level. `!setclass`: Choose class bonus. `!achievements`: View unlocked badges. `!pokedex`: View collected assets. `!velvetdex`: View special collection. `!hall`: View server records. `!streaks`: View discipline ranks. `!ask`: Query the system. `!leveloff`: Disable XP gain. `!premium`: View premium perks. `!premiumstats`: Check server premium limits. `!premiumstatus`: Check your active days."),
-            main.fiery_embed("💰 MEMBER: ECONOMY & LABOR", 
-                "`!work`: Base labor (Flames). `!beg`: Low-tier extraction. `!flirt`: Mid-tier extraction. `!cumcleaner`: Cleanup duty (Flames). `!experiment`: Trial subject. `!pimp`: Asset management. `!mystery`: Random gamble extraction. `!daily`: 24h reward claim. `!weekly`: 7d reward claim. `!monthly`: 30d reward claim. `!dailygear`: Claim daily equipment. `!buybox`: Buy random gacha box. `!checklimits`: View your active cooldowns. `!questboard`: View active tasks. `!quests`: Check all available quests. `!globalgoal`: View server-wide target. `!goalhistory`: View past completed goals. `!collections`: View full inventory. `!favor`: Bribe to force Peak Heat. `!submit`: Accept current outcome."),
-            main.fiery_embed("⚔️ MEMBER: COMBAT & GAMES", 
-                "`!echostart`: Open the arena. `!echopack`: View combat supply. `!lobby`: View waiting fighters. `!autolobby`: Auto-join matches. `!joinpit`: Enter rumble simulation. `!fuck`: Challenge to 1v1 duel. `!fightecho`: PvE system fight. `!slots`: Slot machine gamble. `!blackjack`: Play 21 for Flames. `!roulette`: Wheel bet game. `!dice`: Bet on number sum. `!countinglb`: Math top 10. `!countingtop`: Top server math stats. `!countstats`: Your personal math numbers. `!search`: Loot during blackouts. `!dungeonbag`: Check rumble gear. `!catch`: Capture triggered assets. `!test`: Verify system ping. `!flash`: Winner's forced decree. `!switch`: Shift combat mode. `!togglealerts`: Toggle Guardian pings."),
-            main.fiery_embed("💘 MEMBER: BONDS & SOCIAL", 
-                "`!ship`: Check synergy percentage. `!shiphistory`: View past pairings. `!matchmaking`: Scan tension lobby. `!matchme`: Scan your personal synergy. `!match3some`: Trio synergy scan. `!marry`: Bind souls for bonuses. `!divorce`: Break current bond. `!bestfriend`: Add allied bond. `!contract`: Offer service deal. `!accept`: Approve pending bond/contract. `!bondtrial`: Test synergy limits. `!confess`: Send secret message. `!ask`: Query master interaction."),
-            main.fiery_embed("🔞 MEMBER: EROTIC PROTOCOLS", 
-                "**Labor System (Earn Flames & XP on 3h cooldowns):**\n"
-                "`!slut`: Base labor. `!winslut`: Variant labor. `!cuckold`: Passive labor. `!deepthroat`: High-yield XP labor. `!spit`: Humiliation labor. `!tease`: Sensory labor. `!spank`: Discipline labor. `!slap`: Strike labor. `!makemedirty`: Intense labor. `!3some`: Trio labor. `!dp`: Double labor. `!anal`: Heavy labor. `!bendover`: Stance labor. `!getnaked`: Display labor. `!torture`: Pain trial labor.\n\n"
-                "**Roles:** `!submissive`: Sub bonus. `!dominant`: Dom bonus. `!switch`: Switch bonus. `!exhibitionist`: Exh bonus."),
-            main.fiery_embed("⚙️ MEMBER: UTILITY", 
-                "`!fiery_guide`: Read full system manual. `!gallery`: View collected media. `!serverstats`: Global server data. `!ping`: Latency check (ms). `!supremeping`: Toggle supreme role ping. `!nosupremeping`: Turn off supreme ping. `!freetrial`: Claim initial trial access. `!trial`: Check remaining trial time.")
+            main.fiery_embed("📜 MEMBER: IDENTITY & PROFILE", """
+**👤 Personal Dossier**
+`!me` View dossier • `!setclass` Choose class
+`!achievements` Unlocked badges • `!leveloff` Disable XP gain
+
+**🏆 Hierarchy & Status**
+`!rank` Combat tier • `!ranking` Global top members
+`!ranktop` Highest levels • `!mylevel` Current XP & level
+`!streaks` Discipline ranks • `!hall` Server records
+
+**🎒 Assets & Premium**
+`!pokedex` Collected assets • `!velvetdex` Special collection
+`!premium` Perks info • `!premiumstats` Server limits
+`!premiumstatus` Active days • `!ask` Query the system
+            """),
+
+            main.fiery_embed("💰 MEMBER: ECONOMY & LABOR", """
+**⏱️ Routine Claims**
+`!daily` 24h reward • `!weekly` 7d reward • `!monthly` 30d reward
+`!dailygear` Claim equipment • `!checklimits` View cooldowns
+
+**💼 Labor Extractions**
+`!work` Base labor • `!beg` Low-tier • `!flirt` Mid-tier
+`!cumcleaner` Cleanup duty • `!experiment` Trial subject
+`!mystery` Random gamble • `!pimp` Asset management
+
+**📜 Progression & Goals**
+`!questboard` Active tasks • `!quests` All available
+`!globalgoal` Server target • `!goalhistory` Completed goals
+`!collections` Full inventory • `!buybox` Random gacha box
+`!favor` Bribe to force Peak Heat • `!submit` Accept outcome
+            """),
+
+            main.fiery_embed("⚔️ MEMBER: COMBAT & GAMES", """
+**⚔️ The Arena**
+`!echostart` Open pit • `!lobby` Waiting fighters • `!autolobby` Auto-join
+`!joinpit` Enter rumble • `!echopack` Combat supply • `!dungeonbag` Rumble gear
+`!fuck` 1v1 duel challenge • `!fightecho` PvE fight • `!flash` Winner's decree
+
+**🎰 Casino & Numbers**
+`!slots` Slot machine • `!blackjack` Play 21 • `!roulette` Wheel bet
+`!dice` Bet on sum • `!countinglb` Math top 10 • `!countingtop` Top math stats
+`!countstats` Your personal math numbers
+
+**🔦 Field Operations**
+`!search` Loot blackouts • `!catch` Capture triggered assets
+`!switch` Shift combat mode • `!test` Verify ping • `!togglealerts` Guardian pings
+            """),
+
+            main.fiery_embed("💘 MEMBER: BONDS & SOCIAL", """
+**🔍 Matchmaking & Synergy**
+`!ship` Check synergy % • `!shiphistory` View past pairings
+`!matchmaking` Scan tension lobby • `!matchme` Scan your synergy
+`!match3some` Trio synergy scan
+
+**💍 Bonds & Contracts**
+`!marry` Bind souls • `!divorce` Break bond • `!bestfriend` Add allied bond
+`!contract` Offer service deal • `!accept` Approve pending bond/contract
+`!bondtrial` Test synergy limits
+
+**💌 Master Interaction**
+`!confess` Send secret message • `!ask` Query master interaction
+            """),
+
+            main.fiery_embed("🔞 MEMBER: EROTIC PROTOCOLS", """
+**🎭 Roles & Enhancements**
+`!submissive` Sub bonus • `!dominant` Dom bonus
+`!switch` Switch bonus • `!exhibitionist` Exh bonus
+
+**🫦 Acts & Labor (3h Cooldowns)**
+`!slut` Base labor • `!winslut` Variant labor • `!cuckold` Passive labor
+`!deepthroat` High XP labor • `!spit` Humiliation • `!tease` Sensory labor
+`!spank` Discipline labor • `!slap` Strike labor • `!makemedirty` Intense labor
+
+**🔥 Advanced Protocols**
+`!3some` Trio act • `!dp` Double act • `!anal` Heavy act
+`!bendover` Stance • `!getnaked` Display • `!torture` Pain trial
+            """),
+
+            main.fiery_embed("⚙️ MEMBER: UTILITY", """
+**🛠️ System Information**
+`!fiery_guide` Read full system manual • `!gallery` View collected media
+`!serverstats` Global server data • `!ping` Latency check (ms)
+
+**🔔 Access & Pings**
+`!supremeping` Toggle supreme role ping • `!nosupremeping` Turn off ping
+`!freetrial` Claim initial trial access • `!trial` Check remaining trial time
+            """)
         ]
         view = GuideView(pages)
         await ctx.send(embed=pages[0], view=view)
@@ -50,12 +124,60 @@ class Guide(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def admin_guide(self, ctx):
         pages = [
-            main.fiery_embed("🛠️ ADMIN: SETUP", 
-                "`!setadminrole`: Bind admin override role. `!setauto`: Toggle auto settings. `!setlevelchannel`: Assign level-up logs. `!setlevelrole`: Configure level milestone ranks. `!setticket`: Setup support desk. `!setcards`: Configure card rules. `!setcounting`: Designate math pit. `!setignis`: Arena setup. `!set_ignis_admin`: Assign pit moderator. `!setconfesscount`: Set secret limits. `!setconfesspost`: Designate secret log 1. `!setconfesspost2`: Designate secret log 2. `!setconfessreview`: Designate review queue channel."),
-            main.fiery_embed("🛡️ ADMIN: MODERATION", 
-                "`!audit`: Set transaction ledger. `!trigger_audit`: Force ledger log. `!autopurge`: Auto-wipe chat configuration. `!autorole`: Toggle auto-assign roles. `!basicnsfw`: Enable SFW mode. `!nomorebasic`: Strict mode enforcement. `!nomorensfw`: Global NSFW ban lock. `!nsfwtime`: Activate 2x event. `!openpit`: Unlock locked arena. `!limit`: Cap user stats. `!unlimit`: Uncap user stats. `!react`: Set image reaction. `!reactoff`: Disable image reaction. `!deletereact`: Clear active emotes. `!countfix`: Override broken math count. `!check_servers`: View connected guilds."),
-            main.fiery_embed("⚙️ ADMIN: SYSTEM & TECH", 
-                "`!backup`: Save database to file. `!refresh`: Sync cog modules. `!reload`: Reboot specific cog. `!debug_cmd`: Check system errors. `!view`: Check active config. `!warroom`: Open mod hub. `!archives`: Save archive data. `!activate_premium`: Grant sub to user. `!autoignis`: Start hourly automated pit. `!stopautoignis`: Halt automated pit. `!startrumble`: Force rumble event. `!reset_arena`: Clear stuck lobby. `!collectadmin`: Wipe collection data. `!flames`: Add/Subtract user currency. `!testpay`: Check webhook IPN. `!ticket`: Create ticket panel. `!ticketadmin`: Mod ticket panel. `!ticketcategory`: Ticket group setup. `!thread`: Start media threading. `!threadall`: Thread all messages. `!threadoff`: Halt threading protocol. `!stealemoji`: Copy emote to server. `!math`: Set math channel. `!mathfix`: Calibrate math count. `!echoon`: Global free access. `!echooff`: Global lock access. `!echooffall`: Hard lock server. `!echopurge`: Pit wipe execution. `!grantbadge`: Award custom title/badge.")
+            main.fiery_embed("🛠️ ADMIN: SETUP", """
+**⚙️ Base Configuration**
+`!setadminrole` Bind override role • `!setauto` Toggle auto settings
+`!setlevelchannel` Assign level-up logs • `!setlevelrole` Milestone ranks
+`!setticket` Setup support desk • `!setcards` Configure card rules
+
+**⚖️ Mod & Pit Rules**
+`!setignis` Arena setup • `!set_ignis_admin` Assign pit moderator
+`!setcounting` Designate math pit
+
+**🤫 Confession System**
+`!setconfesscount` Set secret limits • `!setconfessreview` Review queue
+`!setconfesspost` Designate log 1 • `!setconfesspost2` Designate log 2
+            """),
+
+            main.fiery_embed("🛡️ ADMIN: MODERATION", """
+**🛡️ Enforcement**
+`!limit` Cap user stats • `!unlimit` Uncap user stats
+`!basicnsfw` Enable SFW mode • `!nomorebasic` Strict mode enforcement
+`!nomorensfw` Global NSFW ban lock • `!nsfwtime` Activate 2x event
+`!openpit` Unlock locked arena
+
+**🧹 Cleanup & Logs**
+`!audit` Set transaction ledger • `!trigger_audit` Force ledger log
+`!autopurge` Auto-wipe chat • `!autorole` Toggle auto-assign roles
+`!check_servers` View connected guilds
+
+**📸 Media & Math**
+`!react` Set image reaction • `!reactoff` Disable image reaction
+`!deletereact` Clear active emotes • `!countfix` Override math count
+            """),
+
+            main.fiery_embed("⚙️ ADMIN: SYSTEM & TECH", """
+**🎛️ Core Engine**
+`!backup` DB to file • `!refresh` Sync cogs • `!reload` Reboot cog
+`!debug_cmd` System errors • `!view` Active config • `!warroom` Mod hub
+`!collectadmin` Wipe collections • `!archives` Save archive data
+
+**🧵 Threads & Tickets**
+`!thread` Start threading • `!threadall` Thread all • `!threadoff` Halt threading
+`!ticket` Create ticket panel • `!ticketadmin` Mod ticket panel • `!ticketcategory` Group setup
+
+**💰 Currency & Pit Automation**
+`!flames` Add/Sub currency • `!activate_premium` Grant sub to user
+`!autoignis` Hourly pit • `!stopautoignis` Halt auto pit
+`!startrumble` Force rumble • `!reset_arena` Clear lobby
+`!echoon` Free access • `!echooff` Lock access • `!echooffall` Hard lock
+`!echopurge` Pit wipe
+
+**🔧 Misc Utilities**
+`!testpay` Check IPN • `!stealemoji` Copy emote
+`!math` Set math channel • `!mathfix` Calibrate math
+`!grantbadge` Award custom title
+            """)
         ]
         view = GuideView(pages)
         await ctx.send(embed=pages[0], view=view)
