@@ -766,7 +766,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "topgg"
+        "emoji", "win", "utilis", "ignis", "topgg", "guide"
     ]
     for e in exts:
         try:
