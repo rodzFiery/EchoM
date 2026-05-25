@@ -30,8 +30,7 @@ class Guide(commands.Cog):
         pages = [
             main.fiery_embed("📜 MEMBER: IDENTITY & PROFILE", """
 **👤 Personal Dossier**
-`!me` View dossier • `!setclass` Choose class
-`!achievements` Unlocked badges • `!leveloff` Disable XP gain
+`!me` View dossier • `!achievements` Unlocked badges
 
 **🏆 Hierarchy & Status**
 `!rank` Combat tier • `!ranking` Global top members
@@ -39,15 +38,25 @@ class Guide(commands.Cog):
 `!streaks` Discipline ranks • `!hall` Server records
 
 **🎒 Assets & Premium**
-`!pokedex` Collected assets • `!velvetdex` Special collection
 `!premium` Perks info • `!premiumstats` Server limits
-`!premiumstatus` Active days • `!ask` Query the system
+`!premiumstatus` Active days
+            """),
+            
+            main.fiery_embed("🎭 MEMBER: CLASSES", """
+**🧬 Choose Your Path**
+`!setclass` Open the class selection menu
+
+**✨ Specific Role Commands**
+`!dominant` Claim the Dominant role & bonus
+`!submissive` Claim the Submissive role & bonus
+`!switch` Claim the Switch role & bonus
+`!exhibitionist` Claim the Exhibitionist role & bonus
             """),
 
             main.fiery_embed("💰 MEMBER: ECONOMY & LABOR", """
 **⏱️ Routine Claims**
 `!daily` 24h reward • `!weekly` 7d reward • `!monthly` 30d reward
-`!dailygear` Claim equipment • `!checklimits` View cooldowns
+`!dailygear` Claim equipment
 
 **💼 Labor Extractions**
 `!work` Base labor • `!beg` Low-tier • `!flirt` Mid-tier
@@ -63,7 +72,7 @@ class Guide(commands.Cog):
 
             main.fiery_embed("⚔️ MEMBER: COMBAT & GAMES", """
 **⚔️ The Arena**
-`!echostart` Open pit • `!lobby` Waiting fighters • `!autolobby` Auto-join
+`!lobby` Waiting fighters • `!autolobby` Auto-join
 `!joinpit` Enter rumble • `!echopack` Combat supply • `!dungeonbag` Rumble gear
 `!fuck` 1v1 duel challenge • `!fightecho` PvE fight • `!flash` Winner's decree
 
@@ -73,8 +82,14 @@ class Guide(commands.Cog):
 `!countstats` Your personal math numbers
 
 **🔦 Field Operations**
-`!search` Loot blackouts • `!catch` Capture triggered assets
-`!switch` Shift combat mode • `!test` Verify ping • `!togglealerts` Guardian pings
+`!search` Loot blackouts
+            """),
+
+            main.fiery_embed("🐾 MEMBER: CATCH MEMBERS (LIKE POKÉMON)", """
+**🔍 Capture & Tracking**
+`!catch` Capture triggered members
+`!pokedex` View collected members
+`!velvetdex` View special velvet collection
             """),
 
             main.fiery_embed("💘 MEMBER: BONDS & SOCIAL", """
@@ -88,15 +103,11 @@ class Guide(commands.Cog):
 `!contract` Offer service deal • `!accept` Approve pending bond/contract
 `!bondtrial` Test synergy limits
 
-**💌 Master Interaction**
-`!confess` Send secret message • `!ask` Query master interaction
+**💌 Confessions**
+`!confess` Send secret message
             """),
 
             main.fiery_embed("🔞 MEMBER: EROTIC PROTOCOLS", """
-**🎭 Roles & Enhancements**
-`!submissive` Sub bonus • `!dominant` Dom bonus
-`!switch` Switch bonus • `!exhibitionist` Exh bonus
-
 **🫦 Acts & Labor (3h Cooldowns)**
 `!slut` Base labor • `!winslut` Variant labor • `!cuckold` Passive labor
 `!deepthroat` High XP labor • `!spit` Humiliation • `!tease` Sensory labor
@@ -115,6 +126,11 @@ class Guide(commands.Cog):
 **🔔 Access & Pings**
 `!supremeping` Toggle supreme role ping • `!nosupremeping` Turn off ping
 `!freetrial` Claim initial trial access • `!trial` Check remaining trial time
+            """),
+            
+            main.fiery_embed("🔮 MEMBER: MASTER INTERACTION", """
+**💬 Inquiry**
+`!ask` Query the system / master interaction
             """)
         ]
         view = GuideView(pages)
@@ -142,6 +158,7 @@ class Guide(commands.Cog):
             main.fiery_embed("🛡️ ADMIN: MODERATION", """
 **🛡️ Enforcement**
 `!limit` Cap user stats • `!unlimit` Uncap user stats
+`!checklimits` View cooldowns • `!leveloff` Disable XP gain
 `!basicnsfw` Enable SFW mode • `!nomorebasic` Strict mode enforcement
 `!nomorensfw` Global NSFW ban lock • `!nsfwtime` Activate 2x event
 `!openpit` Unlock locked arena
@@ -161,6 +178,7 @@ class Guide(commands.Cog):
 `!backup` DB to file • `!refresh` Sync cogs • `!reload` Reboot cog
 `!debug_cmd` System errors • `!view` Active config • `!warroom` Mod hub
 `!collectadmin` Wipe collections • `!archives` Save archive data
+`!test` Verify ping • `!togglealerts` Guardian pings
 
 **🧵 Threads & Tickets**
 `!thread` Start threading • `!threadall` Thread all • `!threadoff` Halt threading
@@ -169,7 +187,7 @@ class Guide(commands.Cog):
 **💰 Currency & Pit Automation**
 `!flames` Add/Sub currency • `!activate_premium` Grant sub to user
 `!autoignis` Hourly pit • `!stopautoignis` Halt auto pit
-`!startrumble` Force rumble • `!reset_arena` Clear lobby
+`!startrumble` Force rumble • `!echostart` Open pit • `!reset_arena` Clear lobby
 `!echoon` Free access • `!echooff` Lock access • `!echooffall` Hard lock
 `!echopurge` Pit wipe
 
