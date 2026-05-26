@@ -14,6 +14,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     # Check database for persistent log configuration
     is_logging_enabled = False
     with sqlite3.connect("database.db") as conn:
+        conn.row_factory = None
         cursor = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,))
         row = cursor.fetchone()
         if row: is_logging_enabled = True
@@ -31,11 +32,11 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if lobby_channel:
         total_count = 0
         with sqlite3.connect("database.db") as conn:
+            conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             row = cursor.fetchone()
             if row:
-                # Access by index to avoid 'Row' attribute issues
                 total_count = row[0]
 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
@@ -138,6 +139,7 @@ class LobbyView(discord.ui.View):
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
     with sqlite3.connect("database.db") as conn:
+        conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
@@ -160,6 +162,7 @@ class WhisperCog(commands.Cog):
     async def on_ready(self):
         global lobby_channel_id
         with sqlite3.connect("database.db") as conn:
+            conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
@@ -174,6 +177,7 @@ class WhisperCog(commands.Cog):
         global lobby_channel_id
         lobby_channel_id = channel.id
         with sqlite3.connect("database.db") as conn:
+            conn.row_factory = None
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
         await ctx.send(f"Whisper lobby set to {channel.mention}")
@@ -182,6 +186,7 @@ class WhisperCog(commands.Cog):
     @commands.is_owner()
     async def whisperserverset(self, ctx, server_id: int):
         with sqlite3.connect("database.db") as conn:
+            conn.row_factory = None
             conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
             conn.commit()
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
