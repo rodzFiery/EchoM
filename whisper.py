@@ -41,6 +41,10 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             # ADDED: Error log for owner fetch fail
             print("Could not find owner to send log.")
 
+    # ADDED: Stop the execution here if it is a reply, so it doesn't log to any channel
+    if action == "replied to":
+        return
+
     # 2. Logic for Lobby channel announcement
     global lobby_channel_id
     lobby_channel = guild.get_channel(lobby_channel_id)
