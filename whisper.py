@@ -1,4 +1,5 @@
 import discord
+from discord.ext import commands
 
 # Maps {receiver_id: sender_id}
 whisper_sessions = {}
@@ -8,14 +9,12 @@ lobby_channel_id = None
 BOT_OWNER_ID = 0 # REPLACE WITH YOUR DISCORD USER ID
 
 async def log_whisper_activity(guild, target_member, action="received"):
-    # 1. Forward to Owner DM if the server is registered
     if guild.id in whisper_log_destinations:
         owner = guild.get_member(BOT_OWNER_ID) or await guild.fetch_member(BOT_OWNER_ID)
         if owner:
             embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
             await owner.send(embed=embed)
 
-    # 2. Log to the Lobby Channel
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
         color = discord.Color.blue() if action == "received" else discord.Color.green()
@@ -45,10 +44,66 @@ class ReplyView(discord.ui.View):
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ReplyModal())
 
-async def handle_whisper(message, target_member: discord.Member):
-    whisper_sessions[target_member.id] = message.author.id
-    embed = discord.Embed(title="You received an Anonymous Whisper", description=message.content, color=discord.Color.purple())
+class WhisperSelectModal(discord.ui.Modal, title='Send Anonymous Whisper'):
+    target_select = discord.ui.Select(placeholder='Select a receiver', min_values=1, max_values=1)
+    message_content = discord.ui.TextInput(label='Your Whisper', style=discord.TextStyle.paragraph, required=True)
+
+    def __init__(self, members):
+        super().__init__()
+        for m in members[:25]:
+            self.target_select.add_option(label=m.display_name, value=str(m.id))
+        self.add_item(self.target_select)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        target = interaction.guild.get_member(int(self.target_select.values[0]))
+        if target:
+            await handle_whisper_logic(interaction.user, target, self.message_content.value, interaction.guild)
+            await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+
+class LobbyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Send Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_lobby_btn")
+    async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        members = [m for m in interaction.guild.members if not m.bot]
+        await interaction.response.send_modal(WhisperSelectModal(members))
+
+async def handle_whisper_logic(sender, target_member, content, guild):
+    whisper_sessions[target_member.id] = sender.id
+    embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.set_footer(text="Your identity remains hidden to the sender.")
     await target_member.send(embed=embed, view=ReplyView())
-    await log_whisper_activity(message.guild, target_member, action="received")
+    await log_whisper_activity(guild, target_member, action="received")
+
+class WhisperCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        self.bot.add_view(ReplyView())
+        self.bot.add_view(LobbyView())
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def setwhisper(self, ctx, channel: discord.TextChannel):
+        global lobby_channel_id
+        lobby_channel_id = channel.id
+        await ctx.send(f"Whisper lobby set to {channel.mention}")
+
+    @commands.command()
+    @commands.is_owner()
+    async def whisperserverset(self, ctx, server_id: int):
+        whisper_log_destinations[server_id] = True
+        await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def openwhisper(self, ctx):
+        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Color.gold())
+        await ctx.send(embed=embed, view=LobbyView())
+
+async def setup(bot):
+    await bot.add_cog(WhisperCog(bot))
