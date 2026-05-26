@@ -29,7 +29,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             await owner.send(embed=embed)
 
     lobby_channel = guild.get_channel(lobby_channel_id)
-    if lobby_channel:
+    # Ensure lobby_channel is a valid TextChannel object before interacting with it
+    if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = None
