@@ -36,6 +36,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = None
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             count_row = cursor.fetchone()
             if count_row:
@@ -78,7 +79,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                     await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
                 await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ Session not found.", ephemeral=True)
+            await interaction.response.send_message("❌ Session not found. You must be a whisper recipient to use this button.", ephemeral=True)
 
 class ReplyView(discord.ui.View):
     def __init__(self):
@@ -125,6 +126,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
         conn.commit()
+    # Map the target (receiver) to the sender so they can reply back
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     await target_member.send(embed=embed)
@@ -159,7 +161,7 @@ class WhisperCog(commands.Cog):
 
     @commands.command()
     async def openwhisper(self, ctx):
-        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Color.gold())
+        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Gold())
         await ctx.send(embed=embed, view=LobbyView())
 
 async def setup(bot):
