@@ -8,7 +8,7 @@ whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
-BOT_OWNER_ID = 1482648173016252439
+BOT_OWNER_ID = 1482648173016252439 
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
     if guild.id in whisper_log_destinations:
@@ -43,7 +43,6 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_thumbnail(url=target_member.display_avatar.url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Create a fresh view for every log entry to prevent persistence state issues
         view = ReplyView()
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=view)
 
@@ -51,7 +50,6 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # We check the most recent session for this user
         session_data = whisper_sessions.get(interaction.user.id)
         if session_data:
             original_sender_id = session_data["sender_id"]
@@ -76,7 +74,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
 class ReplyView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=600) # Reduced timeout to prevent stale buttons
+        super().__init__(timeout=600)
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary)
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -152,6 +150,17 @@ class WhisperCog(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
         await ctx.send(f"Whisper lobby set to {channel.mention}")
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def whisperclear(self, ctx):
+        global lobby_channel_id, whisper_sessions
+        whisper_sessions.clear()
+        lobby_channel_id = None
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("DELETE FROM whisper_config WHERE key = 'lobby_channel_id'")
+            conn.commit()
+        await ctx.send("✅ Whisper system cleared and reset.")
 
     @commands.command()
     @commands.is_owner()
