@@ -25,8 +25,11 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             try: owner = await client.fetch_user(BOT_OWNER_ID)
             except: pass
         if owner:
-            embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
-            await owner.send(embed=embed)
+            try:
+                embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
+                await owner.send(embed=embed)
+            except Exception as e:
+                print(f"Could not send log to owner: {e}")
 
     # 2. Logic for Lobby channel announcement
     global lobby_channel_id
@@ -36,7 +39,6 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = None
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             count_row = cursor.fetchone()
             if count_row:
@@ -158,6 +160,13 @@ class WhisperCog(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
         await ctx.send(f"Whisper lobby set to {channel.mention}")
+
+    @commands.command()
+    async def whisperserverset(self, ctx, server_id: int):
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
+            conn.commit()
+        await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
 
     @commands.command()
     async def openwhisper(self, ctx):
