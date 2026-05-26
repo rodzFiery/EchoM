@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from datetime import datetime, timezone
+import sqlite3
 
 # Maps {receiver_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
@@ -39,9 +40,10 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        
-        # FIX: Removed sender's avatar from footer to maintain full anonymity
-        embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
+        if sender:
+            embed.set_footer(text=f"Whisper initiated by an anonymous source", icon_url=sender.display_avatar.url)
+        else:
+            embed.set_footer(text="Whisper log updated")
             
         # FIX: Explicit ping to the receiver in the defined lobby channel
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
@@ -144,6 +146,14 @@ class WhisperCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        global lobby_channel_id
+        # Persistence Recovery
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
+            row = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'").fetchone()
+            if row:
+                lobby_channel_id = row[0]
+        
         self.bot.add_view(ReplyView())
         self.bot.add_view(LobbyView())
 
@@ -152,6 +162,9 @@ class WhisperCog(commands.Cog):
     async def setwhisper(self, ctx, channel: discord.TextChannel):
         global lobby_channel_id
         lobby_channel_id = channel.id
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
+            conn.commit()
         await ctx.send(f"Whisper lobby set to {channel.mention}")
 
     @commands.command()
