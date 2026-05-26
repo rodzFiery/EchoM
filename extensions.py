@@ -59,7 +59,9 @@ class FieryExtensions(commands.Cog):
             "🔞 **NSFW PROTOCOL: ACTIVATED.**\n\n"
             "• **MULTIPLIER:** All Flames and XP are now **DOUBLE**.\n"
             "• **ECHOGAMES:** Winners may now `!flash` 3 victims.\n"
-            "• **FIRST BLOOD:** Automatically stripped and exposed.\n\n"
+            "• **FIRST BLOOD:** Automatically stripped and exposed.\n"
+            "• **LEGENDARY WIPE:** People wiped on legendary events must flash too.\n"
+            "• **RANDOM SACRIFICE:** One random person from every game will flash.\n\n"
             "*The Red Room is set to its most erotic frequency for the next 90 minutes.*")
         
         if os.path.exists("LobbyTopRight.jpg"):
