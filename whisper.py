@@ -28,8 +28,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
             await owner.send(embed=embed)
 
+    global lobby_channel_id
     lobby_channel = guild.get_channel(lobby_channel_id)
-    # Ensure lobby_channel is a valid TextChannel object before interacting with it
+    
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
         with sqlite3.connect("database.db") as conn:
@@ -168,7 +169,8 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
             row = cursor.fetchone()
-            if row: lobby_channel_id = row[0]
+            if row and row[0] is not None:
+                lobby_channel_id = int(row[0])
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
 
