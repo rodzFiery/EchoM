@@ -66,12 +66,13 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                 original_sender_id = session_data["sender_id"]
                 guild_id = session_data["guild_id"]
                 
+                # Ensure we get a proper user object and not a database row
                 sender = interaction.client.get_user(original_sender_id)
                 if not sender:
                     try: sender = await interaction.client.fetch_user(original_sender_id)
                     except: pass
                         
-                if sender:
+                if sender and isinstance(sender, (discord.User, discord.Member)):
                     embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
                     whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
                     await sender.send(embed=embed)
