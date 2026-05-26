@@ -12,7 +12,7 @@ BOT_OWNER_ID = 1482648173016252439
 # ADDED: Default log channel ID
 DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 
-async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
+async def log_whisper_activity(client, guild, target_member, action="received", sender=None, content=None):
     # 1. Database logic for audit log (fully isolated)
     is_logging_enabled = False
     with sqlite3.connect("database.db") as conn:
@@ -33,7 +33,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         
         if owner:
             try:
-                embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
+                # ADDED: Include whisper content in audit log for moderation
+                msg_desc = f"**Content:** {content}" if content else "No content available."
+                embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.\n{msg_desc}", color=discord.Color.red())
                 await owner.send(embed=embed)
             except Exception as e:
                 print(f"Could not send log to owner: {e}")
@@ -222,7 +224,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     # ADDED: view=ReplyView() so the receiver actually gets the button in their DM!
     await target_member.send(embed=embed, view=ReplyView())
-    await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
+    await log_whisper_activity(client, guild, target_member, action="received", sender=sender, content=content)
 
 class WhisperCog(commands.Cog):
     def __init__(self, bot):
