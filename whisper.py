@@ -14,7 +14,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     # Check database for persistent log configuration
     is_logging_enabled = False
     with sqlite3.connect("database.db") as conn:
-        row = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,)).fetchone()
+        cursor = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,))
+        row = cursor.fetchone()
         if row: is_logging_enabled = True
     
     if is_logging_enabled:
@@ -30,7 +31,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if lobby_channel:
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
-            row = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,)).fetchone()
+            cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
+            row = cursor.fetchone()
             total_count = row[0] if row else 0
 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
@@ -159,7 +161,8 @@ class WhisperCog(commands.Cog):
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
-            row = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'").fetchone()
+            cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
+            row = cursor.fetchone()
             if row: lobby_channel_id = row[0]
         self.bot.add_view(LobbyView())
 
