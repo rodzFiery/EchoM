@@ -29,11 +29,14 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
 
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
+        total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             row = cursor.fetchone()
-            total_count = row[0] if row else 0
+            if row:
+                # Access by index to avoid 'Row' attribute issues
+                total_count = row[0]
 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
@@ -51,7 +54,6 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_thumbnail(url=target_member.display_avatar.url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Create a fresh view for every log entry to prevent persistence state issues
         view = ReplyView()
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=view)
 
@@ -60,7 +62,6 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            # We check the most recent session for this user
             session_data = whisper_sessions.get(interaction.user.id)
             if session_data:
                 original_sender_id = session_data["sender_id"]
@@ -91,7 +92,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
 class ReplyView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None) # Set to None for persistence
+        super().__init__(timeout=None)
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -137,7 +138,6 @@ class LobbyView(discord.ui.View):
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
     with sqlite3.connect("database.db") as conn:
-        conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
@@ -160,7 +160,6 @@ class WhisperCog(commands.Cog):
     async def on_ready(self):
         global lobby_channel_id
         with sqlite3.connect("database.db") as conn:
-            conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
@@ -175,7 +174,6 @@ class WhisperCog(commands.Cog):
         global lobby_channel_id
         lobby_channel_id = channel.id
         with sqlite3.connect("database.db") as conn:
-            conn.row_factory = None
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
         await ctx.send(f"Whisper lobby set to {channel.mention}")
@@ -184,7 +182,6 @@ class WhisperCog(commands.Cog):
     @commands.is_owner()
     async def whisperserverset(self, ctx, server_id: int):
         with sqlite3.connect("database.db") as conn:
-            conn.row_factory = None
             conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
             conn.commit()
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
