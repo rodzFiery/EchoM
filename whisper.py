@@ -161,7 +161,7 @@ class WhisperCog(commands.Cog):
 
     @commands.command()
     async def openwhisper(self, ctx):
-        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Gold())
+        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Color.gold())
         await ctx.send(embed=embed, view=LobbyView())
 
 async def setup(bot):
