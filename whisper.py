@@ -68,6 +68,17 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     async def on_submit(self, interaction: discord.Interaction):
         try:
             session_data = whisper_sessions.get(interaction.user.id)
+            
+            # ADDED: Fallback to database if memory is empty after a restart
+            if not session_data:
+                with sqlite3.connect("database.db") as conn:
+                    conn.row_factory = None
+                    cursor = conn.execute("SELECT sender_id, guild_id FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
+                    row = cursor.fetchone()
+                    if row:
+                        session_data = {"sender_id": row[0], "guild_id": row[1]}
+                        whisper_sessions[interaction.user.id] = session_data
+
             if session_data:
                 # Defensive extraction to permanently block the 'sqlite3.Row' attribute error
                 raw_sender = session_data["sender_id"]
@@ -84,6 +95,13 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                 if sender:
                     embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
                     whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                    
+                    # ADDED: Save reverse session to database
+                    with sqlite3.connect("database.db") as conn:
+                        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+                        conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id) VALUES (?, ?, ?)", (sender.id, interaction.user.id, guild_id))
+                        conn.commit()
+
                     await sender.send(embed=embed)
                     guild = interaction.client.get_guild(guild_id)
                     if guild:
@@ -147,7 +165,12 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
+        
+        # ADDED: Save session to database
+        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+        conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id) VALUES (?, ?, ?)", (target_member.id, sender.id, guild.id))
         conn.commit()
+        
     # Map the target (receiver) to the sender so they can reply back
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
@@ -165,6 +188,13 @@ class WhisperCog(commands.Cog):
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
+            
+            # ADDED: Table creation and memory load for sessions on startup
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+            cursor = conn.execute("SELECT receiver_id, sender_id, guild_id FROM whisper_sessions")
+            for session_row in cursor.fetchall():
+                whisper_sessions[session_row[0]] = {"sender_id": session_row[1], "guild_id": session_row[2]}
+            
             cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
             row = cursor.fetchone()
             if row and row[0] is not None:
