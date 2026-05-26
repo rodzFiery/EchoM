@@ -29,13 +29,11 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
 
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
-        total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             row = cursor.fetchone()
-            if row is not None:
-                total_count = row[0]
+            total_count = row[0] if row else 0
 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
@@ -53,6 +51,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_thumbnail(url=target_member.display_avatar.url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
+        # FIX: Create a fresh view for every log entry to prevent persistence state issues
         view = ReplyView()
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=view)
 
@@ -61,20 +60,21 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # We check the most recent session for this user
             session_data = whisper_sessions.get(interaction.user.id)
             if session_data:
                 original_sender_id = session_data["sender_id"]
                 guild_id = session_data["guild_id"]
                 
-                target_sender = interaction.client.get_user(original_sender_id)
-                if not target_sender:
-                    try: target_sender = await interaction.client.fetch_user(original_sender_id)
+                sender = interaction.client.get_user(original_sender_id)
+                if not sender:
+                    try: sender = await interaction.client.fetch_user(original_sender_id)
                     except: pass
                         
-                if target_sender and hasattr(target_sender, 'send'):
+                if sender:
                     embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
-                    whisper_sessions[target_sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
-                    await target_sender.send(embed=embed)
+                    whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                    await sender.send(embed=embed)
                     
                     guild = interaction.client.get_guild(guild_id)
                     if guild:
@@ -91,7 +91,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
 class ReplyView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None) # Set to None for persistence
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
