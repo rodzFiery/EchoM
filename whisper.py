@@ -44,21 +44,34 @@ class ReplyView(discord.ui.View):
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ReplyModal())
 
-class WhisperSelectModal(discord.ui.Modal, title='Send Anonymous Whisper'):
-    target_select = discord.ui.Select(placeholder='Select a receiver', min_values=1, max_values=1)
+class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
     message_content = discord.ui.TextInput(label='Your Whisper', style=discord.TextStyle.paragraph, required=True)
 
-    def __init__(self, members):
+    def __init__(self, target_member):
         super().__init__()
-        for m in members[:25]:
-            self.target_select.add_option(label=m.display_name, value=str(m.id))
-        self.add_item(self.target_select)
+        self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
-        target = interaction.guild.get_member(int(self.target_select.values[0]))
-        if target:
-            await handle_whisper_logic(interaction.user, target, self.message_content.value, interaction.guild)
-            await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+        await handle_whisper_logic(interaction.user, self.target_member, self.message_content.value, interaction.guild)
+        await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+
+class UserSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Search and select the receiver...")
+    async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        target = select.values[0]
+        # Ensure target is resolved as a Member object
+        if not isinstance(target, discord.Member):
+            target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
+        
+        if target.bot:
+            await interaction.response.send_message("❌ You cannot whisper to bots.", ephemeral=True)
+            return
+
+        # Open the modal text box to type the message AFTER selecting the user
+        await interaction.response.send_modal(WhisperMessageModal(target))
 
 class LobbyView(discord.ui.View):
     def __init__(self):
@@ -66,8 +79,8 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Send Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_lobby_btn")
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        members = [m for m in interaction.guild.members if not m.bot]
-        await interaction.response.send_modal(WhisperSelectModal(members))
+        # Sends a private search bar to the user who clicked the button
+        await interaction.response.send_message("Use the menu below to search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(sender, target_member, content, guild):
     whisper_sessions[target_member.id] = sender.id
