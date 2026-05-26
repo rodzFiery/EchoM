@@ -28,7 +28,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: High-Heat NSFW Aesthetic
+        # UPDATED: More visually appealing and NSFW-themed embed
         embed = discord.Embed(
             title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
             description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
@@ -39,10 +39,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        if sender:
-            embed.set_footer(text=f"Whisper initiated by an anonymous source", icon_url=sender.display_avatar.url)
-        else:
-            embed.set_footer(text="Whisper log updated")
+        
+        # FIX: Removed sender's avatar from footer to maintain full anonymity
+        embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
         # FIX: Explicit ping to the receiver in the defined lobby channel
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
