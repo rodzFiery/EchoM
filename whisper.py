@@ -40,10 +40,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        if sender:
-            embed.set_footer(text=f"Whisper initiated by an anonymous source", icon_url=sender.display_avatar.url)
-        else:
-            embed.set_footer(text="Whisper log updated")
+        
+        # FIX: Removed sender's avatar from footer to maintain full anonymity
+        embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
         # FIX: Explicit ping to the receiver in the defined lobby channel
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
@@ -138,7 +137,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     embed.set_footer(text="Your identity remains hidden to the sender.")
     
     await target_member.send(embed=embed, view=ReplyView())
-    await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
+    await log_whisper_activity(client, guild, target_member, action="received", sender=None)
 
 class WhisperCog(commands.Cog):
     def __init__(self, bot):
