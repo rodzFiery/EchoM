@@ -39,7 +39,7 @@ from dotenv import load_dotenv
 from flask import Flask, request
 import threading
 
-# Impede a criação de pastas __pycache__ para facilitar edições constantes
+# Prevents the creation of __pycache__ folders to facilitate constant edits
 sys.dont_write_bytecode = True
 
 # ===== 1. INITIAL CONFIGURATION =====
@@ -47,7 +47,7 @@ load_dotenv()
 # Railway will pull the DISCORD_TOKEN from the Variables tab automatically
 TOKEN = os.getenv("DISCORD_TOKEN")
 TOPGG_TOKEN = os.getenv("TOPGG_TOKEN") # ADDED: For Top.gg API Authorization
-AUDIT_CHANNEL_ID = 1438810509322223677 # Seu canal de auditoria
+AUDIT_CHANNEL_ID = 1438810509322223677 # Your audit channel
 STREAK_ALERTS_CHANNEL_ID = 1438810509322223677 # Red Room Channel for Pings
 
 # DATABASE PATH handled by db_module for persistence
@@ -180,9 +180,9 @@ def paypal_webhook():
 
                     conn.execute("UPDATE users SET premium_type = ?, premium_date = ? WHERE id = ?", (new_val, p_date, int(user_id)))
                     conn.commit()
-                print(f"✅ [SISTEMA] Premium '{plan_name}' ativado via Webhook para ID {user_id}")
+                print(f"✅ [SYSTEM] Premium '{plan_name}' activated via Webhook for ID {user_id}")
                 
-                # ADICIONADO: Notificação em tempo real para o usuário no Discord
+                # ADDED: Real-time notification for the user on Discord
                 user = bot.get_user(int(user_id))
                 if user:
                     # FIXED: Use threadsafe call to prevent crash between Flask and Discord Bot
@@ -190,7 +190,7 @@ def paypal_webhook():
                         f"Greetings, {user.mention}. Your payment for **{plan_name}** was processed.\n"
                         f"All elite privileges have been granted to your account.", color=0xFFD700))))
             except Exception as e:
-                print(f"❌ [ERRO] Webhook falhou: {e}")
+                print(f"❌ [ERROR] Webhook failed: {e}")
     return "OK", 200
 
 def run_web_server():
@@ -510,20 +510,6 @@ async def buytitle(ctx, *, title_choice: str = None):
     pass
 
 @bot.command()
-@commands.has_permissions(administrator=True)
-async def setwhisper(ctx, channel: discord.TextChannel):
-    whisper.lobby_channel_id = channel.id
-    embed = fiery_embed("Whisper Configuration", f"Lobby channel set to {channel.mention}")
-    await ctx.send(embed=embed)
-
-@bot.command()
-@commands.is_owner()
-async def whisperserverset(ctx, server_id: int):
-    whisper.whisper_log_destinations[server_id] = True
-    embed = fiery_embed("Whisper Audit", f"Logs for server ID {server_id} are now forwarded to your DMs.")
-    await ctx.send(embed=embed)
-
-@bot.command()
 async def favor(ctx):
     """Bribe the Master to force Peak Heat."""
     cost = 5000000
@@ -682,7 +668,7 @@ async def on_ready():
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
-    # NEW: Carga EngineControl para habilitar !echostart e !lobby que estão no ignis.py
+    # NEW: Load EngineControl to enable !echostart and !lobby which are in ignis.py
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
@@ -798,7 +784,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper"
     ]
     for e in exts:
         try:
@@ -831,8 +817,9 @@ async def setup_hook():
     # Runs before bot starts
     await load_all_extensions()
     
-    # ADDED: Register persistent whisper view
+    # ADDED: Register persistent whisper views
     bot.add_view(whisper.ReplyView())
+    bot.add_view(whisper.LobbyView())
     
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
