@@ -22,10 +22,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         if audit_row: is_logging_enabled = True
     
     if is_logging_enabled:
-        owner = client.get_user(BOT_OWNER_ID)
-        if not owner:
-            try: owner = await client.fetch_user(BOT_OWNER_ID)
-            except: pass
+        # FIXED: main.py overrides client.get_user to return a DB Row, so we strictly use fetch_user to get the Discord Object
+        try: owner = await client.fetch_user(BOT_OWNER_ID)
+        except: owner = None
         
         # ADDED: Debug print to help track owner fetch
         print(f"Log debug: owner found = {owner is not None}")
@@ -97,7 +96,8 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                 guild_id = raw_guild[0] if type(raw_guild).__name__ == 'Row' else int(raw_guild)
                 
                 try:
-                    sender = interaction.client.get_user(original_sender_id) or await interaction.client.fetch_user(original_sender_id)
+                    # FIXED: main.py overrides get_user, returning a sqlite Row. We strictly use fetch_user to get the Discord User.
+                    sender = await interaction.client.fetch_user(original_sender_id)
                 except:
                     sender = None
                 
