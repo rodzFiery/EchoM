@@ -186,7 +186,7 @@ class LobbyView(discord.ui.View):
             asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), final_edition))
             self.stop()
         else:
-            # DEBUG: If the cog isn't found, tell the owner
+            # DEBUG: If the cog isnt found, tell the owner
             return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded? Check bot logs.", ephemeral=True)
 
 # --- NOVO: ENGINE CONTROL INTEGRADO ---
@@ -900,7 +900,7 @@ class IgnisEngine(commands.Cog):
                 random_flasher = random.choice(possible_flashers).mention if possible_flashers else "No other survivors"
                 
                 # Force ping message content
-                ping_content = f"🔞 **NSFW PROTOCOL PINGS:** {first_loser_member.mention if first_loser_member else ''} {' '.join([v.mention for v in suicide_victims])} {' '.join([v.mention for v in legendary_victims])} {winner_member.mention}"
+                ping_content = f"🔞 **NSFW PROTOCOL PINGS:** {first_loser_member.mention if first_loser_member else ''} {' '.join([v.mention for v in suicide_victims])} {' '.join([v.mention for v in legendary_victims])} {random_flasher if possible_flashers else ''} {winner_member.mention}"
                 
                 # Simple, direct NSFW recap embed
                 nsfw_embed = discord.Embed(
