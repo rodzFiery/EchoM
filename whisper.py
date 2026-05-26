@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
+from datetime import datetime, timezone
 
-# Maps {receiver_id: sender_id}
+# Maps {receiver_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
@@ -27,13 +28,15 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: More visual appealing embed
+        # UPDATED: More visually appealing and NSFW-themed embed
         embed = discord.Embed(
-            title="✨ Anonymous Whisper System", 
-            description=f"**Target:** {target_member.mention}\n**Status:** {action_text.capitalize()}.", 
+            title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
+            description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
             color=color,
             timestamp=datetime.now(timezone.utc)
         )
+        embed.add_field(name="🌐 System Protocol", value="Encrypted transmission active", inline=True)
+        embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
         if sender:
@@ -41,7 +44,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         else:
             embed.set_footer(text="Whisper log updated")
             
-        await lobby_channel.send(content=f"🔔 {target_member.mention} Check your DMs!", embed=embed)
+        # FIX: Explicit ping to the receiver
+        await lobby_channel.send(content=f"🔔 {target_member.mention} has received a new whisper! Access your DMs for the full experience.", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
