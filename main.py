@@ -23,6 +23,7 @@ import json
 import shutil
 import sys
 import aiohttp # ADDED: Required for topgg_poster to function
+import whisper # ADDED: Whisper system integration
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
 import daily as daily_module # FIXED: Import with alias to prevent conflict with commands
@@ -508,7 +509,19 @@ async def buytitle(ctx, *, title_choice: str = None):
         return await ctx.send(file=file, embed=embed)
     pass
 
-# FIXED: Removed duplicate 'marry' command to allow ship.py extension to register it.
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setwhisper(ctx, channel: discord.TextChannel):
+    whisper.lobby_channel_id = channel.id
+    embed = fiery_embed("Whisper Configuration", f"Lobby channel set to {channel.mention}")
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.is_owner()
+async def whisperserverset(ctx, server_id: int):
+    whisper.whisper_log_destinations[server_id] = True
+    embed = fiery_embed("Whisper Audit", f"Logs for server ID {server_id} are now forwarded to your DMs.")
+    await ctx.send(embed=embed)
 
 @bot.command()
 async def favor(ctx):
@@ -730,6 +743,17 @@ async def on_message(message):
     if message.author.bot: 
         return
 
+    # ADDED: Trigger whisper flow if in the defined lobby
+    if whisper.lobby_channel_id and message.channel.id == whisper.lobby_channel_id:
+        if message.mentions:
+            target = message.mentions[0]
+            await whisper.handle_whisper(message, target)
+            try:
+                await message.delete()
+            except:
+                pass
+            return
+
     # Process all commands first
     await bot.process_commands(message)
 
@@ -760,8 +784,8 @@ async def on_message(message):
                     # Skip denial if they have the ignis role, standard staff role, are server owner, or bot owner
                     if not is_staff and not has_ignis_role and not is_server_owner and not await bot.is_owner(message.author):
                         denied_emb = fiery_embed("🚫 ACCESS DENIED", 
-                                                 f"Neural link signature rejected for {message.author.mention}.\n"
-                                                 "Required: **ADMIN**, **MODERATOR**, **SERVER OWNER**, or server designated **ADMIN ROLE**.", color=0xFF0000)
+                                               f"Neural link signature rejected for {message.author.mention}.\n"
+                                               "Required: **ADMIN**, **MODERATOR**, **SERVER OWNER**, or server designated **ADMIN ROLE**.", color=0xFF0000)
                         await message.reply(embed=denied_emb)
             except Exception:
                 pass
@@ -806,6 +830,10 @@ async def load_all_extensions():
 async def setup_hook():
     # Runs before bot starts
     await load_all_extensions()
+    
+    # ADDED: Register persistent whisper view
+    bot.add_view(whisper.ReplyView())
+    
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
     # FIXED: Relocated background tasks to setup_hook to guarantee execution exactly once per build container
