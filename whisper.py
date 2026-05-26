@@ -44,8 +44,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         # FIX: Removed sender's avatar from footer to maintain full anonymity
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Explicit ping to the receiver in the defined lobby channel
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
+        # FIX: Explicit ping to the receiver in the defined lobby channel + Reply button
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed, view=ReplyView(target_id=target_member.id))
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -71,7 +71,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                 whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
                 
                 # FIX: Pass the ReplyView so the receiver of the reply can click reply back
-                await sender.send(embed=embed, view=ReplyView())
+                await sender.send(embed=embed, view=ReplyView(target_id=interaction.user.id))
                 
                 # Retrieve guild to maintain logs
                 guild = interaction.client.get_guild(guild_id)
@@ -143,7 +143,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     
     # FIX: Inject target_member.id into the ReplyView to enforce security
     await target_member.send(embed=embed, view=ReplyView(target_id=target_member.id))
-    await log_whisper_activity(client, guild, target_member, action="received", sender=None)
+    await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
 
 class WhisperCog(commands.Cog):
     def __init__(self, bot):
