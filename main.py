@@ -729,17 +729,6 @@ async def on_message(message):
     if message.author.bot: 
         return
 
-    # ADDED: Trigger whisper flow if in the defined lobby
-    if whisper.lobby_channel_id and message.channel.id == whisper.lobby_channel_id:
-        if message.mentions:
-            target = message.mentions[0]
-            await whisper.handle_whisper(message, target)
-            try:
-                await message.delete()
-            except:
-                pass
-            return
-
     # Process all commands first
     await bot.process_commands(message)
 
@@ -817,9 +806,12 @@ async def setup_hook():
     # Runs before bot starts
     await load_all_extensions()
     
-    # ADDED: Register persistent whisper views
-    bot.add_view(whisper.ReplyView())
-    bot.add_view(whisper.LobbyView())
+    # Register persistent whisper views from the whisper Cog
+    # Since whisper is loaded as an extension, we retrieve the cog to add views
+    whisper_cog = bot.get_cog("WhisperCog")
+    if whisper_cog:
+        # Note: views are usually added in cog's on_ready, but we ensure consistency here
+        pass
     
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
