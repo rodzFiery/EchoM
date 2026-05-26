@@ -34,7 +34,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             row = cursor.fetchone()
-            if row:
+            if row is not None:
                 total_count = row[0]
 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
@@ -66,13 +66,12 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                 original_sender_id = session_data["sender_id"]
                 guild_id = session_data["guild_id"]
                 
-                # Specifically fetch user to avoid any database row confusion
                 target_sender = interaction.client.get_user(original_sender_id)
                 if not target_sender:
                     try: target_sender = await interaction.client.fetch_user(original_sender_id)
                     except: pass
                         
-                if target_sender:
+                if target_sender and hasattr(target_sender, 'send'):
                     embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
                     whisper_sessions[target_sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
                     await target_sender.send(embed=embed)
