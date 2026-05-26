@@ -1,40 +1,69 @@
 import discord
 from discord.ext import commands
 
-# Maps {receiver_id: sender_id}
+# Maps {receiver_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
 BOT_OWNER_ID = 0 # REPLACE WITH YOUR DISCORD USER ID
 
-async def log_whisper_activity(guild, target_member, action="received"):
+async def log_whisper_activity(client, guild, target_member, action="received"):
+    # 1. Forward to Owner DM if the server is registered
     if guild.id in whisper_log_destinations:
-        owner = guild.get_member(BOT_OWNER_ID) or await guild.fetch_member(BOT_OWNER_ID)
+        owner = client.get_user(BOT_OWNER_ID)
+        if not owner:
+            try:
+                owner = await client.fetch_user(BOT_OWNER_ID)
+            except:
+                pass
         if owner:
             embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
             await owner.send(embed=embed)
 
+    # 2. Log to the Lobby Channel
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         embed = discord.Embed(title="Anonymous Whisper Activity", description=f"{target_member.mention} {action_text}.", color=color)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        await lobby_channel.send(embed=embed)
+        # FIX: Added plain text content to explicitly ping the user
+        await lobby_channel.send(content=f"🔔 {target_member.mention} Check your DMs!", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
-        original_sender_id = whisper_sessions.get(interaction.user.id)
-        if original_sender_id:
-            sender = interaction.guild.get_member(original_sender_id)
+        session_data = whisper_sessions.get(interaction.user.id)
+        if session_data:
+            original_sender_id = session_data["sender_id"]
+            guild_id = session_data["guild_id"]
+            
+            # FIX: Fetch user globally using client since DMs have no guild
+            sender = interaction.client.get_user(original_sender_id)
+            if not sender:
+                try:
+                    sender = await interaction.client.fetch_user(original_sender_id)
+                except:
+                    pass
+                    
             if sender:
                 embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
-                await sender.send(embed=embed)
-                await log_whisper_activity(interaction.guild, interaction.user, action="replied to")
+                
+                # FIX: Map the session back so the original sender can reply endlessly
+                whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                
+                # FIX: Pass the ReplyView so the receiver of the reply can click reply back
+                await sender.send(embed=embed, view=ReplyView())
+                
+                # Retrieve guild to maintain logs
+                guild = interaction.client.get_guild(guild_id)
+                if guild:
+                    await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
                 await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Session expired or not found.", ephemeral=True)
 
 class ReplyView(discord.ui.View):
     def __init__(self):
@@ -52,7 +81,8 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
-        await handle_whisper_logic(interaction.user, self.target_member, self.message_content.value, interaction.guild)
+        # FIX: Pass interaction.client down to the logic handler
+        await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
         await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
 
 class UserSelectView(discord.ui.View):
@@ -82,13 +112,16 @@ class LobbyView(discord.ui.View):
         # Sends a private search bar to the user who clicked the button
         await interaction.response.send_message("Use the menu below to search for the receiver:", view=UserSelectView(), ephemeral=True)
 
-async def handle_whisper_logic(sender, target_member, content, guild):
-    whisper_sessions[target_member.id] = sender.id
+async def handle_whisper_logic(client, sender, target_member, content, guild):
+    # FIX: Store a dictionary with guild_id so the DM reply logic knows which server to ping
+    whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
+    
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.set_footer(text="Your identity remains hidden to the sender.")
+    
     await target_member.send(embed=embed, view=ReplyView())
-    await log_whisper_activity(guild, target_member, action="received")
+    await log_whisper_activity(client, guild, target_member, action="received")
 
 class WhisperCog(commands.Cog):
     def __init__(self, bot):
