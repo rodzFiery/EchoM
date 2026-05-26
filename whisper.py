@@ -8,22 +8,18 @@ whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
-BOT_OWNER_ID = 1482648173016252439 # REPLACE WITH YOUR DISCORD USER ID
+BOT_OWNER_ID = 1482648173016252439 
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
-    # 1. Forward to Owner DM if the server is registered
     if guild.id in whisper_log_destinations:
         owner = client.get_user(BOT_OWNER_ID)
         if not owner:
-            try:
-                owner = await client.fetch_user(BOT_OWNER_ID)
-            except:
-                pass
+            try: owner = await client.fetch_user(BOT_OWNER_ID)
+            except: pass
         if owner:
             embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.", color=discord.Color.red())
             await owner.send(embed=embed)
 
-    # 2. Log to the Lobby Channel
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
         with sqlite3.connect("database.db") as conn:
@@ -47,7 +43,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_thumbnail(url=target_member.display_avatar.url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
+        # FIX: Dynamically create view for this specific log message
+        view = ReplyView()
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=view)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -66,14 +64,14 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
             if sender:
                 embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
                 whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
-                await sender.send(embed=embed, view=ReplyView())
+                await sender.send(embed=embed)
                 
                 guild = interaction.client.get_guild(guild_id)
                 if guild:
                     await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
                 await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ This is not your whisper to reply to.", ephemeral=True)
+            await interaction.response.send_message("❌ You do not have an active whisper session to reply to.", ephemeral=True)
 
 class ReplyView(discord.ui.View):
     def __init__(self):
@@ -128,7 +126,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.set_footer(text="Your identity remains hidden to the sender.")
     
-    await target_member.send(embed=embed, view=ReplyView())
+    await target_member.send(embed=embed)
     await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
 
 class WhisperCog(commands.Cog):
