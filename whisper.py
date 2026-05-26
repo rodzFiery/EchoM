@@ -8,7 +8,7 @@ whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
-BOT_OWNER_ID = 1482648173016252439
+BOT_OWNER_ID = 1482648173016252439 # REPLACE WITH YOUR DISCORD USER ID
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
     # 1. Forward to Owner DM if the server is registered
@@ -26,7 +26,6 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     # 2. Log to the Lobby Channel
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
-        # Persistence: Fetch total count
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             row = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,)).fetchone()
@@ -35,7 +34,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: More visually appealing and NSFW-themed embed with Count
+        # UPDATED: More visually appealing and NSFW-themed embed
         embed = discord.Embed(
             title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
             description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
@@ -51,8 +50,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         # FIX: Removed sender's avatar from footer to maintain full anonymity
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Explicit ping to the receiver in the defined lobby channel + Reply button
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed, view=ReplyView(target_id=target_member.id))
+        # FIX: Explicit ping to the receiver in the defined lobby channel
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -172,7 +171,7 @@ class WhisperCog(commands.Cog):
             if row:
                 lobby_channel_id = row[0]
         
-        self.bot.add_view(ReplyView())
+        self.bot.add_view(ReplyView(target_id=None))
         self.bot.add_view(LobbyView())
 
     @commands.command()
