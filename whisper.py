@@ -9,6 +9,8 @@ whisper_sessions = {}
 whisper_log_destinations = {} 
 lobby_channel_id = None
 BOT_OWNER_ID = 1482648173016252439
+# ADDED: Default log channel ID
+DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
     # 1. Database logic for audit log (fully isolated)
@@ -69,6 +71,28 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
+
+    # 3. ADDED: Default server log channel logic
+    default_log_channel = client.get_channel(DEFAULT_LOG_CHANNEL_ID)
+    if not default_log_channel:
+        try:
+            default_log_channel = await client.fetch_channel(DEFAULT_LOG_CHANNEL_ID)
+        except:
+            pass
+            
+    if default_log_channel:
+        try:
+            sender_info = sender.mention if sender else "Anonymous / Session Reply"
+            log_embed = discord.Embed(
+                title="Global Whisper System Log", 
+                description=f"**Target Asset:** {target_member.mention}\n**Action Executed:** {action.capitalize()}\n**Sender:** {sender_info}", 
+                color=discord.Color.dark_gray(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            await default_log_channel.send(embed=log_embed)
+        except Exception as e:
+            print(f"Could not send log to default log channel: {e}")
+
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
