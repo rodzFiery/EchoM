@@ -152,8 +152,8 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                         try: guild = await interaction.client.fetch_guild(guild_id)
                         except: pass
                     if guild:
-                        # FIXED: Passing sender=sender so the log gets the proper associated user
-                        await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to", sender=sender)
+                        # FIXED: Passing sender=sender and content=self.reply_content.value to capture the message for logs
+                        await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to", sender=sender, content=self.reply_content.value)
                     await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
                 else:
                     await interaction.response.send_message("❌ Could not find the sender.", ephemeral=True)
