@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -15,6 +16,7 @@ import random
 import sqlite3
 import os
 import ignis
+import ignissfw
 import achievements
 import asyncio
 import json
@@ -671,6 +673,12 @@ async def on_ready():
     if not bot.get_cog("EngineControl"):
         await bot.add_cog(ignis.EngineControl(bot, fiery_embed, save_game_config, get_db_connection))
 
+    if not bot.get_cog("IgnisEngineSFW"):
+        await bot.add_cog(ignissfw.IgnisEngineSFW(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
+    
+    if not bot.get_cog("EngineControlSFW"):
+        await bot.add_cog(ignissfw.EngineControlSFW(bot, fiery_embed, save_game_config, get_db_connection))
+
     if not bot.get_cog("Achievements"):
         await bot.add_cog(achievements.Achievements(bot, get_db_connection, fiery_embed))
     
@@ -766,7 +774,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "topgg", "guide"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide"
     ]
     for e in exts:
         try:
