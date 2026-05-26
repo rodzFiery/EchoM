@@ -28,7 +28,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: More visually appealing and NSFW-themed embed
+        # UPDATED: High-Heat NSFW Aesthetic
         embed = discord.Embed(
             title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
             description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
@@ -44,8 +44,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         else:
             embed.set_footer(text="Whisper log updated")
             
-        # FIX: Explicit ping to the receiver
-        await lobby_channel.send(content=f"🔔 {target_member.mention} has received a new whisper! Access your DMs for the full experience.", embed=embed)
+        # FIX: Explicit ping to the receiver in the defined lobby channel
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
