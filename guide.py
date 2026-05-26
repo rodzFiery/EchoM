@@ -34,8 +34,7 @@ class Guide(commands.Cog):
 `!achievements` Unlocked badges
 
 **🏆 Hierarchy & Status**
-`!rank` Combat tier
-`!ranking` Global top members
+`!ranking` Echo Hangryames
 `!ranktop` Highest levels
 `!mylevel` Current XP & level
 `!streaks` Discipline ranks
