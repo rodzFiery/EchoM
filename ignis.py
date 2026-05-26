@@ -888,7 +888,7 @@ class IgnisEngine(commands.Cog):
             # --- NSFW SUMMARY EMBED ---
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
-            if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
+            if main_end.nsfw_mode_active:
                 # Compile lists of members
                 f_death = f"{first_loser_member.mention} (FLASH)" if first_loser_member else "None"
                 s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
