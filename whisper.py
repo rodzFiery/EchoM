@@ -49,6 +49,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         total_count = 0
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = None
+            # ADDED: Table failsafe so it doesn't crash before reaching Step 3 if DB resets
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
             count_row = cursor.fetchone()
             if count_row:
@@ -77,7 +79,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if not default_log_channel:
         try:
             default_log_channel = await client.fetch_channel(DEFAULT_LOG_CHANNEL_ID)
-        except:
+        except Exception as e:
+            print(f"Log Error: Fetch failed - {e}")
             pass
             
     if default_log_channel:
@@ -85,7 +88,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             sender_info = sender.mention if sender else "Anonymous / Session Reply"
             log_embed = discord.Embed(
                 title="Global Whisper System Log", 
-                description=f"**Target Asset:** {target_member.mention}\n**Action Executed:** {action.capitalize()}\n**Sender:** {sender_info}", 
+                description=f"**Target Asset:** {target_member.mention}\n**Action Executed:** {action.capitalize()}\n**Associated User:** {sender_info}", 
                 color=discord.Color.dark_gray(),
                 timestamp=datetime.now(timezone.utc)
             )
@@ -138,8 +141,13 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                     # ADDED: view=ReplyView() so the sender can reply back to the reply
                     await sender.send(embed=embed, view=ReplyView())
                     guild = interaction.client.get_guild(guild_id)
+                    # ADDED: Fetch guild fallback if not cached
+                    if not guild:
+                        try: guild = await interaction.client.fetch_guild(guild_id)
+                        except: pass
                     if guild:
-                        await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
+                        # FIXED: Passing sender=sender so the log gets the proper associated user
+                        await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to", sender=sender)
                     await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
                 else:
                     await interaction.response.send_message("❌ Could not find the sender.", ephemeral=True)
