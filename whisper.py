@@ -34,7 +34,6 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: More visually appealing and NSFW-themed embed
         embed = discord.Embed(
             title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
             description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
@@ -46,12 +45,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="📊 Total Whispers Received", value=str(total_count), inline=False)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        
-        # FIX: Removed sender's avatar from footer to maintain full anonymity
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Explicit ping to the receiver in the defined lobby channel + Reply button restricted to target
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed, view=ReplyView(target_id=target_member.id))
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -62,42 +58,29 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
             original_sender_id = session_data["sender_id"]
             guild_id = session_data["guild_id"]
             
-            # FIX: Fetch user globally using client since DMs have no guild
             sender = interaction.client.get_user(original_sender_id)
             if not sender:
-                try:
-                    sender = await interaction.client.fetch_user(original_sender_id)
-                except:
-                    pass
+                try: sender = await interaction.client.fetch_user(original_sender_id)
+                except: pass
                     
             if sender:
                 embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
-                
-                # FIX: Map the session back so the original sender can reply endlessly
                 whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                await sender.send(embed=embed, view=ReplyView())
                 
-                # FIX: Receiver gets the reply message
-                await sender.send(embed=embed)
-                
-                # Retrieve guild to maintain logs
                 guild = interaction.client.get_guild(guild_id)
                 if guild:
                     await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
                 await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ Session expired or not found.", ephemeral=True)
+            await interaction.response.send_message("❌ This is not your whisper to reply to.", ephemeral=True)
 
 class ReplyView(discord.ui.View):
-    def __init__(self, target_id=None):
+    def __init__(self):
         super().__init__(timeout=None)
-        self.target_id = target_id
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # FIX: Ensure only the recipient can use the reply button
-        if self.target_id and interaction.user.id != self.target_id:
-            await interaction.response.send_message("❌ This is not your whisper to reply to.", ephemeral=True)
-            return
         await interaction.response.send_modal(ReplyModal())
 
 class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
@@ -108,7 +91,6 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
-        # FIX: Pass interaction.client down to the logic handler
         await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
         await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
 
@@ -119,15 +101,11 @@ class UserSelectView(discord.ui.View):
     @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Search and select the receiver...")
     async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
         target = select.values[0]
-        # Ensure target is resolved as a Member object
         if not isinstance(target, discord.Member):
             target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
-        
         if target.bot:
             await interaction.response.send_message("❌ You cannot whisper to bots.", ephemeral=True)
             return
-
-        # Open the modal text box to type the message AFTER selecting the user
         await interaction.response.send_modal(WhisperMessageModal(target))
 
 class LobbyView(discord.ui.View):
@@ -136,24 +114,21 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Send Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_lobby_btn")
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Sends a private search bar to the user who clicked the button
         await interaction.response.send_message("Use the menu below to search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
-    # Persistence: Increment count
     with sqlite3.connect("database.db") as conn:
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
         conn.commit()
 
-    # FIX: Store a dictionary with guild_id so the DM reply logic knows which server to ping
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
     
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.set_footer(text="Your identity remains hidden to the sender.")
     
-    await target_member.send(embed=embed)
+    await target_member.send(embed=embed, view=ReplyView())
     await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
 
 class WhisperCog(commands.Cog):
@@ -163,14 +138,11 @@ class WhisperCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         global lobby_channel_id
-        # Persistence Recovery - Ensure this runs correctly on boot
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             row = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'").fetchone()
-            if row:
-                lobby_channel_id = row[0]
-        
-        self.bot.add_view(ReplyView(target_id=None))
+            if row: lobby_channel_id = row[0]
+        self.bot.add_view(ReplyView())
         self.bot.add_view(LobbyView())
 
     @commands.command()
