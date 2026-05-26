@@ -1,14 +1,14 @@
 import discord
 from discord.ext import commands
 
-# Maps {receiver_id: {"sender_id": id, "guild_id": id}}
+# Maps {receiver_id: sender_id}
 whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
 BOT_OWNER_ID = 0 # REPLACE WITH YOUR DISCORD USER ID
 
-async def log_whisper_activity(client, guild, target_member, action="received"):
+async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
     # 1. Forward to Owner DM if the server is registered
     if guild.id in whisper_log_destinations:
         owner = client.get_user(BOT_OWNER_ID)
@@ -26,9 +26,21 @@ async def log_whisper_activity(client, guild, target_member, action="received"):
     if lobby_channel:
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
-        embed = discord.Embed(title="Anonymous Whisper Activity", description=f"{target_member.mention} {action_text}.", color=color)
+        
+        # UPDATED: More visual appealing embed
+        embed = discord.Embed(
+            title="✨ Anonymous Whisper System", 
+            description=f"**Target:** {target_member.mention}\n**Status:** {action_text.capitalize()}.", 
+            color=color,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
-        # FIX: Added plain text content to explicitly ping the user
+        if sender:
+            embed.set_footer(text=f"Whisper initiated by an anonymous source", icon_url=sender.display_avatar.url)
+        else:
+            embed.set_footer(text="Whisper log updated")
+            
         await lobby_channel.send(content=f"🔔 {target_member.mention} Check your DMs!", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
@@ -121,7 +133,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     embed.set_footer(text="Your identity remains hidden to the sender.")
     
     await target_member.send(embed=embed, view=ReplyView())
-    await log_whisper_activity(client, guild, target_member, action="received")
+    await log_whisper_activity(client, guild, target_member, action="received", sender=sender)
 
 class WhisperCog(commands.Cog):
     def __init__(self, bot):
