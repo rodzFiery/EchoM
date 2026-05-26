@@ -44,8 +44,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         # FIX: Removed sender's avatar from footer to maintain full anonymity
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Explicit ping to the receiver in the defined lobby channel + Reply button
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed, view=ReplyView(target_id=target_member.id))
+        # FIX: Explicit ping to the receiver in the defined lobby channel
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -152,7 +152,7 @@ class WhisperCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         global lobby_channel_id
-        # Persistence Recovery
+        # Persistence Recovery - Ensure this runs correctly on boot
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             row = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'").fetchone()
