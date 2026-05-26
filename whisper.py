@@ -66,22 +66,33 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
-        session_data = whisper_sessions.get(interaction.user.id)
-        if session_data:
-            original_sender_id = session_data["sender_id"]
-            guild_id = session_data["guild_id"]
-            sender = interaction.client.get_user(original_sender_id) or await interaction.client.fetch_user(original_sender_id)
-            
-            if sender:
-                embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
-                whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
-                await sender.send(embed=embed)
-                guild = interaction.client.get_guild(guild_id)
-                if guild:
-                    await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
-                await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
-        else:
-            await interaction.response.send_message("❌ Session not found. You must be a whisper recipient to use this button.", ephemeral=True)
+        try:
+            session_data = whisper_sessions.get(interaction.user.id)
+            if session_data:
+                original_sender_id = session_data["sender_id"]
+                guild_id = session_data["guild_id"]
+                
+                try:
+                    sender = interaction.client.get_user(original_sender_id) or await interaction.client.fetch_user(original_sender_id)
+                except:
+                    sender = None
+                
+                if sender:
+                    embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
+                    whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                    await sender.send(embed=embed)
+                    guild = interaction.client.get_guild(guild_id)
+                    if guild:
+                        await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to")
+                    await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
+                else:
+                    await interaction.response.send_message("❌ Could not find the sender.", ephemeral=True)
+            else:
+                await interaction.response.send_message("❌ Session not found. You must be a whisper recipient to use this button.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Could not send the reply. The user has DMs closed or has blocked the bot.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
 
 class ReplyView(discord.ui.View):
     def __init__(self):
@@ -99,8 +110,13 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
-        await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
-        await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+        try:
+            await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
+            await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Could not send the whisper. The user has DMs closed or has blocked the bot.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
 
 class UserSelectView(discord.ui.View):
     def __init__(self):
