@@ -196,6 +196,11 @@ class EngineControl(commands.Cog):
         self.fiery_embed = fiery_embed
         self.save_game_config = save_game_config
         self.get_db_connection = get_db_connection
+        
+        # Ensure server stats table exists
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.commit()
 
     # ADDED: Command to set the Ignis Admin Role
     @commands.command()
@@ -217,6 +222,16 @@ class EngineControl(commands.Cog):
         main.game_edition = number
         self.save_game_config()
         await ctx.send(f"✅ Next game edition set to **#{number}**.")
+        
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def echoserverfix(self, ctx, number: int):
+        """Manually sets the next server-specific game edition number."""
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("INSERT OR REPLACE INTO ignis_server_stats (guild_id, server_edition) VALUES (?, ?)", (ctx.guild.id, number))
+            conn.commit()
+        await ctx.send(f"✅ Next server-specific game edition set to **#{number}**.")
 
     @commands.command()
     async def echostart(self, ctx):
@@ -236,12 +251,21 @@ class EngineControl(commands.Cog):
         # PERSISTENCE: Reset any leftover stale data for this guild
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            row = conn.execute("SELECT server_edition FROM ignis_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            if row:
+                server_edition = row[0]
+            else:
+                server_edition = 1
+                conn.execute("INSERT INTO ignis_server_stats (guild_id, server_edition) VALUES (?, ?)", (ctx.guild.id, server_edition))
+            
             conn.commit()
 
         # Removed image_path logic to stop sending files and thumbnails
         embed = discord.Embed(
             title=f"Echo's Hangrygames Edition # {main.game_edition}", 
-            description="The hellgates are about to open, little pets. Submit to the registration.", 
+            description=f"**Server Edition: #{server_edition}**\n\nThe hellgates are about to open, little pets. Submit to the registration.", 
             color=0xFF0000
         )
         
@@ -261,6 +285,10 @@ class EngineControl(commands.Cog):
         
         main.game_edition += 1
         self.save_game_config()
+        
+        with self.get_db_connection() as conn:
+            conn.execute("UPDATE ignis_server_stats SET server_edition = server_edition + 1 WHERE guild_id = ?", (ctx.guild.id,))
+            conn.commit()
 
     @commands.command()
     async def lobby(self, ctx):
@@ -327,7 +355,7 @@ class IgnisEngine(commands.Cog):
             "The winner owns your image for the next 90 minutes. Strip.",
             "You're nothing but a plaything. Give us a peek.",
             "Your silence was lovely, but your exposure is better.",
-            "Kneel and show the gallery what submission looks like.",
+            "Kneel and show the gallery what submission looks looks like.",
             "Every eye in the Red Room is on you. Don't disappoint.",
             "Freedom is a luxury, clothes are a privilege. You have neither.",
             "The exhibition is starting, and you are the star. Flash!",
