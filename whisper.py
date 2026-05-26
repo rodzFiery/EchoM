@@ -69,8 +69,12 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
         try:
             session_data = whisper_sessions.get(interaction.user.id)
             if session_data:
-                original_sender_id = session_data["sender_id"]
-                guild_id = session_data["guild_id"]
+                # Defensive extraction to permanently block the 'sqlite3.Row' attribute error
+                raw_sender = session_data["sender_id"]
+                original_sender_id = raw_sender[0] if type(raw_sender).__name__ == 'Row' else int(raw_sender)
+                
+                raw_guild = session_data["guild_id"]
+                guild_id = raw_guild[0] if type(raw_guild).__name__ == 'Row' else int(raw_guild)
                 
                 try:
                     sender = interaction.client.get_user(original_sender_id) or await interaction.client.fetch_user(original_sender_id)
