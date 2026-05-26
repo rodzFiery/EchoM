@@ -91,9 +91,9 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
 class ReplyView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=600) # Reduced timeout to prevent stale buttons
+        super().__init__(timeout=None) # Set to None for persistence
 
-    @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ReplyModal())
 
@@ -165,6 +165,7 @@ class WhisperCog(commands.Cog):
             row = cursor.fetchone()
             if row: lobby_channel_id = row[0]
         self.bot.add_view(LobbyView())
+        self.bot.add_view(ReplyView())
 
     @commands.command()
     @commands.has_permissions(administrator=True)
