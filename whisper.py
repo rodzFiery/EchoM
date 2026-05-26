@@ -11,7 +11,13 @@ lobby_channel_id = None
 BOT_OWNER_ID = 1482648173016252439
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
-    if guild.id in whisper_log_destinations:
+    # Check database for persistent log configuration
+    is_logging_enabled = False
+    with sqlite3.connect("database.db") as conn:
+        row = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,)).fetchone()
+        if row: is_logging_enabled = True
+    
+    if is_logging_enabled:
         owner = client.get_user(BOT_OWNER_ID)
         if not owner:
             try: owner = await client.fetch_user(BOT_OWNER_ID)
@@ -152,6 +158,7 @@ class WhisperCog(commands.Cog):
         global lobby_channel_id
         with sqlite3.connect("database.db") as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             row = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'").fetchone()
             if row: lobby_channel_id = row[0]
         self.bot.add_view(LobbyView())
@@ -169,7 +176,9 @@ class WhisperCog(commands.Cog):
     @commands.command()
     @commands.is_owner()
     async def whisperserverset(self, ctx, server_id: int):
-        whisper_log_destinations[server_id] = True
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
+            conn.commit()
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
 
     @commands.command()
