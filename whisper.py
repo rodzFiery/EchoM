@@ -82,11 +82,16 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
             await interaction.response.send_message("❌ Session expired or not found.", ephemeral=True)
 
 class ReplyView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, target_id=None):
         super().__init__(timeout=None)
+        self.target_id = target_id
 
-    @discord.ui.button(label="Reply", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
+    @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # FIX: Ensure only the recipient can use the reply button
+        if self.target_id and interaction.user.id != self.target_id:
+            await interaction.response.send_message("❌ This is not your whisper to reply to.", ephemeral=True)
+            return
         await interaction.response.send_modal(ReplyModal())
 
 class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
@@ -136,7 +141,8 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.set_footer(text="Your identity remains hidden to the sender.")
     
-    await target_member.send(embed=embed, view=ReplyView())
+    # FIX: Inject target_member.id into the ReplyView to enforce security
+    await target_member.send(embed=embed, view=ReplyView(target_id=target_member.id))
     await log_whisper_activity(client, guild, target_member, action="received", sender=None)
 
 class WhisperCog(commands.Cog):
