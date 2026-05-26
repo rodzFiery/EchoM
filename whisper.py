@@ -8,7 +8,7 @@ whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {} 
 lobby_channel_id = None
-BOT_OWNER_ID = 0 # REPLACE WITH YOUR DISCORD USER ID
+BOT_OWNER_ID = 1482648173016252439
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None):
     # 1. Forward to Owner DM if the server is registered
@@ -26,10 +26,16 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     # 2. Log to the Lobby Channel
     lobby_channel = guild.get_channel(lobby_channel_id)
     if lobby_channel:
+        # Persistence: Fetch total count
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
+            row = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,)).fetchone()
+            total_count = row[0] if row else 0
+
         color = discord.Color.blue() if action == "received" else discord.Color.green()
         action_text = "received a new whisper" if action == "received" else "replied to a whisper"
         
-        # UPDATED: More visually appealing and NSFW-themed embed
+        # UPDATED: More visually appealing and NSFW-themed embed with Count
         embed = discord.Embed(
             title="🔞 ANONYMOUS NEURAL WHISPER LOG 🔞", 
             description=f"**Target Asset:** {target_member.mention}\n**Current Status:** {action_text.capitalize()}\n**Intensity:** High-Heat Protocol", 
@@ -38,14 +44,15 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         )
         embed.add_field(name="🌐 System Protocol", value="Encrypted transmission active", inline=True)
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
+        embed.add_field(name="📊 Total Whispers Received", value=str(total_count), inline=False)
         embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
         embed.set_thumbnail(url=target_member.display_avatar.url)
         
         # FIX: Removed sender's avatar from footer to maintain full anonymity
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        # FIX: Explicit ping to the receiver in the defined lobby channel
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed)
+        # FIX: Explicit ping to the receiver in the defined lobby channel + Reply button
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper! Access DMs for the full session.", embed=embed, view=ReplyView(target_id=target_member.id))
 
 class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -134,6 +141,12 @@ class LobbyView(discord.ui.View):
         await interaction.response.send_message("Use the menu below to search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
+    # Persistence: Increment count
+    with sqlite3.connect("database.db") as conn:
+        conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
+        conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
+        conn.commit()
+
     # FIX: Store a dictionary with guild_id so the DM reply logic knows which server to ping
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
     
