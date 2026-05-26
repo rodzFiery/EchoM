@@ -122,6 +122,7 @@ class LobbyView(discord.ui.View):
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
     with sqlite3.connect("database.db") as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
         conn.commit()
