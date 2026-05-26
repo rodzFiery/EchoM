@@ -812,6 +812,15 @@ async def setup_hook():
     if whisper_cog:
         # Note: views are usually added in cog's on_ready, but we ensure consistency here
         pass
+        
+    # ADDED: Explicitly register the persistent views so the Reply button works after a deploy/restart!
+    try:
+        import whisper
+        bot.add_view(whisper.LobbyView())
+        bot.add_view(whisper.ReplyView())
+        print("✅ Persistent Whisper Views Loaded.")
+    except Exception as e:
+        print(f"❌ Could not load whisper views: {e}")
     
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
