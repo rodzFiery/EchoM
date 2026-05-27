@@ -350,9 +350,30 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="checkservers")
     @commands.is_owner()
     async def check_servers(self, ctx):
-        guild_list = [f"• {g.name} (ID: {g.id})" for g in self.bot.guilds]
-        embed = self.fiery_embed("🌐 BOT SERVER DIRECTORY", "\n".join(guild_list))
-        await ctx.send(embed=embed)
+        # Create a formatted list of servers
+        guild_list = []
+        for g in self.bot.guilds:
+            guild_list.append(f"**{g.name}**\n`ID: {g.id}` | `Members: {g.member_count}`")
+        
+        # Split the list into chunks of 10 to ensure the embed stays within Discord limits
+        chunks = [guild_list[i:i + 10] for i in range(0, len(guild_list), 10)]
+        
+        # Send the first page (or all if short)
+        if not chunks:
+            await ctx.send(embed=self.fiery_embed("🌐 BOT SERVER DIRECTORY", "No servers found."))
+            return
+
+        for index, chunk in enumerate(chunks):
+            embed = self.fiery_embed(
+                f"🌐 BOT SERVER DIRECTORY (Page {index + 1}/{len(chunks)})", 
+                "Below is the current list of servers where the bot is active."
+            )
+            
+            # Organize servers into fields for a professional layout
+            for entry in chunk:
+                embed.add_field(name="\u200b", value=entry, inline=False)
+            
+            await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
     @commands.is_owner()
