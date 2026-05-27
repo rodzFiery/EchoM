@@ -350,29 +350,51 @@ class PremiumSystem(commands.Cog):
     @commands.command(name="checkservers")
     @commands.is_owner()
     async def check_servers(self, ctx):
-        # Create a formatted list of servers
+        # Adding database connection to check premium status per server
+        with self.get_db_connection() as conn:
+            premium_data = {row['guild_id']: row['premium_type'] for row in conn.execute("SELECT guild_id, premium_type FROM server_premium").fetchall()}
+        
+        total_users = sum([g.member_count for g in self.bot.guilds if hasattr(g, 'member_count') and g.member_count])
+        server_count = len(self.bot.guilds)
+        
+        desc = f"### ❖ O.R.I.O.N. NETWORK INTERFACE v2030 ❖\n"
+        desc += f"**SYSTEM UPLINK ESTABLISHED**\n"
+        desc += f"➤ **CONNECTED NODES:** `{server_count}`\n"
+        desc += f"➤ **TOTAL USER ENTITIES:** `{total_users:,}`\n"
+        desc += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        
         guild_list = []
         for g in self.bot.guilds:
-            guild_list.append(f"**{g.name}**\n`ID: {g.id}` | `Members: {g.member_count}`")
-        
-        # Split the list into chunks of 10 to ensure the embed stays within Discord limits
-        chunks = [guild_list[i:i + 10] for i in range(0, len(guild_list), 10)]
-        
-        # Send the first page (or all if short)
-        if not chunks:
-            await ctx.send(embed=self.fiery_embed("🌐 BOT SERVER DIRECTORY", "No servers found."))
-            return
-
-        for index, chunk in enumerate(chunks):
-            embed = self.fiery_embed(
-                f"🌐 BOT SERVER DIRECTORY (Page {index + 1}/{len(chunks)})", 
-                "Below is the current list of servers where the bot is active."
+            p_type = premium_data.get(g.id, "Standard Access")
+            icon = "💎" if "Premium" in p_type or "Trial" in p_type else "📡"
+            mem_count = g.member_count if hasattr(g, 'member_count') else "N/A"
+            
+            entry = (
+                f"{icon} **{g.name.upper()}**\n"
+                f"└─ 🆔 `ID: {g.id}`\n"
+                f"└─ 👥 `Population: {mem_count}`\n"
+                f"└─ 🔐 `Clearance: {p_type}`\n"
             )
-            
-            # Organize servers into fields for a professional layout
-            for entry in chunk:
-                embed.add_field(name="\u200b", value=entry, inline=False)
-            
+            guild_list.append(entry)
+        
+        # Chunking logic to avoid 4096 char limit
+        chunks = []
+        current_chunk = desc
+        for entry in guild_list:
+            if len(current_chunk) + len(entry) + 5 > 4000:
+                chunks.append(current_chunk)
+                current_chunk = entry + "\n"
+            else:
+                current_chunk += entry + "\n"
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        for i, chunk in enumerate(chunks):
+            title = "🌐 GLOBAL SERVER DIRECTORY" if i == 0 else "🌐 GLOBAL SERVER DIRECTORY (CONT.)"
+            embed = self.fiery_embed(title, chunk)
+            embed.color = 0x00FFCC # Cyan / Futuristic
+            embed.set_footer(text=f"PAGE {i+1}/{len(chunks)} • YEAR 2030 SECURE PROTOCOL")
             await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
