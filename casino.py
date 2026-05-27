@@ -265,7 +265,7 @@ class FieryCasino(commands.Cog):
             # Math: Net gain is win_total - bet (since the bet was still in the wallet)
             await main_mod.update_user_stats_async(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
-            res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** You win **{win_total:,} Flames**."
+            res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** Net Profit: **{(win_total-bet):,} Flames**."
         else:
             # Math: Loss is negative bet
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Dice Loss")
@@ -356,8 +356,12 @@ class FieryCasino(commands.Cog):
 
         p_visual = " ".join([get_visual_card(c) for c in p_hand])
         d_visual = " ".join([get_visual_card(c) for c in d_hand])
+        
+        # Display logic fix: Reflect actual net gain visually to match wallet calculations.
+        net_amt_display = win_amt - bet if win_amt > 0 else win_amt 
+        
         res_desc = (f"## {status}\n\n**🫦 FINAL:**\n{p_visual} (`{p_score}`)\n\n**⛓️ DEALER:**\n{d_visual} (`{d_score}`)\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━\n💳 **RESULT:** `{'+' if win_amt >= 0 else ''}{win_amt:,}` Flames")
+                    f"━━━━━━━━━━━━━━━━━━━━━━━\n💳 **RESULT:** `{'+' if net_amt_display >= 0 else ''}{net_amt_display:,}` Flames (Net)")
         embed = main_mod.fiery_embed("DUEL CONCLUDED", res_desc, color=color)
         
         if interaction.response.is_done():
@@ -397,7 +401,7 @@ class FieryCasino(commands.Cog):
             win_amt = int((bet * payout_mult) * mult)
             await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
-            res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Payout of **{win_amt:,} Flames**!"
+            res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Net Payout of **{(win_amt-bet):,} Flames**!"
         else:
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Roulette Loss")
             title, color_hex = "💀 THE WHEEL REJECTS 💀", 0x8B0000
@@ -454,7 +458,7 @@ class FieryCasino(commands.Cog):
         if win_amt > 0:
             await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Slots Win")
             title, color = "🔞 TOTAL ALIGNMENT 🔞", 0xFFD700
-            res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n🫦 **CLIMAX.** The machine shudders and releases **{win_amt:,} Flames**!"
+            res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n🫦 **CLIMAX.** The machine shudders and releases **{(win_amt-bet):,} Flames** (Net Profit)!"
         else:
             await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Slots Loss")
             title, color = "💀 MACHINE COLD 💀", 0x8B0000
