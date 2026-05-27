@@ -46,6 +46,12 @@ class LobbyView(discord.ui.View):
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
         
+        # --- ADDED: Dynamic Custom ID Fix to prevent cross-server expiration ---
+        if self.guild_id:
+            for child in self.children:
+                if hasattr(child, "custom_id") and child.custom_id:
+                    child.custom_id = f"{child.custom_id}_{self.guild_id}"
+
         # --- ADDED: Persistence Rehydration ---
         # When the view is recreated after a restart, try to fetch current participants from DB
         if self.guild_id:
@@ -131,7 +137,12 @@ class LobbyView(discord.ui.View):
                 row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
                 if row: ignis_admin_role_id = row[0]
 
+        # --- ADDED: Fallback permission checks for guaranteed clearance ---
+        user_perms = getattr(interaction.channel.permissions_for(interaction.user), 'manage_messages', False)
+        is_admin = getattr(interaction.channel.permissions_for(interaction.user), 'administrator', False)
+
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] or role.id == ignis_admin_role_id for role in getattr(interaction.user, 'roles', []))
+        is_staff = is_staff or user_perms or is_admin
         
         # Checking if owner exists (owner is passed as ctx.author in echostart)
         # FIXED: Added safe check for template views (where owner is None)
