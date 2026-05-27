@@ -6,7 +6,7 @@ import aiohttp
 import sys
 import json
 import os
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageFont
 from datetime import datetime, timezone
 import asyncio # ADDED: Required for to_thread logic
 
@@ -266,30 +266,52 @@ class FieryShip(commands.Cog):
                 canvas.paste(av1_framed, (20, 150), av1_framed)
                 canvas.paste(av2_framed, (canvas_width - av_size - 100, 150), av2_framed)
 
-                if percent == 100:
-                    badge_w, badge_h = 460, 100
-                    badge_x = (canvas_width // 2) - (badge_w // 2)
-                    badge_y = 10
-                    draw.rectangle([badge_x-5, badge_y-5, badge_x+badge_w+5, badge_y+badge_h+5], fill=(255, 105, 180, 80))
-                    draw.rectangle([badge_x, badge_y, badge_x + badge_w, badge_y + badge_h], fill=(20, 0, 5, 230), outline=(255, 182, 193), width=4)
-                    draw.text((badge_x + 65, badge_y + 25), "⛓️ SOUL BOND ⛓️", fill=(255, 182, 193))
-
-                pillar_w, pillar_h = 100, 480
+                # --- REDESIGNED CENTRAL PILLAR (BASED ON REFERENCE IMAGES) ---
+                pillar_w = 220
+                pillar_h = canvas_height
                 pillar_x = (canvas_width // 2) - (pillar_w // 2)
-                pillar_y = 120
-                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 25, 240), outline=(255, 182, 193), width=4)
+                pillar_y = 0
+
+                # Background of the pillar
+                draw.rectangle([pillar_x, pillar_y, pillar_x + pillar_w, pillar_y + pillar_h], fill=(20, 5, 20, 150))
+
                 fill_pixels = int((percent / 100) * pillar_h)
                 if fill_pixels > 0:
-                    for i in range(fill_pixels):
-                        ratio = i / pillar_h
-                        r = int(255) 
-                        g = int(20 + (162 * ratio))   
-                        b = int(147 + (46 * ratio)) 
-                        current_y = (pillar_y + pillar_h) - i
-                        draw.line([pillar_x + 5, current_y, pillar_x + pillar_w - 5, current_y], fill=(r, g, b, 255), width=1)
-                    draw.rectangle([pillar_x + 2, (pillar_y + pillar_h) - fill_pixels - 2, pillar_x + pillar_w - 2, (pillar_y + pillar_h) - fill_pixels + 2], fill=(255, 245, 250))
+                    fill_y_start = canvas_height - fill_pixels
+                    # Solid vibrant pink fill like the reference image
+                    draw.rectangle([pillar_x, fill_y_start, pillar_x + pillar_w, canvas_height], fill=(233, 30, 99, 255))
+                    # Bright top edge for the fill
+                    draw.line([pillar_x, fill_y_start, pillar_x + pillar_w, fill_y_start], fill=(255, 255, 255, 200), width=4)
+
+                # Giant percentage text
+                try:
+                    font_large = ImageFont.truetype("arialbd.ttf", 110)
+                except:
+                    try:
+                        font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 110)
+                    except:
+                        font_large = ImageFont.load_default()
+
                 percent_text = f"{percent}%"
-                draw.text((pillar_x - 30, 20), percent_text, fill=(255, 182, 193), stroke_width=6, stroke_fill=(0,0,0))
+                
+                try:
+                    text_bbox = draw.textbbox((0, 0), percent_text, font=font_large)
+                    tw = text_bbox[2] - text_bbox[0]
+                    th = text_bbox[3] - text_bbox[1]
+                except AttributeError:
+                    tw, th = draw.textsize(percent_text, font=font_large)
+
+                text_x = (canvas_width // 2) - (tw // 2)
+                
+                if percent >= 100:
+                    text_y = 60  # Near top like Image 2
+                else:
+                    text_y = (canvas_height // 2) - (th // 2)  # Centered like Image 1
+
+                # Draw strong white text with dark stroke/shadow
+                draw.text((text_x + 5, text_y + 5), percent_text, font=font_large, fill=(0, 0, 0, 200))
+                draw.text((text_x, text_y), percent_text, font=font_large, fill=(255, 255, 255, 255), stroke_width=4, stroke_fill=(0, 0, 0))
+
                 buf = io.BytesIO()
                 canvas.save(buf, format="PNG")
                 buf.seek(0)
@@ -871,7 +893,7 @@ class FieryShip(commands.Cog):
             with main_mod.get_db_connection() as conn:
                 # UPDATED: If checking history via Button, target specific pair. Else show all.
                 if user and user.id != ctx.author.id:
-                   return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? AND partner_id = ? ORDER BY timestamp DESC LIMIT 5", (ctx.author.id, user.id)).fetchall()
+                    return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? AND partner_id = ? ORDER BY timestamp DESC LIMIT 5", (ctx.author.id, user.id)).fetchall()
                 return conn.execute("SELECT partner_id, percent, timestamp FROM ship_history WHERE user_id = ? ORDER BY timestamp DESC LIMIT 5", (target.id,)).fetchall()
         
         history = await asyncio.to_thread(fetch_history)
