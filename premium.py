@@ -19,7 +19,7 @@ PREMIUM_PLANS = {
     "Server Premium": {"cost": 15.0, "perks": "Full Server-Wide Unlock (30 Days)", "color": 0xFFD700, "duration": 30},
     "Server Premium (3 Months)": {"cost": 40.0, "perks": "Full Server-Wide Unlock (90 Days) - 💥 SAVE $5", "color": 0xFFD700, "duration": 90},
     "Server Premium (6 Months)": {"cost": 70.0, "perks": "Full Server-Wide Unlock (180 Days) - 🔥 SAVE $20", "color": 0xFFD700, "duration": 180},
-    "Server Premium (1 Year)": {"cost": 120.0, "perks": "Full Server-Wide Unlock (365 Days) - 🌟 BEST VALUE (SAVE $60)", "color": 0xFFD700, "duration": 365}
+    "Server Premium (1 Year)": {"cost": 128.0, "perks": "Full Server-Wide Unlock (365 Days) - 🌟 BEST VALUE (SAVE $52)", "color": 0xFFD700, "duration": 365}
 }
 
 class PremiumShopView(discord.ui.View):
