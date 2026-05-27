@@ -14,9 +14,12 @@ PAYPAL_EMAIL = os.getenv("PAYPAL_EMAIL")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 CURRENCY = "USD"
 
-# --- RECONFIGURED ELITE PLANS (SINGLE PACK) ---
+# --- RECONFIGURED ELITE PLANS (MULTI-PACK MARKETING TIERS) ---
 PREMIUM_PLANS = {
-    "Server Premium": {"cost": 15.0, "perks": "Full Server-Wide Unlock", "color": 0xFFD700}
+    "Server Premium": {"cost": 15.0, "perks": "Full Server-Wide Unlock (30 Days)", "color": 0xFFD700, "duration": 30},
+    "Server Premium (3 Months)": {"cost": 40.0, "perks": "Full Server-Wide Unlock (90 Days) - 💥 SAVE $5", "color": 0xFFD700, "duration": 90},
+    "Server Premium (6 Months)": {"cost": 70.0, "perks": "Full Server-Wide Unlock (180 Days) - 🔥 SAVE $20", "color": 0xFFD700, "duration": 180},
+    "Server Premium (1 Year)": {"cost": 120.0, "perks": "Full Server-Wide Unlock (365 Days) - 🌟 BEST VALUE (SAVE $60)", "color": 0xFFD700, "duration": 365}
 }
 
 class PremiumShopView(discord.ui.View):
@@ -30,14 +33,28 @@ class PremiumShopView(discord.ui.View):
 
     def update_buttons(self):
         self.clear_items()
-        key = "Server Premium"
-        button = discord.ui.Button(
-            label=f"BUY {key}", 
-            style=discord.ButtonStyle.success,
-            custom_id=f"buy_{key}"
-        )
-        button.callback = self.make_callback(key)
-        self.add_item(button)
+        for key in PREMIUM_PLANS.keys():
+            # Format button labels for better UI
+            if "3 Months" in key:
+                btn_label = "BUY 3 MONTHS"
+                btn_style = discord.ButtonStyle.success
+            elif "6 Months" in key:
+                btn_label = "BUY 6 MONTHS"
+                btn_style = discord.ButtonStyle.success
+            elif "1 Year" in key:
+                btn_label = "BUY 1 YEAR"
+                btn_style = discord.ButtonStyle.primary # Highlight the best value
+            else:
+                btn_label = "BUY 1 MONTH"
+                btn_style = discord.ButtonStyle.secondary
+
+            button = discord.ui.Button(
+                label=btn_label, 
+                style=btn_style,
+                custom_id=f"buy_{key.replace(' ', '_').replace('(', '').replace(')', '')}"
+            )
+            button.callback = self.make_callback(key)
+            self.add_item(button)
 
     def make_callback(self, plan_name):
         async def callback(interaction: discord.Interaction):
@@ -45,13 +62,13 @@ class PremiumShopView(discord.ui.View):
         return callback
 
     def create_embed(self):
-        key = "Server Premium"
-        plan = PREMIUM_PLANS[key]
         desc = "### 🛡️ ELITE SERVER UNLOCK 🛡️\n"
-        desc += "*Unlock full premium privileges for your entire server for 30 days.*\n\n"
-        desc += f"➤ **PLAN:** {key}\n"
-        desc += f"➤ **PRICE:** ${plan['cost']:,.2f} USD / Month\n"
-        desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n"
+        desc += "*Unlock full premium privileges for your entire server. Choose your term below:*\n\n"
+        
+        for key, plan in PREMIUM_PLANS.items():
+            desc += f"➤ **PLAN:** {key}\n"
+            desc += f"➤ **PRICE:** ${plan['cost']:,.2f} USD\n"
+            desc += f"✨ **PRIVILEGES:** `{plan['perks']}`\n\n"
         
         embed = self.fiery_embed("PREMIUM GATEWAY", desc)
         embed.set_author(name="THE MASTER'S EXECUTIVE BOUTIQUE", icon_url=self.ctx.author.display_avatar.url)
@@ -77,7 +94,8 @@ class PremiumShopView(discord.ui.View):
 
     async def process_purchase(self, interaction, plan_name):
         plan = PREMIUM_PLANS[plan_name]
-        custom_data = f"G{interaction.guild.id}|{plan_name}|30"
+        duration = plan.get("duration", 30)
+        custom_data = f"G{interaction.guild.id}|{plan_name}|{duration}"
         query = {
             "business": PAYPAL_EMAIL,
             "cmd": "_xclick",
@@ -96,7 +114,7 @@ class PremiumShopView(discord.ui.View):
                                 f"💎 **Plan:** `{plan_name}`\n"
                                 f"💵 **Total:** `${plan['cost']} USD`\n\n"
                                 f"✅ [CLICK HERE TO FINALIZE ON PAYPAL]({paypal_url})\n\n"
-                                f"⏳ *The system will unlock 30 days of premium for this server upon payment.*")
+                                f"⏳ *The system will unlock {duration} days of premium for this server upon payment.*")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
         await self.send_audit_report(interaction, plan_name, plan['cost'])
