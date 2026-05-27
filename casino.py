@@ -221,6 +221,21 @@ class FieryCasino(commands.Cog):
             return await main_mod.get_user(user_id)
         return main_mod.get_user(user_id)
 
+    # --- NEW: DIRECT DB TUNNEL FOR CASINO MATH ---
+    # This specifically bypasses `update_user_stats_async` to prevent 
+    # the backend from mutating the balance with Class Boosts and Event Multipliers.
+    async def update_casino_balance(self, user_id, amount, source):
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            conn.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
+            conn.commit()
+            
+        try:
+            if hasattr(main_mod, 'send_audit_log'):
+                await main_mod.send_audit_log(user_id, amount, source)
+        except Exception:
+            pass
+
     def draw_card(self):
         return random.randint(2, 11)
 
@@ -263,12 +278,12 @@ class FieryCasino(commands.Cog):
         if total == guess:
             win_total = int((bet * 8) * mult)
             # Math: Net gain is win_total - bet (since the bet was still in the wallet)
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win_total-bet, source="Dice Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
             res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** Net Profit: **{(win_total-bet):,} Flames**."
         else:
             # Math: Loss is negative bet
-            await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Dice Loss")
+            await self.update_casino_balance(interaction.user.id, amount=-bet, source="Dice Loss")
             title, color = "💀 CRIPPLING LOSS 💀", 0x8B0000
             res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n⛓️ **SUBMISSION.** You lose **{bet:,} Flames**."
         embed = main_mod.fiery_embed(title, res, color=color)
@@ -350,9 +365,9 @@ class FieryCasino(commands.Cog):
         # Update stats based on net gain/loss
         # If win_amt > 0, we subtract the original bet to get the net added profit
         if win_amt > 0:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="BJ Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="BJ Win")
         elif win_amt < 0:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt, source="BJ Loss")
+            await self.update_casino_balance(interaction.user.id, amount=win_amt, source="BJ Loss")
 
         p_visual = " ".join([get_visual_card(c) for c in p_hand])
         d_visual = " ".join([get_visual_card(c) for c in d_hand])
@@ -399,11 +414,11 @@ class FieryCasino(commands.Cog):
         if choice == color or (choice.isdigit() and int(choice) == num):
             payout_mult = 35 if choice.isdigit() else 2
             win_amt = int((bet * payout_mult) * mult)
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Net Payout of **{(win_amt-bet):,} Flames**!"
         else:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Roulette Loss")
+            await self.update_casino_balance(interaction.user.id, amount=-bet, source="Roulette Loss")
             title, color_hex = "💀 THE WHEEL REJECTS 💀", 0x8B0000
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n⛓️ **SUBMISSION.** Your tribute is consumed."
         embed = main_mod.fiery_embed(title, res, color=color_hex)
@@ -456,11 +471,11 @@ class FieryCasino(commands.Cog):
             win_amt = int((bet * 3) * mult)
 
         if win_amt > 0:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=win_amt-bet, source="Slots Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Slots Win")
             title, color = "🔞 TOTAL ALIGNMENT 🔞", 0xFFD700
             res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n🫦 **CLIMAX.** The machine shudders and releases **{(win_amt-bet):,} Flames** (Net Profit)!"
         else:
-            await main_mod.update_user_stats_async(interaction.user.id, amount=-bet, source="Slots Loss")
+            await self.update_casino_balance(interaction.user.id, amount=-bet, source="Slots Loss")
             title, color = "💀 MACHINE COLD 💀", 0x8B0000
             res = f"### 🎰 [ {r1} | {r2} | {r3} ]\n\n⛓️ **SUBMISSION.** No alignment found. Your tribute is consumed."
 
