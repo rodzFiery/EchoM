@@ -37,8 +37,6 @@ class WinnerDetailsView(discord.ui.View):
 
 class LobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
-        # FIX: Added a static custom_id to the View itself via the super() or just ensuring timeout is None
-        # To make it truly persistent, the buttons inside MUST have fixed custom_ids (which they do).
         super().__init__(timeout=None)
         self.owner = owner
         self.edition = edition
@@ -46,13 +44,21 @@ class LobbyView(discord.ui.View):
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
         
-        # --- ADDED: Dynamic Custom ID Fix to prevent cross-server expiration ---
-        if self.guild_id:
-            for child in self.children:
-                if hasattr(child, "custom_id") and child.custom_id:
-                    child.custom_id = f"{child.custom_id}_{self.guild_id}"
+        # --- DYNAMIC CUSTOM ID FIX ---
+        # Explicitly defining the buttons here rather than using decorators forces discord.py 
+        # to register the unique guild IDs natively, completely preventing the "Interaction Failed" cross-server mapping bugs.
+        join_id = f"fiery_join_{self.guild_id}" if self.guild_id else "fiery_join_button"
+        start_id = f"fiery_start_{self.guild_id}" if self.guild_id else "fiery_start_button"
 
-        # --- ADDED: Persistence Rehydration ---
+        join_btn = discord.ui.Button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id=join_id)
+        join_btn.callback = self.join_button_callback
+        self.add_item(join_btn)
+
+        start_btn = discord.ui.Button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id=start_id)
+        start_btn.callback = self.start_button_callback
+        self.add_item(start_btn)
+
+        # --- Persistence Rehydration ---
         # When the view is recreated after a restart, try to fetch current participants from DB
         if self.guild_id:
             try:
@@ -66,12 +72,14 @@ class LobbyView(discord.ui.View):
             except Exception as e:
                 print(f"Rehydration Error: {e}")
 
-    # ADDED: custom_id to make the interaction persistent and stop "Interaction Failed"
-    @discord.ui.button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
-    async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    # Replaced the decorator with an explicit callback method
+    async def join_button_callback(self, interaction: discord.Interaction):
+        # Immediate defer prevents "Interaction Failed" timeouts during database lookup
+        await interaction.response.defer(ephemeral=True)
+
         # NEW: Gate Closure Check
         if not self.active:
-            return await interaction.response.send_message("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
+            return await interaction.followup.send("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
 
         engine = interaction.client.get_cog("IgnisEngine")
         if not engine: return
@@ -81,7 +89,7 @@ class LobbyView(discord.ui.View):
             conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
             check = conn.execute("SELECT 1 FROM lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
             if check:
-                return await interaction.response.send_message("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
+                return await interaction.followup.send("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
             
             conn.execute("INSERT INTO lobby_participants (guild_id, user_id) VALUES (?, ?)", (interaction.guild.id, interaction.user.id))
             conn.commit()
@@ -97,26 +105,19 @@ class LobbyView(discord.ui.View):
             # Fixed: Ensuring the field name reflects the list length correctly
             embed.set_field_at(0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
             
-            # UPDATED: Edit the message to show the updated count AND send a private confirmation message
-            await interaction.response.edit_message(embed=embed, view=self)
+            # UPDATED: Because we deferred, we must use interaction.message.edit
+            await interaction.message.edit(embed=embed, view=self)
             await interaction.followup.send("🔞 **The chains lock in place.** You have successfully entered the Red Room.", ephemeral=True)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
-            # Fallback if the original message cannot be edited
-            if not interaction.response.is_done():
-                await interaction.response.send_message("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
-            else:
-                await interaction.followup.send("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+            await interaction.followup.send("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
 
-    # ADDED: custom_id to make the interaction persistent
-    @discord.ui.button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
-    async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    # Replaced the decorator with an explicit callback method
+    async def start_button_callback(self, interaction: discord.Interaction):
         # FIX: Immediate defer to prevent "Interaction Failed"
         await interaction.response.defer(ephemeral=True)
 
         # UPDATED: Allows the owner OR anyone with Staff/Admin/Moderator roles to start
-        # Use getattr to safely check for roles attribute
-        
         # ADDED: Check for specific Ignis Admin Role
         # FIX: Re-trying multiple ways to find the cog if the first fails
         engine = interaction.client.get_cog("IgnisEngine")
@@ -149,7 +150,7 @@ class LobbyView(discord.ui.View):
         owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
-            return await interaction.followup.send("Only the Masters or Staff start the games!", ephemeral=True)
+            return await interaction.followup.send("🔒 **Neuro lock: you do not have the required clearence level.**", ephemeral=True)
         
         # PERSISTENCE: Reload participants from DB before starting to catch post-restart joins
         with engine.get_db_connection() as conn:
