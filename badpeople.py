@@ -1,6 +1,34 @@
 import discord
 from discord.ext import commands
 import random
+import os
+
+# Added: Persistent view for the Lobby that never times out
+class BadPeopleLobby(discord.ui.View):
+    def __init__(self, prompts, color_sassy):
+        super().__init__(timeout=None) # timeout=None prevents the view from expiring
+        self.prompts = prompts
+        self.color_sassy = color_sassy
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, custom_id="bp_persistent_next", emoji="⏭️")
+    async def next_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
+        prompt = random.choice(self.prompts)
+        
+        embed = discord.Embed(
+            title="😈 Bad People Protocol Activated",
+            description=f"**{prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
+            color=self.color_sassy
+        )
+        
+        embed.set_footer(text=f"Requested by {interaction.user.display_name} • Let the drama begin.", icon_url=interaction.user.display_avatar.url)
+        
+        # Preserves the thumbnail from the original message if it exists
+        if interaction.message.embeds and interaction.message.embeds[0].thumbnail:
+            embed.set_thumbnail(url=interaction.message.embeds[0].thumbnail.url)
+            
+        # edit_message acknowledges the interaction instantly, preventing "This interaction failed"
+        await interaction.response.edit_message(embed=embed)
+
 
 class BadPeople(commands.Cog):
     def __init__(self, bot):
@@ -209,8 +237,9 @@ class BadPeople(commands.Cog):
             "Who is most likely to have an incredibly wild bucket list that they will never actually show anyone?"
         ]
 
+    # Added: channel argument (discord.TextChannel = None) so !badpeople #channel triggers the lobby branch
     @commands.command(aliases=['who', 'bp', 'badpeople'])
-    async def whois(self, ctx):
+    async def whois(self, ctx, channel: discord.TextChannel = None):
         """The ultimate NSFW 'Who is most likely to...' game."""
         prompt = random.choice(self.prompts)
         
@@ -225,12 +254,53 @@ class BadPeople(commands.Cog):
         
         # Adding the lobby image if it exists, matching your main bot aesthetic
         import os
-        if os.path.exists("LobbyTopRight.jpg"):
-            embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            await ctx.send(file=file, embed=embed)
+        
+        # Added: Branching logic for when a channel is targeted
+        if channel:
+            view = BadPeopleLobby(self.prompts, self.color_sassy)
+            if os.path.exists("LobbyTopRight.jpg"):
+                embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
+                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+                await channel.send(file=file, embed=embed, view=view)
+            else:
+                await channel.send(embed=embed, view=view)
+            
+            await ctx.send(f"✅ Bad People lobby opened in {channel.mention}")
         else:
-            await ctx.send(embed=embed)
+            if os.path.exists("LobbyTopRight.jpg"):
+                embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
+                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+                await ctx.send(file=file, embed=embed)
+            else:
+                await ctx.send(embed=embed)
+
+    @commands.command(aliases=['bphelp', 'bplist', 'bpc'])
+    async def bp_commands(self, ctx):
+        """Displays a list of commands available in the Bad People module."""
+        embed = discord.Embed(
+            title="😈 Bad People - Commands List",
+            description="Here are the commands you can use in this module:",
+            color=self.color_sassy
+        )
+        
+        embed.add_field(
+            name="`!whois` (Aliases: `!who`, `!bp`, `!badpeople`)", 
+            value="The ultimate NSFW 'Who is most likely to...' game. Generates a random spicy prompt.", 
+            inline=False
+        )
+        embed.add_field(
+            name="`!whois #channel` (Or: `!badpeople #channel`)", 
+            value="Opens a continuous interactive lobby in the tagged channel with a 'Next' button.", 
+            inline=False
+        )
+        embed.add_field(
+            name="`!bp_commands` (Aliases: `!bphelp`, `!bplist`, `!bpc`)", 
+            value="Displays this list of commands.", 
+            inline=False
+        )
+        
+        embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(BadPeople(bot))
