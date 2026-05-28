@@ -53,6 +53,12 @@ STREAK_ALERTS_CHANNEL_ID = 1438810509322223677 # Red Room Channel for Pings
 # DATABASE PATH handled by db_module for persistence
 DATABASE_PATH = db_module.DATABASE_PATH
 
+# --- ADDED: RAILWAY PERSISTENT VOLUME INJECTION ---
+if os.path.exists("/data"):
+    db_module.DATABASE_PATH = "/data/database.db"
+    DATABASE_PATH = db_module.DATABASE_PATH
+# --------------------------------------------------
+
 intents = discord.Intents.all()
 # Explicitly forcing Message Content intent in code for Railway stability
 intents.message_content = True 
