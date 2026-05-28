@@ -8,6 +8,8 @@ class InviteTracker(commands.Cog):
         self.bot = bot
         # This will cache all invites for all servers: {guild_id: {invite_code: uses}}
         self.invites = {}
+        # --- 2030 UPGRADE: Cross-session memory to track who invited a user when they leave ---
+        self.invited_by = {}
 
     async def get_log_channel(self, guild_id):
         """Fetches the designated invite log channel from your existing database."""
@@ -31,6 +33,8 @@ class InviteTracker(commands.Cog):
         
         try:
             embed = main_mod.fiery_embed("Log Channel Updated", f"✅ Invite logs will now be sent to {channel.mention}", color=0x00FF00)
+            # --- 2030 UPGRADE: Dynamic Footers for Admin Logs ---
+            embed.set_footer(text=f"Configuration locked by {ctx.author.name} • Master Protocol Active")
             await ctx.send(embed=embed)
         except Exception:
             await ctx.send(f"✅ Invite logs will now be sent to {channel.mention}")
@@ -107,22 +111,80 @@ class InviteTracker(commands.Cog):
         else:
             age_str = f"{days} days"
 
+        # --- 2030 UPGRADE: Enhanced Security & Timestamp Calculations ---
+        created_ts = int(created.timestamp())
+        member_count = len(guild.members)
+        is_bot = "🤖 Bot Account" if member.bot else "👤 Human User"
+        
+        security_flag = ""
+        if days < 3:
+            security_flag = "\n🚨 **SECURITY ALERT:** Ultra-new account detected. Monitor closely."
+
         # Build the Embed
         embed = discord.Embed(color=0x2b2d31)
         embed.set_author(name="Member Joined", icon_url=member.display_avatar.url)
         embed.description = f"{member.mention} {member.name}\n\n**Account Age**\n{age_str}\n\n**ID:** {member.id}"
         embed.set_thumbnail(url=member.display_avatar.url)
 
+        # --- 2030 UPGRADE: Appending Next-Gen Data payload ---
+        embed.description += f"\n\n**Creation Date:** <t:{created_ts}:F> (<t:{created_ts}:R>)"
+        embed.description += f"\n**Join Sequence:** Member #{member_count:,}"
+        embed.description += f"\n**Classification:** {is_bot}"
+        embed.description += security_flag
+        embed.timestamp = now
+
         if inviter:
             footer_text = f"{member.name} just joined. They were invited by {inviter.name} who now has {total_invites} invites!"
+            # --- 2030 UPGRADE: Save to memory for departure tracking ---
+            if guild.id not in self.invited_by:
+                self.invited_by[guild.id] = {}
+            self.invited_by[guild.id][member.id] = inviter.name
         else:
             footer_text = f"{member.name} just joined. I couldn't track the invite (Vanity URL or temporary code)."
             
         embed.set_footer(text=footer_text)
+
+        # --- 2030 UPGRADE: Appending Inviter Avatar to Footer if possible ---
+        if inviter:
+            embed.set_footer(text=footer_text, icon_url=inviter.display_avatar.url)
+
+        await log_channel.send(embed=embed)
+
+    # --- 2030 UPGRADE: Departure Tracker (New Protocol) ---
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        """2030 UPGRADE: Tracks when members leave and exposes their inviter."""
+        guild = member.guild
+        log_channel = await self.get_log_channel(guild.id)
+        
+        if not log_channel:
+            return
+
+        now = datetime.now(timezone.utc)
+        leave_ts = int(now.timestamp())
+        
+        stay_duration = "Unknown"
+        if member.joined_at:
+            stay_diff = now - member.joined_at
+            stay_duration = f"{stay_diff.days} days, {stay_diff.seconds // 3600} hours"
+            
+        inviter_name = "Unknown / Vanity"
+        if guild.id in self.invited_by and member.id in self.invited_by[guild.id]:
+            inviter_name = self.invited_by[guild.id][member.id]
+            del self.invited_by[guild.id][member.id] # Clean up memory
+
+        embed = discord.Embed(color=0xED4245) # Deep red to signify departure
+        embed.set_author(name="Member Left", icon_url=member.display_avatar.url)
+        embed.description = f"{member.mention} {member.name}\n\n**Stay Duration:**\n{stay_duration}\n\n**ID:** {member.id}"
+        embed.description += f"\n\n**Departure Time:** <t:{leave_ts}:F> (<t:{leave_ts}:R>)"
+        embed.description += f"\n**Originally Invited By:** {inviter_name}"
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"{member.name} has abandoned the server.")
+        embed.timestamp = now
 
         await log_channel.send(embed=embed)
 
 
 async def setup(bot):
     await bot.add_cog(InviteTracker(bot))
-    print("✅ LOG: Invite Tracker System is ONLINE.")
+    print("✅ LOG: Invite Tracker System [2030 Edition] is ONLINE.")
