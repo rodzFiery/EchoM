@@ -6,32 +6,31 @@ from collections import Counter
 
 # Added: Persistent view for the Lobby that never times out
 class BadPeopleLobby(discord.ui.View):
-    def __init__(self, prompts, color_sassy):
+    def __init__(self, prompts, color_sassy, prompt_number=1):
         super().__init__(timeout=None) # timeout=None prevents the view from expiring
         self.prompts = prompts
         self.color_sassy = color_sassy
-        self.current_prompt = random.choice(self.prompts)
-        self.prompt_number = 1
+        self.prompt_number = prompt_number
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, custom_id="bp_persistent_next", emoji="⏭️")
     async def next_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.current_prompt = random.choice(self.prompts)
-        self.prompt_number += 1
+        next_number = self.prompt_number + 1
+        new_prompt = random.choice(self.prompts)
         
         embed = discord.Embed(
-            title=f"😈 Bad People Protocol | #{self.prompt_number}",
-            description=f"**{self.current_prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
+            title=f"😈 Bad People Protocol | #{next_number}",
+            description=f"**{new_prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
             color=self.color_sassy
         )
         
         embed.set_footer(text=f"Requested by {interaction.user.display_name} • Let the drama begin.", icon_url=interaction.user.display_avatar.url)
         
-        # Preserves the thumbnail from the original message if it exists
-        if interaction.message.embeds and interaction.message.embeds[0].thumbnail:
-            embed.set_thumbnail(url=interaction.message.embeds[0].thumbnail.url)
-            
-        # edit_message acknowledges the interaction instantly, preventing "This interaction failed"
-        await interaction.response.edit_message(embed=embed)
+        # We send a new message instead of editing the old one
+        new_view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=next_number)
+        await interaction.channel.send(embed=embed, view=new_view)
+        
+        # Acknowledge the interaction
+        await interaction.response.defer()
 
     @discord.ui.button(label="Results", style=discord.ButtonStyle.secondary, custom_id="bp_persistent_results", emoji="📊")
     async def show_results(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -51,7 +50,7 @@ class BadPeopleLobby(discord.ui.View):
 
         embed = discord.Embed(
             title="🏆 Current Results",
-            description=f"For the prompt: *{self.current_prompt}*\n\n**{winner.mention}** is the most likely party! ({total} votes)",
+            description=f"For the previous prompt:\n\n**{winner.mention}** is the most likely party! ({total} votes)",
             color=self.color_sassy
         )
         await interaction.response.send_message(embed=embed, ephemeral=False)
