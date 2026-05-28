@@ -76,14 +76,16 @@ class ModerationLog(commands.Cog):
 
         for role in added_roles:
             embed = discord.Embed(color=self.color_added)
-            embed.description = f"**{after.mention}**\n\n**Role added**\n{role.mention}"
+            # ADDED: Explicit names alongside mentions to prevent raw ID numbers when cache drops
+            embed.description = f"**{after.mention}** ({after.display_name})\n\n**Role added**\n{role.mention} ({role.name})"
             embed.set_thumbnail(url=after.display_avatar.url)
             embed.set_footer(text=f"User ID: {after.id} • {datetime.now(timezone.utc).strftime('%d de %b de %Y %H:%M')}")
             await log_channel.send(embed=embed)
 
         for role in removed_roles:
             embed = discord.Embed(color=self.color_removed)
-            embed.description = f"**{after.mention}**\n\n**Role removed**\n{role.mention}"
+            # ADDED: Explicit names alongside mentions to prevent raw ID numbers when cache drops
+            embed.description = f"**{after.mention}** ({after.display_name})\n\n**Role removed**\n{role.mention} ({role.name})"
             embed.set_thumbnail(url=after.display_avatar.url)
             embed.set_footer(text=f"User ID: {after.id} • {datetime.now(timezone.utc).strftime('%d de %b de %Y %H:%M')}")
             await log_channel.send(embed=embed)
@@ -144,9 +146,11 @@ class ModerationLog(commands.Cog):
             return
 
         embed = discord.Embed(color=self.color_deleted)
-        embed.set_author(name=f"@{message.author.name}", icon_url=message.author.display_avatar.url)
+        # ADDED: Include the display_name (nickname) just in case the base username is obscure
+        embed.set_author(name=f"{message.author.display_name} (@{message.author.name})", icon_url=message.author.display_avatar.url)
         
-        desc = f"Message deleted in {message.channel.mention}\n\n"
+        # ADDED: Fallback channel name string in case the mention renders as a raw ID
+        desc = f"Message deleted in {message.channel.mention} (**#{message.channel.name}**)\n\n"
         if message.content:
             desc += f"**Content**\n{message.content[:2000]}\n"
         
@@ -170,14 +174,69 @@ class ModerationLog(commands.Cog):
             return
 
         embed = discord.Embed(color=self.color_edited)
-        embed.set_author(name=f"@{before.author.name}", icon_url=before.author.display_avatar.url)
+        # ADDED: Include the display_name (nickname)
+        embed.set_author(name=f"{before.author.display_name} (@{before.author.name})", icon_url=before.author.display_avatar.url)
         
-        desc = f"[Reply]({after.jump_url}) edited in {before.channel.mention} - [Jump to message]({after.jump_url})\n\n"
+        # ADDED: Fallback channel name string in case the mention renders as a raw ID
+        desc = f"[Reply]({after.jump_url}) edited in {before.channel.mention} (**#{before.channel.name}**) - [Jump to message]({after.jump_url})\n\n"
         desc += f"**Old**\n{before.content[:1000]}\n\n"
         desc += f"**New**\n{after.content[:1000]}"
         
         embed.description = desc
         embed.set_footer(text=f"User ID: {before.author.id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
+        await log_channel.send(embed=embed)
+
+    # --- RAW EVENT PROTOCOLS (UNCACHED MESSAGES) ---
+
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload):
+        """Captures deletions of uncached messages (e.g., old messages or after bot restart)."""
+        if payload.cached_message:
+            return
+            
+        if not payload.guild_id:
+            return
+
+        log_channel = await self.route_message_log(payload.guild_id, payload.channel_id)
+        if not log_channel:
+            return
+
+        embed = discord.Embed(color=self.color_deleted)
+        embed.set_author(name="Ghost Message Deleted (Uncached)")
+        embed.description = f"An older message was deleted in <#{payload.channel_id}>\n\n*Note: Because this message was sent before the bot's recent deployment/restart, Discord restricts access to the author and content.*"
+        embed.set_footer(text=f"Message ID: {payload.message_id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
+        await log_channel.send(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_raw_message_edit(self, payload):
+        """Captures edits of uncached messages."""
+        if payload.cached_message:
+            return 
+
+        if not payload.guild_id:
+            return
+
+        log_channel = await self.route_message_log(payload.guild_id, payload.channel_id)
+        if not log_channel:
+            return
+
+        data = payload.data
+        if 'content' not in data:
+            return 
+
+        author_name = data.get('author', {}).get('username', 'Unknown Author')
+        author_id = data.get('author', {}).get('id', 'Unknown ID')
+        new_content = data.get('content', '')
+
+        embed = discord.Embed(color=self.color_edited)
+        embed.set_author(name=f"@{author_name} (Uncached Edit)")
+        
+        desc = f"Message edited in <#{payload.channel_id}> - [Jump to message](https://discord.com/channels/{payload.guild_id}/{payload.channel_id}/{payload.message_id})\n\n"
+        desc += f"**Old**\n*Unknown (Message was not in bot cache)*\n\n"
+        desc += f"**New**\n{new_content[:1000]}"
+        
+        embed.description = desc
+        embed.set_footer(text=f"User ID: {author_id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
         await log_channel.send(embed=embed)
 
 async def setup(bot):
