@@ -92,17 +92,45 @@ class ModerationLog(commands.Cog):
 
     async def route_message_log(self, guild_id, origin_channel_id):
         """Determines if a message event should go to the Global Log or the isolated Flash Log."""
+        
+        # --- NEW: Resolves Thread/Forum IDs to their Parent Channel ID ---
+        _temp_channel = self.bot.get_channel(origin_channel_id)
+        if _temp_channel and hasattr(_temp_channel, 'parent_id') and _temp_channel.parent_id:
+            origin_channel_id = _temp_channel.parent_id
+        # -----------------------------------------------------------------
+
         specific_log_id = await self.get_config(guild_id, f"flash_route_{origin_channel_id}")
         if specific_log_id:
+            # --- NEW: Forces an API fetch if the channel dropped from cache ---
+            if not self.bot.get_channel(int(specific_log_id)):
+                try:
+                    return await self.bot.fetch_channel(int(specific_log_id))
+                except discord.NotFound:
+                    pass
+            # ------------------------------------------------------------------
             return self.bot.get_channel(int(specific_log_id))
             
         flash_target_id = await self.get_config(guild_id, "flash_target")
         
         if flash_target_id and int(flash_target_id) == origin_channel_id:
             log_id = await self.get_config(guild_id, "log_flash")
+            # --- NEW: Forces an API fetch if the channel dropped from cache ---
+            if log_id and not self.bot.get_channel(int(log_id)):
+                try:
+                    return await self.bot.fetch_channel(int(log_id))
+                except discord.NotFound:
+                    pass
+            # ------------------------------------------------------------------
             return self.bot.get_channel(int(log_id)) if log_id else None
         
         log_id = await self.get_config(guild_id, "log_messages")
+        # --- NEW: Forces an API fetch if the channel dropped from cache ---
+        if log_id and not self.bot.get_channel(int(log_id)):
+            try:
+                return await self.bot.fetch_channel(int(log_id))
+            except discord.NotFound:
+                pass
+        # ------------------------------------------------------------------
         return self.bot.get_channel(int(log_id)) if log_id else None
 
     @commands.Cog.listener()
