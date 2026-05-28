@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import random
 import os
+from collections import Counter
 
 # Added: Persistent view for the Lobby that never times out
 class BadPeopleLobby(discord.ui.View):
@@ -9,14 +10,17 @@ class BadPeopleLobby(discord.ui.View):
         super().__init__(timeout=None) # timeout=None prevents the view from expiring
         self.prompts = prompts
         self.color_sassy = color_sassy
+        self.current_prompt = random.choice(self.prompts)
+        self.prompt_number = 1
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, custom_id="bp_persistent_next", emoji="⏭️")
     async def next_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
-        prompt = random.choice(self.prompts)
+        self.current_prompt = random.choice(self.prompts)
+        self.prompt_number += 1
         
         embed = discord.Embed(
-            title="😈 Bad People Protocol Activated",
-            description=f"**{prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
+            title=f"😈 Bad People Protocol | #{self.prompt_number}",
+            description=f"**{self.current_prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
             color=self.color_sassy
         )
         
@@ -28,6 +32,29 @@ class BadPeopleLobby(discord.ui.View):
             
         # edit_message acknowledges the interaction instantly, preventing "This interaction failed"
         await interaction.response.edit_message(embed=embed)
+
+    @discord.ui.button(label="Results", style=discord.ButtonStyle.secondary, custom_id="bp_persistent_results", emoji="📊")
+    async def show_results(self, interaction: discord.Interaction, button: discord.ui.Button):
+        mentions = []
+        async for message in interaction.channel.history(limit=50):
+            if message.mentions:
+                mentions.extend(message.mentions)
+        
+        if not mentions:
+            await interaction.response.send_message("No one has been tagged yet!", ephemeral=True)
+            return
+
+        counts = Counter(mentions)
+        most_common = counts.most_common(1)[0]
+        winner = most_common[0]
+        total = most_common[1]
+
+        embed = discord.Embed(
+            title="🏆 Current Results",
+            description=f"For the prompt: *{self.current_prompt}*\n\n**{winner.mention}** is the most likely party! ({total} votes)",
+            color=self.color_sassy
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=False)
 
 
 class BadPeople(commands.Cog):
@@ -244,7 +271,7 @@ class BadPeople(commands.Cog):
         prompt = random.choice(self.prompts)
         
         embed = discord.Embed(
-            title="😈 Bad People Protocol Activated",
+            title="😈 Bad People Protocol | #1",
             description=f"**{prompt}**\n\n👇 *Tag the guilty party below. Don't be shy.*",
             color=self.color_sassy
         )
