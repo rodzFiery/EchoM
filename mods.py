@@ -52,6 +52,7 @@ class ModerationLog(commands.Cog):
         with main_mod.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"flash_target_{ctx.guild.id}", str(target_channel.id)))
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"log_flash_{ctx.guild.id}", str(log_channel.id)))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"flash_route_{target_channel.id}_{ctx.guild.id}", str(log_channel.id)))
             conn.commit()
         await ctx.send(f"📸 **Flash Protocol** armed. Monitoring {target_channel.mention}, routing ghosts to {log_channel.mention}")
 
@@ -91,6 +92,10 @@ class ModerationLog(commands.Cog):
 
     async def route_message_log(self, guild_id, origin_channel_id):
         """Determines if a message event should go to the Global Log or the isolated Flash Log."""
+        specific_log_id = await self.get_config(guild_id, f"flash_route_{origin_channel_id}")
+        if specific_log_id:
+            return self.bot.get_channel(int(specific_log_id))
+            
         flash_target_id = await self.get_config(guild_id, "flash_target")
         
         if flash_target_id and int(flash_target_id) == origin_channel_id:
