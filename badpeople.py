@@ -5,15 +5,43 @@ import os
 from collections import Counter
 
 # Added: Persistent view for the Lobby that never times out
-class BadPeopleLobby(discord.ui.View):
-    def __init__(self, prompts, color_sassy, prompt_number=1):
+class BadPeopleLobby(discord.View):
+    def __init__(self, prompts, color_sassy, prompt_number=1, last_prompt="None"):
         super().__init__(timeout=None) # timeout=None prevents the view from expiring
         self.prompts = prompts
         self.color_sassy = color_sassy
         self.prompt_number = prompt_number
+        self.last_prompt = last_prompt
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, custom_id="bp_persistent_next", emoji="⏭️")
     async def next_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # First, calculate results for the previous prompt
+        mentions = []
+        async for message in interaction.channel.history(limit=20):
+            if message.mentions and message.id != interaction.message.id:
+                mentions.extend(message.mentions)
+        
+        if mentions:
+            counts = Counter(mentions)
+            most_common = counts.most_common(1)[0]
+            winner = most_common[0]
+            total = most_common[1]
+            
+            results_embed = discord.Embed(
+                title="📊 Previous Round Results",
+                description=f"For the prompt: *{self.last_prompt}*\n\n**{winner.mention}** was the most likely party! ({total} votes)",
+                color=self.color_sassy
+            )
+            await interaction.channel.send(embed=results_embed)
+        else:
+            no_results_embed = discord.Embed(
+                title="📊 Previous Round Results",
+                description=f"For the prompt: *{self.last_prompt}*\n\nNo one was tagged!",
+                color=self.color_sassy
+            )
+            await interaction.channel.send(embed=no_results_embed)
+
+        # Now send the next prompt
         next_number = self.prompt_number + 1
         new_prompt = random.choice(self.prompts)
         
@@ -25,35 +53,11 @@ class BadPeopleLobby(discord.ui.View):
         
         embed.set_footer(text=f"Requested by {interaction.user.display_name} • Let the drama begin.", icon_url=interaction.user.display_avatar.url)
         
-        # We send a new message instead of editing the old one
-        new_view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=next_number)
+        new_view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=next_number, last_prompt=new_prompt)
         await interaction.channel.send(embed=embed, view=new_view)
         
         # Acknowledge the interaction
         await interaction.response.defer()
-
-    @discord.ui.button(label="Results", style=discord.ButtonStyle.secondary, custom_id="bp_persistent_results", emoji="📊")
-    async def show_results(self, interaction: discord.Interaction, button: discord.ui.Button):
-        mentions = []
-        async for message in interaction.channel.history(limit=50):
-            if message.mentions:
-                mentions.extend(message.mentions)
-        
-        if not mentions:
-            await interaction.response.send_message("No one has been tagged yet!", ephemeral=True)
-            return
-
-        counts = Counter(mentions)
-        most_common = counts.most_common(1)[0]
-        winner = most_common[0]
-        total = most_common[1]
-
-        embed = discord.Embed(
-            title="🏆 Current Results",
-            description=f"For the previous prompt:\n\n**{winner.mention}** is the most likely party! ({total} votes)",
-            color=self.color_sassy
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=False)
 
 
 class BadPeople(commands.Cog):
@@ -263,7 +267,6 @@ class BadPeople(commands.Cog):
             "Who is most likely to have an incredibly wild bucket list that they will never actually show anyone?"
         ]
 
-    # Added: channel argument (discord.TextChannel = None) so !badpeople #channel triggers the lobby branch
     @commands.command(aliases=['who', 'bp', 'badpeople'])
     async def whois(self, ctx, channel: discord.TextChannel = None):
         """The ultimate NSFW 'Who is most likely to...' game."""
@@ -275,15 +278,12 @@ class BadPeople(commands.Cog):
             color=self.color_sassy
         )
         
-        # Adding a sassy footer
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Let the drama begin.", icon_url=ctx.author.display_avatar.url)
         
-        # Adding the lobby image if it exists, matching your main bot aesthetic
         import os
         
-        # Added: Branching logic for when a channel is targeted
         if channel:
-            view = BadPeopleLobby(self.prompts, self.color_sassy)
+            view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=1, last_prompt=prompt)
             if os.path.exists("LobbyTopRight.jpg"):
                 embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
                 file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
