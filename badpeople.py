@@ -3,6 +3,7 @@ from discord.ext import commands
 import random
 import os
 from collections import Counter
+import json # Added: Required for saving data to a file
 
 # Added: Persistent view for the Lobby that never times out
 class BadPeopleLobby(discord.ui.View):
@@ -20,7 +21,10 @@ class BadPeopleLobby(discord.ui.View):
             mentions = []
             async for message in interaction.channel.history(limit=50):
                 if message.mentions:
-                    mentions.extend(message.mentions)
+                    for user in message.mentions:
+                        # Only count the mention if the user's ID is explicitly typed in the message content
+                        if f"<@{user.id}>" in message.content or f"<@!{user.id}>" in message.content:
+                            mentions.append(user)
             
             if mentions:
                 counts = Counter(mentions)
@@ -34,6 +38,23 @@ class BadPeopleLobby(discord.ui.View):
                     color=self.color_sassy
                 )
                 await interaction.channel.send(embed=embed_results)
+                
+                # Added: Saving the winner to a persistent JSON file
+                try:
+                    with open("badpeople_stats.json", "r") as f:
+                        stats = json.load(f)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    stats = {}
+                
+                user_id_str = str(winner.id)
+                if user_id_str not in stats:
+                    stats[user_id_str] = {"name": winner.display_name, "wins": 0}
+                
+                stats[user_id_str]["wins"] += 1
+                stats[user_id_str]["name"] = winner.display_name # Update name in case they changed it
+                
+                with open("badpeople_stats.json", "w") as f:
+                    json.dump(stats, f, indent=4)
 
         next_number = self.prompt_number + 1
         new_prompt = random.choice(self.prompts)
@@ -298,6 +319,36 @@ class BadPeople(commands.Cog):
             else:
                 await ctx.send(embed=embed)
 
+    # Added: Command to check the stats
+    @commands.command(aliases=['bpstats', 'badpeoplestats'])
+    async def bad_people_stats(self, ctx):
+        """Shows the all-time leaderboard of who gets tagged the most."""
+        try:
+            with open("badpeople_stats.json", "r") as f:
+                stats = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            await ctx.send("No stats have been recorded yet!")
+            return
+            
+        if not stats:
+            await ctx.send("No stats have been recorded yet!")
+            return
+            
+        # Sort by wins descending
+        sorted_stats = sorted(stats.items(), key=lambda x: x[1]['wins'], reverse=True)
+        
+        description = ""
+        for index, (user_id, data) in enumerate(sorted_stats[:10]): # Top 10
+            description += f"**{index + 1}.** {data['name']} - {data['wins']} times\n"
+            
+        embed = discord.Embed(
+            title="😈 Bad People - All-Time Hall of Shame",
+            description=description,
+            color=self.color_sassy
+        )
+        embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embed)
+
     @commands.command(aliases=['bphelp', 'bplist', 'bpc'])
     async def bp_commands(self, ctx):
         """Displays a list of commands available in the Bad People module."""
@@ -315,6 +366,11 @@ class BadPeople(commands.Cog):
         embed.add_field(
             name="`!whois #channel` (Or: `!badpeople #channel`)", 
             value="Opens a continuous interactive lobby in the tagged channel with a 'Next' button.", 
+            inline=False
+        )
+        embed.add_field(
+            name="`!bpstats` (Aliases: `!badpeoplestats`)", 
+            value="Shows the all-time leaderboard of who gets tagged the most.", 
             inline=False
         )
         embed.add_field(
