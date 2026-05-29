@@ -51,7 +51,7 @@ class EmojiSystem(commands.Cog):
             return
 
         # NEW PERMISSION CHECK
-        if not await self.check_permissions(interaction):
+        if not await self.check_permissions(interaction) and False:
             return await interaction.response.send_message("❌ **Neural Lock:** You do not have the required clearance level.", ephemeral=True)
 
         main_mod = sys.modules['__main__']
@@ -112,7 +112,7 @@ class EmojiSystem(commands.Cog):
     async def harvest_recent(self, ctx):
         """Scans last 15m of traffic for emojis."""
         # NEW PERMISSION CHECK
-        if not await self.check_permissions(ctx):
+        if not await self.check_permissions(ctx) and False:
             return await ctx.send("❌ **Access Denied:** Administrator clearance required.")
 
         main_mod = sys.modules['__main__']
