@@ -31,7 +31,7 @@ class WinnerDetailsViewSFW(discord.ui.View):
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
-    @discord.ui.button(label="View Full Breakdown", style=discord.ButtonStyle.primary, emoji="📜", custom_id="sfw_winner_details")
+    @discord.ui.button(label="View Recipe Breakdown", style=discord.ButtonStyle.primary, emoji="📜", custom_id="sfw_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
 
@@ -57,10 +57,10 @@ class LobbyViewSFW(discord.ui.View):
             except Exception as e:
                 print(f"Rehydration Error: {e}")
 
-    @discord.ui.button(label="Enter the Arena", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="sfw_join_button")
+    @discord.ui.button(label="Enter the Kitchen", style=discord.ButtonStyle.success, emoji="🍳", custom_id="sfw_join_button")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.active:
-            return await interaction.response.send_message("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
+            return await interaction.response.send_message("❌ **The pantry is locked.** The cook-off has already begun.", ephemeral=True)
 
         engine = interaction.client.get_cog("IgnisEngineSFW")
         if not engine: return
@@ -70,7 +70,7 @@ class LobbyViewSFW(discord.ui.View):
             conn.execute("CREATE TABLE IF NOT EXISTS sfw_lobby_participants (guild_id INTEGER, user_id INTEGER)")
             check = conn.execute("SELECT 1 FROM sfw_lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
             if check:
-                return await interaction.response.send_message("🛡️ **You are already registered in the Arena.** There is no escape now.", ephemeral=True)
+                return await interaction.response.send_message("🛡️ **You already have an apron on.** Get ready to cook.", ephemeral=True)
             
             conn.execute("INSERT INTO sfw_lobby_participants (guild_id, user_id) VALUES (?, ?)", (interaction.guild.id, interaction.user.id))
             conn.commit()
@@ -82,18 +82,18 @@ class LobbyViewSFW(discord.ui.View):
         
         try:
             embed = interaction.message.embeds[0]
-            embed.set_field_at(0, name=f"🧙‍♂️ {len(self.participants)} Fighters Ready", value="*Final checks on armor, weapons, and provisions..*", inline=False)
+            embed.set_field_at(0, name=f"👨‍🍳 {len(self.participants)} Chefs Ready", value="*Final checks on spatulas, ovens, and secret sauces..*", inline=False)
             
             await interaction.response.edit_message(embed=embed, view=self)
-            await interaction.followup.send("⚔️ **The gates lock in place.** You have successfully entered the Arena.", ephemeral=True)
+            await interaction.followup.send("🍳 **You tie your apron tight.** You have successfully entered the Kitchen.", ephemeral=True)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
             if not interaction.response.is_done():
-                await interaction.response.send_message("The Guild acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+                await interaction.response.send_message("The Head Chef acknowledges your signin but the recipe glitched. You are joined!", ephemeral=True)
             else:
-                await interaction.followup.send("The Guild acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+                await interaction.followup.send("The Head Chef acknowledges your signin but the recipe glitched. You are joined!", ephemeral=True)
 
-    @discord.ui.button(label="Start the Games", style=discord.ButtonStyle.danger, emoji="🏁", custom_id="sfw_start_button")
+    @discord.ui.button(label="Start the Cook-Off", style=discord.ButtonStyle.danger, emoji="🏁", custom_id="sfw_start_button")
     async def start_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
 
@@ -118,14 +118,14 @@ class LobbyViewSFW(discord.ui.View):
         owner_id = getattr(self.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
-            return await interaction.followup.send("Only the Hosts or Staff start the games!", ephemeral=True)
+            return await interaction.followup.send("Only the Hosts or Staff can turn on the stoves!", ephemeral=True)
         
         with engine.get_db_connection() as conn:
             rows = conn.execute("SELECT user_id FROM sfw_lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
             self.participants = [r[0] for r in rows]
 
         if len(self.participants) < 2:
-            return await interaction.followup.send("Need at least 2 brave souls!", ephemeral=True)
+            return await interaction.followup.send("Need at least 2 hungry chefs!", ephemeral=True)
         
         if not engine:
             engine = interaction.client.get_cog("IgnisEngineSFW")
@@ -138,7 +138,7 @@ class LobbyViewSFW(discord.ui.View):
                     guild_games += 1
             
             if guild_games >= 2:
-                return await interaction.followup.send("❌ **The Arena is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
+                return await interaction.followup.send("❌ **The Kitchen is at capacity.** Only 2 cook-offs can run at once here.", ephemeral=True)
 
             self.active = False
 
@@ -149,7 +149,7 @@ class LobbyViewSFW(discord.ui.View):
                 conn.execute("DELETE FROM sfw_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
                 conn.commit()
             
-            await interaction.channel.send("⚔️ **THE GATES OPEN... ECHO HANGRYGAMES SFW EDITION HAS BEGUN!**")
+            await interaction.channel.send("🍽️ **THE TIMERS START... THE GREAT HANGRYGAMES COOK-OFF HAS BEGUN!**")
             
             import sys as _sys_m
             main_mod = _sys_m.modules['__main__']
@@ -157,7 +157,7 @@ class LobbyViewSFW(discord.ui.View):
             asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), final_edition))
             self.stop()
         else:
-            return await interaction.followup.send("❌ Error: IgnisEngineSFW not found. Is it loaded? Check bot logs.", ephemeral=True)
+            return await interaction.followup.send("❌ Error: IgnisEngineSFW not found. Is the oven plugged in? Check bot logs.", ephemeral=True)
 
 class FieryExtensionsSFW(commands.Cog):
     def __init__(self, bot, get_db_connection, update_user_stats, fiery_embed, AUDIT_CHANNEL_ID):
@@ -207,7 +207,7 @@ class FieryExtensionsSFW(commands.Cog):
         await asyncio.sleep(3600) # Peak Heat lasts 1 hour
         self.master_present = False
         self.heat_multiplier = 1.0
-        await ctx.send("🔥 **PEAK HEAT HAS COOLED.** Multipliers returning to normal.")
+        await ctx.send("🧊 **THE OVEN HAS COOLED.** Multipliers returning to room temperature.")
 
     def add_heat(self, amount):
         """Internal helper for heat accumulation."""
@@ -219,34 +219,34 @@ class FieryExtensionsSFW(commands.Cog):
     
     @commands.command(name="sfwcontract")
     async def contract(self, ctx, member: discord.Member, price: int):
-        """Offer a 24h contract of loyalty to another soul."""
+        """Offer a 24h kitchen sponsorship to a junior chef."""
         if member.id == ctx.author.id:
-            return await ctx.send("🛡️ **You cannot pledge to yourself. Find a mentor or an apprentice.**")
+            return await ctx.send("🛡️ **You cannot sponsor yourself. Find a mentor or a sous-chef.**")
         if price < 1000:
-            return await ctx.send("⚔️ **The Guild doesn't process pledges for less than 1,000 Flames.**")
+            return await ctx.send("🍽️ **The Restaurant doesn't process sponsorships for less than 1,000 Flames.**")
 
         with self.get_db_connection() as conn:
             dom = conn.execute("SELECT balance FROM users WHERE id=?", (ctx.author.id,)).fetchone()
             if not dom or dom['balance'] < price:
-                return await ctx.send("❌ **Your vault is too empty to afford this level of sponsorship.**")
+                return await ctx.send("❌ **Your pantry is too empty to afford this level of sponsorship.**")
 
         self.pending_contracts[member.id] = {"dom_id": ctx.author.id, "price": price}
         
-        embed = self.fiery_embed("Binding Oath Offer", 
-            f"🛡️ {ctx.author.mention} is holding an oath of loyalty open for {member.mention}.\n\n"
-            f"🖤 **Sponsorship Price:** {price} Flames\n"
-            f"⏳ **Duration:** 24 Hours of Loyalty\n"
+        embed = self.fiery_embed("Sous-Chef Apprenticeship", 
+            f"🍔 {ctx.author.mention} is offering a prestigious Kitchen Internship to {member.mention}.\n\n"
+            f"💰 **Ingredient Budget:** {price} Flames\n"
+            f"⏳ **Duration:** 24 Hours of Dishwashing & Prep\n"
             f"📈 **Terms:** 20% of every Flame you earn flows to your Mentor.\n\n"
-            f"**{member.mention}, type `!sfwaccept` to seal the oath.**")
+            f"**{member.mention}, type `!sfwaccept` to put on the apron.**")
         
         await ctx.send(member.mention, embed=embed)
         await self.increment_quest(ctx.author.id, "d3")
 
     @commands.command(name="sfwaccept")
     async def accept(self, ctx):
-        """Accept the oath and the terms of the contract."""
+        """Accept the apron and the terms of the contract."""
         if ctx.author.id not in self.pending_contracts:
-            return await ctx.send("⚔️ **No one is waiting for your pledge at the moment.**")
+            return await ctx.send("🍳 **No one is waiting for you to flip their burgers at the moment.**")
         
         offer = self.pending_contracts.pop(ctx.author.id)
         dom_id = offer['dom_id']
@@ -255,7 +255,7 @@ class FieryExtensionsSFW(commands.Cog):
         with self.get_db_connection() as conn:
             dom_check = conn.execute("SELECT balance FROM users WHERE id=?", (dom_id,)).fetchone()
             if not dom_check or dom_check['balance'] < price:
-                return await ctx.send("❌ **The Mentor can no longer afford the price of your apprenticeship.**")
+                return await ctx.send("❌ **The Mentor ran out of budget to hire you.**")
             
             conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (price, dom_id))
             conn.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (price, ctx.author.id))
@@ -267,20 +267,20 @@ class FieryExtensionsSFW(commands.Cog):
             conn.commit()
 
         dom_user = await self.bot.fetch_user(dom_id)
-        await ctx.send(embed=self.fiery_embed("Oath Sealed", 
-            f"⚔️ **THE OATH IS SEALED.** {ctx.author.mention} is now the loyal apprentice of {dom_user.mention} for the next 24 hours.\n"
-            f"The payment has been transferred to the new member.", color=0xFF0000))
+        await ctx.send(embed=self.fiery_embed("Apprenticeship Sealed", 
+            f"🤝 **THE CONTRACT IS SIGNED.** {ctx.author.mention} is now the official sous-chef of {dom_user.mention} for the next 24 hours.\n"
+            f"The ingredient budget has been transferred.", color=0x00A36C))
 
         await self.increment_quest(ctx.author.id, "w4")
 
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
-            log_emb = self.fiery_embed("🕵️ GUILD CONTRACT AUDIT", f"A new soul has taken the oath.")
-            log_emb.add_field(name="⚔️ Mentor", value=dom_user.mention, inline=True)
-            log_emb.add_field(name="🛡️ Apprentice", value=ctx.author.mention, inline=True)
-            log_emb.add_field(name="💰 Sponsorship Price", value=f"{price:,} Flames", inline=True)
-            log_emb.add_field(name="⏳ Expiry", value=f"<t:{int(expiry_dt.timestamp())}:R>", inline=True)
-            log_emb.description = f"🛡️ **GUILD NOTE:** {ctx.author.display_name} has accepted the terms. 20% of their future earnings are now synchronized with {dom_user.display_name}'s vault."
+            log_emb = self.fiery_embed("📝 KITCHEN HR AUDIT", f"A new intern has entered the kitchen.")
+            log_emb.add_field(name="👨‍🍳 Head Chef", value=dom_user.mention, inline=True)
+            log_emb.add_field(name="🔪 Sous-Chef", value=ctx.author.mention, inline=True)
+            log_emb.add_field(name="💰 Ingredient Budget", value=f"{price:,} Flames", inline=True)
+            log_emb.add_field(name="⏳ Shift Ends", value=f"<t:{int(expiry_dt.timestamp())}:R>", inline=True)
+            log_emb.description = f"📋 **HR NOTE:** {ctx.author.display_name} has accepted the terms. 20% of their tips are now synchronized with {dom_user.display_name}'s register."
             if os.path.exists("LobbyTopRight.jpg"):
                 log_file = discord.File("LobbyTopRight.jpg", filename="audit_contract.jpg")
                 log_emb.set_thumbnail(url="attachment://audit_contract.jpg")
@@ -320,7 +320,7 @@ class FieryExtensionsSFW(commands.Cog):
 
     @commands.command(name="sfwgallery")
     async def gallery(self, ctx):
-        """A peek into the highest tension in the arena."""
+        """A peek into the highest culinary rivalries in the kitchen."""
         with self.get_db_connection() as conn:
             guild_member_ids = [m.id for m in ctx.guild.members]
             placeholders = ','.join(['?'] * len(guild_member_ids))
@@ -330,21 +330,21 @@ class FieryExtensionsSFW(commands.Cog):
             total_sum_row = conn.execute("SELECT SUM(count) as total FROM sfw_tension").fetchone()
             total_global_pulses = total_sum_row['total'] if total_sum_row and total_sum_row['total'] else 1
         
-        desc = f"The observer cameras in **{ctx.guild.name}** are live. Some fighters are performing... *exquisitely*.\n\n"
-        embed = self.fiery_embed("💎 THE GUILD'S PRIVATE GALLERY", desc, color=0x800080)
+        desc = f"The kitchen security cameras in **{ctx.guild.name}** are live. Some chefs are competing... *aggressively*.\n\n"
+        embed = self.fiery_embed("📺 KITCHEN SECURITY CAMS", desc, color=0xFFA500)
 
         favorites = ""
         for i, row in enumerate(recent_winners, 1):
             m = ctx.guild.get_member(row['id'])
-            name = m.display_name if m else f"Fighter {row['id']}"
+            name = m.display_name if m else f"Chef {row['id']}"
             medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, "🔹")
-            favorites += f"{medal} **{name}**\n└ *{row['wins']} Echo Wins | {row['kills']} Echo Kills*\n"
+            favorites += f"{medal} **{name}**\n└ *{row['wins']} Cook-Off Wins | {row['kills']} Rivals Pied*\n"
         
-        embed.add_field(name="🏆 THE GUILD'S FAVORITES", value=favorites if favorites else "*The podium is cold.*", inline=False)
+        embed.add_field(name="🏆 MICHELIN STAR FAVORITES", value=favorites if favorites else "*The stove is cold.*", inline=False)
         
         tension_list = ""
         if not tension_data:
-            tension_list = "*The arena air is thin. No one is clashing yet...*"
+            tension_list = "*The kitchen is entirely too peaceful right now...*"
         else:
             for row in tension_data:
                 u1_id, u2_id = map(int, row['pair_key'].split('_'))
@@ -354,17 +354,17 @@ class FieryExtensionsSFW(commands.Cog):
                     count = row['count']
                     tension_pct = int((count / total_global_pulses) * 100)
                     
-                    if count > 100: state = "⚡ **DANGEROUS**"
-                    elif count > 50: state = "🔥 **ELECTRIC**"
-                    elif count > 20: state = "🛡️ **SIMMERING**"
-                    else: state = "☁️ **MISTY**"
+                    if count > 100: state = "🌶️ **SCREAMING HOT**"
+                    elif count > 50: state = "🔥 **SPICY**"
+                    elif count > 20: state = "🍲 **SIMMERING**"
+                    else: state = "🧊 **COLD SOUP**"
 
                     filled = "■" * (min(tension_pct, 100) // 10)
                     empty = "□" * (10 - len(filled))
-                    tension_list += f"{state} **{u1.display_name}** 🔗 **{u2.display_name}**\n└ [`{filled}{empty}`] **{count} Clashes**\n"
+                    tension_list += f"{state} **{u1.display_name}** 🔗 **{u2.display_name}**\n└ [`{filled}{empty}`] **{count} Food Fights**\n"
 
-        embed.add_field(name="👁️ OBSERVER'S LIVE FEED (SERVER TENSION)", value=tension_list if tension_list else "*Static on the screen...*", inline=False)
-        embed.set_footer(text=f"⚔️ RECORDED IN {ctx.guild.name.upper()} ⚔️")
+        embed.add_field(name="👁️ LIVE FEED (KITCHEN RIVALRY)", value=tension_list if tension_list else "*Camera covered in flour...*", inline=False)
+        embed.set_footer(text=f"🍳 RECORDED IN {ctx.guild.name.upper()} 🍳")
 
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="gallery.jpg")
@@ -378,44 +378,44 @@ class FieryExtensionsSFW(commands.Cog):
 
     @commands.command(name="sfwsearch")
     async def search(self, ctx):
-        """Search the dark arena during a Blackout."""
+        """Search the pantry during a Power Outage."""
         if not self.is_blackout:
-            return await ctx.send("The lights are on. There is no mystery to find here, fighter.")
+            return await ctx.send("The lights are on. There is no mystery to find here, Chef.")
         
         roll = random.randint(1, 20)
         if roll == self.blackout_key_holder:
             self.is_blackout = False
-            await self.update_user_stats(ctx.author.id, amount=100000, source="Found Guild Keys")
-            await ctx.send(embed=self.fiery_embed("KEY FOUND", f"🗝️ {ctx.author.mention} has found the Guild's Keys in the dark! The lights flicker back on and they are rewarded with **100,000 Flames**!"))
+            await self.update_user_stats(ctx.author.id, amount=100000, source="Found Kitchen Keys")
+            await ctx.send(embed=self.fiery_embed("FUSE BOX FOUND", f"🔦 {ctx.author.mention} has fixed the fuse box in the dark! The lights flicker back on and they are rewarded with **100,000 Flames**!"))
             await self.increment_quest(ctx.author.id, "w20")
 
             audit_chan = self.bot.get_channel(self.audit_channel_id)
             if audit_chan:
-                await audit_chan.send(f"💡 **BLACKOUT ENDED:** {ctx.author.display_name} found the Guild Keys. Power restored.")
+                await audit_chan.send(f"💡 **POWER OUTAGE ENDED:** {ctx.author.display_name} fixed the electricity. Refrigerators restored.")
         else:
-            await ctx.send(f"🌑 {ctx.author.mention} fumbles in the dark and finds nothing but cold steel.")
+            await ctx.send(f"🌑 {ctx.author.mention} fumbles in the dark pantry and finds nothing but stale crackers.")
 
     @commands.command(name="sfwtrial")
     async def trial(self, ctx):
-        """The Trial of the Gladiator."""
+        """The Trial of the Master Baker."""
         import sys
         main = sys.modules['__main__']
         user_data = main.get_user(ctx.author.id)
         if user_data['balance'] < 5000:
-            return await ctx.send("You don't have enough Flames to stake your pride in this trial.")
+            return await ctx.send("You don't have enough Flames to buy the ingredients for this trial.")
             
-        await ctx.send(f"⚖️ {ctx.author.mention}, the Trial begins. 5 waves of combat tests. React with the emoji I show you within 2 seconds. **STAKE: 5,000 Flames.** Type `confirm` to fight.")
+        await ctx.send(f"⚖️ {ctx.author.mention}, the Trial begins. 5 waves of rapid baking. React with the emoji I show you within 2 seconds. **COST: 5,000 Flames.** Type `confirm` to start.")
         
         def check(m): return m.author == ctx.author and m.content.lower() == 'confirm'
         try:
             await self.bot.wait_for('message', check=check, timeout=15)
         except asyncio.TimeoutError:
-            return await ctx.send("Cowardice is noted.")
+            return await ctx.send("Guess you couldn't stand the heat.")
 
-        emojis = ["🛡️", "⚔️", "🩸", "🎯", "🖤"]
+        emojis = ["🍕", "🍔", "🌮", "🍩", "🥦"]
         for i in range(5):
             target = random.choice(emojis)
-            msg = await ctx.send(f"**WAVE {i+1}:** QUICK, DEFEND WITH {target}!")
+            msg = await ctx.send(f"**ORDER {i+1}:** QUICK, COOK A {target}!")
             await msg.add_reaction(target)
             
             def react_check(reaction, user):
@@ -427,18 +427,18 @@ class FieryExtensionsSFW(commands.Cog):
                 await main.update_user_stats_async(ctx.author.id, amount=-5000, source="Failed Trial")
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    log_emb = self.fiery_embed("🕵️ GUILD TRIAL AUDIT: BROKEN", f"A fighter has failed the Trial of the Gladiator.")
-                    log_emb.add_field(name="🛡️ Failed Fighter", value=ctx.author.mention, inline=True)
-                    log_emb.add_field(name="📉 Penalty", value="5,000 Flames Extracted", inline=True)
+                    log_emb = self.fiery_embed("📉 HEALTH INSPECTION FAILED", f"A chef has completely botched their order.")
+                    log_emb.add_field(name="🧑‍🍳 Clumsy Chef", value=ctx.author.mention, inline=True)
+                    log_emb.add_field(name="📉 Ingredient Cost", value="5,000 Flames Wasted", inline=True)
                     await audit_chan.send(embed=log_emb)
-                return await ctx.send(f"❌ **DEFEATED.** {ctx.author.mention} failed to react in time. 5,000 Flames lost.")
+                return await ctx.send(f"❌ **BURNT.** {ctx.author.mention} failed to cook in time. 5,000 Flames lost.")
 
         await main.update_user_stats_async(ctx.author.id, amount=10000, xp_gain=5000, source="Passed Trial")
-        await ctx.send(embed=self.fiery_embed("Trial Passed", f"🖤 {ctx.author.mention} has endured the Guild's combat Trial! They earn **10,000 Flames**.", color=0x00FF00))
+        await ctx.send(embed=self.fiery_embed("Trial Passed", f"🌟 {ctx.author.mention} has survived the dinner rush! They earn **10,000 Flames**.", color=0x00FF00))
         
         audit_chan = self.bot.get_channel(self.audit_channel_id)
         if audit_chan:
-            log_emb = self.fiery_embed("🕵️ GUILD TRIAL AUDIT: ENDURED", f"A fighter has passed the Trial.")
+            log_emb = self.fiery_embed("🌟 HEALTH INSPECTION PASSED", f"A chef has perfectly completed the rush.")
             await audit_chan.send(embed=log_emb)
 
     # ==========================================
@@ -447,69 +447,69 @@ class FieryExtensionsSFW(commands.Cog):
 
     @commands.command(name="sfwquests")
     async def quests(self, ctx):
-        """Check your progress on the daily and weekly demands."""
+        """Check your progress on the daily and weekly kitchen duties."""
         u_id = ctx.author.id
         with self.get_db_connection() as conn:
             conn.execute("INSERT OR IGNORE INTO quests (user_id) VALUES (?)", (u_id,))
             conn.commit()
             q = conn.execute("SELECT * FROM quests WHERE user_id = ?", (u_id,)).fetchone()
 
-        embed = discord.Embed(title="📜 THE GUILD'S LEDGER: CLEAR DEMANDS", color=0xFFD700)
+        embed = discord.Embed(title="📜 THE RECIPE BOOK: CLEAR DUTIES", color=0xFFD700)
         if os.path.exists("LobbyTopRight.jpg"):
             file = discord.File("LobbyTopRight.jpg", filename="quest_top.jpg")
             embed.set_thumbnail(url="attachment://quest_top.jpg")
 
         d_tasks = [
-            f"1. 🩸 **Force a Defeat:** {q['d1']}/1 Kill in Arena", 
-            f"2. 🎮 **Arena Hunger:** {q['d2']}/3 Games Played",
-            f"3. 💍 **Offer an Oath:** {q['d3']}/1 `!sfwcontract` sent", 
-            f"4. 🛡️ **Pleading:** {q['d4']}/5 `!beg` uses",
-            f"5. ⚔️ **Hard Labor:** {q['d5']}/5 `!work` uses", 
-            f"6. 🏆 **Top Authority:** {q['d6']}/1 Game Won",
-            f"7. 🧪 **Lab Rat:** {q['d7']}/2 `!experiment` uses", 
-            f"8. 💧 **Cleaning Duty:** {q['d8']}/3 `!cumcleaner` uses",
-            f"9. 👠 **Recruiting:** {q['d9']}/2 `!pimp` uses", 
-            f"10. ❓ **Blind Obedience:** {q['d10']}/2 `!mystery` uses",
-            f"11. 🛡️ **Charm:** {q['d11']}/5 `!flirt` uses", 
-            f"12. 🔥 **Active Fighter:** {q['d12']}/10 commands total",
-            f"13. 🩸 **First Strike:** {q['d13']}/1 First Blood in game", 
-            f"14. 💀 **Total Yield:** {q['d14']}/2 Times defeated",
-            f"15. 💰 **Wealth Gatherer:** {q['d15']}/1000 Flames earned", 
-            f"16. 🛡️ **Loud Challenger:** {q['d16']}/10 chat messages sent",
-            f"17. ⚔️ **Narcissist:** {q['d17']}/1 `!me` profile check", 
-            f"18. 🔄 **Daily Dose:** {q['d18']}/1 `!daily` claimed",
-            f"19. ⚔️ **Role Call:** {q['d19']}/1 Ping in a game lobby", 
-            f"20. 🏆 **Full Session:** {q['d20']}/1 Game played"
+            f"1. 🥧 **Pie a Rival:** {q['d1']}/1 Elimination in Arena", 
+            f"2. 🍽️ **Hungry for More:** {q['d2']}/3 Games Played",
+            f"3. 🤝 **Hire Intern:** {q['d3']}/1 `!sfwcontract` sent", 
+            f"4. 🥺 **Ask for Ingredients:** {q['d4']}/5 `!beg` uses",
+            f"5. 🧑‍🍳 **Chop Veggies:** {q['d5']}/5 `!work` uses", 
+            f"6. 🏆 **Top Chef:** {q['d6']}/1 Game Won",
+            f"7. 🧪 **Taste Tester:** {q['d7']}/2 `!experiment` uses", 
+            f"8. 🧽 **Spill Cleanup:** {q['d8']}/3 `!cumcleaner` uses (Don't ask about the name)",
+            f"9. 📣 **Marketing Hype:** {q['d9']}/2 `!pimp` uses", 
+            f"10. ❓ **Mystery Flavor:** {q['d10']}/2 `!mystery` uses",
+            f"11. 😊 **Compliment Chef:** {q['d11']}/5 `!flirt` uses", 
+            f"12. 🔥 **Active Cook:** {q['d12']}/10 commands total",
+            f"13. 🍅 **First Tomato Thrown:** {q['d13']}/1 First Blood in game", 
+            f"14. 🗑️ **Trashed Dish:** {q['d14']}/2 Times eliminated",
+            f"15. 💰 **Tip Jar:** {q['d15']}/1000 Flames earned", 
+            f"16. 🗣️ **Loud Kitchen:** {q['d16']}/10 chat messages sent",
+            f"17. 🪞 **Mirror Check:** {q['d17']}/1 `!me` profile check", 
+            f"18. 🔄 **Daily Bread:** {q['d18']}/1 `!daily` claimed",
+            f"19. 🛎️ **Order Up:** {q['d19']}/1 Ping in a game lobby", 
+            f"20. 🏆 **Full Shift:** {q['d20']}/1 Game played"
         ]
         
         w_tasks = [
-            f"1. 👑 **Champion of Arena:** {q['w1']}/5 Wins total", 
-            f"2. ⚔️ **Pride Shredder:** {q['w2']}/25 Arena Kills",
-            f"3. 📈 **Victory Streak:** {q['w3']}/3 Killstreak reached", 
-            f"4. 🔒 **Loyalty Collector:** {q['w4']}/3 Contracts accepted",
-            f"5. 🔗 **Career Worker:** {q['w5']}/30 `!work` commands", 
-            f"6. 🏆 **Arena Fiend:** {q['w6']}/50 commands used",
-            f"7. 💎 **Sultan of Flames:** {q['w7']}/10k total earnings", 
-            f"8. ⚔️ **High Endurance:** {q['w8']}/10 Games joined",
-            f"9. 🛡️ **Golden Fighter:** {q['w9']}/5 Top 5 placements", 
-            f"10. 🥀 **Professional Charmer:** {q['w10']}/20 `!flirt` uses",
-            f"11. 🧪 **Total Subject:** {q['w11']}/10 `!experiment` uses", 
-            f"12. 💧 **Floor Manager:** {q['w12']}/15 `!cumcleaner` uses",
-            f"13. 👠 **Guild Recruiter:** {q['w13']}/10 `!pimp` uses", 
-            f"14. 🕯️ **Mystery Seeker:** {q['w14']}/10 `!mystery` uses",
-            f"15. 🛡️ **Professional Pleader:** {q['w15']}/20 `!beg` uses", 
-            f"16. 📅 **Hooked:** {q['w16']}/7 `!daily` claims",
+            f"1. 👑 **Michelin Star:** {q['w1']}/5 Wins total", 
+            f"2. 🥧 **Pie Monster:** {q['w2']}/25 Arena Eliminations",
+            f"3. 📈 **Hot Streak:** {q['w3']}/3 Elimination Streak reached", 
+            f"4. 🔒 **Loyal Employee:** {q['w4']}/3 Contracts accepted",
+            f"5. 🔗 **Career Chef:** {q['w5']}/30 `!work` commands", 
+            f"6. 🏆 **Kitchen Fiend:** {q['w6']}/50 commands used",
+            f"7. 💎 **Restaurant Owner:** {q['w7']}/10k total earnings", 
+            f"8. 🍳 **High Stamina:** {q['w8']}/10 Games joined",
+            f"9. 🏅 **Golden Plating:** {q['w9']}/5 Top 5 placements", 
+            f"10. 🥀 **Front of House Charm:** {q['w10']}/20 `!flirt` uses",
+            f"11. 🧪 **Mad Scientist:** {q['w11']}/10 `!experiment` uses", 
+            f"12. 🧹 **Janitor Duty:** {q['w12']}/15 `!cumcleaner` uses",
+            f"13. 📣 **Loud Marketer:** {q['w13']}/10 `!pimp` uses", 
+            f"14. 🕯️ **Secret Menu:** {q['w14']}/10 `!mystery` uses",
+            f"15. 🥺 **Professional Beggar:** {q['w15']}/20 `!beg` uses", 
+            f"16. 📅 **Hooked on Cooking:** {q['w16']}/7 `!daily` claims",
             f"17. ⬆️ **Deepening Skill:** {q['w17']}/1 Level gained", 
             f"18. 👁️ **Public Interest:** {q['w18']}/50 Mentions in chat",
             f"19. 🌋 **Heat Chaser:** {q['w19']}/5 Heat Events triggered", 
-            f"20. 🏆 **Legendary Presence:** {q['w20']}/1 Legendary Event"
+            f"20. 🏆 **Legendary Dinner:** {q['w20']}/1 Legendary Event"
         ]
 
-        embed.add_field(name="🛡️ THE DAILY TASKS", value="\n".join(d_tasks[:10]), inline=True)
-        embed.add_field(name="🛡️ DAILY CONTINUED", value="\n".join(d_tasks[10:]), inline=True)
-        embed.add_field(name="⚔️ THE WEEKLY ORDEAL", value="\n".join(w_tasks[:10]), inline=True)
-        embed.add_field(name="⚔️ WEEKLY CONTINUED", value="\n".join(w_tasks[10:]), inline=True)
-        embed.set_footer(text="⚔️ THE GUILD IS ALWAYS WATCHING ⚔️")
+        embed.add_field(name="📋 THE DAILY CHORES", value="\n".join(d_tasks[:10]), inline=True)
+        embed.add_field(name="📋 DAILY CONTINUED", value="\n".join(d_tasks[10:]), inline=True)
+        embed.add_field(name="📅 THE WEEKLY MENU", value="\n".join(w_tasks[:10]), inline=True)
+        embed.add_field(name="📅 WEEKLY CONTINUED", value="\n".join(w_tasks[10:]), inline=True)
+        embed.set_footer(text="🧑‍🍳 THE HEALTH INSPECTOR IS ALWAYS WATCHING 🧑‍🍳")
 
         if os.path.exists("LobbyTopRight.jpg"):
             await ctx.send(file=file, embed=embed)
@@ -517,18 +517,18 @@ class FieryExtensionsSFW(commands.Cog):
 
     @commands.command(name="sfwquestboard")
     async def quest_leaderboard(self, ctx):
-        """Displays the Monthly Quest Leaderboard."""
+        """Displays the Monthly Kitchen Duty Leaderboard."""
         with self.get_db_connection() as conn:
             query = "SELECT user_id, (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") as total FROM quests WHERE user_id != 0 ORDER BY total DESC LIMIT 10"
             top_ten = conn.execute(query).fetchall()
 
-        desc = "🏆 **MONTHLY GUILD RANKINGS** 🏆\n\n"
+        desc = "🏆 **MONTHLY EMPLOYEE OF THE MONTH RANKINGS** 🏆\n\n"
         for i, row in enumerate(top_ten, 1):
             member = ctx.guild.get_member(row['user_id'])
-            name = member.display_name if member else f"Fighter {row['user_id']}"
-            desc += f"{i}. **{name}**: {row['total']} Demands Met\n"
+            name = member.display_name if member else f"Chef {row['user_id']}"
+            desc += f"{i}. **{name}**: {row['total']} Duties Completed\n"
         
-        embed = self.fiery_embed("Ledger Leaderboard", desc, color=0xFFD700)
+        embed = self.fiery_embed("Staff Leaderboard", desc, color=0xFFD700)
         await ctx.send(embed=embed)
 
     # ==========================================
@@ -550,15 +550,15 @@ class FieryExtensionsSFW(commands.Cog):
                 query = "SELECT user_id FROM quests WHERE user_id != 0 ORDER BY (" + " + ".join([f"d{i}" for i in range(1, 21)]) + " + " + " + ".join([f"w{i}" for i in range(1, 21)]) + ") DESC LIMIT 10"
                 winners = conn.execute(query).fetchall()
                 prizes = [250000, 220000, 200000, 180000, 150000, 120000, 100000, 80000, 60000, 50000]
-                recap = "🎊 **MONTHLY LEDGER PAYOUT!** 🎊\n\n"
+                recap = "🎊 **MONTHLY TIP OUT!** 🎊\n\n"
                 for idx, row in enumerate(winners):
                     prize = prizes[idx]
                     await self.update_user_stats(row['user_id'], amount=prize, source="Monthly Quest Leaderboard")
-                    recap += f"Place #{idx+1}: <@{row['user_id']}> won {prize:,} Flames!\n"
+                    recap += f"Employee #{idx+1}: <@{row['user_id']}> won {prize:,} Flames!\n"
                 
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send(embed=self.fiery_embed("Monthly Payout Recap", recap))
+                    await audit_chan.send(embed=self.fiery_embed("Monthly Bonus Recap", recap))
                 conn.execute("UPDATE quests SET " + ", ".join([f"d{i}=0" for i in range(1, 21)]) + ", " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
 
             if now.date() > last_reset.date():
@@ -566,13 +566,13 @@ class FieryExtensionsSFW(commands.Cog):
                 conn.execute("UPDATE quests SET last_reset = ? WHERE user_id = 0", (now.isoformat(),))
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send("⚔️ **LEDGER WIPE:** Daily Ordeals reset.")
+                    await audit_chan.send("🍳 **KITCHEN WIPE:** Daily chores reset.")
 
             if now.isoweekday() == 1 and now.isocalendar()[1] != last_reset.isocalendar()[1]:
                 conn.execute("UPDATE quests SET " + ", ".join([f"w{i}=0" for i in range(1, 21)]))
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send("🚨 **WEEKLY PURGE:** Weekly Ordeals reset.")
+                    await audit_chan.send("🚨 **FRIDGE PURGE:** Weekly chores reset.")
             conn.commit()
 
     @sfw_quest_reset_loop.before_loop
@@ -605,10 +605,10 @@ class FieryExtensionsSFW(commands.Cog):
                 is_weekly = quest_key.startswith('w')
                 flames = 2000 if is_weekly else 250
                 xp = 1000 if is_weekly else 100
-                await self.update_user_stats(user_id, amount=flames, xp_gain=xp, source=f"Quest ({quest_key})")
+                await self.update_user_stats(user_id, amount=flames, xp_gain=xp, source=f"Duty ({quest_key})")
                 audit_chan = self.bot.get_channel(self.audit_channel_id)
                 if audit_chan:
-                    await audit_chan.send(embed=self.fiery_embed("📜 QUEST COMPLETED", f"<@{user_id}> completed a demand!"))
+                    await audit_chan.send(embed=self.fiery_embed("✅ DUTY COMPLETED", f"<@{user_id}> finished a chore!"))
 
     @commands.Cog.listener()
     async def on_command_completion(self, ctx):
@@ -643,12 +643,12 @@ class EngineControlSFW(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def setsfwadmin(self, ctx, role: discord.Role):
-        """Sets the specific role allowed to manage Ignis SFW games."""
+        """Sets the specific role allowed to manage SFW games."""
         with self.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS sfw_ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
             conn.execute("INSERT OR REPLACE INTO sfw_ignis_settings (guild_id, role_id) VALUES (?, ?)", (ctx.guild.id, role.id))
             conn.commit()
-        await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as an **Ignis SFW Admin**."))
+        await ctx.send(embed=self.fiery_embed("Settings Updated", f"The role {role.mention} is now recognized as a **Head Chef Admin**."))
 
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -658,7 +658,7 @@ class EngineControlSFW(commands.Cog):
         main = sys.modules['__main__']
         main.game_edition = number
         self.save_game_config()
-        await ctx.send(f"✅ Next SFW game edition set to **#{number}**.")
+        await ctx.send(f"✅ Next SFW bake-off edition set to **#{number}**.")
         
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -668,7 +668,7 @@ class EngineControlSFW(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS sfw_ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.execute("INSERT OR REPLACE INTO sfw_ignis_server_stats (guild_id, server_edition) VALUES (?, ?)", (ctx.guild.id, number))
             conn.commit()
-        await ctx.send(f"✅ Next server-specific SFW game edition set to **#{number}**.")
+        await ctx.send(f"✅ Next server-specific SFW bake-off edition set to **#{number}**.")
 
     @commands.command()
     async def sfwecho(self, ctx):
@@ -678,7 +678,7 @@ class EngineControlSFW(commands.Cog):
         engine = self.bot.get_cog("IgnisEngineSFW")
         if engine:
             if ctx.channel.id in engine.active_battles:
-                return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
+                return await ctx.send("❌ **A cook-off is already active in this room.** Wait for the ovens to cool down.")
             if ctx.guild.id in engine.current_lobbies:
                  existing_view = engine.current_lobbies[ctx.guild.id]
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!sfwlobby` to check status.")
@@ -697,8 +697,8 @@ class EngineControlSFW(commands.Cog):
             conn.commit()
 
         embed = discord.Embed(
-            title=f"Echo's Hangrygames (SFW) Edition # {main.game_edition}", 
-            description=f"**Server Edition: #{server_edition}**\n\nThe arena gates are about to open, brave souls. Submit to the registration.", 
+            title=f"The Great Hangrygames Bake-Off # {main.game_edition}", 
+            description=f"**Server Edition: #{server_edition}**\n\nThe kitchen doors are about to open, chefs. Grab an apron and register.", 
             color=0x0000FF
         )
         
@@ -709,7 +709,7 @@ class EngineControlSFW(commands.Cog):
         if engine: 
             engine.current_lobbies[ctx.guild.id] = view
 
-        embed.add_field(name="🧙‍♂️ 0 Fighters Ready", value="The air is thick with anticipation.", inline=False)
+        embed.add_field(name="👨‍🍳 0 Chefs Ready", value="The air smells of fresh bread and competition.", inline=False)
         await ctx.send(embed=embed, view=view)
         
         main.game_edition += 1
@@ -730,13 +730,13 @@ class EngineControlSFW(commands.Cog):
             participants = [r[0] for r in rows]
         
         if not participants:
-            embed = self.fiery_embed("Lobby Status", "No active registration in progress. The arena is closed.")
+            embed = self.fiery_embed("Lobby Status", "No active registration in progress. The kitchen is closed.")
             file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
             return await ctx.send(file=file, embed=embed)
         
         mentions = [f"<@{p_id}>" for p_id in participants]
         edition_val = guild_lobby.edition if guild_lobby else "?"
-        embed = self.fiery_embed("Active Tributes", f"The following souls are bound for SFW Edition #{edition_val}:\n\n" + "\n".join(mentions), color=0x00FF00)
+        embed = self.fiery_embed("Active Cooks", f"The following chefs are bound for SFW Edition #{edition_val}:\n\n" + "\n".join(mentions), color=0x00FF00)
         file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
         await ctx.send(file=file, embed=embed)
 
@@ -783,7 +783,7 @@ class IgnisEngineSFW(commands.Cog):
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM sfw_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             conn.commit()
-        await ctx.send("⚔️ **Guild Master Override:** Global SFW Arena locks and lobbies have been reset.")
+        await ctx.send("🍳 **Head Chef Override:** Global SFW Kitchen locks and lobbies have been reset.")
 
     async def create_arena_image(self, winner_url, loser_url):
         try:
@@ -797,16 +797,16 @@ class IgnisEngineSFW(commands.Cog):
             canvas_w = 1000
             canvas_h = 1000
             bg_path = "1v1Background.jpg"
-            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (180, 30, 0, 255))
+            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (180, 180, 180, 255))
             
             av_large = 420
             av_winner = Image.open(p1_data).convert("RGBA").resize((av_large, av_large))
-            av_winner = ImageOps.expand(av_winner, border=10, fill="orange") 
+            av_winner = ImageOps.expand(av_winner, border=10, fill="yellow") 
             
             av_loser_raw = Image.open(p2_data).convert("RGBA").resize((av_large, av_large))
             av_loser = ImageOps.grayscale(av_loser_raw).convert("RGBA")
-            red_overlay = Image.new("RGBA", av_loser.size, (255, 0, 0, 100)) 
-            av_loser = Image.alpha_composite(av_loser, red_overlay)
+            white_overlay = Image.new("RGBA", av_loser.size, (255, 255, 255, 100)) 
+            av_loser = Image.alpha_composite(av_loser, white_overlay)
             av_loser = ImageOps.expand(av_loser, border=10, fill="gray")
             
             bg.paste(av_winner, (40, 150), av_winner)
@@ -822,7 +822,7 @@ class IgnisEngineSFW(commands.Cog):
             return buf
         except Exception as e:
             print(f"Arena Image Error: {e}")
-            fallback = Image.new("RGBA", (1000, 700), (120, 20, 0, 255))
+            fallback = Image.new("RGBA", (1000, 700), (255, 200, 150, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -837,28 +837,28 @@ class IgnisEngineSFW(commands.Cog):
             
             canvas_w, canvas_h = 1000, 1000
             bg_path = "1v1Background.jpg"
-            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (50, 50, 50, 255))
+            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (250, 250, 250, 255))
             
             av_size = 500
             av_raw = Image.open(data).convert("RGBA").resize((av_size, av_size))
             av = ImageOps.grayscale(av_raw).convert("RGBA")
             enhancer = ImageEnhance.Contrast(av)
             av = enhancer.enhance(1.5)
-            av = ImageOps.expand(av, border=15, fill=(40, 40, 40))
+            av = ImageOps.expand(av, border=15, fill=(200, 200, 200))
             
             bg.paste(av, (250, 150), av)
             
             draw = ImageDraw.Draw(bg)
-            draw.line((250, 150, 750, 650), fill=(200, 0, 0), width=30)
-            draw.line((750, 150, 250, 650), fill=(200, 0, 0), width=30)
+            draw.line((250, 150, 750, 650), fill=(200, 150, 0), width=30)
+            draw.line((750, 150, 250, 650), fill=(200, 150, 0), width=30)
             
             buf = io.BytesIO()
             bg.crop((0, 50, 1000, 750)).save(buf, format="PNG")
             buf.seek(0)
             return buf
         except Exception as e:
-            print(f"Suicide Image Error: {e}")
-            fallback = Image.new("RGBA", (1000, 700), (0, 0, 0, 255))
+            print(f"Mishap Image Error: {e}")
+            fallback = Image.new("RGBA", (1000, 700), (255, 255, 255, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -958,23 +958,23 @@ class IgnisEngineSFW(commands.Cog):
             self.current_survivors[channel.id] = [f['id'] for f in fighters]
 
             if len(fighters) < 2:
-                await channel.send("❌ Game cancelled: Not enough tributes found in the arena.")
+                await channel.send("❌ Cook-Off cancelled: Not enough chefs showed up to the kitchen.")
                 if channel.id in self.active_battles:
                     self.active_battles.remove(channel.id)
                 return
 
             try:
                 total_count = len(fighters)
-                roster_embed = self.fiery_embed(f"Tribute Roster - Edition #{edition}", f"**Total Fighters Bound:** `{total_count}`\n\n" + "\n".join(roster_list))
+                roster_embed = self.fiery_embed(f"Chef Roster - Edition #{edition}", f"**Total Cooks Ready:** `{total_count}`\n\n" + "\n".join(roster_list))
                 await channel.send(embed=roster_embed)
             except:
-                await channel.send(f"**Tribute Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
+                await channel.send(f"**Chef Roster - Edition #{edition} (Total: {len(fighters)})**\n" + "\n".join(roster_list))
 
             await asyncio.sleep(4)
             try:
                 await channel.send(FieryLexiconSFW.get_intro())
             except:
-                await channel.send("⚔️ **The gate opens. Let the games begin.**")
+                await channel.send("🍽️ **The ingredients are prepped. Let the cook-off begin.**")
             await asyncio.sleep(2)
 
             while len(fighters) > 1:
@@ -989,7 +989,7 @@ class IgnisEngineSFW(commands.Cog):
                         if victim['id'] in self.current_survivors[channel.id]:
                             self.current_survivors[channel.id].remove(victim['id'])
                     
-                    await self.update_user_stats(victim['id'], deaths=1, source="Suicide")
+                    await self.update_user_stats(victim['id'], deaths=1, source="Kitchen Mishap")
                     with self.get_db_connection() as conn:
                         conn.execute("UPDATE users SET current_kill_streak = 0, current_win_streak = 0 WHERE id = ?", (victim['id'],))
                         conn.commit()
@@ -1000,8 +1000,8 @@ class IgnisEngineSFW(commands.Cog):
                     s_img = await self.create_suicide_image(victim['avatar'])
                     s_file = discord.File(fp=s_img, filename="suicide.png")
                     
-                    s_msg = f"🥀 **THE ARENA WAS TOO MUCH.** {victim['name']} couldn't take the pressure and has ended their own existence."
-                    s_emb = discord.Embed(title="💀 SELF-TERMINATION DETECTED 💀", description=s_msg, color=0x333333)
+                    s_msg = f"🍌 **SLIP AND FALL.** {victim['name']} slipped on a rogue banana peel and is out of the competition."
+                    s_emb = discord.Embed(title="🚑 KITCHEN DISASTER DETECTED 🚑", description=s_msg, color=0xFFA500)
                     s_emb.set_image(url="attachment://suicide.png")
                     
                     await channel.send(file=s_file, embed=s_emb)
@@ -1012,8 +1012,8 @@ class IgnisEngineSFW(commands.Cog):
 
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
-                    climax_msg = f"⚔️ **THE FINAL STAND.** ⚔️\n\nOnly {t1['name']} and {t2['name']} remain. The arena falls silent. One will stand, one will fall..."
-                    climax_emb = self.fiery_embed("FINAL CLIMAX", climax_msg, color=0x8B0000)
+                    climax_msg = f"🍰 **THE FINAL COURSE.** 🍰\n\nOnly {t1['name']} and {t2['name']} remain. The kitchen falls silent. Who will plate the winning dish?"
+                    climax_emb = self.fiery_embed("FINAL TASTING", climax_msg, color=0xFFD700)
                     
                     if os.path.exists("LobbyTopRight.jpg"):
                         climax_file = discord.File("LobbyTopRight.jpg", filename="climax_logo.jpg")
@@ -1046,17 +1046,17 @@ class IgnisEngineSFW(commands.Cog):
                             if loser['id'] in self.current_survivors[channel.id]:
                                 self.current_survivors[channel.id].remove(loser['id'])
 
-                        await self.update_user_stats(loser['id'], deaths=1, source="Legendary Event")
-                        
-                        rem = len(fighters)
-                        fxp_log[loser['id']]["final_rank"] = rem + 1
-
                     if event_losers:
+                        for loser in event_losers:
+                            await self.update_user_stats(loser['id'], deaths=1, source="Legendary Event")
+                            rem = len(fighters)
+                            fxp_log[loser['id']]["final_rank"] = rem + 1
+
                         try:
                             event_msg = FieryLexiconSFW.get_legendary_event([l['name'] for l in event_losers])
                         except:
-                            event_msg = f"A chaotic surge wipes out: {', '.join([l['name'] for l in event_losers])}"
-                        await channel.send(embed=self.fiery_embed("LEGENDARY ECHO EVENT", event_msg, color=0x9400D3))
+                            event_msg = f"A massive grease fire wipes out: {', '.join([l['name'] for l in event_losers])}"
+                        await channel.send(embed=self.fiery_embed("LEGENDARY DISASTER EVENT", event_msg, color=0xFF4500))
                         await asyncio.sleep(6)
                     
                     if len(fighters) <= 1: break
@@ -1092,21 +1092,21 @@ class IgnisEngineSFW(commands.Cog):
                 game_kills[winner['id']] += 1
                 fxp_log[winner['id']]["kills"] += 750
                 
-                await self.update_user_stats(winner['id'], kills=1, source="Combat")
-                await self.update_user_stats(loser['id'], deaths=1, source="Combat")
+                await self.update_user_stats(winner['id'], kills=1, source="Food Fight")
+                await self.update_user_stats(loser['id'], deaths=1, source="Food Fight")
 
                 if target_streaks.get(loser['id'], 0) >= 2:
                     files = []
-                    bounty_emb = self.fiery_embed("🎯 BOUNTY COLLECTED 🎯", 
-                        f"**THE HIGH-VALUE TARGET HAS FALLEN.**\n\n"
-                        f"{winner['name']} has executed {loser['name']}, who was on a **{target_streaks[loser['id']]} Win Streak**.\n\n"
-                        f"💰 **BOUNTY REWARD:** +5,000 Flames & +5,000 XP has been wired to the killer's vault.")
+                    bounty_emb = self.fiery_embed("🎯 RECIPE STOLEN 🎯", 
+                        f"**THE MASTER CHEF HAS BEEN DETHRONED.**\n\n"
+                        f"{winner['name']} has out-cooked {loser['name']}, who was on a **{target_streaks[loser['id']]} Win Streak**.\n\n"
+                        f"💰 **CRITIC'S REWARD:** +5,000 Flames & +5,000 XP has been wired to the winner's register.")
                     
                     if os.path.exists("LobbyTopRight.jpg"):
                         files.append(discord.File("LobbyTopRight.jpg", filename="bounty_logo.jpg"))
-                        bounty_emb.set_author(name="GUILD's BOUNTY OFFICE", icon_url="attachment://bounty_logo.jpg")
+                        bounty_emb.set_author(name="MICHELIN CRITIC'S OFFICE", icon_url="attachment://bounty_logo.jpg")
                     
-                    await self.update_user_stats(winner['id'], amount=5000, xp_gain=5000, source="Bounty Collection")
+                    await self.update_user_stats(winner['id'], amount=5000, xp_gain=5000, source="Critic Collection")
                     await channel.send(embed=bounty_emb, files=files)
 
                 with self.get_db_connection() as conn:
@@ -1135,9 +1135,9 @@ class IgnisEngineSFW(commands.Cog):
                 try:
                     kill_msg = FieryLexiconSFW.get_kill(winner['name'], loser['name'], is_final=is_final_fight)
                 except:
-                    kill_msg = f"{winner['name']} has eliminated {loser['name']}!"
+                    kill_msg = f"{winner['name']} has eliminated {loser['name']} with a giant spatula!"
                 
-                emb = discord.Embed(title=f"⚔️ {winner['name']} VS {loser['name']}", description=kill_msg, color=0xFF4500)
+                emb = discord.Embed(title=f"🍳 {winner['name']} VS {loser['name']}", description=kill_msg, color=0x00A36C)
                 emb.set_image(url="attachment://arena.png")
                 await channel.send(file=file, embed=emb)
                 await asyncio.sleep(5)
@@ -1180,7 +1180,7 @@ class IgnisEngineSFW(commands.Cog):
 
             total_flames_won = int(25000 * flame_multiplier)
 
-            await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Game Win")
+            await self.update_user_stats(winner_final['id'], amount=75000, xp_gain=5000, wins=1, source="Bake-off Win")
             
             f_raw = self.get_user(winner_final['id'])
             f_u = dict(f_raw) if f_raw else {}
@@ -1192,7 +1192,7 @@ class IgnisEngineSFW(commands.Cog):
             try:
                 await channel.send(FieryLexiconSFW.get_winner_announcement(winner_member.mention))
             except:
-                await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
+                await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme master chef!**")
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
@@ -1211,7 +1211,7 @@ class IgnisEngineSFW(commands.Cog):
 
                         member = channel.guild.get_member(p_id) or await channel.guild.fetch_member(p_id)
                         
-                        audit_title = f"🏆 TOP {rank} POSITION: GUILD'S LEDGER" if rank > 1 else "👑 SUPREME VICTOR: GUILD'S LEDGER"
+                        audit_title = f"🏆 TOP {rank} POSITION: CRITIC'S LEDGER" if rank > 1 else "👑 SUPREME CHEF: CRITIC'S LEDGER"
                         audit_color = 0xFFD700 if rank == 1 else 0xC0C0C0 if rank == 2 else 0xCD7F32 if rank == 3 else 0x800020
                         
                         audit_emb = discord.Embed(title=audit_title, color=audit_color)
@@ -1220,13 +1220,13 @@ class IgnisEngineSFW(commands.Cog):
                             audit_emb.set_thumbnail(url="attachment://audit_logo.jpg")
                         
                         breakdown = (
-                            f"⚔️ **Member:** {member.mention}\n"
-                            f"🛡️ **Arena Rank:** #{rank}\n"
-                            f"📊 **Participation:** {log['participation']} Neural Pts\n"
-                            f"⚔️ **Match Executions:** {game_kills[p_id]} kills ({log['kills']} XP)\n"
-                            f"🩸 **First Blood Bonus:** {log['first_kill']} XP\n"
-                            f"🥇 **Placement Value:** {log['placement']} XP\n"
-                            f"💧 **Neural Imprint (XP) Gained:** +{processed_data.get(p_id, 0)}\n"
+                            f"🧑‍🍳 **Cook:** {member.mention}\n"
+                            f"🏅 **Kitchen Rank:** #{rank}\n"
+                            f"📊 **Participation:** {log['participation']} Culinary Pts\n"
+                            f"🥧 **Rivals Pied:** {game_kills[p_id]} eliminations ({log['kills']} XP)\n"
+                            f"🍅 **First Tomato Bonus:** {log['first_kill']} XP\n"
+                            f"🥇 **Plating Value:** {log['placement']} XP\n"
+                            f"💧 **Recipe Imprint (XP) Gained:** +{processed_data.get(p_id, 0)}\n"
                         )
                         
                         if rank == 1:
@@ -1236,15 +1236,15 @@ class IgnisEngineSFW(commands.Cog):
                         rank_m_name = self.ranks[min(lvl_m-1, len(self.ranks)-1)]
 
                         new_totals = (
-                            f"🔥 **Total Flames in Vault:** {m_stats.get('balance', 0):,}\n"
-                            f"💀 **Total Lifetime Executions:** {m_stats.get('kills', 0)}\n"
-                            f"💧 **Total Echo Experience:** {m_stats.get('fiery_xp', 0):,}\n"
+                            f"🔥 **Total Flames in Register:** {m_stats.get('balance', 0):,}\n"
+                            f"🥧 **Total Lifetime Eliminations:** {m_stats.get('kills', 0)}\n"
+                            f"💧 **Total Kitchen Experience:** {m_stats.get('fiery_xp', 0):,}\n"
                             f"🔝 **Echo Level:** {lvl_m} ({rank_m_name})"
                         )
 
                         audit_emb.description = breakdown
-                        audit_emb.add_field(name="💳 UPDATED member TOTALS", value=new_totals, inline=False)
-                        audit_emb.set_footer(text=f"Edition #{edition} | The Guild watched your every move.")
+                        audit_emb.add_field(name="💳 UPDATED COOK TOTALS", value=new_totals, inline=False)
+                        audit_emb.set_footer(text=f"Edition #{edition} | The Health Inspector watched your every move.")
                         
                         if os.path.exists("LobbyTopRight.jpg"): await audit_channel.send(file=audit_file, embed=audit_emb)
                         else: await audit_channel.send(embed=audit_emb)
@@ -1253,7 +1253,7 @@ class IgnisEngineSFW(commands.Cog):
             ach_cog = self.bot.get_cog("Achievements")
             ach_text = ach_cog.get_achievement_summary(winner_final['id']) if ach_cog else "N/A"
 
-            win_card = discord.Embed(title=f"👑 Echogames Winner 👑 # {edition}", color=0xFFD700)
+            win_card = discord.Embed(title=f"👑 Hangrygames Master Chef 👑 # {edition}", color=0xFFD700)
             win_card.set_image(url=winner_final['avatar'])
             
             log_win = fxp_log[winner_final['id']]
@@ -1265,14 +1265,14 @@ class IgnisEngineSFW(commands.Cog):
             elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
-            details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
+            details_card = discord.Embed(title="📜 Detailed Culinary Performance", color=0xFFD700)
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
-                            f"⚔️ **Kills:** {log_win['kills']} XP\n"
-                            f"🩸 **First Kill:** {log_win['first_kill']} XP\n"
-                            f"🥇 **Placement:** {log_win['placement']} XP\n"
+                            f"🥧 **Rivals Pied:** {log_win['kills']} XP\n"
+                            f"🍅 **First Tomato:** {log_win['first_kill']} XP\n"
+                            f"🥇 **Plating:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
-            details_card.add_field(name="💧 ECHO EXPERIENCE RECAP", value=breakdown_text, inline=False)
+            details_card.add_field(name="💧 KITCHEN EXPERIENCE RECAP", value=breakdown_text, inline=False)
             
             with self.get_db_connection() as conn:
                 w_rank_query = conn.execute("SELECT COUNT(*) + 1 as r FROM users WHERE wins > ?", (f_u.get('wins', 0),)).fetchone()
@@ -1294,17 +1294,17 @@ class IgnisEngineSFW(commands.Cog):
                 max_streak = updated_f_u['max_win_streak']
                 lifetime_flame_pool = total_arena_wins * 15000 
             
-            rank_text = f"🏆 **Wins:** Rank #{w_rank}\n⚔️ **Kills:** Rank #{k_rank}\n🎮 **Games:** Rank #{g_rank}"
+            rank_text = f"🏆 **Wins:** Rank #{w_rank}\n🥧 **Eliminations:** Rank #{k_rank}\n🎮 **Cook-Offs:** Rank #{g_rank}"
             win_card.add_field(name="📊 SERVER STATS", value=rank_text, inline=True)
             
-            legacy_text = (f"👑 **Total Arena Wins:** {total_arena_wins}\n"
+            legacy_text = (f"👑 **Total Cook-Off Wins:** {total_arena_wins}\n"
                            f"📝 **Total Participations:** {total_participations}\n"
-                           f"🔥 **Lifetime Arena Flames:** {lifetime_flame_pool:,}F")
-            win_card.add_field(name="🏛️ VICTOR'S LEGACY", value=legacy_text, inline=False)
+                           f"🔥 **Lifetime Cook-Off Flames:** {lifetime_flame_pool:,}F")
+            win_card.add_field(name="🏛️ CHEF'S LEGACY", value=legacy_text, inline=False)
             
             streak_text = (f"⚡ **Current Win Streak:** {current_streak}\n"
                            f"🌌 **All-Time Max Streak:** {max_streak}")
-            details_card.add_field(name="🧬 EVOLUTION PROTOCOL (STREAKS)", value=streak_text, inline=False)
+            details_card.add_field(name="🧬 RECIPE EVOLUTION (STREAKS)", value=streak_text, inline=False)
             details_card.add_field(name="🔥 STANDING", value=f"Rank {lvl}: **{rank_name}**", inline=False)
             details_card.add_field(name="💰 PRIZE POOL", value=f"**Flames:** {total_flames_won}", inline=False)
             details_card.add_field(name="🏅 ACHIEVEMENTS", value=ach_text, inline=False)
@@ -1316,7 +1316,7 @@ class IgnisEngineSFW(commands.Cog):
         except Exception as e:
             print(f"# CRITICAL ENGINE FAILURE: {e}")
             traceback.print_exc()
-            await channel.send("❌ A critical dungeon error occurred. Call Dev.rodz.")
+            await channel.send("❌ A critical kitchen error occurred. The oven caught fire. Call Dev.rodz.")
         finally:
             if channel.id in self.current_survivors:
                 del self.current_survivors[channel.id]
@@ -1327,18 +1327,18 @@ class StatusCheckSFW(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.alive_sentences = [
-            "Still breathing and fighting for more, aren't you? {mention} is alive.",
-            "The blows haven't broken you yet. {mention} is still in the game.",
-            "A stubborn fighter. {mention} is still standing in the pit.",
-            "You look good in the arena. {mention} is very much alive.",
-            "Your heart is still racing for the victory. {mention} survives."
+            "Still cooking up a storm, aren't you? {mention} is alive and well.",
+            "The burnt toast hasn't broken you yet. {mention} is still in the kitchen.",
+            "A stubborn chef. {mention} is still standing at the stove.",
+            "Your apron is a little dirty, but {mention} is very much alive.",
+            "Your timer is still ticking for the victory. {mention} survives."
         ]
         self.dead_sentences = [
-            "Cold, quiet, and completely defeated. {mention} is dead.",
-            "Another soul for the furnace. {mention} has been eliminated.",
-            "The arena is empty for you. {mention} has fallen.",
-            "Combat reached its limit. {mention} is out of the game.",
-            "Silence suits you, loser. {mention} is dead."
+            "Burnt to a crisp and out of ingredients. {mention} has been eliminated.",
+            "Another failed dish for the trash. {mention} has been chopped.",
+            "The kitchen is empty for you. {mention} has hung up their apron.",
+            "The dinner rush reached its limit. {mention} is out of the kitchen.",
+            "Silence suits you, dishwasher. {mention} is done for."
         ]
 
     @commands.Cog.listener()
@@ -1359,16 +1359,16 @@ class StatusCheckSFW(commands.Cog):
             if content == "i am alive":
                 if is_survivor:
                     msg = random.choice(self.alive_sentences).format(mention=message.author.mention)
-                    await message.channel.send(f"⚔️ **{msg}**")
+                    await message.channel.send(f"🍳 **{msg}**")
                 else:
-                    await message.channel.send(f"🥀 **Don't lie to the Guild, ghost. You are already broken and gone.**")
+                    await message.channel.send(f"🥀 **Don't lie to the Health Inspector, ghost. You are already chopped.**")
             
             elif content == "i am dead":
                 if not is_survivor:
                     msg = random.choice(self.dead_sentences).format(mention=message.author.mention)
                     await message.channel.send(f"💀 **{msg}**")
                 else:
-                    await message.channel.send(f"🛡️ **Not yet, brave soul. You're still here to entertain us.**")
+                    await message.channel.send(f"🛡️ **Not yet, brave cook. You're still here to feed us.**")
 
 class PersistentLobbyLauncherSFW(commands.Cog):
     """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks per server."""
@@ -1398,7 +1398,7 @@ class PersistentLobbyLauncherSFW(commands.Cog):
                     if engine:
                         engine.current_lobbies[g_id] = view
                         
-                print(f"⚔️ Ignis SFW Persistence Protocol: Registered {len(guilds)} independent server lobbies.")
+                print(f"🍳 Ignis SFW Persistence Protocol: Registered {len(guilds)} independent kitchen lobbies.")
         except Exception as e:
             print(f"Persistence Rehydration Error (SFW): {e}")
 
