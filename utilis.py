@@ -87,8 +87,12 @@ class DungeonCounter(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.counts = {} # Simple in-memory tracker: {channel_id: current_count}
-        self.designated_channel = 0 # Persistent Math Protocol Channel
-        self.next_tribute_number = 0 # Tracks when the next random tribute occurs
+        self.designated_channel = 0 # Persistent Math Protocol Channel (Legacy fallback)
+        self.next_tribute_number = 0 # Tracks when the next random tribute occurs (Legacy fallback)
+        
+        # --- ADDED: Multi-Server Mappings ---
+        self.active_channels = {} # {guild_id: channel_id}
+        self.tribute_trackers = {} # {guild_id: next_tribute_number}
 
     def load_channel(self):
         """Loads designated math channel and current count from config table."""
@@ -96,15 +100,25 @@ class DungeonCounter(commands.Cog):
             with db_module.get_db_connection() as conn:
                 # Ensure the table exists before selecting
                 conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-                row = conn.execute("SELECT value FROM config WHERE key = 'math_channel'").fetchone()
-                if row: self.designated_channel = int(row['value'])
                 
-                # Load current count if it exists
-                count_row = conn.execute("SELECT value FROM config WHERE key = 'math_current_count'").fetchone()
-                if count_row and self.designated_channel != 0:
-                    self.counts[self.designated_channel] = int(count_row['value'])
-                else:
-                    self.counts[self.designated_channel] = 0
+                # --- ADDED: Load all math channels across all servers ---
+                conn.row_factory = db_module.sqlite3.Row
+                channel_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'math_channel_%'").fetchall()
+                for row in channel_rows:
+                    key_parts = row['key'].split('_')
+                    if len(key_parts) >= 3:
+                        guild_id = int(key_parts[-1])
+                        self.active_channels[guild_id] = int(row['value'])
+                
+                # Load current counts for all active servers
+                count_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'math_current_count_%'").fetchall()
+                for row in count_rows:
+                    key_parts = row['key'].split('_')
+                    if len(key_parts) >= 4:
+                        guild_id = int(key_parts[-1])
+                        channel_id = self.active_channels.get(guild_id)
+                        if channel_id:
+                            self.counts[channel_id] = int(row['value'])
 
                 # Ensure columns exist in users table globally during load
                 cursor = conn.execute("PRAGMA table_info(users)")
@@ -117,11 +131,15 @@ class DungeonCounter(commands.Cog):
         except Exception as e:
             print(f"Math Load Error: {e}")
 
-    def save_count(self, count):
+    def save_count(self, count, guild_id=None):
         """Saves current count to the database for persistence."""
         try:
             with db_module.get_db_connection() as conn:
-                conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_current_count', ?)", (str(count),))
+                # --- ADDED: Save based on guild ID ---
+                if guild_id:
+                    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f'math_current_count_{guild_id}', str(count)))
+                else:
+                    conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_current_count', ?)", (str(count),))
                 conn.commit()
         except Exception as e:
             print(f"Math Save Error: {e}")
@@ -131,14 +149,21 @@ class DungeonCounter(commands.Cog):
     async def set_math_channel(self, ctx, channel: discord.TextChannel = None):
         """DESIGNATE THE MATH PIT: Sets the active channel for counting."""
         target = channel or ctx.channel
+        guild_id = ctx.guild.id
+        
         self.designated_channel = target.id
+        # --- ADDED: Register channel to specific server ---
+        self.active_channels[guild_id] = target.id
+        
         # Reset count when re-setting channel
         self.counts[target.id] = 0
         self.next_tribute_number = 0
+        self.tribute_trackers[guild_id] = 0
         
         with db_module.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_channel', ?)", (str(target.id),))
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('math_current_count', '0')",)
+            # --- ADDED: Insert specific to the server's guild_id ---
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f'math_channel_{guild_id}', str(target.id)))
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, '0')", (f'math_current_count_{guild_id}',))
             conn.commit()
             
         desc = f"Protocol **MATH** initialized. The Master will only monitor numbers in {target.mention}."
@@ -148,11 +173,14 @@ class DungeonCounter(commands.Cog):
     @commands.has_permissions(manage_channels=True)
     async def math_fix_count(self, ctx, new_number: int):
         """FORCE SEQUENCE: Sets the current count to a specific number."""
-        if self.designated_channel == 0:
+        guild_id = ctx.guild.id
+        current_math_channel = self.active_channels.get(guild_id, 0)
+        
+        if current_math_channel == 0:
             return await ctx.send("❌ **Error:** No math channel designated yet. Use `!math` first.")
 
-        self.counts[self.designated_channel] = new_number
-        self.save_count(new_number)
+        self.counts[current_math_channel] = new_number
+        self.save_count(new_number, guild_id)
         
         desc = f"The Master has recalibrated the sequence. The current count is now **{new_number}**.\n\n" \
                f"The next required number is **{new_number + 1}**."
@@ -161,13 +189,18 @@ class DungeonCounter(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot: return
+        if not message.guild: return
+        
+        guild_id = message.guild.id
         
         # Load channel and count from DB if memory is empty (happens on deploy)
-        if self.designated_channel == 0 or not self.counts: 
+        if not self.active_channels or not self.counts: 
             self.load_channel()
             
-        # RESTRICTION: Only process if the channel matches the !math designation
-        if message.channel.id != self.designated_channel: return
+        active_channel_for_guild = self.active_channels.get(guild_id, 0)
+            
+        # RESTRICTION: Only process if the channel matches the !math designation for this specific server
+        if message.channel.id != active_channel_for_guild: return
         
         if message.content.isdigit():
             val = int(message.content)
@@ -177,7 +210,7 @@ class DungeonCounter(commands.Cog):
             # Sequence Check
             if val == current + 1:
                 self.counts[channel_id] = val
-                self.save_count(val) # PERSISTENCE: Save each increment to DB immediately
+                self.save_count(val, guild_id) # PERSISTENCE: Save each increment to DB immediately
                 
                 # --- UPDATE USER HISTORY STATS ---
                 try:
@@ -191,13 +224,15 @@ class DungeonCounter(commands.Cog):
                     print(f"Stats Error: {e}")
 
                 # Logic for Randomized Tributes (Infinite Counting)
-                if self.next_tribute_number == 0:
+                current_tribute = self.tribute_trackers.get(guild_id, 0)
+                if current_tribute == 0:
                     if random.random() < 0.05:
-                        self.next_tribute_number = val
+                        self.tribute_trackers[guild_id] = val
+                        current_tribute = val
 
                 # If the Tribute number is hit
-                if self.next_tribute_number != 0 and val == self.next_tribute_number:
-                    self.next_tribute_number = 0 # Reset tribute tracker
+                if current_tribute != 0 and val == current_tribute:
+                    self.tribute_trackers[guild_id] = 0 # Reset tribute tracker
                     
                     # --- UPDATE TRIBUTE COUNT & FETCH STATS ---
                     u_numbers = 0
