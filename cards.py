@@ -182,9 +182,17 @@ class CardSystem(commands.Cog):
         self.spawn_channel_id = None 
         self.current_card = None
         
+        # --- START ADDITION: GUILD CARD ISOLATION ---
+        self.guild_current_cards = {}
+        # --- END ADDITION ---
+        
         # ACTIVITY LOGIC: restored and tied to member-spawns
         self.activity_pool = 0
         self.required_activity = 25 
+        
+        # --- START ADDITION: GUILD ACTIVITY ISOLATION ---
+        self.guild_activity_pool = {}
+        # --- END ADDITION ---
         
         self._init_db()
         
@@ -275,6 +283,10 @@ class CardSystem(commands.Cog):
             # ADDED: PING TABLE
             conn.execute("CREATE TABLE IF NOT EXISTS supreme_pings (user_id INTEGER PRIMARY KEY)")
             
+            # --- START ADDITION: GUILD CHANNEL ISOLATION ---
+            conn.execute("CREATE TABLE IF NOT EXISTS guild_spawn_channels (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
+            # --- END ADDITION ---
+
             # Migration check: add columns if they don't exist in an old DB
             cursor = conn.execute("PRAGMA table_info(user_cards)")
             columns = [column[1] for column in cursor.fetchall()]
@@ -396,6 +408,11 @@ class CardSystem(commands.Cog):
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO card_config (key, value) VALUES ('spawn_channel', ?)", (str(channel.id),))
+            
+            # --- START ADDITION: GUILD CHANNEL ISOLATION ---
+            conn.execute("INSERT OR REPLACE INTO guild_spawn_channels (guild_id, channel_id) VALUES (?, ?)", (ctx.guild.id, channel.id))
+            # --- END ADDITION ---
+            
             conn.commit()
         
         embed = main_mod.fiery_embed("Coordinates Synchronized", 
@@ -431,6 +448,17 @@ class CardSystem(commands.Cog):
     async def spawn_card(self, guild):
         """LOCALIZATION SEQUENCE: Selects a member and ROLLS A NEW RARITY every time."""
         print(f"[SYS] Initiating spawn sequence for {guild.name}...") # ADDED
+        
+        # --- START ADDITION: GUILD CHANNEL ISOLATION ---
+        main_mod = sys.modules['__main__']
+        with main_mod.get_db_connection() as conn:
+            row = conn.execute("SELECT channel_id FROM guild_spawn_channels WHERE guild_id = ?", (guild.id,)).fetchone()
+            if row:
+                self.spawn_channel_id = int(row[0])
+            else:
+                self.spawn_channel_id = None
+        # --- END ADDITION ---
+
         if not self.spawn_channel_id: 
             print("[SYS] Aborting spawn: spawn_channel_id is currently None.") # ADDED
             return
@@ -480,6 +508,10 @@ class CardSystem(commands.Cog):
             "intel": intel_text,
             "powers": powers
         }
+        
+        # --- START ADDITION: GUILD CARD ISOLATION ---
+        self.guild_current_cards[guild.id] = self.current_card
+        # --- END ADDITION ---
 
         main_mod = sys.modules['__main__']
         
@@ -519,10 +551,22 @@ class CardSystem(commands.Cog):
         # Track global server activity
         self.activity_pool += 1
         
+        # --- START ADDITION: GUILD ACTIVITY ISOLATION ---
+        if message.guild.id not in self.guild_activity_pool:
+            self.guild_activity_pool[message.guild.id] = 0
+        self.guild_activity_pool[message.guild.id] += 1
+        self.activity_pool = self.guild_activity_pool[message.guild.id]
+        # --- END ADDITION ---
+
         if self.activity_pool >= self.required_activity:
             # Chance check lowered to 0.25 (25%) to slow down the high-frequency drops
             if random.random() < 0.25: 
                 self.activity_pool = 0
+                
+                # --- START ADDITION: RESET GUILD POOL ---
+                self.guild_activity_pool[message.guild.id] = 0
+                # --- END ADDITION ---
+                
                 await self.spawn_card(message.guild)
 
     async def check_mastery(self, ctx, user_id):
@@ -530,6 +574,12 @@ class CardSystem(commands.Cog):
 
     @commands.command()
     async def catch(self, ctx, *, card_name: str):
+        
+        # --- START ADDITION: GUILD CARD ISOLATION ---
+        if ctx.guild and ctx.guild.id in self.guild_current_cards:
+            self.current_card = self.guild_current_cards[ctx.guild.id]
+        # --- END ADDITION ---
+        
         # FIX: strip whitespace and use case-insensitive matching to solve "invalid name" errors
         if not self.current_card or card_name.strip().lower() != self.current_card['name'].strip().lower():
             return await ctx.reply("❌ Asset signal lost or incorrect ID signature!")
@@ -541,6 +591,11 @@ class CardSystem(commands.Cog):
         # Prepare View - Passing card here though the listener handles it
         view = InfoView(card)
         self.current_card = None 
+        
+        # --- START ADDITION: GUILD CARD ISOLATION ---
+        if ctx.guild and ctx.guild.id in self.guild_current_cards:
+            self.guild_current_cards.pop(ctx.guild.id, None)
+        # --- END ADDITION ---
 
         with main_mod.get_db_connection() as conn:
             # Save card with Intel and Powers (serialized to JSON)
