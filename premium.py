@@ -131,6 +131,10 @@ class PremiumSystem(commands.Cog):
         # --- ADDED: BACKGROUND TASK FOR FREE TRIAL EXPIRATIONS ---
         self.trial_expiration_task = self.bot.loop.create_task(self.check_trial_expirations())
         
+        # --- START ADDITION: BACKGROUND TASK FOR PAID EXPIRATIONS ---
+        self.paid_expiration_task = self.bot.loop.create_task(self.check_paid_expirations())
+        # --- END ADDITION ---
+
         # --- ADDED: GLOBAL PREMIUM COMMAND LIST ---
         self.premium_commands = [
             "setadminrole", "audit", "collectadmin", "setcards", "setconfessreview", 
@@ -142,6 +146,10 @@ class PremiumSystem(commands.Cog):
             "matchmaking", "thread", "threadall", "math"
         ]
         self.bot.add_check(self.global_premium_interceptor)
+        
+        # --- START ADDITION: SLASH COMMAND TREE REGISTRATION ---
+        self.bot.tree.interaction_check = self.global_slash_premium_interceptor
+        # --- END ADDITION ---
 
     def cog_unload(self):
         # Cleanly remove the check if the cog is ever reloaded or unloaded
@@ -149,6 +157,10 @@ class PremiumSystem(commands.Cog):
         
         # --- ADDED: CANCEL TRIAL TASK ON UNLOAD ---
         self.trial_expiration_task.cancel()
+        
+        # --- START ADDITION: CANCEL PAID EXPIRATION TASK ---
+        self.paid_expiration_task.cancel()
+        # --- END ADDITION ---
 
     async def check_trial_expirations(self):
         """Background loop to check and remove expired free trials."""
@@ -177,8 +189,37 @@ class PremiumSystem(commands.Cog):
             
             await asyncio.sleep(3600)  # Check every hour
 
+    # --- START ADDITION: PAID PLAN EXPIRATIONS LOOP ---
+    async def check_paid_expirations(self):
+        """Background loop to check and remove expired paid premium plans."""
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            try:
+                with self.get_db_connection() as conn:
+                    now_str = datetime.now().isoformat()
+                    expired_plans = conn.execute("SELECT guild_id FROM server_premium WHERE expires_at <= ? AND expires_at IS NOT NULL AND premium_type != '10-Day Free Trial'", (now_str,)).fetchall()
+                    
+                    for row in expired_plans:
+                        g_id = row['guild_id']
+                        conn.execute("DELETE FROM server_premium WHERE guild_id = ?", (g_id,))
+                    
+                    if expired_plans:
+                        conn.commit()
+            except Exception as e:
+                print(f"[PremiumSystem] Error in check_paid_expirations: {e}")
+            
+            await asyncio.sleep(3600)  # Check every hour
+    # --- END ADDITION ---
+
     async def global_premium_interceptor(self, ctx):
         """Intercepts all commands and blocks execution if they are on the premium list and the server is not premium."""
+        # --- START ADDITION: SUBCOMMAND PROTECTION ---
+        if ctx.command and hasattr(ctx.command, "root_parent") and ctx.command.root_parent:
+            if ctx.command.root_parent.name in self.premium_commands:
+                if ctx.command.name not in self.premium_commands:
+                    self.premium_commands.append(ctx.command.name)
+        # --- END ADDITION ---
+        
         if not ctx.command:
             return True
             
@@ -204,6 +245,34 @@ class PremiumSystem(commands.Cog):
             
         return True
 
+    # --- START ADDITION: SLASH COMMAND INTERCEPTOR ---
+    async def global_slash_premium_interceptor(self, interaction: discord.Interaction):
+        if not interaction.command: 
+            return True
+            
+        cmd_name = interaction.command.name
+        if hasattr(interaction.command, "parent") and interaction.command.parent:
+            cmd_name = interaction.command.parent.name
+
+        if cmd_name in self.premium_commands:
+            if interaction.guild is None:
+                await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+                return False
+
+            main = sys.modules['__main__']
+            with self.get_db_connection() as conn:
+                serv = conn.execute("SELECT premium_type FROM server_premium WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+
+            if serv and serv['premium_type'] not in ['Free', '', None]:
+                return True
+
+            embed = main.fiery_embed("ACCESS DENIED", "❌ This command requires an active **Server Premium** subscription.\nType `/premium` to unlock.")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return False
+            
+        return True
+    # --- END ADDITION ---
+
     async def start_webhook_server(self):
         app = web.Application()
         app.router.add_post('/webhook', self.handle_paypal_webhook)
@@ -215,6 +284,19 @@ class PremiumSystem(commands.Cog):
 
     async def handle_paypal_webhook(self, request):
         data = await request.post()
+        
+        # --- START ADDITION: PAYPAL IPN SECURITY VERIFICATION ---
+        verify_payload = dict(data)
+        verify_payload['cmd'] = '_notify-validate'
+        paypal_url = "https://ipnpb.paypal.com/cgi-bin/webscr"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(paypal_url, data=verify_payload) as resp:
+                verification_text = await resp.text()
+                if verification_text != "VERIFIED":
+                    print(f"[SECURITY] Blocked fake premium webhook attempt: {verification_text}")
+                    return web.Response(status=403, text="Forbidden")
+        # --- END ADDITION ---
+
         if data.get('payment_status') == 'Completed':
             custom = data.get('custom', '')
             if custom.startswith('G'):
@@ -226,8 +308,15 @@ class PremiumSystem(commands.Cog):
                     with self.get_db_connection() as conn:
                         conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)",
                                      (guild_id, plan_name, p_date))
+                        
+                        # --- START ADDITION: PAID PLAN EXPIRATION SAVE ---
+                        duration = int(parts[2]) if len(parts) > 2 else 30
+                        expires_at = (datetime.now() + timedelta(days=duration)).isoformat()
+                        conn.execute("UPDATE server_premium SET expires_at = ? WHERE guild_id = ?", (expires_at, guild_id))
+                        # --- END ADDITION ---
+                        
                         conn.commit()
-                    await self.log_admin_action(f"Guild ID: {guild_id}", plan_name, "AUTOMATIC WEBHOOK ACTIVATION")
+                await self.log_admin_action(f"Guild ID: {guild_id}", plan_name, "AUTOMATIC WEBHOOK ACTIVATION")
         return web.Response(text="OK")
 
     async def log_admin_action(self, guild_name, plan_name, action):
@@ -285,6 +374,10 @@ class PremiumSystem(commands.Cog):
             # Add to premium table
             conn.execute("INSERT OR REPLACE INTO server_premium (guild_id, premium_type, premium_date) VALUES (?, ?, ?)",
                          (ctx.guild.id, '10-Day Free Trial', now.isoformat()))
+            
+            # --- START ADDITION: ENSURE EXPIRATION COLUMN POPULATED FOR TRIAL ---
+            conn.execute("UPDATE server_premium SET expires_at = ? WHERE guild_id = ?", (expires_at.isoformat(), ctx.guild.id))
+            # --- END ADDITION ---
             conn.commit()
 
         embed = self.fiery_embed("FREE TRIAL ACTIVATED", 
@@ -459,6 +552,14 @@ async def setup(bot):
     main = sys.modules['__main__']
     with main.get_db_connection() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS server_premium (guild_id INTEGER PRIMARY KEY, premium_type TEXT, premium_date TEXT)")
+        
+        # --- START ADDITION: ADD EXPIRES_AT COLUMN SAFELY ---
+        try:
+            conn.execute("ALTER TABLE server_premium ADD COLUMN expires_at TEXT")
+        except sqlite3.OperationalError:
+            pass # Column already exists
+        # --- END ADDITION ---
+
         # --- ADDED: FREE TRIAL TRACKING TABLE ---
         conn.execute("CREATE TABLE IF NOT EXISTS free_trial_usage (guild_id INTEGER PRIMARY KEY, used_date TEXT, expires_at TEXT)")
         conn.commit()
