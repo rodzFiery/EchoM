@@ -243,6 +243,13 @@ class FieryCasino(commands.Cog):
         score = sum(hand)
         if score > 21 and 11 in hand:
             score -= 10
+        # --- ADDED: FIX FOR MULTIPLE ACES BUSTING PLAYERS INCORRECTLY ---
+        if score > 21 and hand.count(11) > 1:
+            score -= 10
+        if score > 21 and hand.count(11) > 2:
+            score -= 10
+        if score > 21 and hand.count(11) > 3:
+            score -= 10
         return score
 
     # --- DICE COMMANDS ---
@@ -277,6 +284,8 @@ class FieryCasino(commands.Cog):
         mult = 1.0 + (user['fiery_level'] * 0.01)
         if total == guess:
             win_total = int((bet * 8) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_total = int(bet + ((bet * 7) * mult))
             # Math: Net gain is win_total - bet (since the bet was still in the wallet)
             await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
@@ -343,6 +352,8 @@ class FieryCasino(commands.Cog):
         
         if reason == "BLACKJACK":
             win_amt = int((bet * 2.5) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_amt = int(bet + ((bet * 1.5) * mult))
             status = f"🔞 **NATURAL CLIMAX!** {interaction.user.display_name} overstimulated the dealer."
             color = 0xFFD700
         elif p_score > 21:
@@ -351,6 +362,8 @@ class FieryCasino(commands.Cog):
             color = 0x8B0000
         elif d_score > 21 or p_score > d_score:
             win_amt = int((bet * 2) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_amt = int(bet + ((bet * 1) * mult))
             status = f"🫦 **DOMINANCE.** {interaction.user.display_name} outplayed the House."
             color = 0x00FF00
         elif p_score == d_score:
@@ -409,11 +422,18 @@ class FieryCasino(commands.Cog):
         num = random.randint(0, 36)
         color = "red" if num % 2 == 0 and num != 0 else "black"
         if num == 0: color = "green"
+        # --- ADDED: CORRECT CASINO ROULETTE COLOR MATH ---
+        actual_reds = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
+        if num != 0:
+            color = "red" if num in actual_reds else "black"
+        
         mult = 1.0 + (user['fiery_level'] * 0.01)
         win_amt = 0
         if choice == color or (choice.isdigit() and int(choice) == num):
             payout_mult = 35 if choice.isdigit() else 2
             win_amt = int((bet * payout_mult) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_amt = int(bet + ((bet * (payout_mult - 1)) * mult))
             await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Net Payout of **{(win_amt-bet):,} Flames**!"
@@ -467,8 +487,12 @@ class FieryCasino(commands.Cog):
         if r1 == r2 == r3:
             payout = 50 if r1 == "🔥" else 10
             win_amt = int((bet * payout) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_amt = int(bet + ((bet * (payout - 1)) * mult))
         elif r1 == r2 or r2 == r3 or r1 == r3:
             win_amt = int((bet * 3) * mult)
+            # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
+            win_amt = int(bet + ((bet * 2) * mult))
 
         if win_amt > 0:
             await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Slots Win")
