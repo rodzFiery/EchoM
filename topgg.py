@@ -69,6 +69,10 @@ class TopGG(commands.Cog):
                 try:
                     with db_module.get_db_connection() as conn:
                         conn.execute("CREATE TABLE IF NOT EXISTS topgg_votes (user_id INTEGER PRIMARY KEY, vote_time TEXT)")
+                        
+                        # --- ADDED: Create bypassed_servers table during webhook setup ---
+                        conn.execute("CREATE TABLE IF NOT EXISTS bypassed_servers (guild_id INTEGER PRIMARY KEY)")
+                        
                         expire = (datetime.now() + timedelta(hours=12)).isoformat()
                         conn.execute("INSERT OR REPLACE INTO topgg_votes (user_id, vote_time) VALUES (?, ?)", (int(user_id), expire))
                         conn.commit()
@@ -87,6 +91,18 @@ class TopGG(commands.Cog):
         # OWNER BYPASS
         if ctx.author.id == self.owner_id:
             return True
+            
+        # --- ADDED: SERVER BYPASS CHECK ---
+        if ctx.guild:
+            with db_module.get_db_connection() as conn:
+                try:
+                    # Ensures table exists in case the command is used before a webhook fires
+                    conn.execute("CREATE TABLE IF NOT EXISTS bypassed_servers (guild_id INTEGER PRIMARY KEY)")
+                    row = conn.execute("SELECT guild_id FROM bypassed_servers WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+                    if row:
+                        return True
+                except Exception:
+                    pass
             
         cog_name = ctx.command.cog_name
         command_name = ctx.command.name
@@ -161,6 +177,29 @@ class TopGG(commands.Cog):
             await ctx.send(file=file, embed=embed)
         else:
             await ctx.send(embed=embed)
+
+    # --- ADDED: SERVER BYPASS TOGGLE COMMAND ---
+    @commands.command()
+    async def disablevote(self, ctx):
+        if ctx.author.id != self.owner_id:
+            return await ctx.send("Only the bot owner can use this command.")
+
+        if not ctx.guild:
+            return await ctx.send("This command must be used in a server.")
+
+        guild_id = ctx.guild.id
+        with db_module.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS bypassed_servers (guild_id INTEGER PRIMARY KEY)")
+            
+            row = conn.execute("SELECT guild_id FROM bypassed_servers WHERE guild_id = ?", (guild_id,)).fetchone()
+            if row:
+                conn.execute("DELETE FROM bypassed_servers WHERE guild_id = ?", (guild_id,))
+                conn.commit()
+                await ctx.send("✅ Vote requirement has been **re-enabled** for this server.")
+            else:
+                conn.execute("INSERT INTO bypassed_servers (guild_id) VALUES (?)", (guild_id,))
+                conn.commit()
+                await ctx.send("✅ Vote requirement has been **disabled** for this server.")
 
 async def setup(bot):
     await bot.add_cog(TopGG(bot))
