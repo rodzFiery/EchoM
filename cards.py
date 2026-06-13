@@ -578,6 +578,8 @@ class CardSystem(commands.Cog):
         # --- START ADDITION: GUILD CARD ISOLATION ---
         if ctx.guild and ctx.guild.id in self.guild_current_cards:
             self.current_card = self.guild_current_cards[ctx.guild.id]
+        else:
+            self.current_card = None # CRITICAL FIX: Stops the global fallback from letting players cross-catch from other servers
         # --- END ADDITION ---
         
         # FIX: strip whitespace and use case-insensitive matching to solve "invalid name" errors
@@ -639,11 +641,21 @@ class CardSystem(commands.Cog):
                 (target.id,)
             ).fetchall()
             
+            # --- START ADDITION: GUILD VISUAL ISOLATION FOR POKEDEX ---
+            guild_member_names = [m.display_name.lower() for m in ctx.guild.members]
+            guild_member_names.extend([m.name.lower() for m in ctx.guild.members])
+            rows = [r for r in rows if r[0].lower() in guild_member_names]
+            # --- END ADDITION ---
+            
             # Logic to count unique members caught
             unique_members_caught = conn.execute(
                 "SELECT COUNT(DISTINCT card_name) FROM user_cards WHERE user_id = ?", 
                 (target.id,)
             ).fetchone()[0]
+
+            # --- START ADDITION: CORRECT COUNT FOR GUILD ---
+            unique_members_caught = len(set([r[0].lower() for r in rows]))
+            # --- END ADDITION ---
 
             # FETCH PET DATA
             pet_row = conn.execute("SELECT card_name, avatar_url FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
@@ -705,6 +717,12 @@ class CardSystem(commands.Cog):
                 "WHEN 'epic' THEN 4 WHEN 'rare' THEN 5 ELSE 6 END, timestamp DESC",
                 (target.id,)
             ).fetchall()
+            
+            # --- START ADDITION: GUILD VISUAL ISOLATION FOR VELVETDEX ---
+            guild_member_names = [m.display_name.lower() for m in ctx.guild.members]
+            guild_member_names.extend([m.name.lower() for m in ctx.guild.members])
+            rows = [r for r in rows if r[1].lower() in guild_member_names]
+            # --- END ADDITION ---
 
             # FETCH PET DATA
             pet_row = conn.execute("SELECT card_name, avatar_url FROM user_pets WHERE user_id = ?", (target.id,)).fetchone()
