@@ -934,9 +934,14 @@ class IgnisEngine(commands.Cog):
                 s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if suicide_victims else "None"
                 l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if legendary_victims else "None"
                 
+                # Get all survivors currently in the channel for the flash pick
+                surviving_ids = self.current_survivors.get(channel.id, [])
+                possible_flashers = [channel.guild.get_member(p_id) for p_id in surviving_ids if p_id != winner_final['id']]
+                
+                # Available Assets for the Winner
+                available_assets = " ".join([m.mention for m in possible_flashers if m]) if possible_flashers else "None"
+                
                 # Pick one random survivor to flash
-                all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if first_loser_member else None] + [v.id for v in suicide_victims] + [v.id for v in legendary_victims] + [winner_member.id]]
                 random_flasher = random.choice(possible_flashers).mention if possible_flashers else "No other survivors"
                 
                 # Force ping message content
@@ -950,6 +955,7 @@ class IgnisEngine(commands.Cog):
                 nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=f_death, inline=False)
                 nsfw_embed.add_field(name="🥀 SUICIDES", value=s_victims, inline=False)
                 nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
+                nsfw_embed.add_field(name="🫦 AVAILABLE ASSETS TO FLASH", value=available_assets if available_assets else "None", inline=False)
                 nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=f"{random_flasher} (FLASH)", inline=False)
                 nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx @xx @xx` TO STRIP YOUR CHOSEN ASSETS.", inline=False)
                 
