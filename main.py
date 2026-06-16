@@ -670,7 +670,7 @@ async def on_ready():
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
 
-    # --- 3. INJECT UPDATED AUDIT ID INTO COGS ---
+    # --- 3. INJECT EXPANDED AUDIT ID INTO COGS ---
     if not bot.get_cog("IgnisEngine"):
         await bot.add_cog(ignis.IgnisEngine(bot, update_user_stats_async, get_user, fiery_embed, get_db_connection, RANKS, CLASSES, AUDIT_CHANNEL_ID))
     
@@ -774,12 +774,13 @@ async def on_message(message):
 # --- CORE EXTENSION LOADING LOOP ---
 async def load_all_extensions():
     # FIXED: Ensure all .py modules are physically loaded and view templates registered
+    # SYNC POINT ADDED: "dice" appended to ensure system initialization
     exts = [
         "admin", "classes", "extensions", "ship", "shop", "collect", 
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice"
     ]
     for e in exts:
         try:
