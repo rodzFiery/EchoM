@@ -100,7 +100,7 @@ class DiceLobbyView(discord.ui.View):
 
 class DiceTurnView(discord.ui.View):
     def __init__(self, active_player):
-        super().__init__(timeout=40)
+        super().__init__(timeout=300) # FIXED: Turn dashboard interactive window matches the 5-minute mark
         self.active_player = active_player
         self.rolled = asyncio.Event()
 
@@ -110,7 +110,7 @@ class DiceTurnView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="ROLL DICE (40s)", style=discord.ButtonStyle.primary, emoji="🎲")
+    @discord.ui.button(label="ROLL DICE (5m)", style=discord.ButtonStyle.primary, emoji="🎲")
     async def roll_action(self, interaction: discord.Interaction, button: discord.ui.Button):
         button.disabled = True
         self.rolled.set()
@@ -187,75 +187,78 @@ class DiceGame(commands.Cog):
         for round_num in range(1, rounds + 1):
             round_emb = discord.Embed(
                 title=f"⛓️ FLESH ROULETTE: ROUND {round_num} OF {rounds}",
-                description="The layout shifting sequence initiates. All players must roll or suffer automatic failure.",
+                description="The layout shifting sequence initiates. The engine is picking a victim at random...",
                 color=0xFF4500
             )
             await ctx.send(embed=round_emb)
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
 
-            for player in players:
-                # Update total games profile
-                self.update_user_stat(player.id, "games_played")
+            # FIXED: Instead of rolling systematically for everyone, pick one random participant per round
+            player = random.choice(players)
 
-                turn_emb = discord.Embed(
-                    title=f"👁️ CURRENT ASSET SPOTLIGHT: {player.display_name.upper()}",
-                    description=f"Your execution window has unlocked, {player.mention}.\n\nYou have exactly **40 seconds** to click the dashboard below and deploy your variable roll.",
-                    color=0x9400D3
+            # Update total games profile
+            self.update_user_stat(player.id, "games_played")
+
+            turn_emb = discord.Embed(
+                title=f"🎯 RANDOM SELECTION EYE OBSERVES: {player.display_name.upper()}",
+                description=f"You have been selected by the engine, {player.mention}.\n\nYou have exactly **5 minutes** to click the dashboard below, deploy your roll, and execute the outcome.",
+                color=0x9400D3
+            )
+            turn_emb.set_thumbnail(url=player.display_avatar.url)
+            turn_emb.set_footer(text="The countdown clock is active...")
+
+            turn_view = DiceTurnView(player)
+            turn_msg = await ctx.send(embed=turn_emb, view=turn_view)
+
+            try:
+                # Strict 5-minute timeout window mapping (300.0 seconds)
+                await asyncio.wait_for(turn_view.rolled.wait(), timeout=300.0)
+                
+                # Core random roll logic mapped seamlessly across all 36 values
+                rolled_num = random.randint(1, 36)
+                dare = DICE_DARES[rolled_num]
+
+                # Save highest roll profile
+                with self.get_db_connection() as conn:
+                    conn.execute("INSERT OR IGNORE INTO dice_stats (user_id) VALUES (?)", (player.id,))
+                    conn.execute("UPDATE dice_stats SET highest_roll = MAX(highest_roll, ?) WHERE user_id = ?", (rolled_num, player.id))
+                    conn.commit()
+                conn.close()
+
+                self.update_user_stat(player.id, "dares_completed")
+
+                res_emb = discord.Embed(
+                    title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name'))}",
+                    description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare['desc']}*",
+                    color=0x00FF00
                 )
-                turn_emb.set_thumbnail(url=player.display_avatar.url)
-                turn_emb.set_footer(text="Tick... Tock...")
+                res_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
+                await ctx.send(embed=res_emb)
 
-                turn_view = DiceTurnView(player)
-                turn_msg = await ctx.send(embed=turn_emb, view=turn_view)
+                # Trigger VOYEUR Logging update - Synchronized directly via main core modules mapping
+                main_mod = sys.modules['__main__']
+                audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+                if audit_channel:
+                    log_emb = main_mod.fiery_embed("🕵️ VOYEUR FLESH ROULETTE REPORT", f"An event was triggered in the dice sector.")
+                    log_emb.add_field(name="Subject", value=player.mention, inline=True)
+                    log_emb.add_field(name="Roll Value", value=f"`[{rolled_num}]`", inline=True)
+                    log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare['desc']}"
+                    log_emb.timestamp = datetime.now(timezone.utc)
+                    await audit_channel.send(embed=log_emb)
 
-                try:
-                    # Strict countdown check
-                    await asyncio.wait_for(turn_view.rolled.wait(), timeout=40.0)
-                    
-                    # Core random roll logic mapped seamlessly across all 36 values
-                    rolled_num = random.randint(1, 36)
-                    dare = DICE_DARES[rolled_num]
+            except asyncio.TimeoutError:
+                turn_view.stop()
+                self.update_user_stat(player.id, "chickens_out")
+                
+                fail_emb = discord.Embed(
+                    title="🚨 TIME RUNOUT: CRITICAL COWARDICE DETECTED",
+                    description=f"{player.mention} failed to execute or roll within the 5-minute limit window.\n\nThey have been logged as a **Chicken Out** and suffer extreme community shame.",
+                    color=0xFF0000
+                )
+                await ctx.send(embed=fail_emb)
 
-                    # Save highest roll profile
-                    with self.get_db_connection() as conn:
-                        conn.execute("INSERT OR IGNORE INTO dice_stats (user_id) VALUES (?)", (player.id,))
-                        conn.execute("UPDATE dice_stats SET highest_roll = MAX(highest_roll, ?) WHERE user_id = ?", (rolled_num, player.id))
-                        conn.commit()
-                    conn.close()
-
-                    self.update_user_stat(player.id, "dares_completed")
-
-                    res_emb = discord.Embed(
-                        title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name'))}",
-                        description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE:**\n*{dare['desc']}*",
-                        color=0x00FF00
-                    )
-                    res_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
-                    await ctx.send(embed=res_emb)
-
-                    # Trigger VOYEUR Logging update - Synchronized directly via main core modules mapping
-                    main_mod = sys.modules['__main__']
-                    audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
-                    if audit_channel:
-                        log_emb = main_mod.fiery_embed("🕵️ VOYEUR FLESH ROULETTE REPORT", f"An event was triggered in the dice sector.")
-                        log_emb.add_field(name="Subject", value=player.mention, inline=True)
-                        log_emb.add_field(name="Roll Value", value=f"`[{rolled_num}]`", inline=True)
-                        log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare['desc']}"
-                        log_emb.timestamp = datetime.now(timezone.utc)
-                        await audit_channel.send(embed=log_emb)
-
-                except asyncio.TimeoutError:
-                    turn_view.stop()
-                    self.update_user_stat(player.id, "chickens_out")
-                    
-                    fail_emb = discord.Embed(
-                        title="🚨 TIME RUNOUT: CRITICAL COWARDICE DETECTED",
-                        description=f"{player.mention} froze under the weight of the pressure and let their countdown hit absolute zero.\n\nThey have been logged as a **Chicken Out** and suffer extreme community shame.",
-                        color=0xFF0000
-                    )
-                    await ctx.send(embed=fail_emb)
-
-                await asyncio.sleep(4)
+            # Wait 5 seconds before initiating the next random draw cycle
+            await asyncio.sleep(5)
 
         self.active_rooms.remove(ctx.channel.id)
         end_emb = discord.Embed(
@@ -288,6 +291,7 @@ class DiceGame(commands.Cog):
         compliance_rate = int((completed / total_games) * 100) if total_games > 0 else 0
 
         stat_emb = discord.Embed(title=f"📊 CORE PROFILE METRICS: {target.display_name.upper()}", color=0x00FFFF)
+        stat_emb.set_toggle = True
         stat_emb.set_thumbnail(url=target.display_avatar.url)
         
         analytics_text = (
@@ -298,7 +302,6 @@ class DiceGame(commands.Cog):
             f"⚡ **Submission Compliance Index:** `{compliance_rate}%`"
         )
         stat_emb.description = analytics_text
-        stat_emb.set_toggle = True # Added functional anchor link for future expansion hooks
         stat_emb.set_footer(text="Every action is indexed. Every submission is recorded.")
         await ctx.send(embed=stat_emb)
 
