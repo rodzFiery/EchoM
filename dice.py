@@ -1,4 +1,4 @@
-# FIX: Python 3.13 compatibility shim for audioop
+# FIX: Python 3.13 compatibility shim for audiooptry:
 try:
     import audioop
 except ImportError:
@@ -147,7 +147,8 @@ class DiceGame(commands.Cog):
             conn.commit()
         conn.close()
 
-    @commands.command(name="dice")
+    # FIXED: Command trigger converted from !dice to !echodice as specified
+    @commands.command(name="echodice")
     @commands.has_permissions(manage_messages=True)
     async def initiate_dice_game(self, ctx, rounds: int = 3):
         if ctx.channel.id in self.active_rooms:
