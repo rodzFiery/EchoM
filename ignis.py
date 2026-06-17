@@ -49,6 +49,7 @@ class LobbyView(discord.ui.View):
         # to register the unique guild IDs natively, completely preventing the "Interaction Failed" cross-server mapping bugs.
         join_id = f"fiery_join_{self.guild_id}" if self.guild_id else "fiery_join_button"
         start_id = f"fiery_start_{self.guild_id}" if self.guild_id else "fiery_start_button"
+        repost_id = f"fiery_repost_{self.guild_id}" if self.guild_id else "fiery_repost_button"
 
         join_btn = discord.ui.Button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id=join_id)
         join_btn.callback = self.join_button_callback
@@ -57,6 +58,11 @@ class LobbyView(discord.ui.View):
         start_btn = discord.ui.Button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id=start_id)
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
+
+        # ADDED: Repost Button initialization to handle dynamic interface replication
+        repost_btn = discord.ui.Button(label="REPOST REGISTRATION", style=discord.ButtonStyle.secondary, emoji="🔁", custom_id=repost_id)
+        repost_btn.callback = self.repost_button_callback
+        self.add_item(repost_btn)
 
         # --- Persistence Rehydration ---
         # When the view is recreated after a restart, try to fetch current participants from DB
@@ -111,6 +117,26 @@ class LobbyView(discord.ui.View):
         except Exception as e:
             print(f"Lobby Join Error: {e}")
             await interaction.followup.send("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
+
+    # ADDED: Repost callback routine to mirror active view context down the chat feed
+    async def repost_button_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not self.active:
+            return await interaction.followup.send("❌ **The registration window has expired.** Cannot copy active links.", ephemeral=True)
+        try:
+            embed = interaction.message.embeds[0]
+            try:
+                await interaction.message.delete()
+            except:
+                pass
+            new_msg = await interaction.channel.send(embed=embed, view=self)
+            engine = interaction.client.get_cog("IgnisEngine")
+            if engine:
+                engine.current_lobbies[interaction.guild.id] = self
+            await interaction.followup.send("🔁 **Lobby links re-channeled down to current coordinate parameters.**", ephemeral=True)
+        except Exception as e:
+            print(f"Repost Execution Error: {e}")
+            await interaction.followup.send("❌ Matrix transmission failed during interface cloning.", ephemeral=True)
 
     # Replaced the decorator with an explicit callback method
     async def start_button_callback(self, interaction: discord.Interaction):
@@ -201,7 +227,7 @@ class LobbyView(discord.ui.View):
             # DEBUG: If the cog isnt found, tell the owner
             return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded? Check bot logs.", ephemeral=True)
 
-# --- NOVO: ENGINE CONTROL INTEGRADO ---
+# --- OVO: ENGINE CONTROL INTEGRADO ---
 class EngineControl(commands.Cog):
     def __init__(self, bot, fiery_embed, save_game_config, get_db_connection):
         self.bot = bot
@@ -214,7 +240,7 @@ class EngineControl(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.commit()
 
-    # ADDED: Command to set the Ignis Admin Role
+    # Adolescent: Command to set the Ignis Admin Role
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def set_ignis_admin(self, ctx, role: discord.Role):
@@ -1013,7 +1039,7 @@ class IgnisEngine(commands.Cog):
                         )
 
                         audit_emb.description = breakdown
-                        audit_emb.add_field(name="💳 UPDATED member TOTALS", value=new_totals, inline=False)
+                        audit_emb.add_field(name="¼ UPDATED member TOTALS", value=new_totals, inline=False)
                         audit_emb.set_footer(text=f"Edition #{edition} | The Voyeurs watched your every move.")
                         
                         if os.path.exists("LobbyTopRight.jpg"): await audit_channel.send(file=audit_file, embed=audit_emb)
