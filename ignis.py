@@ -118,7 +118,7 @@ class LobbyView(discord.ui.View):
             print(f"Lobby Join Error: {e}")
             await interaction.followup.send("The Master acknowledges your signin but the ledger glitched. You are joined!", ephemeral=True)
 
-    # ADDED: Repost callback routine to mirror active view context down the chat feed
+    # FIXED: Refocused callback routine to repost the identical current lobby instance down the server feed without any reset loops
     async def repost_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not self.active:
@@ -133,7 +133,7 @@ class LobbyView(discord.ui.View):
             engine = interaction.client.get_cog("IgnisEngine")
             if engine:
                 engine.current_lobbies[interaction.guild.id] = self
-            await interaction.followup.send("🔁 **Lobby links re-channeled down to current coordinate parameters.**", ephemeral=True)
+            await interaction.followup.send("🔁 **Current lobby registration re-routed to bottom viewport settings.**", ephemeral=True)
         except Exception as e:
             print(f"Repost Execution Error: {e}")
             await interaction.followup.send("❌ Matrix transmission failed during interface cloning.", ephemeral=True)
