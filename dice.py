@@ -29,44 +29,44 @@ else:
 # AUDIT CHANNEL LOGGING
 AUDIT_CHANNEL_ID = 1438810509322223677
 
-# THE CYBER-DUNGEON DICE DARES - FOCUSING EXCLUSIVELY ON FLASH EXECUTIONS
+# THE CYBER-DUNGEON DICE DARES - FOCUSING EXCLUSIVELY ON YOUR CUSTOM 22 DIRECTIVES
 DICE_DARES = {
-    1: {"action": "LIVE FLASH", "desc": "Expose your designated assets to the live gallery immediately or suffer total failure."},
-    2: {"action": "COMMAND FLASH", "desc": "Pick another participant in the current lobby. They must execute a live flash for your amusement."},
-    3: {"action": "MUTUAL FLASH BINDING", "desc": "Select a partner. Both of you must perform a flash execution simultaneously in public view."},
-    4: {"action": "RED COUTURIER FLASH", "desc": "Flash the gallery while holding or highlighting an object that is explicitly crimson red."},
-    5: {"action": "SHADOW MINIMALIST FLASH", "desc": "Drop your coverage to absolute zero in a dimly lit setting and display the flash contrast."},
-    6: {"action": "NEON CHROME REVEAL", "desc": "Apex Roll. Initiate a high-intensity flash capture utilizing neon screen tones or glowing accents."},
-    7: {"action": "TARGETED TRANSMISSION", "desc": "Select one specific user from the room. Send them a direct, unedited personal flash execution."},
-    8: {"action": "SILENT FLASH EXHIBITION", "desc": "Execute a full asset flash without typing a single character of context in the text feed."},
-    9: {"action": "THE HOST'S TOAST", "desc": "Deploy your cleanest flash execution directly onto the hosting user's interface feed."},
-    10: {"action": "DOUBLE REVEAL MATRIX", "desc": "The energy shifts. You must execute a live flash now, and then perform another one at the end of this round."},
-    11: {"action": "KNEEL AND EXPOSE", "desc": "Submit a live exposure framed from a submissive, low-angled positioning perspective."},
-    12: {"action": "BLACKOUT EXCLUSION", "desc": "Flash the chat using a monochrome or black-and-white visual filter context entirely."},
-    13: {"action": "VELVET LINK FLASH", "desc": "Choose a partner. You are both bound to frame your flash executions with matching room textures."},
-    14: {"action": "THE WHIP FLASH", "desc": "Perform a sudden, rapid-fire flash execution that reveals and vanishes instantly within seconds."},
-    15: {"action": "EXHIBITIONIST GLORY", "desc": "Post a highly artistic, stylized flash showcasing your absolute peak physical aesthetic."},
-    16: {"action": "CHAINED CAPTURE", "desc": "Incorporate cold metal jewelry, chains, or links into your direct flash presentation frame."},
-    17: {"action": "SPOUSE SYNCHRONIZATION", "desc": "If bound to a partner, demand they witness or co-sign your upcoming live flash layout immediately."},
-    18: {"action": "GLITCH MATRIX EXPOSURE", "desc": "Randomly choose any user currently online. Send them a cryptic live flash without warning."},
-    19: {"action": "TITAN FOCUS TIMEOUT", "desc": "Frame a detailed close-up flash focusing completely on a single specific anatomical asset."},
-    20: {"action": "SOVEREIGN INVERSION FLOW", "desc": "The player with the lowest score in the room dictates the exact theme of your immediate live flash."},
-    21: {"action": "BLINDFOLD PROTOCOL REVEAL", "desc": "Cover your sightline with a dark cloth or object while executing a complete live asset flash."},
-    22: {"action": "BALL GAG RESTRAINT SIGNAL", "desc": "Flash the audience while biting down on a dark item or displaying a restricted vocal posture."},
-    23: {"action": "SPIKED CONTRAST LOOK", "desc": "Utilize highly creative shadows or sharp object silhouettes to outline your live flash execution."},
-    24: {"action": "CROWNED OVERLORD DISPLAY", "desc": "Dedicate a magnificent, high-profile flash directly to the highest-ranking user in the chat grid."},
-    25: {"action": "SHADOW SHIFT PAN", "desc": "Slowly transition an object out of the way to uncover a dynamic live flash framing over several seconds."},
-    26: {"action": "SINFUL TEXTURE SCREEN", "desc": "Execute a flash that prominently highlights smooth leather, lace, or latex fabric elements directly against skin."},
-    27: {"action": "ABYSSAL CONTRACT SUBMISSION", "desc": "Commit to dropping your coverings twice in a row before your 5-minute timer hits absolute zero."},
-    28: {"action": "MOLTEN EMBER BACKLIGHT", "desc": "Perform a flash execution utilizing heavy warm backlighting or artificial candle lighting tones."},
-    29: {"action": "VOIDS PLEASURE GLANCE", "desc": "Provide a teasing, partial live flash that hints at everything but reveals only selective quadrants."},
-    30: {"action": "NEON OVERDRIVE BLAST", "desc": "Deploy an ultra-bright flash execution using the maximum lighting output your environment can provide."},
-    31: {"action": "DOMINION FORFEIT REVEAL", "desc": "Completely strip away your preferred layer of attire and post the live flash confirmation."},
-    32: {"action": "KRAKEN GRIP CAPTIVITY", "desc": "You are anchored. You must remain completely unclad from the waist up for the next two full rounds."},
-    33: {"action": "ETERNAL FAVORITE SPOTLIGHT", "desc": "The Master demands a masterpiece. Take your time to frame a visually flawless, high-tier premium live flash."},
-    34: {"action": "SAPPHIRE COLD REVEAL", "desc": "Incorporate objects or elements featuring a deep blue hue directly into your live flash frame."},
-    35: {"action": "CHAOS REVERSAL SWAP", "desc": "Pick the person who rolled before you; demand they match whatever flash style you choose to deploy right now."},
-    36: {"action": "ABSOLUTE NULLIFICATION RELEASE", "desc": "SUPREME ROLL. Force the entire lobby to execute a simultaneous group flash in the open gallery."}
+    1: {"action": "FLASH", "desc": "Expose your designated assets to the live gallery immediately or suffer total failure."},
+    2: {"action": "FLASH WITH A FRIEND", "desc": "Coordinate with an ally in the server to drop coverage and deploy a shared flash revelation."},
+    3: {"action": "PICK SOMEONE TO FLASH", "desc": "Select any asset inside this current lobby. They must execute a live flash for your amusement."},
+    4: {"action": "FLASH IN BLACK AND WHITE", "desc": "Submit a complete live exposure utilizing a deep monochrome or high-contrast black and white visual filter."},
+    5: {"action": "MIRROR FLASH", "desc": "Capture your reflection. Execute a full live asset flash framed completely through a mirror surface."},
+    6: {"action": "SILHOUETTE FLASH", "desc": "Kill the lights. Position a bright light behind you to flash your outline as a pure, dramatic silhouette shadow."},
+    7: {"action": "NAUGHTY VOICE NOTE", "desc": "Record and upload a live microphone voice note to the chat feed using your most seductive, teasing bedroom tone."},
+    8: {"action": "FLASH WITH A SPECIFIC COLOR", "desc": "Perform a live flash while wearing or prominently holding an object of a vibrant color specified by the host."},
+    9: {"action": "LET THE CHAT PICK WHAT YOU FLASH", "desc": "The room gains dominance. Let the public chat feed vote on exactly which asset target you must drop coverage on."},
+    10: {"action": "DOUBLE TROUBLE FLASH WITH A PARTNER", "desc": "Bind fates with a partner right now. Both of you must post a simultaneous high-impact flash execution."},
+    11: {"action": "SHARE A SECRET KINK", "desc": "Confess an unspoken, underground fetish or desire you keep locked deep inside your psychological matrix."},
+    12: {"action": "TELL US A FANTASY", "desc": "Describe your ultimate, unfulfilled erotic scenario in vivid detail for the gallery to read."},
+    13: {"action": "SHARE THE WEIRDEST PLACE YOU HAVE DONE IT", "desc": "Reveal the most unconventional, high-risk, or bizarre public location where you have engaged in a physical encounter."},
+    14: {"action": "CONFESS YOUR BIGGEST TURN-ON", "desc": "Expose the single most powerful trigger, action, or element that instantly drives your desire into overdrive."},
+    15: {"action": "ADMIT YOUR BIGGEST TURN-OFF", "desc": "Declare the ultimate dealbreaker—the one specific action or trait that completely kills your mood without exception."},
+    16: {"action": "DESCRIBE YOUR FAVORITE POSITION", "desc": "Provide a detailed breakdown of the exact physical configuration in bed that brings you maximum satisfaction."},
+    17: {"action": "REVEAL EMBARRASSING BED EVENT", "desc": "Uncover the most awkward, clumsy, or completely embarrassing incident that has ever interrupted your intimate moments."},
+    18: {"action": "REVEAL WEIRDEST MASTURBATION PLACE", "desc": "Confess the most unusual, creative, or inappropriate location where you have ever pleasured yourself solo."},
+    19: {"action": "FLASH WITH MUSIC", "desc": "Execute and capture a live flash while playing a dirty, rhythmic audio track or song clearly audible in your environment."},
+    20: {"action": "FLASH A PIC IN THE MOMENT", "desc": "No pre-saved files allowed. Capture a raw, completely spontaneous live photo of your current coverage status right this second."},
+    21: {"action": "FLASH YOUR FAVORITE BODY PART", "desc": "Isolate and flash the exact anatomical asset on your own body that you take the absolute most pride in possessing."},
+    22: {"action": "TAG A MEMBER AND PASS YOUR DARE", "desc": "Escape clause. Tag an unsuspecting member in the server right now and force them to inherit this turn cycle's fate."},
+    23: {"action": "FAST FLASH PROTOCOL", "desc": "Drop your coverings and execute a sudden, rapid-fire flash reveal that vanishes instantly."},
+    24: {"action": "DUAL FLASH EXCLUSION", "desc": "Grab a friend from the lobby list; both of you must drop coverage and execute matching flash frames."},
+    25: {"action": "DOMINANT SELECTION EYE", "desc": "Point your finger at any asset in the channel. Command them to deploy a live flash or face the community penalty."},
+    26: {"action": "MONOCHROME FLASH SHIFT", "desc": "Strip away all color profiles. Flash the gallery using a pure noir black and white visual aesthetic."},
+    27: {"action": "REVERSED MIRROR FLASH", "desc": "Frame a dual-perspective reflection flash using your closest mirror panel setup right now."},
+    28: {"action": "SHADOW SILHOUETTE EXPOSURE", "desc": "Stand directly in front of a heavy backlight, leaving your asset lines completely outlined in a dark shadow flash."},
+    29: {"action": "NAUGHTY AUDIO TRANSMISSION", "desc": "Deploy a 30-second voice note describing what you are currently wearing in your filthiest whispering voice."},
+    30: {"action": "CHROMATIC FOCUS FLASH", "desc": "The host calls out a specific primary color tone. You must incorporate it into your immediate flash layout."},
+    31: {"action": "PUBLIC DECISION REVEAL", "desc": "Surrender your choice to the chat network. They will dictate exactly what asset you are flashing this round."},
+    32: {"action": "DOUBLE TROUBLE ALLIANCE", "desc": "Synchronize a combined flash profile with an active partner to double the heat variables in the sector."},
+    33: {"action": "UNSPOKEN KINK CONFESSION", "desc": "Open up your core matrix settings and type out your absolute deepest, most taboo hidden kink."},
+    34: {"action": "UNCENSORED BEDTIME FANTASY", "desc": "Paint a vivid mental picture for the audience describing your dream erotic playground setup."},
+    35: {"action": "EXTREME LOCATION CHRONICLES", "desc": "Expose the single most reckless, high-exposure, or bizarre public location where you have ever hook up."},
+    36: {"action": "CORE TURN-ON ANALYSIS", "desc": "Break down the ultimate sensory trigger or specific visual that drives your raw desire past its absolute limit."}
 }
 
 class DiceLobbyView(discord.ui.View):
@@ -114,6 +114,25 @@ class DiceTurnView(discord.ui.View):
     async def roll_action(self, interaction: discord.Interaction, button: discord.ui.Button):
         button.disabled = True
         self.rolled.set()
+        await interaction.response.defer()
+
+# ADDED: Separate validation controller view to suspend progress until confirmed completed or timed out
+class DiceCompletionView(discord.ui.View):
+    def __init__(self, active_player):
+        super().__init__(timeout=300)
+        self.active_player = active_player
+        self.completed = asyncio.Event()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.active_player.id:
+            await interaction.response.send_message("Only the assigned asset can assert execution completion parameters.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="TASK COMPLETED", style=discord.ButtonStyle.success, emoji="✅")
+    async def complete_action(self, interaction: discord.Interaction, button: discord.ui.Button):
+        button.disabled = True
+        self.completed.set()
         await interaction.response.defer()
 
 class DiceGame(commands.Cog):
@@ -225,15 +244,37 @@ class DiceGame(commands.Cog):
                     conn.commit()
                 conn.close()
 
-                self.update_user_stat(player.id, "dares_completed")
-
                 res_emb = discord.Embed(
                     title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name'))}",
-                    description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare['desc']}*",
+                    description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare['desc']}*\n\n*Click the button below to confirm task completion and advance the system.*",
                     color=0x00FF00
                 )
                 res_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
-                await ctx.send(embed=res_emb)
+                
+                # FIXED: Present new confirmation panel view and pause execution progression chain
+                comp_view = DiceCompletionView(player)
+                comp_msg = await ctx.send(embed=res_emb, view=comp_view)
+
+                try:
+                    # System halts here until player clicks "TASK COMPLETED" or the remaining time hits 0
+                    await asyncio.wait_for(comp_view.completed.wait(), timeout=300.0)
+                    self.update_user_stat(player.id, "dares_completed")
+                    
+                    ok_emb = discord.Embed(
+                        title="✅ DECREE RECORDED AND SECURED",
+                        description=f"{player.mention} has confirmed execution within parameter constraints. Advancing matrix structure...",
+                        color=0x00FF00
+                    )
+                    await ctx.send(embed=ok_emb)
+                except asyncio.TimeoutError:
+                    comp_view.stop()
+                    self.update_user_stat(player.id, "chickens_out")
+                    timeout_emb = discord.Embed(
+                        title="🚨 DECREE VERIFICATION EXPIRED",
+                        description=f"{player.mention} failed to click verification within the 5-minute performance allowance threshold. Progress marked as failure.",
+                        color=0xFF0000
+                    )
+                    await ctx.send(timeout_emb)
 
                 # Trigger VOYEUR Logging update - Synchronized directly via main core modules mapping
                 main_mod = sys.modules['__main__']
