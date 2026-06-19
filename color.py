@@ -164,9 +164,9 @@ class ColorCategorySelect(discord.ui.Select):
 # --- INTERACTIVE PIGMENT VIEW ---
 class ColorPigmentSelect(discord.ui.Select):
     def __init__(self, author, category):
-        # --- ADDED: Populating dropdown layout options dynamically using the visual emoji metadata matrix values directly ---
+        # --- MODIFIED: Word 'Echo Bot' added into the primary label path to replace the graphic circle icons natively ---
         options = [
-            discord.SelectOption(label=p["name"], value=p["hex"], description=f"Apply Hex #{p['hex']}", emoji=p["emoji"])
+            discord.SelectOption(label=f"Echo Bot [ {p['name']} ]", value=p["hex"], description=f"Apply Pigment Hex #{p['hex']}", emoji="✨")
             for p in COLOR_PALETTE[category]
         ]
         super().__init__(placeholder="🎨 Select Specific Pigment Aura...", min_values=1, max_values=1, options=options)
