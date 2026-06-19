@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 # --- HIGH-POTENCY GRADIENT AND CUSTOM COLOR PALETTE ---
 # 100 premium selections split into digestible thematic categories
+# --- ADDED: Matched-color emoji fields for every pigment option to provide an instant visual color preview ---
 COLOR_PALETTE = {
     "🔥 Fiery & Lust": [
         {"name": "Crimson Climax", "hex": "FF007F", "emoji": "🔴"},
@@ -179,6 +180,9 @@ class ColorCategorySelect(discord.ui.Select):
         if interaction.user.id != self.author.id:
             return await interaction.response.send_message("❌ This wardrobe option belongs to another.", ephemeral=True)
         
+        # --- ADDED: IMMEDIATE TOKEN DEFERRAL TO UTTERLY ELIMINATE THE 3-SECOND TIMEOUT RESYNCHRONIZATION BLOCK ---
+        await interaction.response.defer()
+        
         selected_category = self.values[0]
         new_view = ColorWardrobeView(self.author, selected_category, view_instance=self.view)
         
@@ -196,11 +200,11 @@ class ColorCategorySelect(discord.ui.Select):
         embed.set_image(url="attachment://wardrobe_sheet.png")
         
         # Update text info panel presentation format
-        pigment_list = "\n".join([f"• **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
+        pigment_list = "\n".join([f"• {p['emoji']} **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
         embed.add_field(name="🎨 Available Pigments", value=pigment_list, inline=False)
         
-        # Process changes with the image file attached seamlessly
-        await interaction.response.edit_message(embed=embed, view=new_view, attachments=[file])
+        # --- MODIFIED: Uses edit_original_response targeting deferred context seamlessly ---
+        await interaction.edit_original_response(embed=embed, view=new_view, attachments=[file])
 
 # --- INTERACTIVE PIGMENT VIEW ---
 class ColorPigmentSelect(discord.ui.Select):
