@@ -131,55 +131,65 @@ COLOR_PALETTE = {
 
 def generate_theme_card(category_name):
     """Generates a perfectly clear standalone display card for a single thematic collection."""
-    # --- MODIFIED: Width and Row vertical allocations heavily enlarged to scale typography safely ---
-    img_w = 850
-    row_height = 85
+    # --- MODIFIED: Restructured into an expansive 2-column swatch dashboard layout ---
+    img_w = 900
+    row_height = 135
     header_height = 160
     padding = 45
     
     pigments = COLOR_PALETTE[category_name]
-    img_h = header_height + (len(pigments) * row_height) + padding
+    # Stacking 5 entries vertically per side across two columns inside a single card frame
+    img_h = header_height + (5 * row_height) + padding
     
-    image = Image.new("RGB", (img_w, img_h), "#14141c")
+    image = Image.new("RGB", (img_w, img_h), "#0f0f14")
     draw = ImageDraw.Draw(image)
     
-    # --- MODIFIED: Font sizing parameters significantly augmented for absolute premium reading weight ---
+    # --- MODIFIED: High-impact macro text font setups to provide instant readability ---
     try:
-        font = ImageFont.truetype("arial.ttf", 30)
-        bold_font = ImageFont.truetype("arial.ttf", 32)
-        title_font = ImageFont.truetype("arial.ttf", 42)
+        font_sub = ImageFont.truetype("arial.ttf", 20)
+        font_main = ImageFont.truetype("arial.ttf", 24)
+        font_display = ImageFont.truetype("arial.ttf", 34)
+        title_font = ImageFont.truetype("arial.ttf", 44)
     except IOError:
         try:
-            font = ImageFont.truetype("DejaVuSans.ttf", 30)
-            bold_font = ImageFont.truetype("DejaVuSans.ttf", 32)
-            title_font = ImageFont.truetype("DejaVuSans.ttf", 42)
+            font_sub = ImageFont.truetype("DejaVuSans.ttf", 20)
+            font_main = ImageFont.truetype("DejaVuSans.ttf", 24)
+            font_display = ImageFont.truetype("DejaVuSans.ttf", 34)
+            title_font = ImageFont.truetype("DejaVuSans.ttf", 44)
         except IOError:
-            font = ImageFont.load_default()
-            bold_font = ImageFont.load_default()
+            font_sub = ImageFont.load_default()
+            font_main = ImageFont.load_default()
+            font_display = ImageFont.load_default()
             title_font = ImageFont.load_default()
 
     # Premium Heading Strip for the individual collection card
-    draw.rectangle([(0, 0), (img_w, header_height - 35)], fill="#0d0d12")
+    draw.rectangle([(0, 0), (img_w, header_height - 35)], fill="#07070a")
     draw.rectangle([(0, header_height - 40), (img_w, header_height - 35)], fill="#d4af37")
     
     draw.text((padding, 40), category_name.upper(), fill="#d4af37", font=title_font)
     
-    current_y = header_height
-    
+    # Begin computing matrix geometry configurations natively
     for idx, p in enumerate(pigments):
-        # Alternating background row tints for easy line tracking
-        if idx % 2 == 0:
-            draw.rectangle([(padding - 15, current_y - 2), (img_w - padding + 15, current_y + 68)], fill="#1a1a26")
-            
-        # Draw metadata fields clearly separated with massive clean spacing
-        draw.text((padding, current_y + 20), p['name'], fill="#e2e2e9", font=font)
-        draw.text((padding + 360, current_y + 20), f"#{p['hex']}", fill="#5f6d85", font=font)
+        # Determine whether the index goes into left column (0) or right column (1)
+        col_side = idx // 5
+        row_pos = idx % 5
         
-        # Render the target phrase perfectly in its custom digital pigment color
+        x_offset = padding if col_side == 0 else (img_w // 2) + 20
+        y_offset = header_height + (row_pos * row_height)
+        
+        # Draw elegant structural card background boundaries for individual entries
+        draw.rectangle([(x_offset, y_offset), (x_offset + 370, y_offset + 105)], fill="#181822")
+        
+        # Render clean text markers above the graphic box payload
+        draw.text((x_offset + 15, y_offset + 12), p['name'], fill="#ffffff", font=font_main)
+        draw.text((x_offset + 265, y_offset + 15), f"#{p['hex']}", fill="#5f6d85", font=font_sub)
+        
+        # --- MODIFIED: High-clarity macro blocks colored explicitly with the pigment payload ---
         rgb_tuple = tuple(int(p['hex'][j:j+2], 16) for j in (0, 2, 4))
-        draw.text((padding + 580, current_y + 18), "Echo Bot", fill=rgb_tuple, font=bold_font)
+        draw.rectangle([(x_offset + 15, y_offset + 45), (x_offset + 355, y_offset + 95)], fill=rgb_tuple)
         
-        current_y += row_height
+        # Overlay the signature string cleanly inside the swatch block in solid white
+        draw.text((x_offset + 95, y_offset + 48), "Echo Bot", fill="#ffffff", font=font_display)
 
     final_buffer = io.BytesIO()
     image.save(final_buffer, format="PNG")
