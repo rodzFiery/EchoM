@@ -665,7 +665,7 @@ async def on_ready():
     except Exception as e:
         print(f"Audit restoration fail: {e}")
 
-    # Set up references for cogs (FIX for Ship and Shop compatibility)
+    # Your standard configurations
     bot.get_db_connection = get_db_connection
     bot.get_user = get_user
     bot.fiery_embed = fiery_embed
@@ -780,7 +780,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color"
     ]
     for e in exts:
         try:
