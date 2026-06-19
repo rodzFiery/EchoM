@@ -131,11 +131,11 @@ COLOR_PALETTE = {
 
 def generate_theme_card(category_name):
     """Generates a perfectly clear standalone display card for a single thematic collection."""
-    # Sized ideally for native Discord embedded layout scaling (no squinting needed)
-    img_w = 650
-    row_height = 65
-    header_height = 130
-    padding = 35
+    # --- MODIFIED: Width and Row vertical allocations heavily enlarged to scale typography safely ---
+    img_w = 850
+    row_height = 85
+    header_height = 160
+    padding = 45
     
     pigments = COLOR_PALETTE[category_name]
     img_h = header_height + (len(pigments) * row_height) + padding
@@ -143,41 +143,41 @@ def generate_theme_card(category_name):
     image = Image.new("RGB", (img_w, img_h), "#14141c")
     draw = ImageDraw.Draw(image)
     
-    # Large high-clarity font options to preserve sharp lines
+    # --- MODIFIED: Font sizing parameters significantly augmented for absolute premium reading weight ---
     try:
-        font = ImageFont.truetype("arial.ttf", 22)
-        bold_font = ImageFont.truetype("arial.ttf", 24)
-        title_font = ImageFont.truetype("arial.ttf", 32)
+        font = ImageFont.truetype("arial.ttf", 30)
+        bold_font = ImageFont.truetype("arial.ttf", 32)
+        title_font = ImageFont.truetype("arial.ttf", 42)
     except IOError:
         try:
-            font = ImageFont.truetype("DejaVuSans.ttf", 22)
-            bold_font = ImageFont.truetype("DejaVuSans.ttf", 24)
-            title_font = ImageFont.truetype("DejaVuSans.ttf", 32)
+            font = ImageFont.truetype("DejaVuSans.ttf", 30)
+            bold_font = ImageFont.truetype("DejaVuSans.ttf", 32)
+            title_font = ImageFont.truetype("DejaVuSans.ttf", 42)
         except IOError:
             font = ImageFont.load_default()
             bold_font = ImageFont.load_default()
             title_font = ImageFont.load_default()
 
     # Premium Heading Strip for the individual collection card
-    draw.rectangle([(0, 0), (img_w, header_height - 30)], fill="#0d0d12")
-    draw.rectangle([(0, header_height - 34), (img_w, header_height - 30)], fill="#d4af37")
+    draw.rectangle([(0, 0), (img_w, header_height - 35)], fill="#0d0d12")
+    draw.rectangle([(0, header_height - 40), (img_w, header_height - 35)], fill="#d4af37")
     
-    draw.text((padding, 35), category_name.upper(), fill="#d4af37", font=title_font)
+    draw.text((padding, 40), category_name.upper(), fill="#d4af37", font=title_font)
     
     current_y = header_height
     
     for idx, p in enumerate(pigments):
         # Alternating background row tints for easy line tracking
         if idx % 2 == 0:
-            draw.rectangle([(padding - 15, current_y - 2), (img_w - padding + 15, current_y + 52)], fill="#1a1a26")
+            draw.rectangle([(padding - 15, current_y - 2), (img_w - padding + 15, current_y + 68)], fill="#1a1a26")
             
-        # Draw metadata fields clearly separated
-        draw.text((padding, current_y + 12), p['name'], fill="#e2e2e9", font=font)
-        draw.text((padding + 280, current_y + 12), f"#{p['hex']}", fill="#5f6d85", font=font)
+        # Draw metadata fields clearly separated with massive clean spacing
+        draw.text((padding, current_y + 20), p['name'], fill="#e2e2e9", font=font)
+        draw.text((padding + 360, current_y + 20), f"#{p['hex']}", fill="#5f6d85", font=font)
         
         # Render the target phrase perfectly in its custom digital pigment color
         rgb_tuple = tuple(int(p['hex'][j:j+2], 16) for j in (0, 2, 4))
-        draw.text((padding + 430, current_y + 10), "Echo Bot", fill=rgb_tuple, font=bold_font)
+        draw.text((padding + 580, current_y + 18), "Echo Bot", fill=rgb_tuple, font=bold_font)
         
         current_y += row_height
 
