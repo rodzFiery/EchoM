@@ -774,13 +774,13 @@ async def on_message(message):
 # --- CORE EXTENSION LOADING LOOP ---
 async def load_all_extensions():
     # FIXED: Ensure all .py modules are physically loaded and view templates registered
-    # SYNC POINT ADDED: "dice" appended to ensure system initialization
+    # SYNC POINT ADDED: "generatecolor" appended to loop structures sequentially alongside "color" 
     exts = [
         "admin", "classes", "extensions", "ship", "shop", "collect", 
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor"
     ]
     for e in exts:
         try:
