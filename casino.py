@@ -65,6 +65,9 @@ class DiceInterface(discord.ui.View):
             return await interaction.response.send_message("❌ Your hands don't belong here.", ephemeral=True)
         if self.selected_guess is None or self.selected_bet is None:
             return await interaction.response.send_message("❌ **Incomplete Protocol.**", ephemeral=True)
+        # --- ADDED: IMMEDIATE VIEW LOCK TO PREVENT SPAM CLICKING ---
+        button.disabled = True
+        await interaction.message.edit(view=self)
         await self.cog.execute_dice_logic(interaction, self.selected_guess, self.selected_bet)
         self.stop()
 
@@ -96,6 +99,9 @@ class BJStakeInterface(discord.ui.View):
         if interaction.user.id != self.ctx.author.id: return
         if not self.selected_bet:
             return await interaction.response.send_message("❌ You must set a stake, pet.", ephemeral=True)
+        # --- ADDED: IMMEDIATE VIEW LOCK TO PREVENT SPAM DEALING ---
+        button.disabled = True
+        await interaction.message.edit(view=self)
         await self.cog.start_blackjack_duel(interaction, self.selected_bet)
         self.stop()
 
@@ -112,16 +118,24 @@ class BJGameView(discord.ui.View):
     @discord.ui.button(label="🫦 HIT", style=discord.ButtonStyle.primary)
     async def hit(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: return
+        # --- ADDED: TEMPORARY SPAM LOCK DURING STATE RESOLUTION ---
+        button.disabled = True
+        await interaction.message.edit(view=self)
         self.p_hand.append(self.cog.draw_card())
         if self.cog.calculate_bj(self.p_hand) > 21:
             await self.cog.finish_blackjack(interaction, self.bet, self.p_hand, self.d_hand, "BUST")
             self.stop()
         else:
+            button.disabled = False
             await self.cog.update_bj_display(interaction, self.bet, self.p_hand, self.d_hand, self)
 
     @discord.ui.button(label="⛓️ STAND", style=discord.ButtonStyle.secondary)
     async def stand(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: return
+        # --- ADDED: DISABLE VIEW ON STAND TO CEASE LATE BUTTON PACKETS ---
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
         while self.cog.calculate_bj(self.d_hand) < 17:
             self.d_hand.append(self.cog.draw_card())
         await self.cog.finish_blackjack(interaction, self.bet, self.p_hand, self.d_hand, "STAND")
@@ -172,6 +186,9 @@ class RouletteInterface(discord.ui.View):
         if interaction.user.id != self.ctx.author.id: return
         if not self.selected_choice or not self.selected_bet:
             return await interaction.response.send_message("❌ Complete the ritual first, pet.", ephemeral=True)
+        # --- ADDED: DISABLE WHEEL BUTTON IMMEDIATELY ---
+        button.disabled = True
+        await interaction.message.edit(view=self)
         await self.cog.execute_roulette_logic(interaction, self.selected_choice, self.selected_bet)
         self.stop()
 
@@ -207,6 +224,9 @@ class SlotsInterface(discord.ui.View):
         if interaction.user.id != self.ctx.author.id: return
         if not self.selected_bet:
             return await interaction.response.send_message("❌ Select your tribute first.", ephemeral=True)
+        # --- ADDED: DISABLE LEVER BUTTON IMMEDIATELY ---
+        button.disabled = True
+        await interaction.message.edit(view=self)
         await self.cog.execute_slots_logic(interaction, self.selected_bet)
         self.stop()
 
@@ -214,6 +234,8 @@ class FieryCasino(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.max_bet = 500000
+        # --- ADDED: IN-MEMORY CONCURRENCY LOCK TO RESOLVE THE RACE CONDITION MULTI-TAP ---
+        self.active_sessions = set()
 
     async def get_user_data(self, user_id):
         main_mod = sys.modules['__main__']
@@ -250,6 +272,13 @@ class FieryCasino(commands.Cog):
             score -= 10
         if score > 21 and hand.count(11) > 3:
             score -= 10
+        # --- ADDED: DEPENDABLE MATHEMATICAL ACES FALLBACK LOOP TO ACCURATELY EVALUATE HIT SEQUENCES ---
+        calc_score = sum(hand)
+        aces = hand.count(11)
+        while calc_score > 21 and aces > 0:
+            calc_score -= 10
+            aces -= 1
+        score = calc_score
         return score
 
     # --- DICE COMMANDS ---
@@ -275,8 +304,13 @@ class FieryCasino(commands.Cog):
     async def execute_dice_logic(self, interaction, guess, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
+        # --- ADDED: SESSION VERIFICATION AT COMPILATION TIME ---
+        if interaction.user.id in self.active_sessions:
+            return await interaction.response.send_message("❌ **Session pending. Await resolution before your next command.**", ephemeral=True)
         if user['balance'] < bet or user['balance'] <= 0:
             return await interaction.response.send_message("❌ **Asset Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
+        # --- ADDED: MARK USER ACTIVE TO COMPREHENSIVELY PREVENT CONCURRENCY ATTACKS ---
+        self.active_sessions.add(interaction.user.id)
         await interaction.response.edit_message(content="🎲 **Rattling the cup...**", view=None, embed=None)
         await asyncio.sleep(2.0)
         d1, d2 = random.randint(1, 6), random.randint(1, 6)
@@ -286,6 +320,10 @@ class FieryCasino(commands.Cog):
             win_total = int((bet * 8) * mult)
             # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
             win_total = int(bet + ((bet * 7) * mult))
+            # --- ADDED: RISK-ADJUSTED DICE PAYOUT MAP TO FIX COMMON SUM VALUE DISPROPORTION COMPLAINTS ---
+            dice_payout_weights = {2: 35, 12: 35, 3: 17, 11: 17, 4: 11, 10: 11, 5: 8, 9: 8, 6: 5, 8: 5, 7: 4}
+            adjusted_factor = dice_payout_weights.get(guess, 7)
+            win_total = int(bet + ((bet * adjusted_factor) * mult))
             # Math: Net gain is win_total - bet (since the bet was still in the wallet)
             await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
@@ -297,6 +335,8 @@ class FieryCasino(commands.Cog):
             res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n⛓️ **SUBMISSION.** You lose **{bet:,} Flames**."
         embed = main_mod.fiery_embed(title, res, color=color)
         await interaction.edit_original_response(content=None, embed=embed)
+        # --- ADDED: SAFE DISCARD OF SESSION TERMINATION KEY ---
+        self.active_sessions.discard(interaction.user.id)
 
     # --- BLACKJACK COMMANDS ---
     @commands.command(name="blackjack")
@@ -318,8 +358,13 @@ class FieryCasino(commands.Cog):
 
     async def start_blackjack_duel(self, interaction, bet):
         user = await self.get_user_data(interaction.user.id)
+        # --- ADDED: SESSION VERIFICATION AT COMPILATION TIME ---
+        if interaction.user.id in self.active_sessions:
+            return await interaction.response.send_message("❌ **Session pending. Resolve current duel path before sitting.**", ephemeral=True)
         if user['balance'] < bet or user['balance'] <= 0:
             return await interaction.response.send_message("❌ **Asset Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
+        # --- ADDED: CONCURRENCY ATTACK LOCK ENFORCED ---
+        self.active_sessions.add(interaction.user.id)
         p_hand = [self.draw_card(), self.draw_card()]
         d_hand = [self.draw_card(), self.draw_card()]
         if self.calculate_bj(p_hand) == 21:
@@ -396,6 +441,8 @@ class FieryCasino(commands.Cog):
             await interaction.edit_original_response(embed=embed, view=None)
         else:
             await interaction.response.edit_message(embed=embed, view=None)
+        # --- ADDED: DISCARD BLACKJACK LOCK TO PERMIT NEXT SITTING TRACKING ---
+        self.active_sessions.discard(interaction.user.id)
 
     # --- ROULETTE COMMANDS ---
     @commands.command(name="roulette")
@@ -416,7 +463,12 @@ class FieryCasino(commands.Cog):
     async def execute_roulette_logic(self, interaction, choice, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
+        # --- ADDED: SESSION VERIFICATION AT COMPILATION TIME ---
+        if interaction.user.id in self.active_sessions:
+            return await interaction.response.send_message("❌ **Session pending. Await current alignment wheel rotation completion.**", ephemeral=True)
         if user['balance'] < bet or user['balance'] <= 0: return await interaction.response.send_message("❌ **Vault Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
+        # --- ADDED: CONCURRENCY ATTACK LOCK ENFORCED ---
+        self.active_sessions.add(interaction.user.id)
         await interaction.response.edit_message(content="🎡 **The wheel is spinning...**", view=None, embed=None)
         await asyncio.sleep(3.0)
         num = random.randint(0, 36)
@@ -434,7 +486,7 @@ class FieryCasino(commands.Cog):
             win_amt = int((bet * payout_mult) * mult)
             # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
             win_amt = int(bet + ((bet * (payout_mult - 1)) * mult))
-            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Net Payout of **{(win_amt-bet):,} Flames**!"
         else:
@@ -443,6 +495,8 @@ class FieryCasino(commands.Cog):
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n⛓️ **SUBMISSION.** Your tribute is consumed."
         embed = main_mod.fiery_embed(title, res, color=color_hex)
         await interaction.edit_original_response(content=None, embed=embed)
+        # --- ADDED: DISCARD RETURNING CONCURRENCY TRACKER KEY ---
+        self.active_sessions.discard(interaction.user.id)
 
     # --- SLOTS COMMANDS ---
     @commands.command(name="slots")
@@ -471,7 +525,12 @@ class FieryCasino(commands.Cog):
     async def execute_slots_logic(self, interaction, bet):
         main_mod = sys.modules['__main__']
         user = await self.get_user_data(interaction.user.id)
+        # --- ADDED: SESSION VERIFICATION AT COMPILATION TIME ---
+        if interaction.user.id in self.active_sessions:
+            return await interaction.response.send_message("❌ **Session pending. Let your active reels pull complete.**", ephemeral=True)
         if user['balance'] < bet or user['balance'] <= 0: return await interaction.response.send_message("❌ **Vault Deficiency. You cannot bet more than your current balance.**", ephemeral=True)
+        # --- ADDED: CONCURRENCY ATTACK LOCK ENFORCED ---
+        self.active_sessions.add(interaction.user.id)
         icons = ["🫦", "⛓️", "🔞", "🍑", "💦", "🔥"]
         
         # ANIMATION SEQUENCE
@@ -505,6 +564,8 @@ class FieryCasino(commands.Cog):
 
         embed = main_mod.fiery_embed(title, res, color=color)
         await interaction.edit_original_response(content=None, embed=embed)
+        # --- ADDED: SAFE DISCARD OF SLOT USER REGISTRATION SESSION KEY ---
+        self.active_sessions.discard(interaction.user.id)
 
 async def setup(bot):
     await bot.add_cog(FieryCasino(bot))
