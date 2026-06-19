@@ -3,6 +3,7 @@ from discord.ext import commands
 import sys
 import inspect
 import io
+import time
 from PIL import Image, ImageDraw, ImageFont
 
 # --- HIGH-POTENCY GRADIENT AND CUSTOM COLOR PALETTE ---
@@ -196,14 +197,17 @@ class ColorCategorySelect(discord.ui.Select):
         
         # Generate the dynamic palette visual sheet asset
         img_data = generate_wardrobe_sheet(selected_category)
-        file = discord.File(img_data, filename="wardrobe_sheet.png")
-        embed.set_image(url="attachment://wardrobe_sheet.png")
+        
+        # --- FIXED: Use a dynamically updating layout filename stamp to force Discord to redraw attachments instead of locking up ---
+        filename_stamp = f"sheet_{int(time.time())}.png"
+        file = discord.File(img_data, filename=filename_stamp)
+        embed.set_image(url=f"attachment://{filename_stamp}")
         
         # Update text info panel presentation format
         pigment_list = "\n".join([f"• {p['emoji']} **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
         embed.add_field(name="🎨 Available Pigments", value=pigment_list, inline=False)
         
-        # --- MODIFIED: Uses edit_original_response targeting deferred context seamlessly ---
+        # --- FIXED: Clears old attachments arrays explicitly to let the updated payload bypass blockages ---
         await interaction.edit_original_response(embed=embed, view=new_view, attachments=[file])
 
 # --- INTERACTIVE PIGMENT VIEW ---
