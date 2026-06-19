@@ -2,183 +2,132 @@ import discord
 from discord.ext import commands
 import sys
 import inspect
-import io
-import time
-from PIL import Image, ImageDraw, ImageFont
 
 # --- HIGH-POTENCY GRADIENT AND CUSTOM COLOR PALETTE ---
 # 100 premium selections split into digestible thematic categories
-# --- ADDED: Matched-color emoji fields for every pigment option to provide an instant visual color preview ---
+# --- UPDATED: Emojis removed from the individual pigment definitions to keep the selection clean ---
 COLOR_PALETTE = {
     "🔥 Fiery & Lust": [
-        {"name": "Crimson Climax", "hex": "FF007F", "emoji": "🔴"},
-        {"name": "Scarlet Sin", "hex": "FF2400", "emoji": "🔴"},
-        {"name": "Molten Passion", "hex": "FF4500", "emoji": "🔸"},
-        {"name": "Blazing Desire", "hex": "FF6700", "emoji": "🔸"},
-        {"name": "Afterglow Orange", "hex": "FF7F50", "emoji": "🟠"},
-        {"name": "Deep Lust Rose", "hex": "C71585", "emoji": "🟣"},
-        {"name": "Seductive Coral", "hex": "FF7F50", "emoji": "🟠"},
-        {"name": "Volcanic Heat", "hex": "E63946", "emoji": "🔴"},
-        {"name": "Wild Orchid", "hex": "DA70D6", "emoji": "🟣"},
-        {"name": "Erotic Amethyst", "hex": "9932CC", "emoji": "🟣"}
+        {"name": "Crimson Climax", "hex": "FF007F"},
+        {"name": "Scarlet Sin", "hex": "FF2400"},
+        {"name": "Molten Passion", "hex": "FF4500"},
+        {"name": "Blazing Desire", "hex": "FF6700"},
+        {"name": "Afterglow Orange", "hex": "FF7F50"},
+        {"name": "Deep Lust Rose", "hex": "C71585"},
+        {"name": "Seductive Coral", "hex": "FF7F50"},
+        {"name": "Volcanic Heat", "hex": "E63946"},
+        {"name": "Wild Orchid", "hex": "DA70D6"},
+        {"name": "Erotic Amethyst", "hex": "9932CC"}
     ],
     "⛓️ Submission & Shadows": [
-        {"name": "Latex Black", "hex": "111111", "emoji": "⚫"},
-        {"name": "Chained Silver", "hex": "C0C0C0", "emoji": "⚪"},
-        {"name": "Midnight Velvet", "hex": "191970", "emoji": "🔵"},
-        {"name": "Obsidian Bond", "hex": "0B0C10", "emoji": "⚫"},
-        {"name": "Graphite Grip", "hex": "4F5D75", "emoji": "⚫"},
-        {"name": "Smokey Quartz", "hex": "6D597A", "emoji": "🟤"},
-        {"name": "Ashen Submissive", "hex": "B5A4A3", "emoji": "⚪"},
-        {"name": "Shadow Dominion", "hex": "1F2833", "emoji": "⚫"},
-        {"name": "Subdued Slate", "hex": "708090", "emoji": "⚫"},
-        {"name": "Leather Matte", "hex": "2B2D42", "emoji": "⚫"}
+        {"name": "Latex Black", "hex": "111111"},
+        {"name": "Chained Silver", "hex": "C0C0C0"},
+        {"name": "Midnight Velvet", "hex": "191970"},
+        {"name": "Obsidian Bond", "hex": "0B0C10"},
+        {"name": "Graphite Grip", "hex": "4F5D75"},
+        {"name": "Smokey Quartz", "hex": "6D597A"},
+        {"name": "Ashen Submissive", "hex": "B5A4A3"},
+        {"name": "Shadow Dominion", "hex": "1F2833"},
+        {"name": "Subdued Slate", "hex": "708090"},
+        {"name": "Leather Matte", "hex": "2B2D42"}
     ],
     "💦 Pleasure & Fluidity": [
-        {"name": "Neon Ocean", "hex": "00F5FF", "emoji": "🔵"},
-        {"name": "Electric Aqua", "hex": "00FFFF", "emoji": "🔵"},
-        {"name": "Deep Sea Rapture", "hex": "104E8B", "emoji": "🔵"},
-        {"name": "Fluid Teal", "hex": "008080", "emoji": "🟢"},
-        {"name": "Submerged Cyan", "hex": "00CED1", "emoji": "🔵"},
-        {"name": "Siren's Call Blue", "hex": "4169E1", "emoji": "🔵"},
-        {"name": "Tropical Ecstasy", "hex": "00FA9A", "emoji": "🟢"},
-        {"name": "Glacial Shudder", "hex": "E0FFFF", "emoji": "⚪"},
-        {"name": "Bioluminescent", "hex": "7FFFD4", "emoji": "🟢"},
-        {"name": "Liquid Platinum", "hex": "E5E5E5", "emoji": "⚪"}
+        {"name": "Neon Ocean", "hex": "00F5FF"},
+        {"name": "Electric Aqua", "hex": "00FFFF"},
+        {"name": "Deep Sea Rapture", "hex": "104E8B"},
+        {"name": "Fluid Teal", "hex": "008080"},
+        {"name": "Submerged Cyan", "hex": "00CED1"},
+        {"name": "Siren's Call Blue", "hex": "4169E1"},
+        {"name": "Tropical Ecstasy", "hex": "00FA9A"},
+        {"name": "Glacial Shudder", "hex": "E0FFFF"},
+        {"name": "Bioluminescent", "hex": "7FFFD4"},
+        {"name": "Liquid Platinum", "hex": "E5E5E5"}
     ],
     "🍑 Sweet & Flesh": [
-        {"name": "Blushing Flesh", "hex": "FFB7B2", "emoji": "💮"},
-        {"name": "Juicy Peach", "hex": "FF9F1C", "emoji": "🟠"},
-        {"name": "Succulent Rose", "hex": "FFC6FF", "emoji": "🌸"},
-        {"name": "Bubblegum Bliss", "hex": "FF69B4", "emoji": "🌸"},
-        {"name": "Velvet Cherry", "hex": "D90429", "emoji": "🔴"},
-        {"name": "Hot Magenta", "hex": "FF00FF", "emoji": "🟣"},
-        {"name": "Mauve Madness", "hex": "E0AAFF", "emoji": "🟣"},
-        {"name": "Soft Carnation", "hex": "FFA6C9", "emoji": "🌸"},
-        {"name": "Neon Fuchsia", "hex": "F72585", "emoji": "🟣"},
-        {"name": "Gilded Nude", "hex": "E29578", "emoji": "🟤"}
+        {"name": "Blushing Flesh", "hex": "FFB7B2"},
+        {"name": "Juicy Peach", "hex": "FF9F1C"},
+        {"name": "Succulent Rose", "hex": "FFC6FF"},
+        {"name": "Bubblegum Bliss", "hex": "FF69B4"},
+        {"name": "Velvet Cherry", "hex": "D90429"},
+        {"name": "Hot Magenta", "hex": "FF00FF"},
+        {"name": "Mauve Madness", "hex": "E0AAFF"},
+        {"name": "Soft Carnation", "hex": "FFA6C9"},
+        {"name": "Neon Fuchsia", "hex": "F72585"},
+        {"name": "Gilded Nude", "hex": "E29578"}
     ],
     "🔮 Cosmic Majesty": [
-        {"name": "Nebula Nightmare", "hex": "7209B7", "emoji": "🟣"},
-        {"name": "Supernova Gold", "hex": "FFD700", "emoji": "🟡"},
-        {"name": "Cosmic Violet", "hex": "4CC9F0", "emoji": "🔵"},
-        {"name": "Astral Void", "hex": "3A0CA3", "emoji": "🔵"},
-        {"name": "Starlight Silver", "hex": "F8F9FA", "emoji": "⚪"},
-        {"name": "Aurora Glow", "hex": "560BAD", "emoji": "🟣"},
-        {"name": "Solar Flare", "hex": "F94144", "emoji": "🔴"},
-        {"name": "Plasma Pink", "hex": "F15BB5", "emoji": "🌸"},
-        {"name": "Interstellar Mint", "hex": "00BBF9", "emoji": "🔵"},
-        {"name": "Quantum Gold", "hex": "EE9B00", "emoji": "🟠"}
+        {"name": "Nebula Nightmare", "hex": "7209B7"},
+        {"name": "Supernova Gold", "hex": "FFD700"},
+        {"name": "Cosmic Violet", "hex": "4CC9F0"},
+        {"name": "Astral Void", "hex": "3A0CA3"},
+        {"name": "Starlight Silver", "hex": "F8F9FA"},
+        {"name": "Aurora Glow", "hex": "560BAD"},
+        {"name": "Solar Flare", "hex": "F94144"},
+        {"name": "Plasma Pink", "hex": "F15BB5"},
+        {"name": "Interstellar Mint", "hex": "00BBF9"},
+        {"name": "Quantum Gold", "hex": "EE9B00"}
     ],
     "🍀 Exotic Botanical": [
-        {"name": "Absinthe Green", "hex": "7FFF00", "emoji": "🟢"},
-        {"name": "Envious Jade", "hex": "00A86B", "emoji": "🟢"},
-        {"name": "Poison Ivy", "hex": "228B22", "emoji": "🟢"},
-        {"name": "Neon Lime", "hex": "32CD32", "emoji": "🟢"},
-        {"name": "Electric Emerald", "hex": "50C878", "emoji": "🟢"},
-        {"name": "Forest Dominance", "hex": "014421", "emoji": "🟢"},
-        {"name": "Mint Ecstasy", "hex": "98FF98", "emoji": "🟢"},
-        {"name": "Toxic Olive", "hex": "808000", "emoji": "🟤"},
-        {"name": "Malachite Lust", "hex": "0BDA51", "emoji": "🟢"},
-        {"name": "Psychedelic Moss", "hex": "ADFF2F", "emoji": "🟢"}
+        {"name": "Absinthe Green", "hex": "7FFF00"},
+        {"name": "Envious Jade", "hex": "00A86B"},
+        {"name": "Poison Ivy", "hex": "228B22"},
+        {"name": "Neon Lime", "hex": "32CD32"},
+        {"name": "Electric Emerald", "hex": "50C878"},
+        {"name": "Forest Dominance", "hex": "014421"},
+        {"name": "Mint Ecstasy", "hex": "98FF98"},
+        {"name": "Toxic Olive", "hex": "808000"},
+        {"name": "Malachite Lust", "hex": "0BDA51"},
+        {"name": "Psychedelic Moss", "hex": "ADFF2F"}
     ],
     "🔱 Royal Authority": [
-        {"name": "Imperial Purple", "hex": "6A0DAD", "emoji": "🟣"},
-        {"name": "Sovereign Gold", "hex": "D4AF37", "emoji": "🟡"},
-        {"name": "Majestic Indigo", "hex": "4B0082", "emoji": "🟣"},
-        {"name": "Royal Champagne", "hex": "F4E0A5", "emoji": "🟡"},
-        {"name": "Dynasty Ruby", "hex": "9B111E", "emoji": "🔴"},
-        {"name": "Monarch Bronze", "hex": "CD7F32", "emoji": "🟤"},
-        {"name": "Baron Orchid", "hex": "B0529F", "emoji": "🟣"},
-        {"name": "Palace Turquoise", "hex": "2596BE", "emoji": "🔵"},
-        {"name": "Exalted Platinum", "hex": "E5E4E2", "emoji": "⚪"},
-        {"name": "Tyrian Velvet", "hex": "66023C", "emoji": "🟣"}
+        {"name": "Imperial Purple", "hex": "6A0DAD"},
+        {"name": "Sovereign Gold", "hex": "D4AF37"},
+        {"name": "Majestic Indigo", "hex": "4B0082"},
+        {"name": "Royal Champagne", "hex": "F4E0A5"},
+        {"name": "Dynasty Ruby", "hex": "9B111E"},
+        {"name": "Monarch Bronze", "hex": "CD7F32"},
+        {"name": "Baron Orchid", "hex": "B0529F"},
+        {"name": "Palace Turquoise", "hex": "2596BE"},
+        {"name": "Exalted Platinum", "hex": "E5E4E2"},
+        {"name": "Tyrian Velvet", "hex": "66023C"}
     ],
     "⚡ High Voltage": [
-        {"name": "Cyber Yellow", "hex": "FFD300", "emoji": "🟡"},
-        {"name": "Electric Pulse", "hex": "FF003F", "emoji": "🔴"},
-        {"name": "Laser Cyan", "hex": "00E5FF", "emoji": "🔵"},
-        {"name": "Static White", "hex": "FFFFFF", "emoji": "⚪"},
-        {"name": "Hazard Orange", "hex": "FF5500", "emoji": "🟠"},
-        {"name": "Gamma Violet", "hex": "8A2BE2", "emoji": "🟣"},
-        {"name": "Atomic Lime", "hex": "CCFF00", "emoji": "🟢"},
-        {"name": "Tesla Teal", "hex": "00F5D4", "emoji": "🟢"},
-        {"name": "Overloaded Pink", "hex": "FF007F", "emoji": "🔴"},
-        {"name": "Sonic Blue", "hex": "0044FF", "emoji": "🔵"}
+        {"name": "Cyber Yellow", "hex": "FFD300"},
+        {"name": "Electric Pulse", "hex": "FF003F"},
+        {"name": "Laser Cyan", "hex": "00E5FF"},
+        {"name": "Static White", "hex": "FFFFFF"},
+        {"name": "Hazard Orange", "hex": "FF5500"},
+        {"name": "Gamma Violet", "hex": "8A2BE2"},
+        {"name": "Atomic Lime", "hex": "CCFF00"},
+        {"name": "Tesla Teal", "hex": "00F5D4"},
+        {"name": "Overloaded Pink", "hex": "FF007F"},
+        {"name": "Sonic Blue", "hex": "0044FF"}
     ],
     "🍷 Vintage Seduction": [
-        {"name": "Bordeaux Wine", "hex": "780000", "emoji": "🔴"},
-        {"name": "Merlot Velvet", "hex": "660708", "emoji": "🔴"},
-        {"name": "Cognac Glow", "hex": "A1613A", "emoji": "🟤"},
-        {"name": "Toasted Amber", "hex": "FFBF00", "emoji": "🟡"},
-        {"name": "Dark Espresso", "hex": "36220F", "emoji": "⚫"},
-        {"name": "Sangria Blush", "hex": "92000A", "emoji": "🔴"},
-        {"name": "Tempting Truffle", "hex": "4A3728", "emoji": "🟤"},
-        {"name": "Spiced Plum", "hex": "4E1A3D", "emoji": "🟣"},
-        {"name": "Bourbon Honey", "hex": "D2A104", "emoji": "🟡"},
-        {"name": "Burgundy Lace", "hex": "800020", "emoji": "🟣"}
+        {"name": "Bordeaux Wine", "hex": "780000"},
+        {"name": "Merlot Velvet", "hex": "660708"},
+        {"name": "Cognac Glow", "hex": "A1613A"},
+        {"name": "Toasted Amber", "hex": "FFBF00"},
+        {"name": "Dark Espresso", "hex": "36220F"},
+        {"name": "Sangria Blush", "hex": "92000A"},
+        {"name": "Tempting Truffle", "hex": "4A3728"},
+        {"name": "Spiced Plum", "hex": "4E1A3D"},
+        {"name": "Bourbon Honey", "hex": "D2A104"},
+        {"name": "Burgundy Lace", "hex": "800020"}
     ],
     "💎 Opulent Luxuries": [
-        {"name": "Pure Diamond", "hex": "E3F2FD", "emoji": "⚪"},
-        {"name": "Flawless Ruby", "hex": "E0115F", "emoji": "🔴"},
-        {"name": "Deep Sapphire", "hex": "0F52BA", "emoji": "🔵"},
-        {"name": "Raw Emerald", "hex": "046307", "emoji": "🟢"},
-        {"name": "Vibrant Topaz", "hex": "FFC87C", "emoji": "🟠"},
-        {"name": "Pink Tourmaline", "hex": "F8119F", "emoji": "🌸"},
-        {"name": "Amethyst Shard", "hex": "9966CC", "emoji": "🟣"},
-        {"name": "Midnight Pearl", "hex": "8A95A5", "emoji": "⚫"},
-        {"name": "Egyptian Lapis", "hex": "26619C", "emoji": "🔵"},
-        {"name": "Rose Quartz Glow", "hex": "F7CAC9", "emoji": "🌸"}
+        {"name": "Pure Diamond", "hex": "E3F2FD"},
+        {"name": "Flawless Ruby", "hex": "E0115F"},
+        {"name": "Deep Sapphire", "hex": "0F52BA"},
+        {"name": "Raw Emerald", "hex": "046307"},
+        {"name": "Vibrant Topaz", "hex": "FFC87C"},
+        {"name": "Pink Tourmaline", "hex": "F8119F"},
+        {"name": "Amethyst Shard", "hex": "9966CC"},
+        {"name": "Midnight Pearl", "hex": "8A95A5"},
+        {"name": "Egyptian Lapis", "hex": "26619C"},
+        {"name": "Rose Quartz Glow", "hex": "F7CAC9"}
     ]
 }
-
-# --- ADDED: HIGH-POTENCY IMAGE GENERATOR FOR TRUE OUTCOME VISUALIZATION ---
-def generate_wardrobe_sheet(category_name):
-    """Generates a professional luxury image grid displaying 'Echo Bot' in every palette color."""
-    colors = COLOR_PALETTE[category_name]
-    
-    # Image dimension variables
-    img_w, img_h = 650, (len(colors) * 55) + 80
-    image = Image.new("RGB", (img_w, img_h), "#1a1a24")
-    draw = ImageDraw.Draw(image)
-    
-    # --- ADDED: FONT RECOVERY FAILSAFE PROTOCOL ---
-    # Attempts to load a valid system true-type font wrapper to prevent rendering layout hangs
-    try:
-        font = ImageFont.truetype("arial.ttf", 20)
-        title_font = ImageFont.truetype("arial.ttf", 24)
-    except IOError:
-        try:
-            font = ImageFont.truetype("DejaVuSans.ttf", 20)
-            title_font = ImageFont.truetype("DejaVuSans.ttf", 24)
-        except IOError:
-            font = ImageFont.load_default()
-            title_font = ImageFont.load_default()
-            
-    # Structural Header Background
-    draw.rectangle([(0, 0), (img_w, 65)], fill="#111116")
-    draw.text((20, 18), f"{category_name.upper()} PALETTE PREVIEW", fill="#d4af37", font=title_font)
-    
-    # Draw every color element line-by-line
-    for i, p in enumerate(colors):
-        y_offset = 80 + (i * 55)
-        
-        # Draw background strip alternating
-        strip_bg = "#22222e" if i % 2 == 0 else "#1d1d27"
-        draw.rectangle([(15, y_offset - 5), (img_w - 15, y_offset + 45)], fill=strip_bg, radius=5)
-        
-        # Color hex text indicator
-        draw.text((35, y_offset + 12), f"{p['name']} (#{p['hex']})", fill="#b5a4a3", font=font)
-        
-        # Stylized 'Echo Bot' render target using the exact palette hex values
-        rgb_tuple = tuple(int(p['hex'][j:j+2], 16) for j in (0, 2, 4))
-        draw.text((420, y_offset + 10), "Echo Bot", fill=rgb_tuple, font=font)
-        
-    # Compress into bytes array wrapper for standard Discord transit execution
-    final_buffer = io.BytesIO()
-    image.save(final_buffer, format="PNG")
-    final_buffer.seek(0)
-    return final_buffer
 
 # --- INTERACTIVE CATEGORY VIEW ---
 class ColorCategorySelect(discord.ui.Select):
@@ -194,9 +143,6 @@ class ColorCategorySelect(discord.ui.Select):
         if interaction.user.id != self.author.id:
             return await interaction.response.send_message("❌ This wardrobe option belongs to another.", ephemeral=True)
         
-        # --- ADDED: IMMEDIATE TOKEN DEFERRAL TO UTTERLY ELIMINATE THE 3-SECOND TIMEOUT RESYNCHRONIZATION BLOCK ---
-        await interaction.response.defer()
-        
         selected_category = self.values[0]
         new_view = ColorWardrobeView(self.author, selected_category, view_instance=self.view)
         
@@ -204,24 +150,16 @@ class ColorCategorySelect(discord.ui.Select):
         desc = (
             f"## {selected_category} WARDROBE\n"
             "Pick a pigment below to dye your identity on the server immediately.\n\n"
-            "🔮 **Look at the premium color chart image attached below!** It displays exactly how your nickname will shine."
+            "⚡ *Note: Custom color roles are cleanly managed by the system.*"
         )
         embed = main_mod.fiery_embed("IDENTITY DYE PROTOCOL", desc, color=0xd4af37)
         
-        # Generate the dynamic palette visual sheet asset
-        img_data = generate_wardrobe_sheet(selected_category)
-        
-        # --- FIXED: Use a dynamically updating layout filename stamp to force Discord to redraw attachments instead of locking up ---
-        filename_stamp = f"sheet_{int(time.time())}.png"
-        file = discord.File(img_data, filename=filename_stamp)
-        embed.set_image(url=f"attachment://{filename_stamp}")
-        
-        # Update text info panel presentation format
-        pigment_list = "\n".join([f"• {p['emoji']} **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
+        # Display available pigments in this menu view
+        # --- UPDATED: Emojis removed from text representation within the info field list layout block ---
+        pigment_list = "\n".join([f"• **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
         embed.add_field(name="🎨 Available Pigments", value=pigment_list, inline=False)
         
-        # --- FIXED: Clears old attachments arrays explicitly to let the updated payload bypass blockages ---
-        await interaction.edit_original_response(embed=embed, view=new_view, attachments=[file])
+        await interaction.response.edit_message(embed=embed, view=new_view)
 
 # --- INTERACTIVE PIGMENT VIEW ---
 class ColorPigmentSelect(discord.ui.Select):
