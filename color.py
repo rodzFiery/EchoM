@@ -142,9 +142,22 @@ def generate_wardrobe_sheet(category_name):
     image = Image.new("RGB", (img_w, img_h), "#1a1a24")
     draw = ImageDraw.Draw(image)
     
+    # --- ADDED: FONT RECOVERY FAILSAFE PROTOCOL ---
+    # Attempts to load a valid system true-type font wrapper to prevent rendering layout hangs
+    try:
+        font = ImageFont.truetype("arial.ttf", 20)
+        title_font = ImageFont.truetype("arial.ttf", 24)
+    except IOError:
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 20)
+            title_font = ImageFont.truetype("DejaVuSans.ttf", 24)
+        except IOError:
+            font = ImageFont.load_default()
+            title_font = ImageFont.load_default()
+            
     # Structural Header Background
     draw.rectangle([(0, 0), (img_w, 65)], fill="#111116")
-    draw.text((20, 18), f"{category_name.upper()} PALETTE PREVIEW", fill="#d4af37")
+    draw.text((20, 18), f"{category_name.upper()} PALETTE PREVIEW", fill="#d4af37", font=title_font)
     
     # Draw every color element line-by-line
     for i, p in enumerate(colors):
@@ -155,11 +168,11 @@ def generate_wardrobe_sheet(category_name):
         draw.rectangle([(15, y_offset - 5), (img_w - 15, y_offset + 45)], fill=strip_bg, radius=5)
         
         # Color hex text indicator
-        draw.text((35, y_offset + 12), f"{p['name']} (#{p['hex']})", fill="#b5a4a3")
+        draw.text((35, y_offset + 12), f"{p['name']} (#{p['hex']})", fill="#b5a4a3", font=font)
         
         # Stylized 'Echo Bot' render target using the exact palette hex values
         rgb_tuple = tuple(int(p['hex'][j:j+2], 16) for j in (0, 2, 4))
-        draw.text((420, y_offset + 10), "Echo Bot", fill=rgb_tuple)
+        draw.text((420, y_offset + 10), "Echo Bot", fill=rgb_tuple, font=font)
         
     # Compress into bytes array wrapper for standard Discord transit execution
     final_buffer = io.BytesIO()
