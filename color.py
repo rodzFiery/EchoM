@@ -2,10 +2,11 @@ import discord
 from discord.ext import commands
 import sys
 import inspect
+import io
+from PIL import Image, ImageDraw, ImageFont
 
 # --- HIGH-POTENCY GRADIENT AND CUSTOM COLOR PALETTE ---
 # 100 premium selections split into digestible thematic categories
-# --- ADDED: Matched-color emoji fields for every pigment option to provide an instant visual color preview ---
 COLOR_PALETTE = {
     "🔥 Fiery & Lust": [
         {"name": "Crimson Climax", "hex": "FF007F", "emoji": "🔴"},
@@ -129,6 +130,41 @@ COLOR_PALETTE = {
     ]
 }
 
+# --- ADDED: HIGH-POTENCY IMAGE GENERATOR FOR TRUE OUTCOME VISUALIZATION ---
+def generate_wardrobe_sheet(category_name):
+    """Generates a professional luxury image grid displaying 'Echo Bot' in every palette color."""
+    colors = COLOR_PALETTE[category_name]
+    
+    # Image dimension variables
+    img_w, img_h = 650, (len(colors) * 55) + 80
+    image = Image.new("RGB", (img_w, img_h), "#1a1a24")
+    draw = ImageDraw.Draw(image)
+    
+    # Structural Header Background
+    draw.rectangle([(0, 0), (img_w, 65)], fill="#111116")
+    draw.text((20, 18), f"{category_name.upper()} PALETTE PREVIEW", fill="#d4af37")
+    
+    # Draw every color element line-by-line
+    for i, p in enumerate(colors):
+        y_offset = 80 + (i * 55)
+        
+        # Draw background strip alternating
+        strip_bg = "#22222e" if i % 2 == 0 else "#1d1d27"
+        draw.rectangle([(15, y_offset - 5), (img_w - 15, y_offset + 45)], fill=strip_bg, radius=5)
+        
+        # Color hex text indicator
+        draw.text((35, y_offset + 12), f"{p['name']} (#{p['hex']})", fill="#b5a4a3")
+        
+        # Stylized 'Echo Bot' render target using the exact palette hex values
+        rgb_tuple = tuple(int(p['hex'][j:j+2], 16) for j in (0, 2, 4))
+        draw.text((420, y_offset + 10), "Echo Bot", fill=rgb_tuple)
+        
+    # Compress into bytes array wrapper for standard Discord transit execution
+    final_buffer = io.BytesIO()
+    image.save(final_buffer, format="PNG")
+    final_buffer.seek(0)
+    return final_buffer
+
 # --- INTERACTIVE CATEGORY VIEW ---
 class ColorCategorySelect(discord.ui.Select):
     def __init__(self, author):
@@ -150,16 +186,21 @@ class ColorCategorySelect(discord.ui.Select):
         desc = (
             f"## {selected_category} WARDROBE\n"
             "Pick a pigment below to dye your identity on the server immediately.\n\n"
-            "⚡ *Note: Custom color roles are cleanly managed by the system.*"
+            "🔮 **Look at the premium color chart image attached below!** It displays exactly how your nickname will shine."
         )
         embed = main_mod.fiery_embed("IDENTITY DYE PROTOCOL", desc, color=0xd4af37)
         
-        # Display available pigments in this menu view
-        # --- ADDED: Visual color preview indicators included next to the text titles within the main info panel layout ---
-        pigment_list = "\n".join([f"• {p['emoji']} **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
+        # Generate the dynamic palette visual sheet asset
+        img_data = generate_wardrobe_sheet(selected_category)
+        file = discord.File(img_data, filename="wardrobe_sheet.png")
+        embed.set_image(url="attachment://wardrobe_sheet.png")
+        
+        # Update text info panel presentation format
+        pigment_list = "\n".join([f"• **{p['name']}** (`#{p['hex']}`)" for p in COLOR_PALETTE[selected_category]])
         embed.add_field(name="🎨 Available Pigments", value=pigment_list, inline=False)
         
-        await interaction.response.edit_message(embed=embed, view=new_view)
+        # Process changes with the image file attached seamlessly
+        await interaction.response.edit_message(embed=embed, view=new_view, attachments=[file])
 
 # --- INTERACTIVE PIGMENT VIEW ---
 class ColorPigmentSelect(discord.ui.Select):
