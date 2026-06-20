@@ -36,20 +36,21 @@ class WinnerDetailsView(discord.ui.View):
         await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
 
 class LobbyView(discord.ui.View):
-    def __init__(self, owner=None, edition=0, guild_id=None):
+    def __init__(self, owner=None, edition=0, guild_id=None, channel_id=None):
         super().__init__(timeout=None)
         self.owner = owner
         self.edition = edition
         self.guild_id = guild_id
+        self.channel_id = channel_id
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
         
         # --- DYNAMIC CUSTOM ID FIX ---
         # Explicitly defining the buttons here rather than using decorators forces discord.py 
         # to register the unique guild IDs natively, completely preventing the "Interaction Failed" cross-server mapping bugs.
-        join_id = f"fiery_join_{self.guild_id}" if self.guild_id else "fiery_join_button"
-        start_id = f"fiery_start_{self.guild_id}" if self.guild_id else "fiery_start_button"
-        repost_id = f"fiery_repost_{self.guild_id}" if self.guild_id else "fiery_repost_button"
+        join_id = f"fiery_join_{self.channel_id}" if self.channel_id else f"fiery_join_{self.guild_id}" if self.guild_id else "fiery_join_button"
+        start_id = f"fiery_start_{self.channel_id}" if self.channel_id else f"fiery_start_{self.guild_id}" if self.guild_id else "fiery_start_button"
+        repost_id = f"fiery_repost_{self.channel_id}" if self.channel_id else f"fiery_repost_{self.guild_id}" if self.guild_id else "fiery_repost_button"
 
         join_btn = discord.ui.Button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id=join_id)
         join_btn.callback = self.join_button_callback
@@ -70,13 +71,23 @@ class LobbyView(discord.ui.View):
 
         # --- Persistence Rehydration ---
         # When the view is recreated after a restart, try to fetch current participants from DB
-        if self.guild_id:
+        if self.channel_id:
             try:
                 import sys as _sys
                 main = _sys.modules['__main__']
                 with main.get_db_connection() as conn:
                     # Ensure table exists before querying
-                    conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+                    conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+                    rows = conn.execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (self.channel_id,)).fetchall()
+                    self.participants = [r[0] for r in rows]
+            except Exception as e:
+                print(f"Rehydration Error: {e}")
+        elif self.guild_id:
+            try:
+                import sys as _sys
+                main = _sys.modules['__main__']
+                with main.get_db_connection() as conn:
+                    conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
                     rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (self.guild_id,)).fetchall()
                     self.participants = [r[0] for r in rows]
             except Exception as e:
@@ -96,17 +107,17 @@ class LobbyView(discord.ui.View):
 
         # PERSISTENCE LOGIC: Add to DB and Local List
         with engine.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
-            check = conn.execute("SELECT 1 FROM lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+            check = conn.execute("SELECT 1 FROM lobby_participants WHERE channel_id = ? AND user_id = ?", (interaction.channel.id, interaction.user.id)).fetchone()
             if check:
                 return await interaction.followup.send("🫦 **You are already chained in the Red Room.** There is no escape now.", ephemeral=True)
             
-            conn.execute("INSERT INTO lobby_participants (guild_id, user_id) VALUES (?, ?)", (interaction.guild.id, interaction.user.id))
+            conn.execute("INSERT INTO lobby_participants (guild_id, user_id, channel_id) VALUES (?, ?, ?)", (interaction.guild.id, interaction.user.id, interaction.channel.id))
             conn.commit()
 
         # Update local list from DB to ensure sync after restart
         with engine.get_db_connection() as conn:
-            rows = engine.get_db_connection().execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            rows = engine.get_db_connection().execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (interaction.channel.id,)).fetchall()
             self.participants = [r[0] for r in rows]
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
@@ -136,7 +147,7 @@ class LobbyView(discord.ui.View):
             new_msg = await interaction.channel.send(embed=embed, view=self)
             engine = interaction.client.get_cog("IgnisEngine")
             if engine:
-                engine.current_lobbies[interaction.guild.id] = self
+                engine.current_lobbies[interaction.channel.id] = self
             await interaction.followup.send("🔁 **Current lobby registration re-routed to bottom viewport settings.**", ephemeral=True)
         except Exception as e:
             print(f"Repost Execution Error: {e}")
@@ -184,7 +195,7 @@ class LobbyView(discord.ui.View):
         
         # PERSISTENCE: Reload participants from DB before starting to catch post-restart joins
         with engine.get_db_connection() as conn:
-            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (interaction.channel.id,)).fetchall()
             self.participants = [r[0] for r in rows]
 
         if len(self.participants) < 2:
@@ -208,13 +219,13 @@ class LobbyView(discord.ui.View):
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
             self.active = False
 
-            # Clear lobby for THIS guild specifically
-            if interaction.guild.id in engine.current_lobbies:
-                del engine.current_lobbies[interaction.guild.id]
+            # Clear lobby for THIS channel specifically
+            if interaction.channel.id in engine.current_lobbies:
+                del engine.current_lobbies[interaction.channel.id]
 
-            # PERSISTENCE: Clear DB participants for this guild as game starts
+            # PERSISTENCE: Clear DB participants for this channel as game starts
             with engine.get_db_connection() as conn:
-                conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
+                conn.execute("DELETE FROM lobby_participants WHERE channel_id = ?", (interaction.channel.id,))
                 conn.commit()
             
             # Visual confirmation the game is launching
@@ -342,12 +353,12 @@ class GameConfigView(discord.ui.View):
 
         embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
 
-        view = LobbyView(self.owner, main.game_edition, self.ctx.guild.id)
+        view = LobbyView(self.owner, main.game_edition, self.ctx.guild.id, self.ctx.channel.id)
         view.custom_rules = rules_payload
 
         # FIXED: Removed 'self.bot.add_view(view)' here. Let bot record the interaction context via ctx.send directly, preventing duplicates.
         if engine:
-            engine.current_lobbies[self.ctx.guild.id] = view
+            engine.current_lobbies[self.ctx.channel.id] = view
 
         await interaction.message.delete()
         await self.ctx.send(embed=embed, view=view)
@@ -414,14 +425,15 @@ class EngineControl(commands.Cog):
         if engine:
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
-            if ctx.guild.id in engine.current_lobbies:
+            if ctx.channel.id in engine.current_lobbies:
                  # Check if the existing lobby belongs to this specific channel
-                 existing_view = engine.current_lobbies[ctx.guild.id]
-                 return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
+                 existing_view = engine.current_lobbies[ctx.channel.id]
+                 return await ctx.send("❌ **Registration is already open for this room.** Use `!lobby` to check status.")
 
-        # PERSISTENCE: Reset any leftover stale data for this guild
+        # PERSISTENCE: Reset any leftover stale data for this channel
         with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+            conn.execute("DELETE FROM lobby_participants WHERE channel_id = ?", (ctx.channel.id,))
             
             conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             row = conn.execute("SELECT server_edition FROM ignis_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
@@ -440,15 +452,15 @@ class EngineControl(commands.Cog):
             color=0xFF0000
         )
         
-        view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
+        view = LobbyView(ctx.author, main.game_edition, ctx.guild.id, ctx.channel.id)
         
         # --- ADDED: Persistent View Registration ---
         # This tells the bot to keep listening for these buttons even after a restart
         self.bot.add_view(view)
 
         if engine: 
-            # Assign lobby to the guild ID
-            engine.current_lobbies[ctx.guild.id] = view
+            # Assign lobby to the channel ID
+            engine.current_lobbies[ctx.channel.id] = view
 
         # Removed thumbnail and file logic, sending only embed and view
         embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
@@ -469,8 +481,8 @@ class EngineControl(commands.Cog):
         if engine:
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
-            if ctx.guild.id in engine.current_lobbies:
-                 return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
+            if ctx.channel.id in engine.current_lobbies:
+                 return await ctx.send("❌ **Registration is already open for this room.** Use `!lobby` to check status.")
 
         # Permissions barrier check validation matching the administrative logic setups
         ignis_admin_role_id = None
@@ -489,7 +501,8 @@ class EngineControl(commands.Cog):
             return await ctx.send("🔒 **Neuro lock: you do not have the required clearence level.**")
 
         with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+            conn.execute("DELETE FROM lobby_participants WHERE channel_id = ?", (ctx.channel.id,))
             conn.commit()
 
         config_embed = discord.Embed(
@@ -503,13 +516,14 @@ class EngineControl(commands.Cog):
     @commands.command()
     async def lobby(self, ctx):
         engine = self.bot.get_cog("IgnisEngine")
-        # Check specific guild lobby
-        guild_lobby = engine.current_lobbies.get(ctx.guild.id) if engine else None
+        # Check specific channel lobby
+        guild_lobby = engine.current_lobbies.get(ctx.channel.id) if engine else None
         
         # PERSISTENCE: Check DB if local cache is empty
         participants = []
         with self.get_db_connection() as conn:
-            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,)).fetchall()
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (ctx.channel.id,)).fetchall()
             participants = [r[0] for r in rows]
         
         if not participants:
@@ -538,7 +552,7 @@ class IgnisEngine(commands.Cog):
         
         # INDEPENDENCE FIX: Use Guild IDs for tracking
         self.active_battles = set() # Set of channel IDs (unique across Discord)
-        self.current_lobbies = {} # Guild ID -> LobbyView mapping
+        self.current_lobbies = {} # Channel ID -> LobbyView mapping
         self.current_survivors = {} # Channel ID -> List of survivor IDs
 
         # Track the active session constraints per guild to guide !flash allocations
@@ -564,7 +578,7 @@ class IgnisEngine(commands.Cog):
             "Bare yourself to the pit. It's time for the exhibition.",
             "Your dignity was the stake. You lost. Now strip.",
             "Collar tight, body bare. Let everyone stare.",
-            "The Master wants a clear look at his new asset. Flash!",
+            "The Master wants a clear look widget asset. Flash!",
             "Don't be shy, we've seen better and worse. Show it all.",
             "Expose your soul, and your skin. Do it now.",
             "The winner owns your image for the next 90 minutes. Strip.",
@@ -605,7 +619,7 @@ class IgnisEngine(commands.Cog):
     def _init_persistence(self):
         """Initializes the participant database table."""
         with self.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
             conn.commit()
 
     def calculate_level(self, current_xp):
@@ -627,7 +641,7 @@ class IgnisEngine(commands.Cog):
         self.current_lobbies.clear()
         self.current_survivors.clear()
         with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.execute("DELETE FROM lobby_participants WHERE channel_id = ?", (ctx.channel.id,))
             conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
@@ -1483,7 +1497,7 @@ class PersistentLobbyLauncher(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # FIX: Query unique guild_ids from the database to re-hydrate every server's lobby independently
+        # FIX: Query unique channel_ids from the database to re-hydrate every server's lobby independently
         import sys as _sys
         main = _sys.modules['__main__']
         
@@ -1492,26 +1506,28 @@ class PersistentLobbyLauncher(commands.Cog):
         
         try:
             with main.get_db_connection() as conn:
-                # Get all unique guild_ids that have pending lobbies
-                cursor = conn.execute("SELECT DISTINCT guild_id FROM lobby_participants")
+                # Get all unique channel_ids that have pending lobbies
+                conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
+                cursor = conn.execute("SELECT DISTINCT channel_id, guild_id FROM lobby_participants")
                 guilds = cursor.fetchall()
                 
                 engine = self.bot.get_cog("IgnisEngine")
                 
                 for row in guilds:
-                    g_id = row[0]
-                    # Instantiate a specific view for this guild
-                    # We pass g_id so the __init__ can load the specific participants
-                    view = LobbyView(owner=None, edition=0, guild_id=g_id)
-                    
-                    # Register this specific instance
-                    self.bot.add_view(view)
-                    
-                    # Update the engine's memory so it knows about this active lobby
-                    if engine:
-                        engine.current_lobbies[g_id] = view
+                    ch_id = row[0]
+                    g_id = row[1]
+                    if ch_id:
+                        # Instantiate a specific view for this channel
+                        view = LobbyView(owner=None, edition=0, guild_id=g_id, channel_id=ch_id)
                         
-                print(f"⛓️ Ignis Persistence Protocol: Registered {len(guilds)} independent server lobbies.")
+                        # Register this specific instance
+                        self.bot.add_view(view)
+                        
+                        # Update the engine's memory so it knows about this active lobby
+                        if engine:
+                            engine.current_lobbies[ch_id] = view
+                        
+                print(f"⛓️ Ignis Persistence Protocol: Registered {len(guilds)} independent room lobbies.")
         except Exception as e:
             print(f"Persistence Rehydration Error: {e}")
 
