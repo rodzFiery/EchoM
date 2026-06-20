@@ -991,7 +991,7 @@ class IgnisEngine(commands.Cog):
                 if len(fighters) == 2:
                     t1, t2 = fighters[0], fighters[1]
                     climax_msg = f"⛓️ **THE FINAL STAND.** ⛓️\n\nOnly {t1['name']} and {t2['name']} remain. The dungeon falls silent as the Voyeurs lean in. One will stand, one will fall. The contract is about to be sealed..."
-                    climax_emb = self.fiery_embed("FINAL CLIMAX", climax_msg, color=0x8B0000)
+                    climax_emb = self.fiery_embed("FINAL CLIMAX", climax_msg, color=0x330000)
                     
                     if os.path.exists("LobbyTopRight.jpg"):
                         climax_file = discord.File("LobbyTopRight.jpg", filename="climax_logo.jpg")
@@ -1548,9 +1548,11 @@ async def setup(bot):
         main.save_game_config,
         main.get_db_connection
     )
-    await bot.add_cog(engine_control)
-
-    await bot.add_cog(StatusCheck(bot))
     
-    # ADDED: Register the persistence cog
+    # CRITICAL REF REGISTRATION: Forces discord.py to sync command prefixes directly down the runtime mapping layout
+    for command in engine_control.walk_commands():
+        bot.add_command(command)
+        
+    await bot.add_cog(engine_control)
+    await bot.add_cog(StatusCheck(bot))
     await bot.add_cog(PersistentLobbyLauncher(bot))
