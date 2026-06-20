@@ -370,11 +370,26 @@ class GameConfigView(discord.ui.View):
         
         # FIXED: Safeguarded dynamic call chain checks to prevent runtime crash across distinct cog boundaries
         if control_cog and hasattr(control_cog, 'save_game_config'):
-            control_cog.save_game_config()
+            try:
+                control_cog.save_game_config()
+            except:
+                if hasattr(main, 'save_game_config'):
+                    main.save_game_config()
         elif hasattr(main, 'save_game_config'):
             main.save_game_config()
 
-        with (engine.get_db_connection() if engine else control_cog.get_db_connection()) as conn:
+        # FIXED: Guaranteed connection extraction pathway safely resolved
+        db_conn_provider = None
+        if engine and hasattr(engine, 'get_db_connection'):
+            db_conn_provider = engine
+        elif control_cog and hasattr(control_cog, 'get_db_connection'):
+            db_conn_provider = control_cog
+        else:
+            db_conn_provider = main
+
+        with db_conn_provider.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("INSERT OR IGNORE INTO ignis_server_stats (guild_id, server_edition) VALUES (?, 1)", (self.ctx.guild.id,))
             conn.execute("UPDATE ignis_server_stats SET server_edition = server_edition + 1 WHERE guild_id = ?", (self.ctx.guild.id,))
             conn.commit()
 
