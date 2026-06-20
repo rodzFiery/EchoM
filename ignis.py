@@ -1159,12 +1159,15 @@ class IgnisEngine(commands.Cog):
                 remaining_assets = [m.mention for m in possible_flashers if m != random_flasher_member]
                 available_assets_text = " ".join(remaining_assets) if remaining_assets else "None (Everyone else is already exposed or dead)"
                 
-                # Force ping message content
+                # Force ping message content initialization
                 ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
+                if rules.get("is_custom_setup"):
+                    ping_content = f"🔮 **CUSTOM ARCHITECT PROTOCOL PINGS:** "
+                
                 if first_loser_member and rules["first_blood"]: ping_content += f"{first_loser_member.mention} "
                 if suicide_victims and rules["suicide"]: ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
                 if legendary_victims and rules["legendary"]: ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
-                if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
+                if random_flasher_member and rules["bot_random"]: ping_content += f"{random_flasher_member.mention} "
                 ping_content += f"{winner_member.mention}"
                 
                 # --- MODIFIED: Split layout rendering to make echostart2 completely independent ---
@@ -1174,11 +1177,62 @@ class IgnisEngine(commands.Cog):
                         description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`",
                         color=0x9400D3
                     )
-                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
-                    nsfw_embed.add_field(name="🥀 SUICIDE EXPOSURES", value=s_victims, inline=True)
-                    nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
-                    nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
-                    nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
+                    
+                    # Only show elements that the Host actively selected
+                    if rules["first_blood"] and first_loser_member:
+                        nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
+                    if rules["suicide"] and suicide_victims:
+                        nsfw_embed.add_field(name="🥀 SUICIDE EXPOSURES", value=s_victims, inline=True)
+                    if rules["legendary"] and legendary_victims:
+                        nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
+                    if rules["bot_random"] and random_flasher_member:
+                        nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
+                    
+                    # Display metrics if remaining assets exist
+                    if remaining_assets:
+                        nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
+                    
+                    # FACTION CONDITIONAL PROTOCOLS
+                    theme_mode = rules.get("faction_theme", "ffa")
+                    if theme_mode == "men_vs_girls":
+                        # Determine winning user's role indicators
+                        winner_roles_names = [r.name.lower() for r in getattr(winner_member, 'roles', [])]
+                        is_boy = any("he/him" in rn for rn in winner_roles_names)
+                        
+                        target_mentions = []
+                        for p_id in participants:
+                            m_obj = channel.guild.get_member(p_id)
+                            if m_obj and m_obj.id != winner_member.id:
+                                m_roles = [r.name.lower() for r in getattr(m_obj, 'roles', [])]
+                                if is_boy:
+                                    if any("she/her" in mr for mr in m_roles):
+                                        target_mentions.append(m_obj.mention)
+                                else:
+                                    if any("he/him" in mr for mr in m_roles):
+                                        target_mentions.append(m_obj.mention)
+                        
+                        faction_targets_text = " ".join(target_mentions) if target_mentions else "No valid counter-faction targets found."
+                        nsfw_embed.add_field(name="⚔️ THEME COMBAT TARGETS: MEN VS GIRLS", value=f"Winner side dominance established. Opposing Targets list to expose:\n{faction_targets_text}", inline=False)
+                        
+                    elif theme_mode == "usa_vs_world":
+                        winner_roles_names = [r.name.lower() for r in getattr(winner_member, 'roles', [])]
+                        is_usa = any("north america" in rn for rn in winner_roles_names)
+                        
+                        target_mentions = []
+                        for p_id in participants:
+                            m_obj = channel.guild.get_member(p_id)
+                            if m_obj and m_obj.id != winner_member.id:
+                                m_roles = [r.name.lower() for r in getattr(m_obj, 'roles', [])]
+                                if is_usa:
+                                    if any(any(region in mr for region in ["europe", "asia", "africa", "oceania"]) for mr in m_roles):
+                                        target_mentions.append(m_obj.mention)
+                                else:
+                                    if any("north america" in mr for mr in m_roles):
+                                        target_mentions.append(m_obj.mention)
+                        
+                        faction_targets_text = " ".join(target_mentions) if target_mentions else "No valid geographical counter-targets found."
+                        nsfw_embed.add_field(name="🌍 THEME COMBAT TARGETS: USA VS WORLD", value=f"Winner zone dominance verified. Global Targets layout to expose:\n{faction_targets_text}", inline=False)
+
                     nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
                 else:
                     # Simple, direct standard NSFW recap embed for regular echostart
