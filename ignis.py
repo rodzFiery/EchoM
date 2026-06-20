@@ -113,7 +113,7 @@ class LobbyView(discord.ui.View):
         try:
             embed = interaction.message.embeds[0]
             # Fixed: Ensuring the field name reflects the list length correctly
-            embed.set_field_at(0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
+            embed.set_field_at(1 if len(embed.fields) > 1 else 0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
             
             # UPDATED: Because we deferred, we must use interaction.message.edit
             await interaction.message.edit(embed=embed, view=self)
@@ -237,7 +237,8 @@ class LobbyView(discord.ui.View):
 # --- DYNAMIC RULES SELECTOR SYSTEM FOR !echostart2 ---
 class RulesSelect(discord.ui.Select):
     def __init__(self, placeholder, custom_id, options):
-        super().__init__(placeholder=placeholder, min_values=1, max_values=len(options), options=options, custom_id=custom_id)
+        # MODIFIED: Changed min_values to 0 to allow the host to completely uncheck categories
+        super().__init__(placeholder=placeholder, min_values=0, max_values=len(options), options=options, custom_id=custom_id)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -303,11 +304,11 @@ class GameConfigView(discord.ui.View):
                 if item.custom_id == "rules_core_triggers":
                     core_triggers = item.values
                 elif item.custom_id == "rules_winner_picks":
-                    winner_choice = item.values[0] if item.values else "pick_2"
+                    winner_choice = item.values[0] if item.values else "pick_1" # Falling back to 1 minimum selection if left entirely unselected
                 elif item.custom_id == "rules_factions":
                     faction_theme = item.values[0] if item.values else "ffa"
 
-        # Host can uncheck everything, but always fallback to pick at least 1 victim
+        # Form payload directly based on menu metrics
         rules_payload = {
             "first_blood": "first_blood" in core_triggers,
             "legendary": "legendary" in core_triggers,
@@ -344,7 +345,7 @@ class GameConfigView(discord.ui.View):
         view = LobbyView(self.owner, main.game_edition, self.ctx.guild.id)
         view.custom_rules = rules_payload
 
-        self.bot.add_view(view)
+        # FIXED: Removed 'self.bot.add_view(view)' here. Let bot record the interaction context via ctx.send directly, preventing duplicates.
         if engine:
             engine.current_lobbies[self.ctx.guild.id] = view
 
