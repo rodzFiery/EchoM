@@ -1540,7 +1540,6 @@ async def setup(bot):
         main.CLASSES, 
         main.AUDIT_CHANNEL_ID
     )
-    await bot.add_cog(ignis_engine)
     
     engine_control = EngineControl(
         bot,
@@ -1549,10 +1548,8 @@ async def setup(bot):
         main.get_db_connection
     )
     
-    # CRITICAL REF REGISTRATION: Forces discord.py to sync command prefixes directly down the runtime mapping layout
-    for command in engine_control.walk_commands():
-        bot.add_command(command)
-        
+    # FIX: Adding cogs directly natively avoids conflict configurations with bot.add_command layout errors.
+    await bot.add_cog(ignis_engine)
     await bot.add_cog(engine_control)
     await bot.add_cog(StatusCheck(bot))
     await bot.add_cog(PersistentLobbyLauncher(bot))
