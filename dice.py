@@ -45,7 +45,7 @@ DICE_DARES = {
     12: {"action": "TELL US A FANTASY", "desc": "Describe your ultimate, unfulfilled erotic scenario in vivid detail for the gallery to read."},
     13: {"action": "SHARE THE WEIRDEST PLACE YOU HAVE DONE IT", "desc": "Reveal the most unconventional, high-risk, or bizarre public location where you have engaged in a physical encounter."},
     14: {"action": "CONFESS YOUR BIGGEST TURN-ON", "desc": "Expose the single most powerful trigger, action, or element that instantly drives your desire into overdrive."},
-    15: {"action": "ADMIT YOUR BIGGEST TURN-OFF", "desc": "Declare the ultimate dealbreaker—the one specific action or trait that completely kills your mood without exception."},
+    15: {"action": "ADMIT YOUR BIGGEST TURN-OFF", "declare": "Declare the ultimate dealbreaker—the one specific action or trait that completely kills your mood without exception."},
     16: {"action": "DESCRIBE YOUR FAVORITE POSITION", "desc": "Provide a detailed breakdown of the exact physical configuration in bed that brings you maximum satisfaction."},
     17: {"action": "REVEAL EMBARRASSING BED EVENT", "desc": "Uncover the most awkward, clumsy, or completely embarrassing incident that has ever interrupted your intimate moments."},
     18: {"action": "REVEAL WEIRDEST MASTURBATION PLACE", "desc": "Confess the most unusual, creative, or inappropriate location where you have ever pleasured yourself solo."},
@@ -193,10 +193,20 @@ class DiceGame(commands.Cog):
         # Let the lobby build for up to 120 seconds or until the host pushes start
         await view.wait()
 
-        players = [ctx.guild.get_member(p_id) for p_id in view.participants if ctx.guild.get_member(p_id) is not None]
+        players = []
+        for p_id in view.participants:
+            m_obj = ctx.guild.get_member(p_id)
+            if not m_obj:
+                try:
+                    m_obj = await ctx.guild.fetch_member(p_id)
+                except:
+                    continue
+            if m_obj:
+                players.append(m_obj)
 
         if not players:
-            self.active_rooms.remove(ctx.channel.id)
+            if ctx.channel.id in self.active_rooms:
+                self.active_rooms.remove(ctx.channel.id)
             return await ctx.send("❌ The experiment collapsed due to a complete lack of experimental material.")
 
         await ctx.send(f"🚨 **THE INJECTOR CLAMPS DOWN.** The arena is sealed with {len(players)} assets inside. Beginning the trials...")
@@ -245,7 +255,7 @@ class DiceGame(commands.Cog):
                 conn.close()
 
                 res_emb = discord.Embed(
-                    title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name'))}",
+                    title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name', 'UNKNOWN'))}",
                     description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare['desc']}*\n\n*Click the button below to confirm task completion and advance the system.*",
                     color=0x00FF00
                 )
@@ -277,15 +287,18 @@ class DiceGame(commands.Cog):
                     await ctx.send(timeout_emb)
 
                 # Trigger VOYEUR Logging update - Synchronized directly via main core modules mapping
-                main_mod = sys.modules['__main__']
-                audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
-                if audit_channel:
-                    log_emb = main_mod.fiery_embed("🕵️ VOYEUR FLESH ROULETTE REPORT", f"An event was triggered in the dice sector.")
-                    log_emb.add_field(name="Subject", value=player.mention, inline=True)
-                    log_emb.add_field(name="Roll Value", value=f"`[{rolled_num}]`", inline=True)
-                    log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare['desc']}"
-                    log_emb.timestamp = datetime.now(timezone.utc)
-                    await audit_channel.send(embed=log_emb)
+                try:
+                    main_mod = sys.modules['__main__']
+                    audit_channel = self.bot.get_channel(AUDIT_CHANNEL_ID)
+                    if audit_channel:
+                        log_emb = main_mod.fiery_embed("🕵️ VOYEUR FLESH ROULETTE REPORT", f"An event was triggered in the dice sector.")
+                        log_emb.add_field(name="Subject", value=player.mention, inline=True)
+                        log_emb.add_field(name="Roll Value", value=f"`[{rolled_num}]`", inline=True)
+                        log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare['desc']}"
+                        log_emb.timestamp = datetime.now(timezone.utc)
+                        await audit_channel.send(embed=log_emb)
+                except:
+                    pass
 
             except asyncio.TimeoutError:
                 turn_view.stop()
@@ -301,7 +314,8 @@ class DiceGame(commands.Cog):
             # Wait 5 seconds before initiating the next random draw cycle
             await asyncio.sleep(5)
 
-        self.active_rooms.remove(ctx.channel.id)
+        if ctx.channel.id in self.active_rooms:
+            self.active_rooms.remove(ctx.channel.id)
         end_emb = discord.Embed(
             title="🏁 THE ROULETTE EXPERIMENT HAS RECONVENED",
             description="The boundaries of the circle open up. The participating survivors can return to their containment fields.",
@@ -332,7 +346,6 @@ class DiceGame(commands.Cog):
         compliance_rate = int((completed / total_games) * 100) if total_games > 0 else 0
 
         stat_emb = discord.Embed(title=f"📊 CORE PROFILE METRICS: {target.display_name.upper()}", color=0x00FFFF)
-        stat_emb.set_toggle = True
         stat_emb.set_thumbnail(url=target.display_avatar.url)
         
         analytics_text = (
