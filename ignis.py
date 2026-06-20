@@ -307,13 +307,15 @@ class GameConfigView(discord.ui.View):
                 elif item.custom_id == "rules_factions":
                     faction_theme = item.values[0] if item.values else "ffa"
 
+        # Host can uncheck everything, but always fallback to pick at least 1 victim
         rules_payload = {
             "first_blood": "first_blood" in core_triggers,
             "legendary": "legendary" in core_triggers,
             "suicide": "suicide" in core_triggers,
             "bot_random": "bot_random" in core_triggers,
             "winner_picks": 1 if winner_choice == "pick_1" else 3 if winner_choice == "pick_3" else 2,
-            "faction_theme": faction_theme
+            "faction_theme": faction_theme,
+            "is_custom_setup": True # Explicit identifier flag for unique NSFW recap processing logic
         }
 
         # Clear configuration view and deploy the standard room registration lobby linked to this dataset
@@ -473,7 +475,7 @@ class EngineControl(commands.Cog):
         ignis_admin_role_id = None
         if engine:
             with engine.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
+                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id PRIMARY KEY, role_id INTEGER)")
                 row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
                 if row: ignis_admin_role_id = row[0]
 
@@ -772,7 +774,8 @@ class IgnisEngine(commands.Cog):
             "suicide": True,
             "bot_random": True,
             "winner_picks": 2,
-            "faction_theme": "ffa"
+            "faction_theme": "ffa",
+            "is_custom_setup": False
         }
 
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
@@ -1163,17 +1166,31 @@ class IgnisEngine(commands.Cog):
                 if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
                 ping_content += f"{winner_member.mention}"
                 
-                # Simple, direct NSFW recap embed
-                nsfw_embed = discord.Embed(
-                    title="🔞 NSFW PROTOCOL: RECAP 🔞",
-                    color=0xFF00FF
-                )
-                nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=f_death, inline=False)
-                nsfw_embed.add_field(name="🥀 SUICIDES", value=s_victims, inline=False)
-                nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
-                nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
-                nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
-                nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
+                # --- MODIFIED: Split layout rendering to make echostart2 completely independent ---
+                if rules.get("is_custom_setup"):
+                    nsfw_embed = discord.Embed(
+                        title="🔮 CUSTOM ARCHITECT PROTOCOL: RECAP 🔮",
+                        description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`",
+                        color=0x9400D3
+                    )
+                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
+                    nsfw_embed.add_field(name="🥀 SUICIDE EXPOSURES", value=s_victims, inline=True)
+                    nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
+                    nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
+                    nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
+                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
+                else:
+                    # Simple, direct standard NSFW recap embed for regular echostart
+                    nsfw_embed = discord.Embed(
+                        title="🔞 NSFW PROTOCOL: RECAP 🔞",
+                        color=0xFF00FF
+                    )
+                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE", value=f_death, inline=False)
+                    nsfw_embed.add_field(name="🥀 SUICIDES", value=s_victims, inline=False)
+                    nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
+                    nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
+                    nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
+                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
                 
                 await channel.send(content=ping_content, embed=nsfw_embed)
 
