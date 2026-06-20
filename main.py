@@ -72,6 +72,12 @@ basic_nsfw_active = False # ADDED: Flag for Basic NSFW Special Event
 AUTO_IGNIS_CHANNEL = 0 # ADDED: Persistence for Automated Pit
 AUTO_IGNIS_ROLE = 0    # ADDED: Persistence for Hourly Pings
 
+# --- ADDED TO REPAIR ENGINE COG DEPENDENCIES ---
+# The new ignis.py expects these parameters to reside explicitly on main.py level for sys.modules maps
+update_user_stats_async = prizes_module.update_user_stats_async
+save_game_config_func = save_game_config if 'save_game_config' in globals() else None
+AUDIT_CHANNEL_ID = AUDIT_CHANNEL_ID
+
 # Ranks and Classes now sourced from worknranks.py
 RANKS = worknranks.RANKS
 CLASSES = worknranks.CLASSES
