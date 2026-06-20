@@ -337,6 +337,7 @@ class GameConfigView(discord.ui.View):
         import sys
         main = sys.modules['__main__']
         engine = self.bot.get_cog("IgnisEngine")
+        control_cog = self.bot.get_cog("EngineControl")
 
         embed = discord.Embed(
             title=f"Echo's Custom Hangrygames Edition # {main.game_edition}", 
@@ -366,9 +367,14 @@ class GameConfigView(discord.ui.View):
         await self.ctx.send(embed=embed, view=view)
 
         main.game_edition += 1
-        self.ctx.command.cog.save_game_config()
+        
+        # FIXED: Safeguarded dynamic call chain checks to prevent runtime crash across distinct cog boundaries
+        if control_cog and hasattr(control_cog, 'save_game_config'):
+            control_cog.save_game_config()
+        elif hasattr(main, 'save_game_config'):
+            main.save_game_config()
 
-        with self.ctx.command.cog.get_db_connection() as conn:
+        with (engine.get_db_connection() if engine else control_cog.get_db_connection()) as conn:
             conn.execute("UPDATE ignis_server_stats SET server_edition = server_edition + 1 WHERE guild_id = ?", (self.ctx.guild.id,))
             conn.commit()
 
@@ -716,7 +722,6 @@ class IgnisEngine(commands.Cog):
                     p2_data = io.BytesIO(await r2.read())
             
             # EXPANDED CANVAS FOR LARGER DISPLAY
-            canvas_w = 1000
             canvas_w = 1000
             canvas_h = 1000
             bg_path = "1v1Background.jpg"
