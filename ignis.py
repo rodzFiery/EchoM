@@ -45,23 +45,18 @@ class LobbyView(discord.ui.View):
         self.participants = []
         self.active = True # NEW: Gate Closure Protocol
         
-        # --- DYNAMIC CUSTOM ID FIX ---
-        # Explicitly defining the buttons here rather than using decorators forces discord.py 
-        # to register the unique guild IDs natively, completely preventing the "Interaction Failed" cross-server mapping bugs.
-        join_id = f"fiery_join_{self.channel_id}" if self.channel_id else f"fiery_join_{self.guild_id}" if self.guild_id else "fiery_join_button"
-        start_id = f"fiery_start_{self.channel_id}" if self.channel_id else f"fiery_start_{self.guild_id}" if self.guild_id else "fiery_start_button"
-        repost_id = f"fiery_repost_{self.channel_id}" if self.channel_id else f"fiery_repost_{self.guild_id}" if self.guild_id else "fiery_repost_button"
-
-        join_btn = discord.ui.Button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id=join_id)
+        # --- FIXED STATIC CUSTOM ID MAP ---
+        # Restoring clean static mapping ensures discord.py registers matching persistent event listeners globally.
+        join_btn = discord.ui.Button(label="Enter the Red room", style=discord.ButtonStyle.success, emoji="🔞", custom_id="fiery_join_button")
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id=start_id)
+        start_btn = discord.ui.Button(label="Turn off the lights and start", style=discord.ButtonStyle.danger, emoji="😈", custom_id="fiery_start_button")
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
         # ADDED: Repost Button initialization to handle dynamic interface replication
-        repost_btn = discord.ui.Button(label="REPOST REGISTRATION", style=discord.ButtonStyle.secondary, emoji="🔁", custom_id=repost_id)
+        repost_btn = discord.ui.Button(label="REPOST REGISTRATION", style=discord.ButtonStyle.secondary, emoji="🔁", custom_id="fiery_repost_button")
         repost_btn.callback = self.repost_button_callback
         self.add_item(repost_btn)
 
@@ -98,12 +93,15 @@ class LobbyView(discord.ui.View):
         # Immediate defer prevents "Interaction Failed" timeouts during database lookup
         await interaction.response.defer(ephemeral=True)
 
-        # NEW: Gate Closure Check
-        if not self.active:
-            return await interaction.followup.send("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
-
         engine = interaction.client.get_cog("IgnisEngine")
         if not engine: return
+
+        # Resolve channel state dynamically from current context if re-hydrated globally
+        current_view = engine.current_lobbies.get(interaction.channel.id, self)
+
+        # NEW: Gate Closure Check
+        if not current_view.active:
+            return await interaction.followup.send("❌ **The gates are locked.** The session has already begun.", ephemeral=True)
 
         # PERSISTENCE LOGIC: Add to DB and Local List
         with engine.get_db_connection() as conn:
@@ -118,16 +116,16 @@ class LobbyView(discord.ui.View):
         # Update local list from DB to ensure sync after restart
         with engine.get_db_connection() as conn:
             rows = engine.get_db_connection().execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (interaction.channel.id,)).fetchall()
-            self.participants = [r[0] for r in rows]
+            current_view.participants = [r[0] for r in rows]
         
         # FIX: Robustly fetch the embed even if interaction.message is partial
         try:
             embed = interaction.message.embeds[0]
             # Fixed: Ensuring the field name reflects the list length correctly
-            embed.set_field_at(1 if len(embed.fields) > 1 else 0, name=f"🧙‍♂️ {len(self.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
+            embed.set_field_at(1 if len(embed.fields) > 1 else 0, name=f"🧙‍♂️ {len(current_view.participants)} Sinners Ready", value="*Final checks on chains, collars, lights and control..*", inline=False)
             
             # UPDATED: Because we deferred, we must use interaction.message.edit
-            await interaction.message.edit(embed=embed, view=self)
+            await interaction.message.edit(embed=embed, view=current_view)
             await interaction.followup.send("🔞 **The chains lock in place.** You have successfully entered the Red Room.", ephemeral=True)
         except Exception as e:
             print(f"Lobby Join Error: {e}")
@@ -136,7 +134,12 @@ class LobbyView(discord.ui.View):
     # FIXED: Refocused callback routine to repost the identical current lobby instance down the server feed without any reset loops
     async def repost_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        if not self.active:
+        engine = interaction.client.get_cog("IgnisEngine")
+        if not engine: return
+        
+        current_view = engine.current_lobbies.get(interaction.channel.id, self)
+        
+        if not current_view.active:
             return await interaction.followup.send("❌ **The registration window has expired.** Cannot copy active links.", ephemeral=True)
         try:
             embed = interaction.message.embeds[0]
@@ -144,10 +147,8 @@ class LobbyView(discord.ui.View):
                 await interaction.message.delete()
             except:
                 pass
-            new_msg = await interaction.channel.send(embed=embed, view=self)
-            engine = interaction.client.get_cog("IgnisEngine")
-            if engine:
-                engine.current_lobbies[interaction.channel.id] = self
+            new_msg = await interaction.channel.send(embed=embed, view=current_view)
+            engine.current_lobbies[interaction.channel.id] = current_view
             await interaction.followup.send("🔁 **Current lobby registration re-routed to bottom viewport settings.**", ephemeral=True)
         except Exception as e:
             print(f"Repost Execution Error: {e}")
@@ -186,9 +187,11 @@ class LobbyView(discord.ui.View):
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] or role.id == ignis_admin_role_id for role in getattr(interaction.user, 'roles', []))
         is_staff = is_staff or user_perms or is_admin
         
+        current_view = engine.current_lobbies.get(interaction.channel.id, self)
+        
         # Checking if owner exists (owner is passed as ctx.author in echostart)
         # FIXED: Added safe check for template views (where owner is None)
-        owner_id = getattr(self.owner, 'id', None)
+        owner_id = getattr(current_view.owner, 'id', None)
         
         if owner_id and interaction.user.id != owner_id and not is_staff:
             return await interaction.followup.send("🔒 **Neuro lock: you do not have the required clearence level.**", ephemeral=True)
@@ -196,9 +199,9 @@ class LobbyView(discord.ui.View):
         # PERSISTENCE: Reload participants from DB before starting to catch post-restart joins
         with engine.get_db_connection() as conn:
             rows = conn.execute("SELECT user_id FROM lobby_participants WHERE channel_id = ?", (interaction.channel.id,)).fetchall()
-            self.participants = [r[0] for r in rows]
+            current_view.participants = [r[0] for r in rows]
 
-        if len(self.participants) < 2:
+        if len(current_view.participants) < 2:
             return await interaction.followup.send("Need at least 2 sexy fucks !", ephemeral=True)
         
         # --- RE-FETCH ENGINE TO ENSURE FRESH REFERENCE ---
@@ -217,7 +220,7 @@ class LobbyView(discord.ui.View):
                 return await interaction.followup.send("❌ **The Red Room is at capacity in this server.** Only 2 games can run at once here.", ephemeral=True)
 
             # NEW: Lockdown the lobby so no one joins during the defer/setup phase
-            self.active = False
+            current_view.active = False
 
             # Clear lobby for THIS channel specifically
             if interaction.channel.id in engine.current_lobbies:
@@ -235,11 +238,11 @@ class LobbyView(discord.ui.View):
             # FIXED: Determine correct edition number during reboot
             import sys as _sys_m
             main_mod = _sys_m.modules['__main__']
-            final_edition = self.edition if self.edition != 0 else getattr(main_mod, "game_edition", 1)
+            final_edition = current_view.edition if current_view.edition != 0 else getattr(main_mod, "game_edition", 1)
             
             # Dynamic linking mapping custom rule payloads back down into the runner routine
-            asyncio.create_task(engine.start_battle(interaction.channel, list(self.participants), final_edition, rules_override=self.custom_rules))
-            self.stop()
+            asyncio.create_task(engine.start_battle(interaction.channel, list(current_view.participants), final_edition, rules_override=current_view.custom_rules))
+            current_view.stop()
         else:
             # DEBUG: If the cog isnt found, tell the owner
             return await interaction.followup.send("❌ Error: IgnisEngine not found. Is it loaded? Check bot logs.", ephemeral=True)
@@ -356,7 +359,6 @@ class GameConfigView(discord.ui.View):
         view = LobbyView(self.owner, main.game_edition, self.ctx.guild.id, self.ctx.channel.id)
         view.custom_rules = rules_payload
 
-        # FIXED: Removed 'self.bot.add_view(view)' here. Let bot record the interaction context via ctx.send directly, preventing duplicates.
         if engine:
             engine.current_lobbies[self.ctx.channel.id] = view
 
@@ -854,7 +856,7 @@ class IgnisEngine(commands.Cog):
             await self.bot.wait_until_ready()
             
             fighters = []
-            game_kills = {p_id: 0 for p_id in participants}
+            game_kills = {p_id: 0 whitespace for p_id in participants}
             roster_list = []
 
             fb_protection = {} 
@@ -1497,16 +1499,15 @@ class PersistentLobbyLauncher(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # FIX: Query unique channel_ids from the database to re-hydrate every server's lobby independently
+        # FIX: Register static View templates with explicit consistent custom IDs globally
+        self.bot.add_view(WinnerDetailsView(None))
+        self.bot.add_view(LobbyView(owner=None, edition=0, guild_id=None, channel_id=None))
+        
         import sys as _sys
         main = _sys.modules['__main__']
         
-        # Register the static View for WinnerDetails (does not require guild context)
-        self.bot.add_view(WinnerDetailsView(None))
-        
         try:
             with main.get_db_connection() as conn:
-                # Get all unique channel_ids that have pending lobbies
                 conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER, channel_id INTEGER)")
                 cursor = conn.execute("SELECT DISTINCT channel_id, guild_id FROM lobby_participants")
                 guilds = cursor.fetchall()
@@ -1517,13 +1518,7 @@ class PersistentLobbyLauncher(commands.Cog):
                     ch_id = row[0]
                     g_id = row[1]
                     if ch_id:
-                        # Instantiate a specific view for this channel
                         view = LobbyView(owner=None, edition=0, guild_id=g_id, channel_id=ch_id)
-                        
-                        # Register this specific instance
-                        self.bot.add_view(view)
-                        
-                        # Update the engine's memory so it knows about this active lobby
                         if engine:
                             engine.current_lobbies[ch_id] = view
                         
