@@ -541,6 +541,11 @@ class IgnisEngine(commands.Cog):
         self.current_lobbies = {} # Guild ID -> LobbyView mapping
         self.current_survivors = {} # Channel ID -> List of survivor IDs
 
+        # Track the active session constraints per guild to guide !flash allocations
+        self.guild_session_rules = {}
+        # Track historical usage frequencies to protect against user selection overload overrides
+        self.guild_session_flash_counts = {}
+
         # NSFW Winner Power Tracker
         self.last_winner_id = None
         self.flash_sentences = [
@@ -645,6 +650,43 @@ class IgnisEngine(commands.Cog):
             f"**\"{sentence}\"**\n\n"
             f"🔞 {member.mention}, you need to **FLASH** by the Winner's decree!", color=0xFF00FF)
         
+        await ctx.send(content=member.mention, embed=embed)
+
+    # NEW ACTIONABLE OVERRIDE PROTOCOL: !flash @user respects the exact host allocation constraints natively
+    @commands.command(name="flash")
+    async def flash_decree(self, ctx, member: discord.Member):
+        """Winner's Decree Command tracking structural limit checks mapped by the Session Architect choices."""
+        import sys
+        main = sys.modules['__main__']
+        if not (main.nsfw_mode_active or main.basic_nsfw_active):
+            return await ctx.send("❌ **Access Denied.** This power is not active in this session.")
+
+        if ctx.author.id != self.last_winner_id:
+            return await ctx.send("🫦 **Only the Reigning Champion of the last match holds execution decree authority.**")
+
+        # Fetch matching active server-specific configuration matrices payload
+        session_rules = self.guild_session_rules.get(ctx.guild.id, {
+            "winner_picks": 2,
+            "is_custom_setup": False
+        })
+
+        allowed_limit = session_rules.get("winner_picks", 2)
+        current_spent = self.guild_session_flash_counts.get(ctx.guild.id, 0)
+
+        if current_spent >= allowed_limit:
+            return await ctx.send(f"❌ **Decree Execution Intercepted.** You have already exhausted your maximum allocation of `{allowed_limit}` choices.")
+
+        # Increment tracker logs directly
+        self.guild_session_flash_counts[ctx.guild.id] = current_spent + 1
+        rem_picks = allowed_limit - (current_spent + 1)
+
+        sentence = random.choice(self.flash_sentences)
+        embed = self.fiery_embed("Winner's Decree Executed", 
+            f"📸 {ctx.author.mention} asserts sovereign domain over {member.mention}...\n\n"
+            f"**\"{sentence}\"**\n\n"
+            f"🔞 {member.mention}, you have been selected under the winner's current command matrix. **FLASH NOW!**\n\n"
+            f"🎭 *Remaining Decree Choices available to host:* `{rem_picks}` selections left.", color=0xFF00FF)
+
         await ctx.send(content=member.mention, embed=embed)
 
     async def create_arena_image(self, winner_url, loser_url):
@@ -778,6 +820,10 @@ class IgnisEngine(commands.Cog):
             "faction_theme": "ffa",
             "is_custom_setup": False
         }
+
+        # Cache rules securely on the server instance reference mapping
+        self.guild_session_rules[channel.guild.id] = rules
+        self.guild_session_flash_counts[channel.guild.id] = 0
 
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
@@ -1197,7 +1243,7 @@ class IgnisEngine(commands.Cog):
                     if theme_mode == "men_vs_girls":
                         # Determine winning user's role indicators
                         winner_roles_names = [r.name.lower() for r in getattr(winner_member, 'roles', [])]
-                        is_boy = any("he/him" in rn for rn in winner_roles_names)
+                        is_boy = any("he/him" in rn or "male" in rn for rn in winner_roles_names)
                         
                         target_mentions = []
                         for p_id in participants:
@@ -1205,10 +1251,10 @@ class IgnisEngine(commands.Cog):
                             if m_obj and m_obj.id != winner_member.id:
                                 m_roles = [r.name.lower() for r in getattr(m_obj, 'roles', [])]
                                 if is_boy:
-                                    if any("she/her" in mr for mr in m_roles):
+                                    if any("she/her" in mr or "female" in mr for mr in m_roles):
                                         target_mentions.append(m_obj.mention)
                                 else:
-                                    if any("he/him" in mr for mr in m_roles):
+                                    if any("he/him" in mr or "male" in mr for mr in m_roles):
                                         target_mentions.append(m_obj.mention)
                         
                         faction_targets_text = " ".join(target_mentions) if target_mentions else "No valid counter-faction targets found."
@@ -1321,7 +1367,7 @@ class IgnisEngine(commands.Cog):
             u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
             details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
