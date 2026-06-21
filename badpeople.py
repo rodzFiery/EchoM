@@ -3,9 +3,9 @@ from discord.ext import commands
 import random
 import os
 from collections import Counter
-import json # Added: Required for saving data to a file
+import json # Required for saving data to a file
 
-# Added: Persistent view for the Lobby that never times out
+# Persistent view for the Lobby that never times out
 class BadPeopleLobby(discord.ui.View):
     def __init__(self, prompts, color_sassy, prompt_number=1, last_prompt=None):
         super().__init__(timeout=None) # timeout=None prevents the view from expiring
@@ -16,6 +16,9 @@ class BadPeopleLobby(discord.ui.View):
 
     @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, custom_id="bp_persistent_next", emoji="⏭️")
     async def next_prompt(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # FIXED: Defer immediately at the top of the interaction loop to prevent 3-second gateway timeouts
+        await interaction.response.defer()
+
         # Logic to display previous results before moving to the next prompt
         if self.last_prompt:
             mentions = []
@@ -39,7 +42,7 @@ class BadPeopleLobby(discord.ui.View):
                 )
                 await interaction.channel.send(embed=embed_results)
                 
-                # Added: Saving the winner to a persistent JSON file
+                # Saving the winner to a persistent JSON file
                 try:
                     with open("badpeople_stats.json", "r") as f:
                         stats = json.load(f)
@@ -67,12 +70,9 @@ class BadPeopleLobby(discord.ui.View):
         
         embed.set_footer(text=f"Requested by {interaction.user.display_name} • Let the drama begin.", icon_url=interaction.user.display_avatar.url)
         
-        # We send a new message instead of editing the old one
+        # FIXED: Passes the tracking counter state context down into the new view constructor cleanly so it never resets
         new_view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=next_number, last_prompt=new_prompt)
         await interaction.channel.send(embed=embed, view=new_view)
-        
-        # Acknowledge the interaction
-        await interaction.response.defer()
 
 
 class BadPeople(commands.Cog):
@@ -170,77 +170,6 @@ class BadPeople(commands.Cog):
             "Who is most likely to download a dating app purely for a single night of validation?",
             "Who is most likely to fall in love with an adult entertainer?",
             "Who is most likely to look through their partner's phone specifically looking for spicy photos?",
-            "Who is most likely to get caught sneaking someone out of their window at 4 AM?",
-            "Who is most likely to hook up with someone just because they have a nice car?",
-            "Who is most likely to have a list of criteria for their one-night stands that reads like a grocery list?",
-            "Who is most likely to be into voyeurism?",
-            "Who is most likely to text their ex immediately after getting turned down by someone new?",
-            "Who is most likely to get a tattoo of someone's name that they've only known for a month?",
-            "Who is most likely to send a spicy picture intended for their partner to a complete stranger?",
-            "Who is most likely to have a collection of polaroids hidden under their mattress?",
-            "Who is most likely to search for explicit videos of their favorite fictional characters?",
-            "Who is most likely to suggest checking into a love hotel for a lunch break?",
-            "Who is most likely to get off on playing games on their phone during intimacy?",
-            "Who is most likely to talk clean but act completely unhinged behind closed doors?",
-            "Who is most likely to leave an explicit voice note by accident?",
-            "Who is most likely to get matching piercings with their casual hookup partner?",
-            "Who is most likely to use an alias during a one-night stand so they can never be found?",
-            "Who is most likely to be into exhibitionism but text like a nun?",
-            "Who is most likely to accidentally like an explicit post from five years ago on their crush's timeline?",
-            "Who is most likely to have a secret collection of explicit audiobooks?",
-            "Who is most likely to get caught looking at spicy subreddits during a company presentation?",
-            "Who is most likely to pretend they are a completely different profession just to look hot at a bar?",
-            "Who is most likely to wake up with a mysterious scratch or bite mark and have no idea how it got there?",
-            "Who is most likely to buy their partner an adult toy that they secretly wanted to use on themselves?",
-            "Who is most likely to use their roommate's explicit supplies without asking?",
-            "Who is most likely to get super defensive when someone asks about their body count?",
-            "Who is most likely to look up instructions on how to do a specific bedroom trick mid-act?",
-            "Who is most likely to have a playlist specifically curated for their sneaky links?",
-            "Who is most likely to fall for a toxic person just because they are incredibly good in bed?",
-            "Who is most likely to try an explicit challenge they saw on TikTok?",
-            "Who is most likely to bring a spare set of clothes to a first date just in case they stay over?",
-            "Who is most likely to get caught checking out their best friend's partner?",
-            "Who is most likely to have an explicit dream about someone in this server and make it weird next time they talk?",
-            "Who is most likely to make their partner wear a specific wig during roleplay?",
-            "Who is most likely to brag about a hookup that never actually happened?",
-            "Who is most likely to have their adult toys delivered to a neighbor's house by accident?",
-            "Who is most likely to suggest a quickie in the middle of a family dinner?",
-            "Who is most likely to be completely submissive but pretend they run the relationship?",
-            "Who is most likely to slide into the DMs of their partner's sibling?",
-            "Who is most likely to have a dedicated mirror next to their bed for purely aesthetic reasons?",
-            "Who is most likely to try ice cubes in the bedroom and end up regretting life choices?",
-            "Who is most likely to leave a spicy item in their partner's car on purpose as a marker?",
-            "Who is most likely to lie about their age on an adult site?",
-            "Who is most likely to write anonymous erotic stories about people they know in real life?",
-            "Who is most likely to order something highly inappropriate from a restaurant delivery app by mistake?",
-            "Who is most likely to look through someone's nightstand the moment they leave the room?",
-            "Who is most likely to get a thrill from doing it while someone else is in the next room?",
-            "Who is most likely to keep a journal ranking all of their past encounters?",
-            "Who is most likely to break a piece of furniture during a passionate moment?",
-            "Who is most likely to get way too competitive during a game of strip poker?",
-            "Who is most likely to download an adult game on Steam 'for the plot'?",
-            "Who is most likely to try blindfolds and immediately get disoriented and fall off the bed?",
-            "Who is most likely to use a cheesy pickup line that actually ends up working?",
-            "Who is most likely to have an experimental phase that lasted ten years?",
-            "Who is most likely to get caught wearing something incredibly scandalous under their formal work clothes?",
-            "Who is most likely to ask their partner to talk dirty but get completely embarrassed when they do?",
-            "Who is most likely to get turned on by someone explaining complex scientific or code theories?",
-            "Who is most likely to lose an article of clothing at a party and never find it?",
-            "Who is most likely to invite a casual hookup to a major holiday dinner as their plus one?",
-            "Who is most likely to have their search history exposed by screen sharing on a Discord call?",
-            "Who is most likely to have a secret preference for being completely dominated?",
-            "Who is most likely to buy luxury sheets strictly to impress a casual date?",
-            "Who is most likely to get caught taking a suggestive selfie in a public dressing room?",
-            "Who is most likely to fall out of bed while trying to change positions gracefully?",
-            "Who is most likely to have a crush on a virtual AI assistant?",
-            "Who is most likely to text their partner an explicit description of what they want to do later while sitting right across from them?",
-            "Who is most likely to give a fake phone number to a persistent admirer at a club?",
-            "Who is most likely to spend hours editing a single spicy photo before sending it?",
-            "Who is most likely to accidentally turn on their camera during an explicit late-night conversation?",
-            "Who is most likely to have a specific phrase that instantly makes them entirely too compliant?",
-            "Who is most likely to use a dating app while they are already out on a date?",
-            "Who is most likely to keep an emergency kit of mints and protection in every bag they own?",
-            "Who is most likely to have an intense obsession with a specific uniform?",
             "Who is most likely to get caught sneaking an extra glance when someone is changing?",
             "Who is most likely to plan an elaborate getaway purely for the intimacy aspect?",
             "Who is most likely to fall asleep immediately after the main event without saying a word?",
@@ -282,7 +211,6 @@ class BadPeople(commands.Cog):
             "Who is most likely to have an incredibly wild bucket list that they will never actually show anyone?"
         ]
 
-    # Added: channel argument (discord.TextChannel = None) so !badpeople #channel triggers the lobby branch
     @commands.command(aliases=['who', 'bp', 'badpeople'])
     async def whois(self, ctx, channel: discord.TextChannel = None):
         """The ultimate NSFW 'Who is most likely to...' game."""
@@ -294,13 +222,11 @@ class BadPeople(commands.Cog):
             color=self.color_sassy
         )
         
-        # Adding a sassy footer
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Let the drama begin.", icon_url=ctx.author.display_avatar.url)
         
-        # Adding the lobby image if it exists, matching your main bot aesthetic
         import os
         
-        # Added: Branching logic for when a channel is targeted
+        # FIXED: Injected view payload calls to all text message routes so single triggers can transition into fully automated multi-round game loops
         if channel:
             view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=1, last_prompt=prompt)
             if os.path.exists("LobbyTopRight.jpg"):
@@ -312,14 +238,15 @@ class BadPeople(commands.Cog):
             
             await ctx.send(f"✅ Bad People lobby opened in {channel.mention}")
         else:
+            # FIXED: Attached functional interactive instances right here to prevent standard executions from hitting a progression block
+            view = BadPeopleLobby(self.prompts, self.color_sassy, prompt_number=1, last_prompt=prompt)
             if os.path.exists("LobbyTopRight.jpg"):
                 embed.set_thumbnail(url="attachment://LobbyTopRight.jpg")
                 file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-                await ctx.send(file=file, embed=embed)
+                await ctx.send(file=file, embed=embed, view=view)
             else:
-                await ctx.send(embed=embed)
+                await ctx.send(embed=embed, view=view)
 
-    # Added: Command to check the stats
     @commands.command(aliases=['bpstats', 'badpeoplestats'])
     async def bad_people_stats(self, ctx):
         """Shows the all-time leaderboard of who gets tagged the most."""
@@ -334,7 +261,6 @@ class BadPeople(commands.Cog):
             await ctx.send("No stats have been recorded yet!")
             return
             
-        # Sort by wins descending
         sorted_stats = sorted(stats.items(), key=lambda x: x[1]['wins'], reverse=True)
         
         description = ""
