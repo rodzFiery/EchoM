@@ -34,6 +34,7 @@ class ModerationLog(commands.Cog):
         """Sets the channel for Role update logs."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"log_roles_{ctx.guild.id}", str(channel.id)))
             conn.commit()
         await ctx.send(f"✅ **Role logging** established. Output routed to {channel.mention}")
@@ -44,6 +45,7 @@ class ModerationLog(commands.Cog):
         """Sets the global channel for deleted and edited messages."""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"log_messages_{ctx.guild.id}", str(channel.id)))
             conn.commit()
         await ctx.send(f"✅ **Global message logging** established. Output routed to {channel.mention}")
@@ -54,6 +56,7 @@ class ModerationLog(commands.Cog):
         """Sets up the isolated Flash protocol. (Which channel to watch -> Where to send logs)"""
         main_mod = sys.modules['__main__']
         with main_mod.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"flash_target_{ctx.guild.id}", str(target_channel.id)))
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"log_flash_{ctx.guild.id}", str(log_channel.id)))
             conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f"flash_route_{target_channel.id}_{ctx.guild.id}", str(log_channel.id)))
@@ -205,12 +208,15 @@ class ModerationLog(commands.Cog):
         
         if message.attachments:
             desc += "\n**Attachments Caught:**\n"
+            media_already_rendered = False
             for att in message.attachments:
                 desc += f"📎 [{att.filename}]({att.proxy_url})\n"
                 
                 # --- NEW: ACTIVE MEDIA EMBED VISUAL GENERATOR ---
-                if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
-                    embed.set_image(url=att.proxy_url)
+                if not media_already_rendered:
+                    if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
+                        embed.set_image(url=att.proxy_url)
+                        media_already_rendered = True
                 # -------------------------------------------------
 
         embed.description = desc
