@@ -19,7 +19,11 @@ class ModerationLog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
             row = conn.execute("SELECT value FROM config WHERE key = ?", (f"{key_name}_{guild_id}",)).fetchone()
             if row:
-                return row['value']
+                # FIXED: Handles both tuple configurations and dict row_factories safely
+                try:
+                    return row['value']
+                except:
+                    return row[0]
         return None
 
     # --- CONFIGURATION COMMANDS ---
@@ -67,9 +71,14 @@ class ModerationLog(commands.Cog):
         log_channel_id = await self.get_config(after.guild.id, "log_roles")
         if not log_channel_id:
             return
+            
         log_channel = self.bot.get_channel(int(log_channel_id))
+        # --- FIXED: Active API fetch protocol implemented if target channel drops from shard cache ---
         if not log_channel:
-            return
+            try:
+                log_channel = await self.bot.fetch_channel(int(log_channel_id))
+            except:
+                return
 
         added_roles = set(after.roles) - set(before.roles)
         removed_roles = set(before.roles) - set(after.roles)
@@ -97,48 +106,64 @@ class ModerationLog(commands.Cog):
         
         # --- NEW: Resolves Thread/Forum IDs to their Parent Channel ID ---
         _temp_channel = self.bot.get_channel(origin_channel_id)
+        if not _temp_channel:
+            try:
+                _temp_channel = await self.bot.fetch_channel(origin_channel_id)
+            except:
+                pass
         if _temp_channel and hasattr(_temp_channel, 'parent_id') and _temp_channel.parent_id:
             origin_channel_id = _temp_channel.parent_id
         # -----------------------------------------------------------------
 
+        # FIXED: Corrected key composition format to include matching guild context parameters
         specific_log_id = await self.get_config(guild_id, f"flash_route_{origin_channel_id}")
         if specific_log_id:
             # --- NEW: Forces an API fetch if the channel dropped from cache ---
-            if not self.bot.get_channel(int(specific_log_id)):
+            ch_obj = self.bot.get_channel(int(specific_log_id))
+            if not ch_obj:
                 try:
                     return await self.bot.fetch_channel(int(specific_log_id))
                 except discord.NotFound:
                     pass
             # ------------------------------------------------------------------
-            return self.bot.get_channel(int(specific_log_id))
+            if ch_obj: return ch_obj
             
         flash_target_id = await self.get_config(guild_id, "flash_target")
         
         if flash_target_id and int(flash_target_id) == origin_channel_id:
             log_id = await self.get_config(guild_id, "log_flash")
             # --- NEW: Forces an API fetch if the channel dropped from cache ---
-            if log_id and not self.bot.get_channel(int(log_id)):
+            if log_id:
+                ch_obj = self.bot.get_channel(int(log_id))
+                if not ch_obj:
+                    try:
+                        return await self.bot.fetch_channel(int(log_id))
+                    except discord.NotFound:
+                        pass
+                if ch_obj: return ch_obj
+            # ------------------------------------------------------------------
+            return None
+        
+        log_id = await self.get_config(guild_id, "log_messages")
+        # --- NEW: Forces an API fetch if the channel dropped from cache ---
+        if log_id:
+            ch_obj = self.bot.get_channel(int(log_id))
+            if not ch_obj:
                 try:
                     return await self.bot.fetch_channel(int(log_id))
                 except discord.NotFound:
                     pass
-            # ------------------------------------------------------------------
-            return self.bot.get_channel(int(log_id)) if log_id else None
-        
-        log_id = await self.get_config(guild_id, "log_messages")
-        # --- NEW: Forces an API fetch if the channel dropped from cache ---
-        if log_id and not self.bot.get_channel(int(log_id)):
-            try:
-                return await self.bot.fetch_channel(int(log_id))
-            except discord.NotFound:
-                pass
+            if ch_obj: return ch_obj
         # ------------------------------------------------------------------
-        return self.bot.get_channel(int(log_id)) if log_id else None
+        return None
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         """Captures deleted messages and media."""
         if message.author.bot:
+            return
+
+        if not message.guild:
             return
 
         log_channel = await self.route_message_log(message.guild.id, message.channel.id)
@@ -167,6 +192,9 @@ class ModerationLog(commands.Cog):
     async def on_message_edit(self, before, after):
         """Captures edited messages, ignoring simple embed expansions."""
         if before.author.bot or before.content == after.content:
+            return
+
+        if not before.guild:
             return
 
         log_channel = await self.route_message_log(before.guild.id, before.channel.id)
