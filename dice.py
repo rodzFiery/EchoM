@@ -116,7 +116,7 @@ class DiceTurnView(discord.ui.View):
         self.rolled.set()
         await interaction.response.defer()
 
-# ADDED: Separate validation controller view to suspend progress until confirmed completed or timed out
+# Separate validation controller view to suspend progress until confirmed completed or timed out
 class DiceCompletionView(discord.ui.View):
     def __init__(self, active_player):
         super().__init__(timeout=300)
@@ -254,14 +254,15 @@ class DiceGame(commands.Cog):
                     conn.commit()
                 conn.close()
 
+                # FIXED: Applied .get() fallback pattern mapping for 'desc' and 'declare' to safely support entry #15 without KeyError crashes
                 res_emb = discord.Embed(
                     title=f"🎲 VALUE ENGAGED: [{rolled_num}] — {dare.get('action', dare.get('name', 'UNKNOWN'))}",
-                    description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare['desc']}*\n\n*Click the button below to confirm task completion and advance the system.*",
+                    description=f"{player.mention} rolled a **{rolled_num}** on the cyber-die!\n\n**🎯 ASSIGNED DECREE (You have 5 minutes to complete this):**\n*{dare.get('desc', dare.get('declare', ''))}*\n\n*Click the button below to confirm task completion and advance the system.*",
                     color=0x00FF00
                 )
                 res_emb.set_thumbnail(url="https://i.imgur.com/8N8K8S8.png")
                 
-                # FIXED: Present new confirmation panel view and pause execution progression chain
+                # Present new confirmation panel view and pause execution progression chain
                 comp_view = DiceCompletionView(player)
                 comp_msg = await ctx.send(embed=res_emb, view=comp_view)
 
@@ -294,7 +295,8 @@ class DiceGame(commands.Cog):
                         log_emb = main_mod.fiery_embed("🕵️ VOYEUR FLESH ROULETTE REPORT", f"An event was triggered in the dice sector.")
                         log_emb.add_field(name="Subject", value=player.mention, inline=True)
                         log_emb.add_field(name="Roll Value", value=f"`[{rolled_num}]`", inline=True)
-                        log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare['desc']}"
+                        # FIXED: Applied matched dictionary key parsing protection here as well to safeguard item 15 from log breaking
+                        log_emb.description = f"🔞 **VOYEUR ACTION LOG:** {player.display_name} evaluated outcome {rolled_num}: {dare.get('desc', dare.get('declare', ''))}"
                         log_emb.timestamp = datetime.now(timezone.utc)
                         await audit_channel.send(embed=log_emb)
                 except:
@@ -361,3 +363,5 @@ class DiceGame(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(DiceGame(bot))
+    # FIXED: Verification pipeline tracker print added to confirm module interface indexing on load
+    print("✅ LOG: DiceGame (Flesh Roulette Engine) Module ONLINE.")
