@@ -68,6 +68,10 @@ class ModerationLog(commands.Cog):
         if before.roles == after.roles:
             return
 
+        # SERVER LOCALIZATION GUARD: Prevent empty execution loops on broken caching layers
+        if not getattr(after, 'guild', None):
+            return
+
         log_channel_id = await self.get_config(after.guild.id, "log_roles")
         if not log_channel_id:
             return
@@ -79,6 +83,10 @@ class ModerationLog(commands.Cog):
                 log_channel = await self.bot.fetch_channel(int(log_channel_id))
             except:
                 return
+
+        # CROSS-SERVER SECURITY ISOLATION CHECK
+        if log_channel.guild.id != after.guild.id:
+            return
 
         added_roles = set(after.roles) - set(before.roles)
         removed_roles = set(before.roles) - set(after.roles)
@@ -115,18 +123,18 @@ class ModerationLog(commands.Cog):
             origin_channel_id = _temp_channel.parent_id
         # -----------------------------------------------------------------
 
-        # FIXED: Corrected key composition format to include matching guild context parameters
+        # FIXED: Corrected double key serialization loops by requesting the base string format directly
         specific_log_id = await self.get_config(guild_id, f"flash_route_{origin_channel_id}")
         if specific_log_id:
             # --- NEW: Forces an API fetch if the channel dropped from cache ---
             ch_obj = self.bot.get_channel(int(specific_log_id))
             if not ch_obj:
                 try:
-                    return await self.bot.fetch_channel(int(specific_log_id))
+                    ch_obj = await self.bot.fetch_channel(int(specific_log_id))
                 except discord.NotFound:
                     pass
             # ------------------------------------------------------------------
-            if ch_obj: return ch_obj
+            if ch_obj and ch_obj.guild.id == guild_id: return ch_obj
             
         flash_target_id = await self.get_config(guild_id, "flash_target")
         
@@ -137,10 +145,10 @@ class ModerationLog(commands.Cog):
                 ch_obj = self.bot.get_channel(int(log_id))
                 if not ch_obj:
                     try:
-                        return await self.bot.fetch_channel(int(log_id))
+                        ch_obj = await self.bot.fetch_channel(int(log_id))
                     except discord.NotFound:
                         pass
-                if ch_obj: return ch_obj
+                if ch_obj and ch_obj.guild.id == guild_id: return ch_obj
             # ------------------------------------------------------------------
             return None
         
@@ -150,10 +158,10 @@ class ModerationLog(commands.Cog):
             ch_obj = self.bot.get_channel(int(log_id))
             if not ch_obj:
                 try:
-                    return await self.bot.fetch_channel(int(log_id))
+                    ch_obj = await self.bot.fetch_channel(int(log_id))
                 except discord.NotFound:
                     pass
-            if ch_obj: return ch_obj
+            if ch_obj and ch_obj.guild.id == guild_id: return ch_obj
         # ------------------------------------------------------------------
         return None
 
@@ -167,7 +175,7 @@ class ModerationLog(commands.Cog):
             return
 
         log_channel = await self.route_message_log(message.guild.id, message.channel.id)
-        if not log_channel:
+        if not log_channel or log_channel.guild.id != message.guild.id:
             return
 
         embed = discord.Embed(color=self.color_deleted)
@@ -175,7 +183,23 @@ class ModerationLog(commands.Cog):
         embed.set_author(name=f"{message.author.display_name} (@{message.author.name})", icon_url=message.author.display_avatar.url)
         
         # ADDED: Fallback channel name string in case the mention renders as a raw ID
-        desc = f"Message deleted in {message.channel.mention} (**#{message.channel.name}**)\n\n"
+        desc = f"Message deleted in {message.channel.mention} (**#{message.channel.name}**)\n"
+        
+        # --- NEW: REPLY TRACKING IMPLEMENTATION ---
+        if message.reference and message.reference.message_id:
+            target_user = "Unknown User"
+            if message.reference.cached_message:
+                target_user = f"{message.reference.cached_message.author.mention} ({message.reference.cached_message.author.display_name})"
+            else:
+                try:
+                    ref_msg = await message.channel.fetch_message(message.reference.message_id)
+                    target_user = f"{ref_msg.author.mention} ({ref_msg.author.display_name})"
+                except:
+                    pass
+            desc += f"↳ **Replying to:** {target_user}\n"
+        desc += "\n"
+        # ------------------------------------------
+        
         if message.content:
             desc += f"**Content**\n{message.content[:2000]}\n"
         
@@ -183,6 +207,11 @@ class ModerationLog(commands.Cog):
             desc += "\n**Attachments Caught:**\n"
             for att in message.attachments:
                 desc += f"📎 [{att.filename}]({att.proxy_url})\n"
+                
+                # --- NEW: ACTIVE MEDIA EMBED VISUAL GENERATOR ---
+                if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
+                    embed.set_image(url=att.proxy_url)
+                # -------------------------------------------------
 
         embed.description = desc
         embed.set_footer(text=f"User ID: {message.author.id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
@@ -198,7 +227,7 @@ class ModerationLog(commands.Cog):
             return
 
         log_channel = await self.route_message_log(before.guild.id, before.channel.id)
-        if not log_channel:
+        if not log_channel or log_channel.guild.id != before.guild.id:
             return
 
         embed = discord.Embed(color=self.color_edited)
@@ -226,7 +255,7 @@ class ModerationLog(commands.Cog):
             return
 
         log_channel = await self.route_message_log(payload.guild_id, payload.channel_id)
-        if not log_channel:
+        if not log_channel or log_channel.guild.id != payload.guild_id:
             return
 
         embed = discord.Embed(color=self.color_deleted)
@@ -245,7 +274,7 @@ class ModerationLog(commands.Cog):
             return
 
         log_channel = await self.route_message_log(payload.guild_id, payload.channel_id)
-        if not log_channel:
+        if not log_channel or log_channel.guild.id != payload.guild_id:
             return
 
         data = payload.data
