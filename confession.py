@@ -15,7 +15,7 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         style=discord.TextStyle.paragraph,
         placeholder="Type your anonymous confession here...",
         required=True,
-        max_length=5000,
+        max_length=4000,
     )
 
     def __init__(self, main_mod, bot, review_channel_id, target_slot=1):
