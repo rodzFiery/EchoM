@@ -448,6 +448,41 @@ class EngineControl(commands.Cog):
         config_view = GameConfigView(ctx.author, self.bot, ctx)
         await ctx.send(embed=config_embed, view=config_view)
 
+    @commands.command(name="flash")
+    async def dynamic_flash_command(self, ctx, *members: discord.Member):
+        """Allows the reigning winner to command between 1 and 3 victims to flash at once across all modes."""
+        import sys
+        main = sys.modules['__main__']
+        if not (main.nsfw_mode_active or main.basic_nsfw_active):
+            return await ctx.send("❌ **Access Denied.** This command power requires active session conditions.")
+            
+        engine = self.bot.get_cog("IgnisEngine")
+        if not engine or ctx.author.id != engine.last_winner_id:
+            return await ctx.send("🫦 **Only the Reigning Champion holds the authority to invoke this command protocol.**")
+
+        if not members:
+            return await ctx.send("❌ **Target directory empty.** Specify between 1 and 3 valid member tags. (e.g. `!flash @user1 @user2`)")
+
+        if len(members) > 3:
+            return await ctx.send("❌ **Rule constraint failure.** You cannot submit more than 3 victims inside a single execution contract request.")
+
+        active_rules = engine.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
+        allowed_max = active_rules.get("winner_picks", 3)
+        if allowed_max > 0 and len(members) > allowed_max:
+            return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
+
+        mentions_string = " ".join([m.mention for m in members])
+        sentence = random.choice(engine.flash_sentences)
+        
+        embed = self.fiery_embed(
+            "Winner's Collective Decree", 
+            f"📸 {ctx.author.mention} turns the spotlight directly onto {mentions_string}...\n\n"
+            f"**\"{sentence}\"**\n\n"
+            f"🔞 You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
+            color=0xFF00FF
+        )
+        await ctx.send(content=mentions_string, embed=embed)
+
     @commands.command()
     async def lobby(self, ctx):
         engine = self.bot.get_cog("IgnisEngine")
@@ -590,40 +625,6 @@ class IgnisEngine(commands.Cog):
             f"🔞 {member.mention}, you need to **FLASH** by the Winner's decree!", color=0xFF00FF)
         
         await ctx.send(content=member.mention, embed=embed)
-
-    @commands.command(name="flash")
-    async def dynamic_flash_command(self, ctx, *members: discord.Member):
-        """Allows the reigning winner to command between 1 and 3 victims to flash at once."""
-        import sys
-        main = sys.modules['__main__']
-        if not (main.nsfw_mode_active or main.basic_nsfw_active):
-            return await ctx.send("❌ **Access Denied.** This command power requires active session conditions.")
-            
-        if ctx.author.id != self.last_winner_id:
-            return await ctx.send("🫦 **Only the Reigning Champion holds the authority to invoke this command protocol.**")
-
-        if not members:
-            return await ctx.send("❌ **Target directory empty.** Specify between 1 and 3 valid member tags. (e.g. `!flash @user1 @user2`)")
-
-        if len(members) > 3:
-            return await ctx.send("❌ **Rule constraint failure.** You cannot submit more than 3 victims inside a single execution contract request.")
-
-        active_rules = self.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
-        allowed_max = active_rules.get("winner_picks", 3)
-        if allowed_max > 0 and len(members) > allowed_max:
-            return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
-
-        mentions_string = " ".join([m.mention for m in members])
-        sentence = random.choice(self.flash_sentences)
-        
-        embed = self.fiery_embed(
-            "Winner's Collective Decree", 
-            f"📸 {ctx.author.mention} turns the spotlight directly onto {mentions_string}...\n\n"
-            f"**\"{sentence}\"**\n\n"
-            f"🔞 You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
-            color=0xFF00FF
-        )
-        await ctx.send(content=mentions_string, embed=embed)
 
     async def create_arena_image(self, winner_url, loser_url):
         try:
