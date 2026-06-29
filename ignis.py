@@ -414,7 +414,6 @@ class EngineControl(commands.Cog):
 
     @commands.command()
     async def echostart2(self, ctx):
-        """Advanced execution room: Allows full host dashboard rule choices before opening the tribute floor slots."""
         engine = self.bot.get_cog("IgnisEngine")
         if engine:
             if ctx.channel.id in engine.active_battles:
