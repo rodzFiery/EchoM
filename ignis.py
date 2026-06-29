@@ -1078,6 +1078,35 @@ class IgnisEngine(commands.Cog):
                     # FIXED: Adjust decree wording depending on whether it's a team game or ffa
                     if rules['faction_theme'] in ["men_vs_girls", "usa_vs_world"]:
                         nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"Faction match architecture active. Team protocols override winner allocations. No custom pings required.", inline=False)
+                        
+                        faction_flashers = []
+                        if rules['faction_theme'] == "men_vs_girls":
+                            winner_is_male = any(r.name.lower() in ["he/him", "male"] for r in winner_member.roles)
+                            winner_is_female = any(r.name.lower() in ["she/her", "female"] for r in winner_member.roles)
+                            for p_id in participants:
+                                m = channel.guild.get_member(p_id)
+                                if m and m.id != winner_member.id:
+                                    if winner_is_male:
+                                        if any(r.name.lower() in ["she/her", "female"] for r in m.roles):
+                                            faction_flashers.append(m)
+                                    elif winner_is_female:
+                                        if any(r.name.lower() in ["he/him", "male"] for r in m.roles):
+                                            faction_flashers.append(m)
+                        elif rules['faction_theme'] == "usa_vs_world":
+                            winner_is_na = any(r.name.lower() == "north america" for r in winner_member.roles)
+                            for p_id in participants:
+                                m = channel.guild.get_member(p_id)
+                                if m and m.id != winner_member.id:
+                                    m_is_na = any(r.name.lower() == "north america" for r in m.roles)
+                                    if winner_is_na and not m_is_na:
+                                        faction_flashers.append(m)
+                                    elif not winner_is_na and m_is_na:
+                                        faction_flashers.append(m)
+                        
+                        if faction_flashers:
+                            ping_content = f"🔞 **FACTION MASS WIPE PROTOCOL PINGS:** " + " ".join([m.mention for m in faction_flashers]) + f" {winner_member.mention}"
+                            faction_text = " ".join([m.mention + " (FACTION FLASH)" for m in faction_flashers])
+                            nsfw_embed.add_field(name="🔥 FACTION WIPE TARGETS", value=faction_text, inline=False)
                     else:
                         nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
                 else:
@@ -1253,7 +1282,7 @@ class StatusCheck(commands.Cog):
             if message.channel.id not in engine.active_battles:
                 return 
             
-            survivors = engine.current_survivors.get(message.channel.id, [])
+             survivors = engine.current_survivors.get(message.channel.id, [])
             is_survivor = message.author.id in survivors
 
             if content == "i am alive":
