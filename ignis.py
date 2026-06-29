@@ -5,6 +5,7 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
+        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -26,16 +27,13 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class WinnerDetailsView(discord.ui.View):
-    def __init__(self, details_embed=None):
+    def __init__(self, details_embed):
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
     @discord.ui.button(label="View Full Breakdown", style=discord.ButtonStyle.primary, emoji="📜", custom_id="fiery_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.details_embed:
-            await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
-        else:
-            await interaction.response.send_message("Details no longer available.", ephemeral=True)
+        await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
 
 class LobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
@@ -201,6 +199,7 @@ class LobbyView(discord.ui.View):
 
 class RulesSelect(discord.ui.Select):
     def __init__(self, placeholder, custom_id, options):
+        # Setting min_values to 0 to allow skipping selections completely safely
         super().__init__(placeholder=placeholder, min_values=0, max_values=len(options), options=options, custom_id=custom_id)
 
     async def callback(self, interaction: discord.Interaction):
@@ -213,6 +212,7 @@ class GameConfigView(discord.ui.View):
         self.bot = bot
         self.ctx = original_ctx
 
+        # Checkboxes 1: Core Flash Allocators
         self.add_item(RulesSelect(
             placeholder="⚙️ Core Event Flash Allocators...",
             custom_id="rules_core_triggers",
@@ -224,16 +224,18 @@ class GameConfigView(discord.ui.View):
             ]
         ))
 
+        # Checkboxes 2: Victory Allocation Parameters
         self.add_item(RulesSelect(
             placeholder="👑 Winner Decree Victim Allocation Count...",
             custom_id="rules_winner_picks",
             options=[
-                discord.SelectOption(label="Winner chooses 1 Sinner", value="pick_1"),
-                discord.SelectOption(label="Winner chooses 2 Sinners", value="pick_2", default=True),
-                discord.SelectOption(label="Winner chooses 3 Sinners", value="pick_3")
+                discord.SelectOption(label="Winner chooses 1 Victim", value="pick_1"),
+                discord.SelectOption(label="Winner chooses 2 Victims", value="pick_2", default=True),
+                discord.SelectOption(label="Winner chooses 3 Victims", value="pick_3")
             ]
         ))
 
+        # Checkboxes 3: Matchmaking Conditions
         self.add_item(RulesSelect(
             placeholder="⚔️ Server Matchmaking Theme Filter Status...",
             custom_id="rules_factions",
@@ -254,19 +256,21 @@ class GameConfigView(discord.ui.View):
 
         await interaction.response.defer()
 
-        core_triggers = None
-        winner_choice = None
-        faction_theme = None
+        core_triggers = []
+        winner_choice = "pick_2"
+        faction_theme = "ffa"
 
         for item in self.children:
             if isinstance(item, RulesSelect):
                 if item.custom_id == "rules_core_triggers":
-                    core_triggers = item.values if item.values else ["first_blood", "legendary", "suicide", "bot_random"]
+                    core_triggers = item.values
                 elif item.custom_id == "rules_winner_picks":
                     winner_choice = item.values[0] if item.values else "pick_2"
                 elif item.custom_id == "rules_factions":
                     faction_theme = item.values[0] if item.values else "ffa"
 
+        # FIXED: Core validation gate block. If team faction simulation models are chosen,
+        # standard environment rules are automatically suppressed to clear obligations.
         if faction_theme in ["men_vs_girls", "usa_vs_world"]:
             rules_payload = {
                 "first_blood": False,
@@ -304,7 +308,7 @@ class GameConfigView(discord.ui.View):
             f"• **Legendary Flash:** {'✅' if rules_payload['legendary'] else '❌'}\n"
             f"• **Suicide Flash:** {'✅' if rules_payload['suicide'] else '❌'}\n"
             f"• **Bot Random Flash:** {'✅' if rules_payload['bot_random'] else '❌'}\n"
-            f"• **Winner Pick Allocation:** `Up to {rules_payload['winner_picks']} Sinners`"
+            f"• **Winner Pick Allocation:** `{rules_payload['winner_picks']} Assets`"
         ), inline=False)
 
         embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
@@ -315,9 +319,8 @@ class GameConfigView(discord.ui.View):
         if engine:
             engine.current_lobbies[self.ctx.guild.id] = view
 
-        self.bot.add_view(view)
-
-        await interaction.message.edit(embed=embed, view=view)
+        await interaction.message.delete()
+        await self.ctx.send(embed=embed, view=view)
 
         main.game_edition += 1
         self.ctx.command.cog.save_game_config()
@@ -333,12 +336,9 @@ class EngineControl(commands.Cog):
         self.save_game_config = save_game_config
         self.get_db_connection = get_db_connection
         
-        try:
-            with self.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
-                conn.commit()
-        except Exception as e:
-            print(f"EngineControl DB Init Warning: {e}")
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.commit()
 
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -380,6 +380,7 @@ class EngineControl(commands.Cog):
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
             if ctx.guild.id in engine.current_lobbies:
+                 existing_view = engine.current_lobbies[ctx.guild.id]
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
@@ -419,6 +420,7 @@ class EngineControl(commands.Cog):
 
     @commands.command()
     async def echostart2(self, ctx):
+        """Advanced execution room: Allows full host dashboard rule choices before opening the tribute floor slots."""
         engine = self.bot.get_cog("IgnisEngine")
         if engine:
             if ctx.channel.id in engine.active_battles:
@@ -453,46 +455,10 @@ class EngineControl(commands.Cog):
         config_view = GameConfigView(ctx.author, self.bot, ctx)
         await ctx.send(embed=config_embed, view=config_view)
 
-    @commands.command(name="flash")
-    async def dynamic_flash_command(self, ctx, *members: discord.Member):
-        """Allows the reigning winner to command between 1 and 3 victims to flash at once across all modes."""
-        import sys
-        main = sys.modules['__main__']
-        if not (main.nsfw_mode_active or main.basic_nsfw_active):
-            return await ctx.send("❌ **Access Denied.** This command power requires active session conditions.")
-            
-        engine = self.bot.get_cog("IgnisEngine")
-        if not engine or ctx.author.id != engine.last_winner_id:
-            return await ctx.send("🫦 **Only the Reigning Champion holds the authority to invoke this command protocol.**")
-
-        if not members:
-            return await ctx.send("❌ **Target directory empty.** Specify between 1 and 3 valid member tags. (e.g. `!flash @user1 @user2`)")
-
-        if len(members) > 3:
-            return await ctx.send("❌ **Rule constraint failure.** You cannot submit more than 3 victims inside a single execution contract request.")
-
-        active_rules = engine.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
-        allowed_max = active_rules.get("winner_picks", 3)
-        if allowed_max > 0 and len(members) > allowed_max:
-            return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
-
-        mentions_string = " ".join([m.mention for m in members])
-        sentence = random.choice(engine.flash_sentences)
-        
-        embed = self.fiery_embed(
-            "Winner's Collective Decree", 
-            f"📸 {ctx.author.mention} turns the spotlight directly onto {mentions_string}...\n\n"
-            f"**\"{sentence}\"**\n\n"
-            f"🔞 You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
-            color=0xFF00FF
-        )
-        await ctx.send(content=mentions_string, embed=embed)
-
     @commands.command()
     async def lobby(self, ctx):
         engine = self.bot.get_cog("IgnisEngine")
-        if not engine: return await ctx.send("Engine not initialized.")
-        guild_lobby = engine.current_lobbies.get(ctx.guild.id)
+        guild_lobby = engine.current_lobbies.get(ctx.guild.id) if engine else None
         
         participants = []
         with self.get_db_connection() as conn:
@@ -501,14 +467,14 @@ class EngineControl(commands.Cog):
         
         if not participants:
             embed = self.fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg") if os.path.exists("LobbyTopRight.jpg") else None
-            return await ctx.send(file=file, embed=embed) if file else await ctx.send(embed=embed)
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            return await ctx.send(file=file, embed=embed)
         
         mentions = [f"<@{p_id}>" for p_id in participants]
         edition_val = guild_lobby.edition if guild_lobby else "?"
         embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{edition_val}:\n\n" + "\n".join(mentions), color=0x00FF00)
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg") if os.path.exists("LobbyTopRight.jpg") else None
-        await ctx.send(file=file, embed=embed) if file else await ctx.send(embed=embed)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+        await ctx.send(file=file, embed=embed)
 
 class IgnisEngine(commands.Cog):
     def __init__(self, bot, update_user_stats, get_user, fiery_embed, get_db_connection, ranks, classes, audit_channel_id):
@@ -524,7 +490,6 @@ class IgnisEngine(commands.Cog):
         self.active_battles = set()
         self.current_lobbies = {}
         self.current_survivors = {}
-        self.active_game_rules = {}
 
         self.last_winner_id = None
         self.flash_sentences = [
@@ -582,12 +547,9 @@ class IgnisEngine(commands.Cog):
         self._init_persistence()
 
     def _init_persistence(self):
-        try:
-            with self.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
-                conn.commit()
-        except Exception as e:
-            print(f"IgnisEngine DB Init Warning: {e}")
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+            conn.commit()
 
     def calculate_level(self, current_xp):
         level = 1
@@ -607,14 +569,12 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
-        if ctx.guild.id in self.active_game_rules:
-            del self.active_game_rules[ctx.guild.id]
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
-    @commands.command()
+    @commands.command(name="getnaked")
     async def winner_power(self, ctx, member: discord.Member):
         import sys
         main = sys.modules['__main__']
@@ -744,7 +704,6 @@ class IgnisEngine(commands.Cog):
             "faction_theme": "ffa",
             "is_custom_setup": False
         }
-        self.active_game_rules[channel.guild.id] = rules
 
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
@@ -1080,6 +1039,7 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
+            # --- NSFW SUMMARY EMBED ---
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
@@ -1134,11 +1094,13 @@ class IgnisEngine(commands.Cog):
                         color=0x9400D3
                     )
                     
+                    paragraphs_list = []
                     for m in faction_flashers:
-                        avatar_url = m.display_avatar.url if m.display_avatar else ""
-                        nsfw_embed.add_field(name=f"👤 {m.display_name} ({m.name})", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
-                        
-                    if not faction_flashers:
+                        paragraphs_list.append(f"{m.mention} - **{m.display_name}**\n🖼️ Avatar: {m.display_avatar.url}")
+                    
+                    if paragraphs_list:
+                        nsfw_embed.description += "\n\n".join(paragraphs_list)
+                    else:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
                         
                     if faction_flashers:
@@ -1150,18 +1112,12 @@ class IgnisEngine(commands.Cog):
                         description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`",
                         color=0x9400D3
                     )
-                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALALTY", value=f_death, inline=True)
+                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
                     nsfw_embed.add_field(name="🥀 SUICIDE EXPOSURES", value=s_victims, inline=True)
                     nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
                     nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
-                    
-                    for m in possible_flashers:
-                        if m:
-                            avatar_url = m.display_avatar.url if m.display_avatar else ""
-                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
-                    
-                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. You can pass between 1 and 3 targets inside your payload! Run `!flash @user1 @user2` to apply your structural decree.", inline=False)
+                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
                 else:
                     nsfw_embed = discord.Embed(
                         title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -1172,13 +1128,7 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
                     nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
-                    
-                    for m in possible_flashers:
-                        if m:
-                            avatar_url = m.display_avatar.url if m.display_avatar else ""
-                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
-
-                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. You can choose to pass between 1 and 3 targets as parameter values inside a single submission. Use `!flash @user1 @user2` to strip your chosen targets completely.", inline=False)
+                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
                 
                 await channel.send(content=ping_content, embed=nsfw_embed)
 
@@ -1250,13 +1200,13 @@ class IgnisEngine(commands.Cog):
             u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
             details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
                             f"⚔️ **Kills:** {log_win['kills']} XP\n"
-                            f"🩸 **First Blood Bonus:** {log_win['first_kill']} XP\n"
+                            f"🩸 **First Kill:** {log_win['first_kill']} XP\n"
                             f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
@@ -1359,6 +1309,7 @@ class StatusCheck(commands.Cog):
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 class PersistentLobbyLauncher(commands.Cog):
+    """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks per server."""
     def __init__(self, bot):
         self.bot = bot
 
@@ -1367,8 +1318,7 @@ class PersistentLobbyLauncher(commands.Cog):
         import sys as _sys
         main = _sys.modules['__main__']
         
-        # Correctly register both persistent views
-        self.bot.add_view(WinnerDetailsView())
+        self.bot.add_view(WinnerDetailsView(None))
         
         try:
             with main.get_db_connection() as conn:
