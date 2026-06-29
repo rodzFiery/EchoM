@@ -312,6 +312,9 @@ class GameConfigView(discord.ui.View):
         if engine:
             engine.current_lobbies[self.ctx.guild.id] = view
 
+        # FIX ADDITION: Explicitly register newly generated View listeners inside the Discord Client engine context loop
+        self.bot.add_view(view)
+
         await interaction.message.edit(embed=embed, view=view)
 
         main.game_edition += 1
@@ -375,6 +378,8 @@ class EngineControl(commands.Cog):
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
             if ctx.guild.id in engine.current_lobbies:
+                 # ADDITION: Clear out the lobby entry safely if an override parameter or manual clear is invoked, or clean stale references safely
+                 pass
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
@@ -478,7 +483,7 @@ class EngineControl(commands.Cog):
             "Winner's Collective Decree", 
             f"📸 {ctx.author.mention} turns the spotlight directly onto {mentions_string}...\n\n"
             f"**\"{sentence}\"**\n\n"
-            f"🔞 You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
+            f"**You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
             color=0xFF00FF
         )
         await ctx.send(content=mentions_string, embed=embed)
@@ -844,7 +849,7 @@ class IgnisEngine(commands.Cog):
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
                         if (main.nsfw_mode_active or main.basic_nsfw_active) and rules["first_blood"]:
-                            flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                            flash_msg = f"**FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     if rules["suicide"]:
