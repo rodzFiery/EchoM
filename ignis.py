@@ -229,9 +229,9 @@ class GameConfigView(discord.ui.View):
             placeholder="👑 Winner Decree Victim Allocation Count...",
             custom_id="rules_winner_picks",
             options=[
-                discord.SelectOption(label="Winner chooses 1 Victim", value="pick_1"),
-                discord.SelectOption(label="Winner chooses 2 Victims", value="pick_2", default=True),
-                discord.SelectOption(label="Winner chooses 3 Victims", value="pick_3")
+                discord.SelectOption(label="Winner chooses 1 Sinner", value="pick_1"),
+                discord.SelectOption(label="Winner chooses 2 Sinners", value="pick_2", default=True),
+                discord.SelectOption(label="Winner chooses 3 Sinners", value="pick_3")
             ]
         ))
 
@@ -306,7 +306,7 @@ class GameConfigView(discord.ui.View):
             f"• **Legendary Flash:** {'✅' if rules_payload['legendary'] else '❌'}\n"
             f"• **Suicide Flash:** {'✅' if rules_payload['suicide'] else '❌'}\n"
             f"• **Bot Random Flash:** {'✅' if rules_payload['bot_random'] else '❌'}\n"
-            f"• **Winner Pick Allocation:** `{rules_payload['winner_picks']} Assets`"
+            f"• **Winner Pick Allocation:** `Up to {rules_payload['winner_picks']} Sinners`"
         ), inline=False)
 
         embed.add_field(name="🧙‍♂️ 0 Sinners Ready", value="The air is thick with anticipation.", inline=False)
@@ -591,6 +591,41 @@ class IgnisEngine(commands.Cog):
             f"🔞 {member.mention}, you need to **FLASH** by the Winner's decree!", color=0xFF00FF)
         
         await ctx.send(content=member.mention, embed=embed)
+
+    @commands.command(name="flash")
+    async def dynamic_flash_command(self, ctx, *members: discord.Member):
+        """Allows the reigning winner to command between 1 and 3 victims to flash at once."""
+        import sys
+        main = sys.modules['__main__']
+        if not (main.nsfw_mode_active or main.basic_nsfw_active):
+            return await ctx.send("❌ **Access Denied.** This command power requires active session conditions.")
+            
+        if ctx.author.id != self.last_winner_id:
+            return await ctx.send("🫦 **Only the Reigning Champion holds the authority to invoke this command protocol.**")
+
+        if not members:
+            return await ctx.send("❌ **Target directory empty.** Specify between 1 and 3 valid member tags. (e.g. `!flash @user1 @user2`)")
+
+        if len(members) > 3:
+            return await ctx.send("❌ **Rule constraint failure.** You cannot submit more than 3 victims inside a single execution contract request.")
+
+        # Determine limits based on the saved game conditions if available
+        active_rules = self.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
+        allowed_max = active_rules.get("winner_picks", 3)
+        if allowed_max > 0 and len(members) > allowed_max:
+             return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
+
+        mentions_string = " ".join([m.mention for m in members])
+        sentence = random.choice(self.flash_sentences)
+        
+        embed = self.fiery_embed(
+            "Winner's Collective Decree", 
+            f"📸 {ctx.author.mention} turns the spotlight directly onto {mentions_string}...\n\n"
+            f"**\"{sentence}\"**\n\n"
+            f"🔞 You have been collectively targeted! Submit to the platform ledger and **FLASH** now.", 
+            color=0xFF00FF
+        )
+        await ctx.send(content=mentions_string, embed=embed)
 
     async def create_arena_image(self, winner_url, loser_url):
         try:
@@ -1095,13 +1130,10 @@ class IgnisEngine(commands.Cog):
                         color=0x9400D3
                     )
                     
-                    paragraphs_list = []
                     for m in faction_flashers:
-                        paragraphs_list.append(f"{m.mention} - **{m.display_name}**\n🖼️ Avatar: [View Profile Picture]({m.display_avatar.url})")
-                    
-                    if paragraphs_list:
-                        nsfw_embed.description += "\n\n".join(paragraphs_list)
-                    else:
+                        nsfw_embed.add_field(name=f"👤 {m.display_name} ({m.name})", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
+                        
+                    if not faction_flashers:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
                         
                     if faction_flashers:
@@ -1119,13 +1151,11 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
                     nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
                     
-                    asset_visuals = []
                     for m in possible_flashers:
-                        if m: asset_visuals.append(f"· {m.mention} - **{m.display_name}** [[PFP]({m.display_avatar.url})]")
-                    if asset_visuals:
-                        nsfw_embed.add_field(name="🖼️ TARGET ASSET DIRECTORY (WITH PROFILE PICS)", value="\n".join(asset_visuals), inline=False)
+                        if m:
+                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
                         
-                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. You can choose your targets freely one by one! Run `!flash @user` individually to apply your decree.", inline=False)
+                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. You can pass between 1 and 3 targets inside your payload! Run `!flash @user1 @user2` to apply your structural decree.", inline=False)
                 else:
                     nsfw_embed = discord.Embed(
                         title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -1137,13 +1167,11 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
                     nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
                     
-                    asset_visuals = []
                     for m in possible_flashers:
-                        if m: asset_visuals.append(f"· {m.mention} - **{m.display_name}** [[PFP]({m.display_avatar.url})]")
-                    if asset_visuals:
-                        nsfw_embed.add_field(name="🖼️ TARGET ASSET DIRECTORY (WITH PROFILE PICS)", value="\n".join(asset_visuals), inline=False)
+                        if m:
+                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
 
-                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. Targets can be chosen freely one by one. USE `!flash @user` individually to strip your chosen targets. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
+                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. You can choose to pass between 1 and 3 targets as parameter values inside a single submission. Use `!flash @user1 @user2` to strip your chosen targets completely.", inline=False)
                 
                 await channel.send(content=ping_content, embed=nsfw_embed)
 
