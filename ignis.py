@@ -1282,7 +1282,7 @@ class StatusCheck(commands.Cog):
             if message.channel.id not in engine.active_battles:
                 return 
             
-             survivors = engine.current_survivors.get(message.channel.id, [])
+            survivors = engine.current_survivors.get(message.channel.id, [])
             is_survivor = message.author.id in survivors
 
             if content == "i am alive":
