@@ -755,6 +755,7 @@ class IgnisEngine(commands.Cog):
             await self.bot.wait_until_ready()
             
             fighters = []
+            game_kills = {p_id: 0_0} # Reset container cleanly
             game_kills = {p_id: 0 for p_id in participants}
             roster_list = []
 
