@@ -256,21 +256,19 @@ class GameConfigView(discord.ui.View):
 
         await interaction.response.defer()
 
-        core_triggers = []
-        winner_choice = "pick_2"
-        faction_theme = "ffa"
+        core_triggers = None
+        winner_choice = None
+        faction_theme = None
 
         for item in self.children:
             if isinstance(item, RulesSelect):
                 if item.custom_id == "rules_core_triggers":
-                    core_triggers = item.values
+                    core_triggers = item.values if item.values else ["first_blood", "legendary", "suicide", "bot_random"]
                 elif item.custom_id == "rules_winner_picks":
                     winner_choice = item.values[0] if item.values else "pick_2"
                 elif item.custom_id == "rules_factions":
                     faction_theme = item.values[0] if item.values else "ffa"
 
-        # FIXED: Core validation gate block. If team faction simulation models are chosen,
-        # standard environment rules are automatically suppressed to clear obligations.
         if faction_theme in ["men_vs_girls", "usa_vs_world"]:
             rules_payload = {
                 "first_blood": False,
@@ -319,8 +317,7 @@ class GameConfigView(discord.ui.View):
         if engine:
             engine.current_lobbies[self.ctx.guild.id] = view
 
-        await interaction.message.delete()
-        await self.ctx.send(embed=embed, view=view)
+        await interaction.message.edit(embed=embed, view=view)
 
         main.game_edition += 1
         self.ctx.command.cog.save_game_config()
@@ -1210,7 +1207,7 @@ class IgnisEngine(commands.Cog):
             details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
             breakdown_text = (f"🛡️ **Participation:** {log_win['participation']} XP\n"
                             f"⚔️ **Kills:** {log_win['kills']} XP\n"
-                            f"🩸 **First Kill:** {log_win['first_kill']} XP\n"
+                            f"🩸 **First Blood Bonus:** {log_win['first_kill']} XP\n"
                             f"🥇 **Placement:** {log_win['placement']} XP\n"
                             f"✨ **Class Multiplier:** x{b_xp_win}\n"
                             f"**Total XP Gained: {total_fxp_win}**")
