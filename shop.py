@@ -378,17 +378,17 @@ class Shop(commands.Cog):
         item_list = ""
         for i, item in enumerate(items):
             item_list += f"💰{i+1} {t_emoji} **{item['name']}** — `{item['price']:,}` 🔥\n*{item['desc']}*\n\n"
-        
+         
         embed.add_field(name=f"━━━ {current_tier.upper()} SELECTION ━━━", value=item_list, inline=False)
         embed.set_footer(text=f"Tier {page}/{len(tiers)} | Use Buttons or !buy <Name>")
         embed.timestamp = datetime.now(timezone.utc)
-        
+         
         view = ShopView(self, category, page, user, items)
         view.prev.disabled = (page == 1)
         view.next.disabled = (page == len(tiers))
         for idx, btn in enumerate([view.buy1, view.buy2, view.buy3, view.buy4, view.buy5]):
             btn.disabled = (idx >= len(items))
-            
+             
         return embed, view
 
     @commands.command(name="shop")
@@ -405,14 +405,14 @@ class Shop(commands.Cog):
     async def buy_item(self, ctx, *, item_name: str):
         # FIX: Ensure we use the correct author object for interactions vs commands
         author = ctx.user if isinstance(ctx, discord.Interaction) else ctx.author
-        
+         
         # FIX: Defer interaction to prevent "Interaction Failed"
         if isinstance(ctx, discord.Interaction):
             if not ctx.response.is_done():
                 await ctx.response.defer(ephemeral=True)
 
         found_item, found_cat, found_tier = self.get_item_details(item_name)
-        
+         
         if not found_item: 
             err_emb = discord.Embed(title="❌ Item Not Found", description=f"The item '{item_name}' does not exist.", color=0xFF0000)
             if isinstance(ctx, discord.Interaction):
@@ -424,7 +424,7 @@ class Shop(commands.Cog):
 
         with self.get_db_connection() as conn:
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
-            
+             
             if not user_row:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description="You have no account. Use commands to earn flames first.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
@@ -453,12 +453,12 @@ class Shop(commands.Cog):
         # ADDED: Close the connection leak
         conn.close()
 
-        # If it's a marriage ring, proceed to bonding ritual logic
-        if found_cat == "Rings" and not is_marriage_ring:
+        # FIXED: Logic Gate Corrected. If it IS a marriage ring, run the bonding ritual!
+        if found_cat == "Rings" and is_marriage_ring:
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
-        
+         
         if found_tier == "Supreme":
             success_emb.title = "🚨 SUPREME ASSET CLAIMED!"
             success_emb.color = 0xFF0000
@@ -490,19 +490,19 @@ class Shop(commands.Cog):
     @commands.command(name="inv", aliases=["inventory", "assets"])
     async def inventory(self, ctx, member: discord.Member = None):
         target = member or ctx.author
-        
+         
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles, spouse FROM users WHERE id = ?", (target.id,)).fetchone()
         # ADDED: Close the connection leak
         conn.close()
-        
+         
         if not user or not user['titles'] or user['titles'] == "[]":
             desc = "This soul owns nothing but their chains." if target == ctx.author else f"{target.display_name} is currently naked of assets."
             return await ctx.send(embed=discord.Embed(title=f"🎒 {target.display_name.upper()}'S VAULT", description=desc, color=0x808080))
 
         owned_names = json.loads(user['titles'])
         categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Rings": [], "Other": []}
-        
+         
         for name in owned_names:
             item, cat, tier = self.get_item_details(name)
             if item:
@@ -516,7 +516,7 @@ class Shop(commands.Cog):
 
         embed = discord.Embed(title=f"🎒 {target.display_name.upper()}'S PRIVATE VAULT", color=0xFF69B4)
         embed.set_thumbnail(url=target.display_avatar.url)
-        
+         
         if user['spouse']:
             embed.description = f"💍 **Bound to:** <@{user['spouse']}>"
 
@@ -538,12 +538,12 @@ class Shop(commands.Cog):
             return m.author == author and m.channel == channel
 
         prompt_emb = discord.Embed(title="💍 Soul Binding Ceremony", description=f"You are sacrificing flames for the **{item['name']}**.\nTag the soul you wish to bind to your destiny.", color=0xFF69B4)
-        
+         
         if isinstance(ctx, discord.Interaction):
             await ctx.followup.send(embed=prompt_emb)
         else:
             await ctx.send(embed=prompt_emb)
-        
+         
         try:
             msg = await self.bot.wait_for('message', timeout=30.0, check=check)
             if not msg.mentions:
@@ -557,7 +557,7 @@ class Shop(commands.Cog):
                         refund_conn.commit()
                     refund_conn.close()
                 return await channel.send(embed=discord.Embed(title="❌ Binding Failed", description="You cannot bind a ghost. Tag a user. Transaction refunded.", color=0xFF0000))
-            
+             
             target = msg.mentions[0]
             if target.id == author.id:
                 # ADDED: Refund logic
@@ -590,6 +590,10 @@ class Shop(commands.Cog):
                 u1, u2 = sorted([author.id, target.id])
                 conn.execute("INSERT OR REPLACE INTO relationships (user_one, user_two, type, shared_luck, passive_income) VALUES (?, ?, ?, ?, ?)",
                              (u1, u2, "Bound", luck_bonus, income_bonus))
+                 
+                # FIXED: Saved spouse metrics directly onto both users tables so `!inv` correctly reads relationship state
+                conn.execute("UPDATE users SET spouse = ? WHERE id = ?", (target.id, author.id))
+                conn.execute("UPDATE users SET spouse = ? WHERE id = ?", (author.id, target.id))
                 
                 # FIXED: Removed the secondary balance update here to prevent the ring costing double the flames.
                 conn.commit()
@@ -634,21 +638,21 @@ class Shop(commands.Cog):
 
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles FROM users WHERE id = ?", (ctx.author.id,)).fetchone()
-            
+             
             # FIXED: Added none check to prevent NoneType dictionary lookup crash
             if not user:
                 conn.close() # ADDED: Close the connection leak
                 return await ctx.send(embed=discord.Embed(title="❌ Account Not Found", description="You have no account.", color=0xFF0000))
-                
+                 
             inv = json.loads(user['titles']) if user['titles'] else []
-            
+             
             if found_item['name'] not in inv:
                 conn.close() # ADDED: Close the connection leak
                 return await ctx.send(embed=discord.Embed(title="❌ Theft Attempt", description="You cannot sell what you do not possess.", color=0xFF0000))
-            
+             
             sell_value = int(found_item['price'] * 0.5)
             inv.remove(found_item['name'])
-            
+             
             conn.execute("UPDATE users SET balance = balance + ?, titles = ? WHERE id = ?", (sell_value, json.dumps(inv), ctx.author.id))
             conn.commit()
         # ADDED: Close the connection leak
@@ -660,12 +664,12 @@ class Shop(commands.Cog):
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
         target = member or ctx.author
-        
+         
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles FROM users WHERE id = ?", (target.id,)).fetchone()
         # ADDED: Close the connection leak
         conn.close()
-        
+         
         if not user or not user['titles'] or user['titles'] == "[]":
             return await ctx.send(embed=discord.Embed(title="📊 Combat Analysis", description="This asset has no combat weightings. Total Luck: 0% | Total Protection: 0%", color=0x808080))
 
@@ -673,12 +677,13 @@ class Shop(commands.Cog):
         inv = json.loads(user['titles'])
         total_prot = 0
         total_luck = 0
-        
+         
         for name in inv:
             item, cat, tier = self.get_item_details(name)
             if item:
-                if cat == "Houses": total_prot = max(total_prot, item.get('prot', 0))
-                elif cat == "Pets": total_luck = max(total_luck, item.get('luck', 0))
+                # DESIGN FIX: Switched from max() evaluation to cumulative additive stats (+=) so multiple items stack calculations properly!
+                if cat == "Houses": total_prot += item.get('prot', 0)
+                elif cat == "Pets": total_luck += item.get('luck', 0)
 
         rel_luck = 0
         with self.get_db_connection() as conn:
@@ -689,7 +694,7 @@ class Shop(commands.Cog):
 
         embed = discord.Embed(title=f"📊 COMBAT ANALYSIS: {target.display_name.upper()}", color=0xFF4500)
         embed.set_thumbnail(url=target.display_avatar.url)
-        
+         
         desc = (
             f"🛡️ **First Blood Protection:** `{total_prot}%` \n"
             f"*Chance to dodge death rolls in the early game.*\n\n"
@@ -698,11 +703,11 @@ class Shop(commands.Cog):
             f"💍 **Relationship Shared Luck:** `+{rel_luck}%` \n"
             f"*Bonus luck synchronized with your bound partner.*"
         )
-        
+         
         embed.description = desc
         embed.set_footer(text="The calculations are final. The Master knows the odds.")
         embed.timestamp = datetime.now(timezone.utc)
-        
+         
         await ctx.send(embed=embed)
 
 async def setup(bot):
