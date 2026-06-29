@@ -26,13 +26,16 @@ import aiohttp
 from lexicon import FieryLexicon
 
 class WinnerDetailsView(discord.ui.View):
-    def __init__(self, details_embed):
+    def __init__(self, details_embed=None):
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
     @discord.ui.button(label="View Full Breakdown", style=discord.ButtonStyle.primary, emoji="📜", custom_id="fiery_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
+        if self.details_embed:
+            await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
+        else:
+            await interaction.response.send_message("Details no longer available.", ephemeral=True)
 
 class LobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
@@ -312,7 +315,6 @@ class GameConfigView(discord.ui.View):
         if engine:
             engine.current_lobbies[self.ctx.guild.id] = view
 
-        # FIX ADDITION: Explicitly register newly generated View listeners inside the Discord Client engine context loop
         self.bot.add_view(view)
 
         await interaction.message.edit(embed=embed, view=view)
@@ -378,8 +380,6 @@ class EngineControl(commands.Cog):
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
             if ctx.guild.id in engine.current_lobbies:
-                 # ADDITION: Clear out the lobby entry safely if an override parameter or manual clear is invoked, or clean stale references safely
-                 pass
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
@@ -491,7 +491,8 @@ class EngineControl(commands.Cog):
     @commands.command()
     async def lobby(self, ctx):
         engine = self.bot.get_cog("IgnisEngine")
-        guild_lobby = engine.current_lobbies.get(ctx.guild.id) if engine else None
+        if not engine: return await ctx.send("Engine not initialized.")
+        guild_lobby = engine.current_lobbies.get(ctx.guild.id)
         
         participants = []
         with self.get_db_connection() as conn:
@@ -500,14 +501,14 @@ class EngineControl(commands.Cog):
         
         if not participants:
             embed = self.fiery_embed("Lobby Status", "No active registration in progress. The pit is closed.")
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            return await ctx.send(file=file, embed=embed)
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg") if os.path.exists("LobbyTopRight.jpg") else None
+            return await ctx.send(file=file, embed=embed) if file else await ctx.send(embed=embed)
         
         mentions = [f"<@{p_id}>" for p_id in participants]
         edition_val = guild_lobby.edition if guild_lobby else "?"
         embed = self.fiery_embed("Active Tributes", f"The following souls are bound for Edition #{edition_val}:\n\n" + "\n".join(mentions), color=0x00FF00)
-        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-        await ctx.send(file=file, embed=embed)
+        file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg") if os.path.exists("LobbyTopRight.jpg") else None
+        await ctx.send(file=file, embed=embed) if file else await ctx.send(embed=embed)
 
 class IgnisEngine(commands.Cog):
     def __init__(self, bot, update_user_stats, get_user, fiery_embed, get_db_connection, ranks, classes, audit_channel_id):
@@ -1134,7 +1135,8 @@ class IgnisEngine(commands.Cog):
                     )
                     
                     for m in faction_flashers:
-                        nsfw_embed.add_field(name=f"👤 {m.display_name} ({m.name})", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
+                        avatar_url = m.display_avatar.url if m.display_avatar else ""
+                        nsfw_embed.add_field(name=f"👤 {m.display_name} ({m.name})", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
                         
                     if not faction_flashers:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
@@ -1156,8 +1158,9 @@ class IgnisEngine(commands.Cog):
                     
                     for m in possible_flashers:
                         if m:
-                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
-                        
+                            avatar_url = m.display_avatar.url if m.display_avatar else ""
+                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
+                    
                     nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. You can pass between 1 and 3 targets inside your payload! Run `!flash @user1 @user2` to apply your structural decree.", inline=False)
                 else:
                     nsfw_embed = discord.Embed(
@@ -1172,7 +1175,8 @@ class IgnisEngine(commands.Cog):
                     
                     for m in possible_flashers:
                         if m:
-                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({m.display_avatar.url})", inline=True)
+                            avatar_url = m.display_avatar.url if m.display_avatar else ""
+                            nsfw_embed.add_field(name=f"👤 {m.display_name}", value=f"{m.mention}\n🖼️ [Profile Picture]({avatar_url})", inline=True)
 
                     nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. You can choose to pass between 1 and 3 targets as parameter values inside a single submission. Use `!flash @user1 @user2` to strip your chosen targets completely.", inline=False)
                 
@@ -1355,7 +1359,6 @@ class StatusCheck(commands.Cog):
                     await message.channel.send(f"🫦 **Not yet, little one. You're still here to entertain us.**")
 
 class PersistentLobbyLauncher(commands.Cog):
-    """This Cog ensures that if the bot restarts, it 'remembers' to listen for lobby button clicks per server."""
     def __init__(self, bot):
         self.bot = bot
 
@@ -1364,7 +1367,8 @@ class PersistentLobbyLauncher(commands.Cog):
         import sys as _sys
         main = _sys.modules['__main__']
         
-        self.bot.add_view(WinnerDetailsView(None))
+        # Correctly register both persistent views
+        self.bot.add_view(WinnerDetailsView())
         
         try:
             with main.get_db_connection() as conn:
