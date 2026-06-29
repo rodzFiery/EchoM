@@ -1097,7 +1097,7 @@ class IgnisEngine(commands.Cog):
                     
                     paragraphs_list = []
                     for m in faction_flashers:
-                        paragraphs_list.append(f"{m.mention} - **{m.display_name}**\n🖼️ Avatar: {m.display_avatar.url}")
+                        paragraphs_list.append(f"{m.mention} - **{m.display_name}**\n🖼️ Avatar: [View Profile Picture]({m.display_avatar.url})")
                     
                     if paragraphs_list:
                         nsfw_embed.description += "\n\n".join(paragraphs_list)
@@ -1118,7 +1118,14 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
                     nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
-                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
+                    
+                    asset_visuals = []
+                    for m in possible_flashers:
+                        if m: asset_visuals.append(f"· {m.mention} - **{m.display_name}** [[PFP]({m.display_avatar.url})]")
+                    if asset_visuals:
+                        nsfw_embed.add_field(name="🖼️ TARGET ASSET DIRECTORY (WITH PROFILE PICS)", value="\n".join(asset_visuals), inline=False)
+                        
+                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. You can choose your targets freely one by one! Run `!flash @user` individually to apply your decree.", inline=False)
                 else:
                     nsfw_embed = discord.Embed(
                         title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -1129,7 +1136,14 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
                     nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
-                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
+                    
+                    asset_visuals = []
+                    for m in possible_flashers:
+                        if m: asset_visuals.append(f"· {m.mention} - **{m.display_name}** [[PFP]({m.display_avatar.url})]")
+                    if asset_visuals:
+                        nsfw_embed.add_field(name="🖼️ TARGET ASSET DIRECTORY (WITH PROFILE PICS)", value="\n".join(asset_visuals), inline=False)
+
+                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. Targets can be chosen freely one by one. USE `!flash @user` individually to strip your chosen targets. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
                 
                 await channel.send(content=ping_content, embed=nsfw_embed)
 
