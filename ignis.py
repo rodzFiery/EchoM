@@ -490,6 +490,7 @@ class IgnisEngine(commands.Cog):
         self.active_battles = set()
         self.current_lobbies = {}
         self.current_survivors = {}
+        self.active_game_rules = {}
 
         self.last_winner_id = None
         self.flash_sentences = [
@@ -569,6 +570,8 @@ class IgnisEngine(commands.Cog):
         self.active_battles.clear()
         self.current_lobbies.clear()
         self.current_survivors.clear()
+        if ctx.guild.id in self.active_game_rules:
+            del self.active_game_rules[ctx.guild.id]
         with self.get_db_connection() as conn:
             conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             conn.commit()
@@ -704,6 +707,7 @@ class IgnisEngine(commands.Cog):
             "faction_theme": "ffa",
             "is_custom_setup": False
         }
+        self.active_game_rules[channel.guild.id] = rules
 
         fxp_log = {p_id: {"participation": 100, "kills": 0, "first_kill": 0, "placement": 0, "final_rank": 0} for p_id in participants}
         first_blood_recorded = False
