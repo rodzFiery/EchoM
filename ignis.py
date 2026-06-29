@@ -574,7 +574,7 @@ class IgnisEngine(commands.Cog):
             conn.commit()
         await ctx.send("⛓️ **Dungeon Master Override:** Global Arena locks and lobbies have been reset.")
 
-    @commands.command(name="getnaked")
+    @commands.command()
     async def winner_power(self, ctx, member: discord.Member):
         import sys
         main = sys.modules['__main__']
@@ -613,7 +613,7 @@ class IgnisEngine(commands.Cog):
         active_rules = self.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
         allowed_max = active_rules.get("winner_picks", 3)
         if allowed_max > 0 and len(members) > allowed_max:
-             return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
+            return await ctx.send(f"❌ **Rule restriction active.** Current active match rules limit your absolute target selection count to `{allowed_max}` entries.")
 
         mentions_string = " ".join([m.mention for m in members])
         sentence = random.choice(self.flash_sentences)
