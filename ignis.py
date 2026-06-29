@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -199,7 +198,6 @@ class LobbyView(discord.ui.View):
 
 class RulesSelect(discord.ui.Select):
     def __init__(self, placeholder, custom_id, options):
-        # Setting min_values to 0 to allow skipping selections completely safely
         super().__init__(placeholder=placeholder, min_values=0, max_values=len(options), options=options, custom_id=custom_id)
 
     async def callback(self, interaction: discord.Interaction):
@@ -212,7 +210,6 @@ class GameConfigView(discord.ui.View):
         self.bot = bot
         self.ctx = original_ctx
 
-        # Checkboxes 1: Core Flash Allocators
         self.add_item(RulesSelect(
             placeholder="⚙️ Core Event Flash Allocators...",
             custom_id="rules_core_triggers",
@@ -224,7 +221,6 @@ class GameConfigView(discord.ui.View):
             ]
         ))
 
-        # Checkboxes 2: Victory Allocation Parameters
         self.add_item(RulesSelect(
             placeholder="👑 Winner Decree Victim Allocation Count...",
             custom_id="rules_winner_picks",
@@ -235,7 +231,6 @@ class GameConfigView(discord.ui.View):
             ]
         ))
 
-        # Checkboxes 3: Matchmaking Conditions
         self.add_item(RulesSelect(
             placeholder="⚔️ Server Matchmaking Theme Filter Status...",
             custom_id="rules_factions",
@@ -333,9 +328,12 @@ class EngineControl(commands.Cog):
         self.save_game_config = save_game_config
         self.get_db_connection = get_db_connection
         
-        with self.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
-            conn.commit()
+        try:
+            with self.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+                conn.commit()
+        except Exception as e:
+            print(f"EngineControl DB Init Warning: {e}")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
@@ -377,7 +375,6 @@ class EngineControl(commands.Cog):
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **A session is already active in this room.** Wait for it to conclude.")
             if ctx.guild.id in engine.current_lobbies:
-                 existing_view = engine.current_lobbies[ctx.guild.id]
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
@@ -545,9 +542,12 @@ class IgnisEngine(commands.Cog):
         self._init_persistence()
 
     def _init_persistence(self):
-        with self.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
-            conn.commit()
+        try:
+            with self.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
+                conn.commit()
+        except Exception as e:
+            print(f"IgnisEngine DB Init Warning: {e}")
 
     def calculate_level(self, current_xp):
         level = 1
@@ -609,7 +609,6 @@ class IgnisEngine(commands.Cog):
         if len(members) > 3:
             return await ctx.send("❌ **Rule constraint failure.** You cannot submit more than 3 victims inside a single execution contract request.")
 
-        # Determine limits based on the saved game conditions if available
         active_rules = self.active_game_rules.get(ctx.guild.id, {"winner_picks": 3})
         allowed_max = active_rules.get("winner_picks", 3)
         if allowed_max > 0 and len(members) > allowed_max:
@@ -755,7 +754,6 @@ class IgnisEngine(commands.Cog):
             await self.bot.wait_until_ready()
             
             fighters = []
-            game_kills = {p_id: 0_0} # Reset container cleanly
             game_kills = {p_id: 0 for p_id in participants}
             roster_list = []
 
@@ -1076,7 +1074,6 @@ class IgnisEngine(commands.Cog):
             except:
                 await channel.send(f"🏆 **{winner_member.mention} stands alone as the supreme victor!**")
 
-            # --- NSFW SUMMARY EMBED ---
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
