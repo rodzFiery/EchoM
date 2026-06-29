@@ -1145,7 +1145,7 @@ class IgnisEngine(commands.Cog):
                         description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`",
                         color=0x9400D3
                     )
-                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
+                    nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALALTY", value=f_death, inline=True)
                     nsfw_embed.add_field(name="🥀 SUICIDE EXPOSURES", value=s_victims, inline=True)
                     nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
