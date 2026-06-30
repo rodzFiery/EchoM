@@ -474,15 +474,18 @@ class PremiumSystem(commands.Cog):
         desc += f"➤ **TOTAL USER ENTITIES:** `{total_users:,}`\n"
         desc += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         
-        guild_list = []
+        guild_chunks_data = []
+        current_chunk_text = desc
+        current_view = discord.ui.View(timeout=None)
+        button_count = 0
+
         for g in self.bot.guilds:
             p_type = premium_data.get(g.id, "Standard Access")
             icon = "💎" if "Premium" in p_type or "Trial" in p_type else "📡"
             mem_count = g.member_count if hasattr(g, 'member_count') else "N/A"
             
-            # --- START ADDITION: GENERATE INVITE FOR THE OWNER ---
-            invite_link = "No Permissions"
-            # Try getting system channel first, then iterate over text channels
+            # --- START INVITE LINK GENERATION LOGIC ---
+            invite_url = None
             channels_to_try = []
             if g.system_channel:
                 channels_to_try.append(g.system_channel)
@@ -493,40 +496,49 @@ class PremiumSystem(commands.Cog):
                 if perms.create_instant_invite:
                     try:
                         invite = await channel.create_invite(max_age=300, max_uses=1, reason="Owner server audit link.")
-                        invite_link = f"[Join Server]({invite.url})"
+                        invite_url = invite.url
                         break
                     except Exception:
                         continue
-            # --- END ADDITION ---
+            # --- END INVITE LINK GENERATION LOGIC ---
 
             entry = (
                 f"{icon} **{g.name.upper()}**\n"
                 f"└─ 🆔 `ID: {g.id}`\n"
                 f"└─ 👥 `Population: {mem_count}`\n"
                 f"└─ 🔐 `Clearance: {p_type}`\n"
-                f"└─ 🔗 `Link: {invite_link}`\n"
             )
-            guild_list.append(entry)
-        
-        # Chunking logic to avoid 4096 char limit
-        chunks = []
-        current_chunk = desc
-        for entry in guild_list:
-            if len(current_chunk) + len(entry) + 5 > 4000:
-                chunks.append(current_chunk)
-                current_chunk = entry + "\n"
+
+            # Check if adding this entry or an additional button exceeds Discord component layout thresholds (Max 5 per row, max 25 total)
+            if len(current_chunk_text) + len(entry) + 5 > 4000 or button_count >= 20:
+                guild_chunks_data.append((current_chunk_text, current_view))
+                current_chunk_text = entry + "\n"
+                current_view = discord.ui.View(timeout=None)
+                button_count = 0
             else:
-                current_chunk += entry + "\n"
+                current_chunk_text += entry + "\n"
+
+            # If an invite link was retrieved successfully, create an actual clickable Link Button
+            if invite_url:
+                # Truncate guild name to fit within button bounds cleanly if needed
+                btn_name = g.name if len(g.name) <= 15 else f"{g.name[:12]}..."
+                current_view.add_item(discord.ui.Button(label=f"Join {btn_name.upper()}", url=invite_url, style=discord.ButtonStyle.link))
+                button_count += 1
         
-        if current_chunk:
-            chunks.append(current_chunk)
+        if current_chunk_text:
+            guild_chunks_data.append((current_chunk_text, current_view))
         
-        for i, chunk in enumerate(chunks):
+        for i, (chunk, view) in enumerate(guild_chunks_data):
             title = "🌐 GLOBAL SERVER DIRECTORY" if i == 0 else "🌐 GLOBAL SERVER DIRECTORY (CONT.)"
             embed = self.fiery_embed(title, chunk)
             embed.color = 0x00FFCC # Cyan / Futuristic
-            embed.set_footer(text=f"PAGE {i+1}/{len(chunks)} • YEAR 2030 SECURE PROTOCOL")
-            await ctx.send(embed=embed)
+            embed.set_footer(text=f"PAGE {i+1}/{len(guild_chunks_data)} • YEAR 2030 SECURE PROTOCOL")
+            
+            # Send view only if clickable join buttons exist for this chunk page
+            if len(view.children) > 0:
+                await ctx.send(embed=embed, view=view)
+            else:
+                await ctx.send(embed=embed)
 
     @commands.command(name="echoon")
     @commands.is_owner()
