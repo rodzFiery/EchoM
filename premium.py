@@ -480,11 +480,31 @@ class PremiumSystem(commands.Cog):
             icon = "💎" if "Premium" in p_type or "Trial" in p_type else "📡"
             mem_count = g.member_count if hasattr(g, 'member_count') else "N/A"
             
+            # --- START ADDITION: GENERATE INVITE FOR THE OWNER ---
+            invite_link = "No Permissions"
+            # Try getting system channel first, then iterate over text channels
+            channels_to_try = []
+            if g.system_channel:
+                channels_to_try.append(g.system_channel)
+            channels_to_try.extend([c for c in g.text_channels if c != g.system_channel])
+            
+            for channel in channels_to_try:
+                perms = channel.permissions_for(g.me)
+                if perms.create_instant_invite:
+                    try:
+                        invite = await channel.create_invite(max_age=300, max_uses=1, reason="Owner server audit link.")
+                        invite_link = f"[Join Server]({invite.url})"
+                        break
+                    except Exception:
+                        continue
+            # --- END ADDITION ---
+
             entry = (
                 f"{icon} **{g.name.upper()}**\n"
                 f"└─ 🆔 `ID: {g.id}`\n"
                 f"└─ 👥 `Population: {mem_count}`\n"
                 f"└─ 🔐 `Clearance: {p_type}`\n"
+                f"└─ 🔗 `Link: {invite_link}`\n"
             )
             guild_list.append(entry)
         
