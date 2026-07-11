@@ -44,19 +44,103 @@ class ConfessionModal(discord.ui.Modal, title="CONFESSION SUBMISSION"):
         embed.set_footer(text=f"Target Destination: {slot_label} Channel")
         
         # FIXED: Passing target_slot to the review view
-        view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id, self.target_slot)
+        view = ConfessionReviewView(self.main_mod, self.confession.value, interaction.user.id, self.target_slot, parent_id=None)
         await review_channel.send(content=ping_content, embed=embed, view=view)
         
         await interaction.response.send_message("✅ Your confession has been transmitted to the Master for review.", ephemeral=True)
 
+
+class ConfessionReplyModal(discord.ui.Modal, title="ANONYMOUS REPLY SUBMISSION"):
+    reply_text = discord.ui.TextInput(
+        label="What is your response frequency?",
+        style=discord.TextStyle.paragraph,
+        placeholder="Type your anonymous reply to this thread here...",
+        required=True,
+        max_length=4000,
+    )
+
+    def __init__(self, main_mod, bot, review_channel_id, target_slot=1, parent_id=None):
+        super().__init__()
+        self.main_mod = main_mod
+        self.bot = bot
+        self.review_channel_id = review_channel_id
+        self.target_slot = target_slot
+        self.parent_id = parent_id
+
+    async def on_submit(self, interaction: discord.Interaction):
+        review_channel = self.bot.get_channel(self.review_channel_id)
+        if not review_channel:
+            return await interaction.response.send_message("❌ Error: Review channel not found.", ephemeral=True)
+
+        cog = self.bot.get_cog("ConfessionSystem")
+        cog.load_config(interaction.guild.id)
+        ping_content = f"<@&{cog.ping_role_id}>" if cog.ping_role_id else None
+
+        slot_label = "SFW" if self.target_slot == 1 else "NSFW"
+        embed = self.main_mod.fiery_embed(f"🛰️ INCOMING ANONYMOUS REPLY [{slot_label}]", 
+                                        f"**Replying to Confession:** #{self.parent_id}\n\n**Response:**\n{self.reply_text.value}")
+        
+        embed.add_field(name="👤 Submitter Identity", value=f"{interaction.user.mention} ({interaction.user.id})", inline=False)
+        embed.set_footer(text=f"Target Destination: {slot_label} Channel | Parent Thread: #{self.parent_id}")
+        
+        view = ConfessionReviewView(self.main_mod, self.reply_text.value, interaction.user.id, self.target_slot, parent_id=self.parent_id)
+        await review_channel.send(content=ping_content, embed=embed, view=view)
+        
+        await interaction.response.send_message("✅ Your anonymous reply has been transmitted to the Master for verification.", ephemeral=True)
+
+
+class PublicConfessionView(discord.ui.View):
+    def __init__(self, main_mod, bot, review_channel_id=None, target_slot=1, confession_id=None):
+        super().__init__(timeout=None)
+        self.main_mod = main_mod
+        self.bot = bot
+        self.review_channel_id = review_channel_id
+        self.target_slot = target_slot
+        self.confession_id = confession_id
+        
+        # PERSISTENT DYNAMIC IDENTIFIER ASSIGNMENT
+        self.children[0].custom_id = f"confess_reply_trigger_{confession_id if confession_id else 'cold'}"
+
+    @discord.ui.button(label="REPLY ANONYMOUSLY", style=discord.ButtonStyle.primary, emoji="💬")
+    async def open_reply_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("ConfessionSystem")
+        cog.load_config(interaction.guild.id)
+        
+        if cog.review_channel_id is None:
+            return await interaction.response.send_message("❌ The confession system configuration is missing.", ephemeral=True)
+
+        # Recovery protocol if the view rehydrated cold from persistence cache
+        parsed_parent_id = None
+        if self.confession_id:
+            parsed_parent_id = self.confession_id
+        else:
+            try:
+                embed_title = interaction.message.embeds[0].title
+                parsed_parent_id = int(embed_title.split("#")[-1])
+            except:
+                return await interaction.response.send_message("❌ Failed to resolve baseline thread metadata context.", ephemeral=True)
+
+        parsed_slot = 1
+        try:
+            if interaction.message.channel.id == cog.post_channel_id_2:
+                parsed_slot = 2
+        except:
+            pass
+
+        await interaction.response.send_modal(
+            ConfessionReplyModal(self.main_mod, interaction.client, cog.review_channel_id, parsed_slot, parent_id=parsed_parent_id)
+        )
+
+
 class ConfessionReviewView(discord.ui.View):
-    def __init__(self, main_mod, confession_text, submitter_id=None, target_slot=1):
+    def __init__(self, main_mod, confession_text, submitter_id=None, target_slot=1, parent_id=None):
         # MANDATORY PERSISTENCE FIX: Added timeout=None
         super().__init__(timeout=None)
         self.main_mod = main_mod
         self.confession_text = confession_text
         self.submitter_id = submitter_id
         self.target_slot = target_slot
+        self.parent_id = parent_id
 
     @discord.ui.button(label="APPROVE", style=discord.ButtonStyle.success, emoji="✅", custom_id="confess_approve_btn")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -70,9 +154,18 @@ class ConfessionReviewView(discord.ui.View):
         if not self.confession_text:
             try:
                 content_field = interaction.message.embeds[0].description
-                self.confession_text = content_field.replace("**Submission:**\n", "")
+                if "**Response:**\n" in content_field:
+                    self.confession_text = content_field.split("**Response:**\n")[-1]
+                else:
+                    self.confession_text = content_field.replace("**Submission:**\n", "")
+                
                 # Logic to determine slot from embed title if memory is wiped
                 self.target_slot = 2 if "NSFW" in interaction.message.embeds[0].title else 1
+                
+                # Rehydrate thread structure markers if handling a cold reply item
+                if "REPLY" in interaction.message.embeds[0].title:
+                    footer_text = interaction.message.embeds[0].footer.text
+                    self.parent_id = int(footer_text.split("#")[-1])
             except:
                 return await interaction.response.send_message("❌ Metadata lost. Cannot approve this legacy message.", ephemeral=True)
 
@@ -85,29 +178,47 @@ class ConfessionReviewView(discord.ui.View):
         if not post_channel:
             return await interaction.response.send_message("❌ Error: Target post channel not configured.", ephemeral=True)
 
-        # Get total confession count for the ID
-        cog.confession_count += 1
-        cog.save_config(interaction.guild.id)
-
-        embed = self.main_mod.fiery_embed(f"💌 ANONYMOUS CONFESSION #{cog.confession_count}", 
-                                        f"\"{self.confession_text}\"")
-        embed.set_footer(text="Frequency verified by the Red Room.")
-        
-        # --- ADDED: SUBMIT ANOTHER BUTTON PROTOCOL ---
-        view = ConfessionSubmissionView(self.main_mod, interaction.client, cog.review_channel_id, self.target_slot)
-        view.children[0].label = "SUBMIT ANOTHER"
-        
-        await post_channel.send(embed=embed, view=view)
-        
-        # --- MODIFIED: AUDIT PERSISTENCE ---
-        original_embed = interaction.message.embeds[0]
-        original_embed.title = "✅ CONFESSION DISPATCHED"
-        original_embed.color = discord.Color.green()
         dest_name = "NSFW" if self.target_slot == 2 else "SFW"
-        original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nSent to: {dest_name}", inline=False)
-        
-        await interaction.message.edit(content=None, embed=original_embed, view=None)
-        await interaction.response.send_message(f"✅ Confession Approved and Dispatched to {dest_name}.", ephemeral=True)
+
+        # Check if item is processing an anonymous reply submission or standard standalone confession
+        if self.parent_id:
+            # Thread Reply Routing Layout Execution
+            embed = self.main_mod.fiery_embed(f"💥 ANONYMOUS REPLY TO THREAD #{self.parent_id}", 
+                                            f"\"{self.confession_text}\"")
+            embed.set_footer(text=f"Linked to core transmission frequency #{self.parent_id}")
+            
+            # Attaching active Public Confession View allowing infinite reply chaining architecture
+            public_view = PublicConfessionView(self.main_mod, interaction.client, cog.review_channel_id, self.target_slot, confession_id=self.parent_id)
+            await post_channel.send(embed=embed, view=public_view)
+
+            original_embed = interaction.message.embeds[0]
+            original_embed.title = "✅ REPLY TRANSMITTED AND DISPATCHED"
+            original_embed.color = discord.Color.green()
+            original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nParent Target: #{self.parent_id}\nSent to: {dest_name}", inline=False)
+            
+            await interaction.message.edit(content=None, embed=original_embed, view=None)
+            await interaction.response.send_message(f"✅ Anonymous Reply Dispatched to {dest_name}.", ephemeral=True)
+
+        else:
+            # Standalone Base Confession Routing Layout Execution
+            cog.confession_count += 1
+            cog.save_config(interaction.guild.id)
+
+            embed = self.main_mod.fiery_embed(f"💌 ANONYMOUS CONFESSION #{cog.confession_count}", 
+                                            f"\"{self.confession_text}\"")
+            embed.set_footer(text="Frequency verified by the Red Room.")
+            
+            # Integrating the public interactive view onto the broadcast asset
+            public_view = PublicConfessionView(self.main_mod, interaction.client, cog.review_channel_id, self.target_slot, confession_id=cog.confession_count)
+            await post_channel.send(embed=embed, view=public_view)
+            
+            original_embed = interaction.message.embeds[0]
+            original_embed.title = "✅ CONFESSION DISPATCHED"
+            original_embed.color = discord.Color.green()
+            original_embed.add_field(name="⚖️ Decision", value=f"Approved by {interaction.user.mention}\nPublic ID: #{cog.confession_count}\nSent to: {dest_name}", inline=False)
+            
+            await interaction.message.edit(content=None, embed=original_embed, view=None)
+            await interaction.response.send_message(f"✅ Confession Approved and Dispatched to {dest_name}.", ephemeral=True)
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="confess_reject_btn")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -119,7 +230,11 @@ class ConfessionReviewView(discord.ui.View):
         # Recovery of text for rejection audit
         if not self.confession_text:
             try:
-                self.confession_text = interaction.message.embeds[0].description.replace("**Submission:**\n", "")
+                content_field = interaction.message.embeds[0].description
+                if "**Response:**\n" in content_field:
+                    self.confession_text = content_field.split("**Response:**\n")[-1]
+                else:
+                    self.confession_text = content_field.replace("**Submission:**\n", "")
             except: self.confession_text = "Data Purged"
 
         if audit_channel:
@@ -131,8 +246,7 @@ class ConfessionReviewView(discord.ui.View):
                 except: pass
 
             user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
-            # FIXED: f-string literal cleaned to prevent SyntaxError
-            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", f"**Moderator:** {interaction.user.mention}\n**Submitter:** {user_info}\n**Content Purged:**\n{self.confession_text}", color=0xFF0000)
+            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", f"**Type Context:** {'Reply Submission' if self.parent_id else 'Base Confession'}\n**Moderator:** {interaction.user.mention}\n**Submitter:** {user_info}\n**Content Purged:**\n{self.confession_text}", color=0xFF0000)
             await audit_channel.send(embed=archive_emb)
 
         # --- MODIFIED: HISTORY RETENTION IN REVIEW CHANNEL ---
@@ -144,6 +258,7 @@ class ConfessionReviewView(discord.ui.View):
         
         await interaction.message.edit(content=None, embed=rejected_embed, view=None)
         await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
+
 
 class ConfessionSubmissionView(discord.ui.View):
     def __init__(self, main_mod, bot, review_channel_id=None, target_slot=1):
@@ -171,6 +286,7 @@ class ConfessionSubmissionView(discord.ui.View):
         if button.custom_id == "confess_btn_slot_2": slot = 2
 
         await interaction.response.send_modal(ConfessionModal(self.main_mod, interaction.client, cog.review_channel_id, slot))
+
 
 class ConfessionSystem(commands.Cog):
     def __init__(self, bot):
@@ -320,13 +436,14 @@ class ConfessionSystem(commands.Cog):
         embed.set_footer(text="Submitted via command protocol (SFW).")
         
         # FIXED: Passing target_slot 1 for manual commands
-        view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1)
+        view = ConfessionReviewView(main_mod, message, ctx.author.id, target_slot=1, parent_id=None)
         await review_channel.send(content=ping_content, embed=embed, view=view)
         
         try:
             await ctx.message.delete()
         except: pass
         await ctx.send("✅ Your confession has been transmitted for review.", delete_after=5)
+
 
 async def setup(bot):
     main_mod = sys.modules['__main__']
@@ -341,3 +458,6 @@ async def setup(bot):
     
     # Register the Review View (used for the approval messages themselves)
     bot.add_view(ConfessionReviewView(main_mod, confession_text=None))
+
+    # Register the Dynamic Public View (with cold initialization parameters for global persistent listeners)
+    bot.add_view(PublicConfessionView(main_mod, bot, confession_id=None))
