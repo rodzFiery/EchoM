@@ -89,6 +89,77 @@ class ConfessionReplyModal(discord.ui.Modal, title="ANONYMOUS REPLY SUBMISSION")
         await interaction.response.send_message("✅ Your anonymous reply has been transmitted to the Master for verification.", ephemeral=True)
 
 
+class RejectionJustificationModal(discord.ui.Modal, title="REJECTION JUSTIFICATION"):
+    reason = discord.ui.TextInput(
+        label="Reason for Denial",
+        style=discord.TextStyle.paragraph,
+        placeholder="Enter the justification text to be sent to the member's DMs...",
+        required=True,
+        max_length=1000
+    )
+
+    def __init__(self, main_mod, confession_text, submitter_id, review_view_instance):
+        super().__init__()
+        self.main_mod = main_mod
+        self.confession_text = confession_text
+        self.submitter_id = submitter_id
+        self.review_view_instance = review_view_instance
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # --- AUTO-ARCHIVE PROTOCOL ---
+        audit_id = getattr(self.main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
+        audit_channel = interaction.client.get_channel(audit_id)
+
+        user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
+        
+        if audit_channel:
+            archive_emb = self.main_mod.fiery_embed(
+                "🚨 CONFESSION REJECTED & ARCHIVED", 
+                f"**Type Context:** {'Reply Submission' if self.review_view_instance.parent_id else 'Base Confession'}\n"
+                f"**Moderator:** {interaction.user.mention}\n"
+                f"**Submitter:** {user_info}\n"
+                f"**Justification Given:** {self.reason.value}\n"
+                f"**Content Purged:**\n{self.confession_text}", 
+                color=0xFF0000
+            )
+            await audit_channel.send(embed=archive_emb)
+
+        # Anonymously inform the user via Direct Messages
+        dm_status = "Justification transmitted successfully to member DMs."
+        if self.submitter_id:
+            try:
+                user = interaction.guild.get_member(int(self.submitter_id)) or await interaction.client.fetch_user(int(self.submitter_id))
+                if user:
+                    dm_embed = self.main_mod.fiery_embed(
+                        "❌ CONFESSION TRANSMISSION REJECTED",
+                        f"Your recent anonymous submission has been reviewed and **denied**.\n\n"
+                        f"⚠️ **Reason for Rejection:**\n*{self.reason.value}*\n\n"
+                        f"**Your original submission text:**\n\"{self.confession_text}\"",
+                        color=0xFF0000
+                    )
+                    await user.send(embed=dm_embed)
+            except Exception as dm_error:
+                dm_status = "Failed to DM member (DMs closed or blocked)."
+                print(f"DM Notification Error: {dm_error}")
+        else:
+            dm_status = "Could not resolve Submitter ID metadata tracking info."
+
+        # --- MODIFIED: HISTORY RETENTION IN REVIEW CHANNEL ---
+        rejected_embed = interaction.message.embeds[0]
+        rejected_embed.title = "❌ CONFESSION REJECTED"
+        rejected_embed.color = discord.Color.red()
+        rejected_embed.add_field(
+            name="⚖️ Decision Context", 
+            value=f"Rejected by {interaction.user.mention}\n"
+                  f"Justification: {self.reason.value}\n"
+                  f"Status: {dm_status}", 
+            inline=False
+        )
+        
+        await interaction.message.edit(content=None, embed=rejected_embed, view=None)
+        await interaction.response.send_message(f"🗑️ Confession Purged. {dm_status}", ephemeral=True)
+
+
 class PublicConfessionView(discord.ui.View):
     def __init__(self, main_mod, bot, review_channel_id=None, target_slot=1, confession_id=None):
         super().__init__(timeout=None)
@@ -236,12 +307,9 @@ class ConfessionReviewView(discord.ui.View):
 
     @discord.ui.button(label="REJECT", style=discord.ButtonStyle.danger, emoji="🗑️", custom_id="confess_reject_btn")
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # --- AUTO-ARCHIVE PROTOCOL ---
         main_mod = sys.modules['__main__']
-        audit_id = getattr(main_mod, "AUDIT_CHANNEL_ID", 1438810509322223677)
-        audit_channel = interaction.client.get_channel(audit_id)
         
-        # Recovery of text for rejection audit
+        # Recovery of text for rejection audit from dynamic structural attributes
         if not self.confession_text:
             try:
                 content_field = interaction.message.embeds[0].description
@@ -249,29 +317,21 @@ class ConfessionReviewView(discord.ui.View):
                     self.confession_text = content_field.split("**Response:**\n")[-1]
                 else:
                     self.confession_text = content_field.replace("**Submission:**\n", "")
-            except: self.confession_text = "Data Purged"
+            except: 
+                self.confession_text = "Data Purged"
 
-        if audit_channel:
-            # Attempt to find submitter ID from embed if view is cold
-            if not self.submitter_id:
-                try: 
-                    id_val = interaction.message.embeds[0].fields[0].value
-                    self.submitter_id = id_val.split("(")[-1].replace(")", "")
-                except: pass
+        # Attempt to find submitter ID from embed if view instance is cold
+        if not self.submitter_id:
+            try: 
+                id_val = interaction.message.embeds[0].fields[0].value
+                self.submitter_id = id_val.split("(")[-1].replace(")", "")
+            except: 
+                pass
 
-            user_info = f"<@{self.submitter_id}>" if self.submitter_id else "Unknown"
-            archive_emb = self.main_mod.fiery_embed("🚨 CONFESSION REJECTED & ARCHIVED", f"**Type Context:** {'Reply Submission' if self.parent_id else 'Base Confession'}\n**Moderator:** {interaction.user.mention}\n**Submitter:** {user_info}\n**Content Purged:**\n{self.confession_text}", color=0xFF0000)
-            await audit_channel.send(embed=archive_emb)
-
-        # --- MODIFIED: HISTORY RETENTION IN REVIEW CHANNEL ---
-        # Update the original review message instead of deleting it
-        rejected_embed = interaction.message.embeds[0]
-        rejected_embed.title = "❌ CONFESSION REJECTED"
-        rejected_embed.color = discord.Color.red()
-        rejected_embed.add_field(name="⚖️ Decision", value=f"Rejected by {interaction.user.mention}\nStatus: Purged from public queue.", inline=False)
-        
-        await interaction.message.edit(content=None, embed=rejected_embed, view=None)
-        await interaction.response.send_message("🗑️ Confession Purged.", ephemeral=True)
+        # INTERCEPT ROUTE: Fire dynamic text collection modal interface instead of simple deletion
+        await interaction.response.send_modal(
+            RejectionJustificationModal(main_mod, self.confession_text, self.submitter_id, self)
+        )
 
 
 class ConfessionSubmissionView(discord.ui.View):
