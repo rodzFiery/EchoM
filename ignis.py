@@ -384,7 +384,7 @@ class EngineControl(commands.Cog):
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
-            rose = conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             
             conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             row = conn.execute("SELECT server_edition FROM ignis_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
@@ -1106,44 +1106,17 @@ class IgnisEngine(commands.Cog):
                     )
                     
                     paragraphs_list = []
-                    downloaded_assets = []
-                    async with aiohttp.ClientSession() as session:
-                        for m in faction_flashers:
-                            paragraphs_list.append(f"{m.mention}")
-                            try:
-                                async with session.get(m.display_avatar.url, timeout=5) as resp:
-                                    if resp.status == 200:
-                                        img_data = io.BytesIO(await resp.read())
-                                        img = Image.open(img_data).convert("RGBA").resize((80, 80))
-                                        downloaded_assets.append((img, m.display_name))
-                            except:
-                                pass
+                    # CHANGED: Replaced PIL layout with an advanced native markdown vertical alignment profile layout
+                    # Format: Clickable avatar image next to profile card redirect nickname link
+                    for m in faction_flashers:
+                        avatar_url = m.display_avatar.url
+                        profile_mention = f"[**{m.display_name}**](https://discord.com/users/{m.id})"
+                        paragraphs_list.append(f"└─ [![pic]({avatar_url})]({avatar_url}) {profile_mention}")
                     
                     if paragraphs_list:
                         nsfw_embed.description += "\n".join(paragraphs_list)
                     else:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
-                        
-                    # CHANGED VISUAL PRESENTATION TO NICKNAME + PIC IN A VERTICAL ARRAY MATRIX
-                    if downloaded_assets:
-                        spacing = 15
-                        row_h = 80
-                        strip_w = 600
-                        strip_h = (row_h * len(downloaded_assets)) + (spacing * (len(downloaded_assets) - 1))
-                        strip_bg = Image.new("RGBA", (strip_w, strip_h), (0, 0, 0, 0))
-                        draw = ImageDraw.Draw(strip_bg)
-                        
-                        current_y = 0
-                        for img, name in downloaded_assets:
-                            strip_bg.paste(img, (0, current_y), img)
-                            draw.text((100, current_y + 30), name, fill=(255, 255, 255, 255))
-                            current_y += row_h + spacing
-                            
-                        buf_strip = io.BytesIO()
-                        strip_bg.save(buf_strip, format="PNG")
-                        buf_strip.seek(0)
-                        recap_file = discord.File(fp=buf_strip, filename="faction_strip.png")
-                        nsfw_embed.set_image(url="attachment://faction_strip.png")
 
                     if faction_flashers:
                         ping_content = f"🔞 **FACTION MASS WIPE PROTOCOL PINGS:** " + " ".join([m.mention for m in faction_flashers]) + f" {winner_member.mention}"
