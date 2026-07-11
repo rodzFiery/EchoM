@@ -403,6 +403,16 @@ class EngineControl(commands.Cog):
         )
         
         view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
+        # FORCE STANDARD RULE PAYLOAD SO IT RUNS ITS OWN COHESIVE RECAP LOGIC
+        view.custom_rules = {
+            "first_blood": True,
+            "legendary": True,
+            "suicide": True,
+            "bot_random": True,
+            "winner_picks": 3,
+            "faction_theme": "ffa",
+            "is_custom_setup": False
+        }
         self.bot.add_view(view)
 
         if engine: 
@@ -700,7 +710,7 @@ class IgnisEngine(commands.Cog):
             "legendary": True,
             "suicide": True,
             "bot_random": True,
-            "winner_picks": 2,
+            "winner_picks": 3,
             "faction_theme": "ffa",
             "is_custom_setup": False
         }
@@ -1275,7 +1285,6 @@ class StatusCheck(commands.Cog):
             "Cold, quiet, and completely used up. {mention} is dead.",
             "Another soul for the furnace. {mention} has been eliminated.",
             "The cage is empty. {mention} has fallen.",
-            "Submission reached its limit. {mention} is out of the game.",
             "Silence suits you, loser. {mention} is dead."
         ]
 
