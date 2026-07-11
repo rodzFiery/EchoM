@@ -122,7 +122,12 @@ class BJGameView(discord.ui.View):
         button.disabled = True
         await interaction.message.edit(view=self)
         self.p_hand.append(self.cog.draw_card())
-        if self.cog.calculate_bj(self.p_hand) > 21:
+        
+        # --- TOUCH: FIVE-CARD CHARLIE MITIGATION ---
+        if len(self.p_hand) >= 5 and self.cog.calculate_bj(self.p_hand) <= 21:
+            await self.cog.finish_blackjack(interaction, self.bet, self.p_hand, self.d_hand, "CHARLIE")
+            self.stop()
+        elif self.cog.calculate_bj(self.p_hand) > 21:
             await self.cog.finish_blackjack(interaction, self.bet, self.p_hand, self.d_hand, "BUST")
             self.stop()
         else:
@@ -328,6 +333,12 @@ class FieryCasino(commands.Cog):
             await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Dice Win")
             title, color = "🔞 CLIMAX ACHIEVED 🔞", 0x00FF00
             res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}**\n\n🫦 **DOMINANCE.** Net Profit: **{(win_total-bet):,} Flames**."
+        # --- TOUCH: CONSULATION PAYOUT BUMPING CHANCES FOR NEAR MISS SUMS ---
+        elif abs(total - guess) == 1:
+            win_total = int(bet + ((bet * 1) * mult))
+            await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Dice Near Climax Win")
+            title, color = "🫦 NEAR CLIMAX 🫦", 0x1E90FF
+            res = f"The dice settle: **[{d1}]** & **[{d2}]**\nTotal: **{total}** (Target was {guess})\n\n✨ **CONSOLATION.** Close alignment yields safety. Net Profit: **{(win_total-bet):,} Flames**."
         else:
             # Math: Loss is negative bet
             await self.update_casino_balance(interaction.user.id, amount=-bet, source="Dice Loss")
@@ -401,6 +412,11 @@ class FieryCasino(commands.Cog):
             win_amt = int(bet + ((bet * 1.5) * mult))
             status = f"🔞 **NATURAL CLIMAX!** {interaction.user.display_name} overstimulated the dealer."
             color = 0xFFD700
+        # --- TOUCH: FIVE-CARD CHARLIE MITIGATION FOR EXTRA SURVIVABILITY ---
+        elif reason == "CHARLIE":
+            win_amt = int(bet + ((bet * 1) * mult))
+            status = f"🔞 **FIVE-CARD CHARLIE!** {interaction.user.display_name} overwhelmed the dealer with absolute endurance."
+            color = 0x00FFFF
         elif p_score > 21:
             win_amt = -bet
             status = f"💀 **BUST.** {interaction.user.display_name} broke under pressure."
@@ -486,9 +502,15 @@ class FieryCasino(commands.Cog):
             win_amt = int((bet * payout_mult) * mult)
             # --- ADDED: FIX MULTIPLIER INFLATING ORIGINAL BET INSTEAD OF PURE PROFIT ---
             win_amt = int(bet + ((bet * (payout_mult - 1)) * mult))
-            await self.update_casino_balance(interaction.user.id, amount=win_total-bet, source="Roulette Win")
+            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Roulette Win")
             title, color_hex = "🔞 THE WHEEL SUBMITS 🔞", 0x00FF00
             res = f"The ball settles on: **{num} ({color.upper()})**\n\n🫦 **ALIGNMENT.** Net Payout of **{(win_amt-bet):,} Flames**!"
+        # --- TOUCH: NEIGHBORING RE-ALIGNMENT FOR NUMBER MISSED BY 1 ---
+        elif choice.isdigit() and abs(int(choice) - num) == 1:
+            win_amt = int(bet + ((bet * 4) * mult))
+            await self.update_casino_balance(interaction.user.id, amount=win_amt-bet, source="Roulette Near Hit")
+            title, color_hex = "🫦 NEIGHBORING RESONANCE 🫦", 0x1E90FF
+            res = f"The ball settles on: **{num} ({color.upper()})**\nYour target: **{choice}**\n\n✨ **CONSOLATION.** Capturing the fringe frequencies yields rewards. Net Payout: **{(win_amt-bet):,} Flames**!"
         else:
             await self.update_casino_balance(interaction.user.id, amount=-bet, source="Roulette Loss")
             title, color_hex = "💀 THE WHEEL REJECTS 💀", 0x8B0000
@@ -533,14 +555,17 @@ class FieryCasino(commands.Cog):
         self.active_sessions.add(interaction.user.id)
         icons = ["🫦", "⛓️", "🔞", "🍑", "💦", "🔥"]
         
+        # --- TOUCH: INTRODUCING WEIGHTED REEL ALIGNMENT POOL TO PREVENT HEAVY LOSS STREAKS ---
+        weighted_pool = ["🫦", "🫦", "🫦", "⛓️", "⛓️", "⛓️", "🔞", "🔞", "🍑", "🍑", "💦", "🔥"]
+        
         # ANIMATION SEQUENCE
         await interaction.response.edit_message(content="🎰 **Spinning...**", view=None, embed=None)
         for frame in range(3):
-            f1, f2, f3 = random.choice(icons), random.choice(icons), random.choice(icons)
+            f1, f2, f3 = random.choice(weighted_pool), random.choice(weighted_pool), random.choice(weighted_pool)
             await interaction.edit_original_response(content=f"🎰 **REELS SPINNING:** `[ {f1} | {f2} | {f3} ]`", view=None, embed=None)
             await asyncio.sleep(0.7)
             
-        r1, r2, r3 = random.choice(icons), random.choice(icons), random.choice(icons)
+        r1, r2, r3 = random.choice(weighted_pool), random.choice(weighted_pool), random.choice(weighted_pool)
         mult = 1.0 + (user['fiery_level'] * 0.01)
         win_amt = 0
         if r1 == r2 == r3:
