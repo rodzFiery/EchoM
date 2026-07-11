@@ -1073,6 +1073,7 @@ class IgnisEngine(commands.Cog):
                 if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
                 ping_content += f"{winner_member.mention}"
                 
+                recap_file = None
                 if rules.get("is_custom_setup") and rules['faction_theme'] in ["men_vs_girls", "usa_vs_world"]:
                     faction_flashers = []
                     if rules['faction_theme'] == "men_vs_girls":
@@ -1105,14 +1106,40 @@ class IgnisEngine(commands.Cog):
                     )
                     
                     paragraphs_list = []
-                    for m in faction_flashers:
-                        paragraphs_list.append(f"{m.mention} - **{m.display_name}**\n🖼️ Avatar: {m.display_avatar.url}")
+                    downloaded_images = []
+                    async with aiohttp.ClientSession() as session:
+                        for m in faction_flashers:
+                            paragraphs_list.append(f"{m.mention} - **{m.display_name}**")
+                            try:
+                                async with session.get(m.display_avatar.url, timeout=5) as resp:
+                                    if resp.status == 200:
+                                        img_data = io.BytesIO(await resp.read())
+                                        downloaded_images.append(Image.open(img_data).convert("RGBA").resize((80, 80)))
+                            except:
+                                pass
                     
                     if paragraphs_list:
-                        nsfw_embed.description += "\n\n".join(paragraphs_list)
+                        nsfw_embed.description += "\n".join(paragraphs_list)
                     else:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
                         
+                    if downloaded_images:
+                        spacing = 10
+                        strip_w = (80 * len(downloaded_images)) + (spacing * (len(downloaded_images) - 1))
+                        strip_h = 80
+                        strip_bg = Image.new("RGBA", (strip_w, strip_h), (0, 0, 0, 0))
+                        
+                        current_x = 0
+                        for img in downloaded_images:
+                            strip_bg.paste(img, (current_x, 0), img)
+                            current_x += 80 + spacing
+                            
+                        buf_strip = io.BytesIO()
+                        strip_bg.save(buf_strip, format="PNG")
+                        buf_strip.seek(0)
+                        recap_file = discord.File(fp=buf_strip, filename="faction_strip.png")
+                        nsfw_embed.set_image(url="attachment://faction_strip.png")
+
                     if faction_flashers:
                         ping_content = f"🔞 **FACTION MASS WIPE PROTOCOL PINGS:** " + " ".join([m.mention for m in faction_flashers]) + f" {winner_member.mention}"
                 
@@ -1140,7 +1167,10 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
                     nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
                 
-                await channel.send(content=ping_content, embed=nsfw_embed)
+                if recap_file:
+                    await channel.send(content=ping_content, file=recap_file, embed=nsfw_embed)
+                else:
+                    await channel.send(content=ping_content, embed=nsfw_embed)
 
             import sys as _sys_audit
             self.audit_channel_id = getattr(_sys_audit.modules['__main__'], "AUDIT_CHANNEL_ID", self.audit_channel_id)
