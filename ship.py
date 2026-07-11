@@ -374,7 +374,7 @@ class FieryShip(commands.Cog):
             return await asyncio.to_thread(draw_union)
         except: return None
 
-    # ADDED: Activity tracking for Proximity
+    # --- Activity tracking for Proximity ---
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
@@ -387,7 +387,6 @@ class FieryShip(commands.Cog):
                 # This logic assumes a 'proximity_logs' table exists
                 # For brevity, we update a direct interaction score between users
                 pass # Logic handled dynamically in ship if needed, or via specific listeners
-        # To keep it lightweight, proximity is often calculated via a specific 'activity' counter
 
     @commands.command(name="ship")
     async def ship(self, ctx, user1: discord.Member, user2: discord.Member = None):
@@ -556,8 +555,9 @@ class FieryShip(commands.Cog):
         
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
-        # We define pair_key broadly for Author's daily limit
-        pair_key = f"3some-limit-{ctx.author.id}"
+        # MODIFIED: Key now tracks daily limit per author and per guild to scope per server
+        guild_id = ctx.guild.id if ctx.guild else 0
+        pair_key = f"3some-limit-{ctx.author.id}-{guild_id}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
             self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'used_targets': []}
@@ -576,7 +576,7 @@ class FieryShip(commands.Cog):
                 members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
                 if len(members) < 2:
                     return await ctx.send("❌ Not enough unique assets in the pit for a new scan.")
-            target1, target2 = random.sample(members, 2)
+                target1, target2 = random.sample(members, 2)
         else:
             target1, target2 = t1, t2
 
@@ -860,7 +860,7 @@ class FieryShip(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    # ADDED: Ship History command
+    # --- Ship History command ---
     @commands.command(name="shiphistory")
     async def shiphistory(self, ctx, user: discord.Member = None):
         """Review the last 5 scans recorded in the dungeon."""
