@@ -99,9 +99,23 @@ class PublicConfessionView(discord.ui.View):
         self.confession_id = confession_id
         
         # PERSISTENT DYNAMIC IDENTIFIER ASSIGNMENT
-        self.children[0].custom_id = f"confess_reply_trigger_{confession_id if confession_id else 'cold'}"
+        self.children[0].custom_id = f"confess_btn_another_slot_{target_slot}"
+        self.children[1].custom_id = f"confess_reply_trigger_{confession_id if confession_id else 'cold'}"
 
-    @discord.ui.button(label="REPLY ANONYMOUSLY", style=discord.ButtonStyle.primary, emoji="💬")
+    @discord.ui.button(label="SUBMIT ANOTHER", style=discord.ButtonStyle.secondary, emoji="💞")
+    async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("ConfessionSystem")
+        cog.load_config(interaction.guild.id)
+        
+        if cog.review_channel_id is None:
+            return await interaction.response.send_message("❌ The confession system is not configured.", ephemeral=True)
+        
+        slot = 1
+        if button.custom_id == f"confess_btn_another_slot_2": slot = 2
+
+        await interaction.response.send_modal(ConfessionModal(self.main_mod, interaction.client, cog.review_channel_id, slot))
+
+    @discord.ui.button(label="REPLY ANONYMOUSLY", style=discord.ButtonStyle.primary, emoji="💖")
     async def open_reply_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("ConfessionSystem")
         cog.load_config(interaction.guild.id)
@@ -460,4 +474,5 @@ async def setup(bot):
     bot.add_view(ConfessionReviewView(main_mod, confession_text=None))
 
     # Register the Dynamic Public View (with cold initialization parameters for global persistent listeners)
-    bot.add_view(PublicConfessionView(main_mod, bot, confession_id=None))
+    bot.add_view(PublicConfessionView(main_mod, bot, target_slot=1, confession_id=None))
+    bot.add_view(PublicConfessionView(main_mod, bot, target_slot=2, confession_id=None))
