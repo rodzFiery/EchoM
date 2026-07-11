@@ -940,8 +940,8 @@ class IgnisEngine(commands.Cog):
                         await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
                     first_blood_recorded = True
 
-                if channel.id in self.current_survivors:
-                    if loser['id'] in self.current_survivors[channel.id]:
+                if channel.id in self.active_battles:
+                    if loser['id'] in self.current_survivors.get(channel.id, []):
                         self.current_survivors[channel.id].remove(loser['id'])
                 
                 game_kills[winner['id']] += 1
@@ -1101,7 +1101,7 @@ class IgnisEngine(commands.Cog):
 
                     nsfw_embed = discord.Embed(
                         title="🔮 CUSTOM ARCHITECT PROTOCOL: RECAP 🔮",
-                        description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`\n\n**AVAILABLE MEMBERS TO CHOOSE:**\n\n",
+                        description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`\n\n**MEMBERS TO FLASH:**\n\n",
                         color=0x9400D3
                     )
                     
@@ -1109,7 +1109,7 @@ class IgnisEngine(commands.Cog):
                     downloaded_images = []
                     async with aiohttp.ClientSession() as session:
                         for m in faction_flashers:
-                            paragraphs_list.append(f"{m.mention} - **{m.display_name}**")
+                            paragraphs_list.append(f"{m.mention}")
                             try:
                                 async with session.get(m.display_avatar.url, timeout=5) as resp:
                                     if resp.status == 200:
