@@ -374,7 +374,7 @@ class FieryShip(commands.Cog):
             return await asyncio.to_thread(draw_union)
         except: return None
 
-    # --- Activity tracking for Proximity ---
+    # ADDED: Activity tracking for Proximity
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
@@ -387,6 +387,7 @@ class FieryShip(commands.Cog):
                 # This logic assumes a 'proximity_logs' table exists
                 # For brevity, we update a direct interaction score between users
                 pass # Logic handled dynamically in ship if needed, or via specific listeners
+        # To keep it lightweight, proximity is often calculated via a specific 'activity' counter
 
     @commands.command(name="ship")
     async def ship(self, ctx, user1: discord.Member, user2: discord.Member = None):
@@ -555,15 +556,17 @@ class FieryShip(commands.Cog):
         
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
-        # MODIFIED: Key now tracks daily limit per author and per guild to scope per server
-        guild_id = ctx.guild.id if ctx.guild else 0
-        pair_key = f"3some-limit-{ctx.author.id}-{guild_id}"
+        # We define pair_key broadly for Author's daily limit
+        pair_key = f"3some-limit-{ctx.author.id}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
             self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'used_targets': []}
             
         if self.ship_attempts[pair_key]['count'] >= 3:
             return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
+
+        # FIXED: Initialized target variables outside conditions to prevent UnboundLocalError during rerolls
+        target1, target2 = t1, t2
 
         # If reroll (button), t1/t2 will be None, we need to pick NEW people
         # Excluding previously picked people in this session
@@ -576,9 +579,7 @@ class FieryShip(commands.Cog):
                 members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
                 if len(members) < 2:
                     return await ctx.send("❌ Not enough unique assets in the pit for a new scan.")
-                target1, target2 = random.sample(members, 2)
-        else:
-            target1, target2 = t1, t2
+            target1, target2 = random.sample(members, 2)
 
         # Record targets
         self.ship_attempts[pair_key]['used_targets'].extend([target1.id, target2.id])
@@ -768,8 +769,74 @@ class FieryShip(commands.Cog):
                 pct = random.randint(0, 100)
                 matches.append((u1, u2, pct))
         top = sorted(matches, key=lambda x: x[2], reverse=True)[:5]
+        
+        # ADDED: High visual matching ledger board image generation logic
+        async def generate_leaderboard_img():
+            try:
+                # Layout specs: Width 900, Row Height 140 per match, Title Height 120
+                c_w, c_h = 950, 120 + (len(top) * 140) + 20
+                canvas = Image.new("RGBA", (c_w, c_h), (20, 5, 25, 255))
+                draw = ImageDraw.Draw(canvas)
+                
+                # Header layout details
+                draw.rectangle([15, 15, c_w - 15, 105], fill=(35, 10, 45, 255), outline=(255, 182, 193), width=2)
+                draw.text((35, 38), "🫦 TOP RESONANCE SCANS OF THE PIT", fill=(255, 182, 193))
+                
+                async with aiohttp.ClientSession() as session:
+                    for idx, (m1, m2, pct) in enumerate(top):
+                        y_off = 120 + (idx * 140)
+                        
+                        # Draw structural tier box frame
+                        draw.rectangle([15, y_off, c_w - 15, y_off + 125], fill=(28, 6, 34, 255), outline=(255, 105, 180, 80), width=1)
+                        draw.text((35, y_off + 45), f"#{idx+1}", fill=(255, 192, 203))
+                        
+                        # Fetch avatars concurrently safely inside the loop flow
+                        async with session.get(m1.display_avatar.url) as r1, session.get(m2.display_avatar.url) as r2:
+                            av1_b = io.BytesIO(await r1.read())
+                            av2_b = io.BytesIO(await r2.read())
+                            
+                        av1 = Image.open(av1_b).convert("RGBA").resize((90, 90))
+                        av2 = Image.open(av2_b).convert("RGBA").resize((90, 90))
+                        
+                        canvas.paste(av1, (95, y_off + 18), av1)
+                        draw.rectangle([95, y_off + 18, 185, y_off + 108], outline=(255, 182, 193), width=2)
+                        
+                        canvas.paste(av2, (200, y_off + 18), av2)
+                        draw.rectangle([200, y_off + 18, 290, y_off + 108], outline=(255, 182, 193), width=2)
+                        
+                        # Draw operational names
+                        pair_txt = f"{m1.display_name}  x  {m2.display_name}"
+                        draw.text((315, y_off + 28), pair_txt[:35], fill=(255, 245, 250))
+                        
+                        # Render specific individual flame bar mapping visual
+                        bar_x, bar_y, bar_w, bar_h = 315, y_off + 72, 450, 22
+                        draw.rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], fill=(15, 2, 20, 255), outline=(255, 182, 193, 120), width=1)
+                        fill_w = int((pct / 100) * bar_w)
+                        if fill_w > 0:
+                            draw.rectangle([bar_x + 1, bar_y + 1, bar_x + fill_w - 1, bar_y + bar_h - 1], fill=(255, 105, 180, 220))
+                            
+                        # Numerical score target readout metrics layout
+                        draw.text((790, y_off + 40), f"{pct}% 🔥", fill=(255, 182, 193))
+                        
+                buf = io.BytesIO()
+                canvas.save(buf, format="PNG")
+                buf.seek(0)
+                return buf
+            except Exception as e:
+                print(f"Matchmaking image gen failed: {e}")
+                return None
+
+        img_buf = await generate_leaderboard_img()
+        
         desc = "".join([f"**{idx+1}.** {m1.display_name} & {m2.display_name} ({pct}%)\n" for idx, (m1, m2, pct) in enumerate(top)])
-        await ctx.send(embed=main_mod.fiery_embed("🫦 MATCHMAKING", desc))
+        embed = main_mod.fiery_embed("🫦 MATCHMAKING", desc)
+        
+        if img_buf:
+            file = discord.File(img_buf, filename="matchmaking.png")
+            embed.set_image(url="attachment://matchmaking.png")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.command(name="lovescore", aliases=["lovelb"])
     async def lovescore(self, ctx):
@@ -860,7 +927,7 @@ class FieryShip(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    # --- Ship History command ---
+    # ADDED: Ship History command
     @commands.command(name="shiphistory")
     async def shiphistory(self, ctx, user: discord.Member = None):
         """Review the last 5 scans recorded in the dungeon."""
