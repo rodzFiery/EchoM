@@ -384,7 +384,7 @@ class EngineControl(commands.Cog):
                  return await ctx.send("❌ **Registration is already open for this server.** Use `!lobby` to check status.")
 
         with self.get_db_connection() as conn:
-            conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            rose = conn.execute("DELETE FROM lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             
             conn.execute("CREATE TABLE IF NOT EXISTS ignis_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             row = conn.execute("SELECT server_edition FROM ignis_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
@@ -1106,7 +1106,7 @@ class IgnisEngine(commands.Cog):
                     )
                     
                     paragraphs_list = []
-                    downloaded_images = []
+                    downloaded_assets = []
                     async with aiohttp.ClientSession() as session:
                         for m in faction_flashers:
                             paragraphs_list.append(f"{m.mention}")
@@ -1114,7 +1114,8 @@ class IgnisEngine(commands.Cog):
                                 async with session.get(m.display_avatar.url, timeout=5) as resp:
                                     if resp.status == 200:
                                         img_data = io.BytesIO(await resp.read())
-                                        downloaded_images.append(Image.open(img_data).convert("RGBA").resize((80, 80)))
+                                        img = Image.open(img_data).convert("RGBA").resize((80, 80))
+                                        downloaded_assets.append((img, m.display_name))
                             except:
                                 pass
                     
@@ -1123,16 +1124,20 @@ class IgnisEngine(commands.Cog):
                     else:
                         nsfw_embed.description += "*None (No matching faction assets available to display)*"
                         
-                    if downloaded_images:
-                        spacing = 10
-                        strip_w = (80 * len(downloaded_images)) + (spacing * (len(downloaded_images) - 1))
-                        strip_h = 80
+                    # CHANGED VISUAL PRESENTATION TO NICKNAME + PIC IN A VERTICAL ARRAY MATRIX
+                    if downloaded_assets:
+                        spacing = 15
+                        row_h = 80
+                        strip_w = 600
+                        strip_h = (row_h * len(downloaded_assets)) + (spacing * (len(downloaded_assets) - 1))
                         strip_bg = Image.new("RGBA", (strip_w, strip_h), (0, 0, 0, 0))
+                        draw = ImageDraw.Draw(strip_bg)
                         
-                        current_x = 0
-                        for img in downloaded_images:
-                            strip_bg.paste(img, (current_x, 0), img)
-                            current_x += 80 + spacing
+                        current_y = 0
+                        for img, name in downloaded_assets:
+                            strip_bg.paste(img, (0, current_y), img)
+                            draw.text((100, current_y + 30), name, fill=(255, 255, 255, 255))
+                            current_y += row_h + spacing
                             
                         buf_strip = io.BytesIO()
                         strip_bg.save(buf_strip, format="PNG")
