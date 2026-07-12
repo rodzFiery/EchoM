@@ -341,6 +341,7 @@ class Shop(commands.Cog):
                 type TEXT,
                 shared_luck REAL DEFAULT 0.0,
                 passive_income REAL DEFAULT 0.0,
+                shared_protection REAL DEFAULT 0.0,
                 PRIMARY KEY (user_one, user_two)
             )""")
             conn.commit()
@@ -602,12 +603,26 @@ class Shop(commands.Cog):
 
             luck_bonus = 0.01 
             income_bonus = 0.0 
+            protection_bonus = 0.01 # ADDED: Scaled base value tracking 1% upwards per ring tier
 
-            if tier == "Normal": luck_bonus = 0.02
-            elif tier == "Rare": luck_bonus = 0.04
-            elif tier == "Epic": luck_bonus = 0.08; income_bonus = 0.10
-            elif tier == "Legendary": luck_bonus = 0.12; income_bonus = 0.15
-            elif tier == "Supreme": luck_bonus = 0.20; income_bonus = 0.25
+            if tier == "Normal": 
+                luck_bonus = 0.02
+                protection_bonus = 0.02
+            elif tier == "Rare": 
+                luck_bonus = 0.04
+                protection_bonus = 0.03
+            elif tier == "Epic": 
+                luck_bonus = 0.08
+                income_bonus = 0.10
+                protection_bonus = 0.04
+            elif tier == "Legendary": 
+                luck_bonus = 0.12
+                income_bonus = 0.15
+                protection_bonus = 0.05
+            elif tier == "Supreme": 
+                luck_bonus = 0.20
+                income_bonus = 0.25
+                protection_bonus = 0.06
 
             with self.get_db_connection() as conn:
                 user = conn.execute("SELECT balance FROM users WHERE id = ?", (author.id,)).fetchone()
@@ -615,8 +630,12 @@ class Shop(commands.Cog):
                     return await channel.send(embed=discord.Embed(title="❌ Account Error", description="Soul not found in the registry.", color=0xFF0000))
 
                 u1, u2 = sorted([author.id, target.id])
-                conn.execute("INSERT OR REPLACE INTO relationships (user_one, user_two, type, shared_luck, passive_income) VALUES (?, ?, ?, ?, ?)",
-                             (u1, u2, "Bound", luck_bonus, income_bonus))
+                
+                # FIXED: Added tracking directly to relationships infrastructure query matrix map
+                conn.execute("""INSERT OR REPLACE INTO relationships 
+                                (user_one, user_two, type, shared_luck, passive_income, shared_protection) 
+                                VALUES (?, ?, ?, ?, ?, ?)""",
+                             (u1, u2, "Bound", luck_bonus, income_bonus, protection_bonus))
                  
                 # FIXED: Saved spouse metrics directly onto both users tables so `!inv` correctly reads relationship state
                 conn.execute("UPDATE users SET spouse = ? WHERE id = ?", (target.id, author.id))
@@ -627,6 +646,7 @@ class Shop(commands.Cog):
 
             bond_emb = discord.Embed(title="💞 THE CHAINS OF DESIRE", color=0xFF1493)
             bond_emb.description = f"{author.mention} and {target.mention} have sealed their fates with the **{item['name']}**.\n\n" \
+                                   f"🛡️ **Shared Preservation (Protection):** +{int(protection_bonus*100)}%\n" \
                                    f"🍀 **Shared Arousal (Luck):** +{int(luck_bonus*100)}%\n" \
                                    f"💰 **Shared Ecstasy (Income):** +{int(income_bonus*100)}%"
             await channel.send(embed=bond_emb)
@@ -710,19 +730,26 @@ class Shop(commands.Cog):
                     if cat != "Pets": total_luck += item.get('luck', 0)
 
         rel_luck = 0
+        rel_prot = 0 # ADDED: Protection metrics variable layout
+        
         # FIXED: Global query updated to sweep both user parameters safely within the layout bounds
         with self.get_db_connection() as conn:
-            rel = conn.execute("SELECT shared_luck FROM relationships WHERE user_one = ? OR user_two = ?", (target.id, target.id)).fetchone()
+            rel = conn.execute("SELECT shared_luck, shared_protection FROM relationships WHERE user_one = ? OR user_two = ?", (target.id, target.id)).fetchone()
             if rel: 
                 rel_luck = int(rel['shared_luck'] * 100)
+                if 'shared_protection' in rel.keys() and rel['shared_protection'] is not None:
+                    rel_prot = int(rel['shared_protection'] * 100)
         conn.close()
+
+        # ADDED: Accumulate active ring protection metrics directly onto total analysis visibility frame
+        total_prot += rel_prot
 
         embed = discord.Embed(title=f"📊 COMBAT ANALYSIS: {target.display_name.upper()}", color=0xFF4500)
         embed.set_thumbnail(url=target.display_avatar.url)
          
         desc = (
             f"🛡️ **First Blood Protection:** `{total_prot}%` \n"
-            f"*Chance to dodge death rolls in the early game.*\n\n"
+            f"*Chance to dodge death rolls in the early game (Includes Ring Bond: +{rel_prot}%).*\n\n"
             f"🍀 **Final Stand Luck:** `{total_luck}%` \n"
             f"*Bonus percentage added to your 1v1 win probability.*\n\n"
             f"💍 **Relationship Shared Luck:** `+{rel_luck}%` \n"
