@@ -169,9 +169,10 @@ class PublicConfessionView(discord.ui.View):
         self.target_slot = target_slot
         self.confession_id = confession_id
         
-        # PERSISTENT DYNAMIC IDENTIFIER ASSIGNMENT
+        # PERSISTENT IDENTIFIER ASSIGNMENT WITH FIXES FOR DURABLE REHYDRATION
         self.children[0].custom_id = f"confess_btn_another_slot_{target_slot}"
-        self.children[1].custom_id = f"confess_reply_trigger_{confession_id if confession_id else 'cold'}"
+        # FIXED: Assigned a permanent global custom_id so the active listener picks up old components perfectly
+        self.children[1].custom_id = "confess_reply_trigger_global"
 
     @discord.ui.button(label="SUBMIT ANOTHER", style=discord.ButtonStyle.secondary, emoji="💞")
     async def open_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -201,6 +202,7 @@ class PublicConfessionView(discord.ui.View):
         else:
             try:
                 embed_title = interaction.message.embeds[0].title
+                # Grabbing ID directly from message element context safely ("TRANSMISSION #XX" or "CONFESSION #XX")
                 parsed_parent_id = int(embed_title.split("#")[-1])
             except:
                 return await interaction.response.send_message("❌ Failed to resolve baseline thread metadata context.", ephemeral=True)
@@ -533,6 +535,6 @@ async def setup(bot):
     # Register the Review View (used for the approval messages themselves)
     bot.add_view(ConfessionReviewView(main_mod, confession_text=None))
 
-    # Register the Dynamic Public View (with cold initialization parameters for global persistent listeners)
+    # Register the Dynamic Public View (with static custom_ids now registered perfectly to ensure lifetime hydration)
     bot.add_view(PublicConfessionView(main_mod, bot, target_slot=1, confession_id=None))
     bot.add_view(PublicConfessionView(main_mod, bot, target_slot=2, confession_id=None))
