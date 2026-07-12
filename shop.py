@@ -199,7 +199,7 @@ MARKET_DATA = {
         "Epic": [
             {"name": "Demon Heart", "price": 25000000, "desc": "Permanent +5% Flame bonus from all sources."},
             {"name": "Angel Wing", "price": 35000000, "desc": "Protects you from one 'Blackout' event."},
-            {"name": "Dragon Scale", "price": 45000000, "desc": "Socketable: Permanent +2% First Blood Prot."},
+            {"name": "Dragon Scale", "price": 45000000, "prot": 2, "desc": "Socketable: Permanent +2% First Blood Prot."},
             {"name": "Titan Core", "price": 60000000, "desc": "Doubles all XP for 24 hours."},
             {"name": "Witch's Brew", "price": 85000000, "desc": "Resets all daily/weekly cooldowns instantly."}
         ],
@@ -207,7 +207,7 @@ MARKET_DATA = {
             {"name": "Star Soul", "price": 110000000, "desc": "Permanent +15% XP/FXP gain."},
             {"name": "Master's Key", "price": 130000000, "desc": "Allows you to bypass a 'Blackout' for everyone."},
             {"name": "God's Tear", "price": 155000000, "desc": "Heals all injuries and grants 1M Flames."},
-            {"name": "Hellfire Core", "price": 185000000, "desc": "Socketable: 1v1 Final match luck +5%."},
+            {"name": "Hellfire Core", "price": 185000000, "luck": 5, "desc": "Socketable: 1v1 Final match luck +5%."},
             {"name": "Abyssal Pearl", "price": 220000000, "desc": "Permanent: You no longer lose flames on death."}
         ],
         "Supreme": [
@@ -238,17 +238,17 @@ MARKET_DATA = {
             {"name": "Spiked Collar", "price": 7000000, "desc": "Shows who is owned. +5% FXP gain."},
             {"name": "Nipple Clamps", "price": 9000000, "desc": "Focus through pain. Reduces trial cooldown."},
             {"name": "Fur-Lined Cuffs", "price": 12000000, "desc": "Comfort in bondage. Shared luck +5%."},
-            {"name": "Rosewood Cane", "price": 16000000, "desc": "Elegant discipline. Permanent +1% Luck."}
+            {"name": "Rosewood Cane", "price": 16000000, "luck": 1, "desc": "Elegant discipline. Permanent +1% Luck."}
         ],
         "Epic": [
-            {"name": "Gilded Cage", "price": 35000000, "desc": "The most expensive home. FB Prot +5%."},
+            {"name": "Gilded Cage", "price": 35000000, "prot": 5, "desc": "The most expensive home. FB Prot +5%."},
             {"name": "Crystal Dildo", "price": 45000000, "desc": "Pure luxury. Increases XP gain by 10% for 12h."},
             {"name": "Iron Maiden", "price": 60000000, "desc": "The ultimate test. Survivors get 1M Flames."},
             {"name": "Vibrating Egg", "price": 85000000, "desc": "Constant buzz. Keeps you alert for Blackouts."},
             {"name": "Master's Paddle", "price": 120000000, "desc": "Signed by the Master. Intimidates everyone."}
         ],
         "Legendary": [
-            {"name": "Dragon's Tail", "price": 150000000, "luck": 12, "desc": "A whip made of dragon hide. Luck +8%."},
+            {"name": "Dragon's Tail", "price": 150000000, "luck": 8, "desc": "A whip made of dragon hide. Luck +8%."},
             {"name": "The Gilded Leash", "price": 185000000, "desc": "Total ownership. Dominants get 5% of Sub's work."},
             {"name": "Obsidian Mask", "price": 220000000, "desc": "Hides your soul. No one can steal your flames."},
             {"name": "The Velvet Throne", "price": 275000000, "desc": "A seat for a King. Permanent +5% all income."},
@@ -429,15 +429,18 @@ class Shop(commands.Cog):
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description="You have no account. Use commands to earn flames first.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.followup.send(embed=lack_emb, ephemeral=True)
-                return await ctx.send(embed=lack_emb)
+                return await ctx.send(lack_emb)
 
             if user_row['balance'] < found_item['price']:
                 lack_emb = discord.Embed(title="❌ Insufficient Flames", description=f"You need **{found_item['price']:,}** 🔥.", color=0xFF0000)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.followup.send(embed=lack_emb, ephemeral=True)
-                return await ctx.send(embed=lack_emb)
+                return await ctx.send(lack_emb)
 
-            inv = json.loads(user_row['titles']) if user_row['titles'] else []
+            if user_row['titles'] :
+                inv = json.loads(user_row['titles'])
+            else:
+                inv = []
             if found_item['name'] in inv: 
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
@@ -510,6 +513,14 @@ class Shop(commands.Cog):
                 stat_text = ""
                 if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}%]"
                 elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
+                
+                # ADDED: Show properties if item has protection or luck regardless of category
+                if cat not in ["Houses", "Pets"]:
+                    extra_stats = []
+                    if item.get('prot', 0) > 0: extra_stats.append(f"🛡️ Prot: {item.get('prot')}%")
+                    if item.get('luck', 0) > 0: extra_stats.append(f"🍀 Luck: {item.get('luck')}%")
+                    if extra_stats: stat_text = f" [{', '.join(extra_stats)}]"
+                    
                 categories[cat].append(f"{emoji} **{item['name']}**{stat_text}")
             else:
                 matched_backup = False
@@ -518,7 +529,12 @@ class Shop(commands.Cog):
                         for market_item in item_list:
                             if market_item['name'].lower() == name.lower():
                                 emoji = TIER_EMOJIS.get(tier_name, "⚪")
-                                categories[market_cat].append(f"{emoji} **{market_item['name']}**")
+                                stat_text = ""
+                                extra_stats = []
+                                if market_item.get('prot', 0) > 0: extra_stats.append(f"🛡️ Prot: {market_item.get('prot')}%")
+                                if market_item.get('luck', 0) > 0: extra_stats.append(f"🍀 Luck: {market_item.get('luck')}%")
+                                if extra_stats: stat_text = f" [{', '.join(extra_stats)}]"
+                                categories[market_cat].append(f"{emoji} **{market_item['name']}**{stat_text}")
                                 matched_backup = True
                                 break
                         if matched_backup: break
@@ -688,6 +704,10 @@ class Shop(commands.Cog):
                 if item:
                     if cat == "Houses": total_prot += item.get('prot', 0)
                     elif cat == "Pets": total_luck += item.get('luck', 0)
+                    
+                    # ADDED: Accumulate attributes from mixed categories safely to match descriptions
+                    if cat != "Houses": total_prot += item.get('prot', 0)
+                    if cat != "Pets": total_luck += item.get('luck', 0)
 
         rel_luck = 0
         # FIXED: Global query updated to sweep both user parameters safely within the layout bounds
