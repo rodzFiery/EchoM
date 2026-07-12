@@ -971,42 +971,114 @@ class FieryShip(commands.Cog):
         view.add_item(btn)
         await ctx.send(embed=emb, view=view)
 
+    # --- REWORKED STRUCTURAL TORTURE INTERFACE INVOLVING 2 ACTIVE ASSETS ---
     @commands.command(name="torture")
     @commands.cooldown(1, 300, commands.BucketType.user)
     async def torture(self, ctx, target: discord.Member):
-        """A stamina trial. Endure the session to earn Dungeon Cred."""
+        """An intensive two-member endurance ritual testing alignment and stamina."""
         main_mod = sys.modules['__main__']
-        if target.bot: return
+        if target.bot: 
+            return await ctx.send("❌ Bots have no nerves to test.")
+        if target.id == ctx.author.id: 
+            return await ctx.send("❌ You cannot subject yourself to a solo ritual.")
         
-        session_msg = await ctx.send(embed=main_mod.fiery_embed("🔞 TORTURE SESSION", f"{target.mention}, the session begins. **ENDURE** (React to the changing emojis!)"))
-        emojis = ["🫦", "⛓️", "🔥", "🩸", "🖤"]
-        rounds = 3
-        success = True
+        # STAGE 1: POSITIONING THE RESTRAINTS
+        session_msg = await ctx.send(embed=main_mod.fiery_embed(
+            "🔞 INTENSIVE TORTURE RITUAL: STAGE 1 (THE RESTRAINT LOCK)", 
+            f"{ctx.author.mention} is preparing the chamber hooks for {target.mention}.\n\n"
+            f"**Initiator Protocol:** {ctx.author.mention} must react with ⛓️ to tighten the irons.\n"
+            f"**Subject Protocol:** {target.mention} must react with 🫦 to accept the positioning.\n\n"
+            f"⏳ *Both assets must align within 15 seconds to lock the transmission key.*"
+        ))
+        await session_msg.add_reaction("⛓️")
+        await session_msg.add_reaction("🫦")
         
-        for i in range(rounds):
-            target_emoji = random.choice(emojis)
+        lock_author = False
+        lock_target = False
+        
+        def check_lock(r, u):
+            nonlocal lock_author, lock_target
+            if r.message.id != session_msg.id: return False
+            if u.id == ctx.author.id and str(r.emoji) == "⛓️": lock_author = True
+            if u.id == target.id and str(r.emoji) == "🫦": lock_target = True
+            return lock_author and lock_target
+
+        try:
+            await self.bot.wait_for('reaction_add', timeout=15.0, check=check_lock)
+        except:
             await session_msg.clear_reactions()
-            await session_msg.add_reaction(target_emoji)
+            return await ctx.send(embed=main_mod.fiery_embed("🥀 RITUAL COLLAPSED", "The alignment frequency was lost. Restraints could not be locked in time."))
+
+        # STAGE 2: THE ENDURANCE STRIKE
+        await session_msg.clear_reactions()
+        tools = {"🪵 HEAVY WHIP": "🩸", "🔥 LIQUID FLAME": "🖤", "⛓️ spiked COLLAR": "🫦"}
+        chosen_tool = random.choice(list(tools.keys()))
+        required_defense = tools[chosen_tool]
+        
+        await session_msg.edit(embed=main_mod.fiery_embed(
+            "🔞 INTENSIVE TORTURE RITUAL: STAGE 2 (THE STAMINA RUN)",
+            f"The restraints are locked. The air grows hot as energy fills the pit.\n\n"
+            f"⚡ The chamber deploys: **{chosen_tool}**\n"
+            f"👉 {target.mention} must immediately endure and react with the defense marker: **{required_defense}**\n\n"
+            f"⏱️ *Reaction window: 5.0 seconds.*"
+        ))
+        await session_msg.add_reaction(required_defense)
+        
+        def check_defense(r, u):
+            return u.id == target.id and str(r.emoji) == required_defense and r.message.id == session_msg.id
             
-            def check(r, u): return u.id == target.id and str(r.emoji) == target_emoji and r.message.id == session_msg.id
-            try:
-                await self.bot.wait_for('reaction_add', timeout=4.0, check=check)
-            except:
-                success = False
-                break
+        try:
+            await self.bot.wait_for('reaction_add', timeout=5.0, check=check_defense)
+        except:
+            await session_msg.clear_reactions()
+            return await ctx.send(embed=main_mod.fiery_embed("🥀 SUBJECT BROKEN", f"{target.mention} collapsed under the execution of the {chosen_tool}. Ritual incomplete."))
+
+        # STAGE 3: THE COLLECTIVE SYNERGY CLIMAX
+        await session_msg.clear_reactions()
+        await session_msg.edit(embed=main_mod.fiery_embed(
+            "🔞 INTENSIVE TORTURE RITUAL: STAGE 3 (MUTUAL PEAK SYNC)",
+            f"Stamina verified. Chamber pressure has reached peak velocity.\n\n"
+            f"🔥 **BOTH** {ctx.author.mention} and {target.mention} must simultaneously react with 🫦 to complete the transaction!\n\n"
+            f"⏱️ *Mutual verification threshold: 5.0 seconds.*"
+        ))
+        await session_msg.add_reaction("🫦")
         
-        if success:
-            cred = random.randint(5, 15)
-            def add_cred():
-                with main_mod.get_db_connection() as conn:
-                    conn.execute("UPDATE users SET dungeon_cred = dungeon_cred + ? WHERE id = ?", (cred, target.id))
-                    conn.commit()
-            await asyncio.to_thread(add_cred)
+        sync_users = set()
+        def check_sync(r, u):
+            if r.message.id == session_msg.id and str(r.emoji) == "🫦" and u.id in [ctx.author.id, target.id]:
+                sync_users.add(u.id)
+            return len(sync_users) == 2
+
+        try:
+            await self.bot.wait_for('reaction_add', timeout=5.0, check=check_sync)
+        except:
             await session_msg.clear_reactions()
-            await ctx.send(embed=main_mod.fiery_embed("🖤 SESSION COMPLETE", f"{target.display_name} has endured. Obtained `{cred}` Dungeon Cred."))
-        else:
-            await session_msg.clear_reactions()
-            await ctx.send(embed=main_mod.fiery_embed("🥀 BROKEN", f"{target.display_name} could not endure. No cred earned."))
+            return await ctx.send(embed=main_mod.fiery_embed("🥀 SYNC MISALIGNED", "The mutual rhythm failed at the threshold. The frequency collapsed."))
+
+        # SUCCESSFUL COMPLETION DISTRIBUTION RITUAL
+        cred_reward = random.randint(15, 30)
+        flames_reward = cred_reward * 15
+        
+        def distribute_rewards():
+            with main_mod.get_db_connection() as conn:
+                conn.execute("UPDATE users SET dungeon_cred = dungeon_cred + ? WHERE id = ?", (cred_reward, ctx.author.id))
+                conn.execute("UPDATE users SET dungeon_cred = dungeon_cred + ? WHERE id = ?", (cred_reward, target.id))
+                conn.commit()
+                
+        await asyncio.to_thread(distribute_rewards)
+        await main_mod.update_user_stats_async(ctx.author.id, amount=flames_reward, source="Torture Ritual Climax")
+        await main_mod.update_user_stats_async(target.id, amount=flames_reward, source="Torture Ritual Climax")
+        
+        await session_msg.clear_reactions()
+        final_embed = main_mod.fiery_embed(
+            "🖤🖤 RITUAL PERFECTION SECURED 🖤🖤",
+            f"The machinery powers down. Both assets have achieved absolute alignment under the Master's ledger.\n\n"
+            f"💎 **Ledger Account Modifications:**\n"
+            f"• {ctx.author.mention}: `+{cred_reward}` Dungeon Cred & `+{flames_reward}` Flames\n"
+            f"• {target.mention}: `+{cred_reward}` Dungeon Cred & `+{flames_reward}` Flames",
+            color=0x000000
+        )
+        await session_msg.edit(embed=final_embed)
 
 async def setup(bot):
     # MANDATORY: Access the main module to get DB connection
