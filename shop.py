@@ -1,5 +1,7 @@
 # FIX: Python 3.13 compatibility shim for audioop
 try:
+    import audioop# FIX: Python 3.13 compatibility shim for audioop
+try:
     import audioop
 except ImportError:
     try:
@@ -290,7 +292,7 @@ class ShopView(discord.ui.View):
         self.add_item(ShopDropdown(category))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user.id:
+        if interaction.user.id != self.view.user.id if hasattr(self, 'view') else interaction.user.id != self.user.id:
             await interaction.response.send_message("Only the boutique customer can use these buttons.", ephemeral=True)
             return False
         return True
@@ -442,7 +444,7 @@ class Shop(commands.Cog):
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.followup.send(embed=own_emb, ephemeral=True)
-                return await ctx.send(embed=own_emb)
+                return await ctx.send(own_emb)
 
             inv.append(found_item['name'])
             # FIXED: Crucial update to ensure the serialized list is saved back to 'titles' column
@@ -485,7 +487,7 @@ class Shop(commands.Cog):
             log_emb.description = f"🔞 **VOYEUR NOTE:** {author.display_name} is increasing their power. Their inventory has been updated with the {found_tier} asset: *{found_item['desc']}*"
             log_emb.set_footer(text="The Ledger never lies. Your wealth is monitored.")
             log_emb.timestamp = datetime.now(timezone.utc)
-            await audit_channel.send(log_emb)
+            await audit_channel.send(embed=log_emb)
 
     @commands.command(name="inv", aliases=["inventory", "assets"])
     async def inventory(self, ctx, member: discord.Member = None):
@@ -503,7 +505,7 @@ class Shop(commands.Cog):
         owned_names = json.loads(user['titles'])
         categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Rings": [], "Other": []}
          
-        # FIXED SECOND ISSUE once and forever: Re-aligned item validation scanner loop to guarantee every bought item falls into its correct category arrays or matches the "Other" default slot cleanly
+        # FIXED SECONND ISSUE: Safely scans the dynamic tier loop outputs to prevent wedding rings falling out of the lists.
         for name in owned_names:
             item, cat, tier = self.get_item_details(name)
             if item and cat in categories:
@@ -513,8 +515,21 @@ class Shop(commands.Cog):
                 elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
                 categories[cat].append(f"{emoji} **{item['name']}**{stat_text}")
             else:
-                # Catch custom items or raw strings securely
-                categories["Other"].append(f"⚪ **{name}**")
+                # FIXED ALL RINGS: Fallback categorization checking ensures rings are matched properly even if data categories fluctuate.
+                matched_backup = False
+                for market_cat, tiers in MARKET_DATA.items():
+                    for tier_name, item_list in tiers.items():
+                        for market_item in item_list:
+                            if market_item['name'].lower() == name.lower():
+                                emoji = TIER_EMOJIS.get(tier_name, "⚪")
+                                categories[market_cat].append(f"{emoji} **{market_item['name']}**")
+                                matched_backup = True
+                                break
+                        if matched_backup: break
+                    if matched_backup: break
+                
+                if not matched_backup:
+                    categories["Other"].append(f"⚪ **{name}**")
 
         embed = discord.Embed(title=f"🎒 {target.display_name.upper()}'S PRIVATE VAULT", color=0xFF69B4)
         embed.set_thumbnail(url=target.display_avatar.url)
@@ -614,7 +629,7 @@ class Shop(commands.Cog):
                 log_emb.add_field(name="The Bond", value=f"{TIER_EMOJIS[tier]} **{item['name']}**", inline=True)
                 log_emb.description = f"💍 **VOYEUR NOTE:** Two assets are now synchronized. {author.display_name} has sacrificed `{item['price']:,}` 🔥 to weave their fate with {target.display_name}."
                 log_emb.timestamp = datetime.now(timezone.utc)
-                await audit_channel.send(log_emb)
+                await audit_channel.send(embed=log_emb)
 
         except Exception as e:
             # ADDED: Refund logic
