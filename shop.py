@@ -133,45 +133,45 @@ MARKET_DATA = {
     },
     "Rings": {
         "Basic": [
-            {"name": "Rare Ring", "price": 15000, "desc": "A simple band. Required for !marry. +1% Shared Luck."},
-            {"name": "Epic Ring", "price": 25000, "desc": "Crude, but binds souls tightly. Required for !marry."},
-            {"name": "Legendary Ring", "price": 40000, "desc": "Forged in the pit. Required for !marry."},
-            {"name": "Supreme Ring", "price": 60000, "desc": "The highest mark of devotion. Required for !marry."}
+            {"name": "Rare Ring", "price": 15000, "shared_protection": 1, "desc": "A simple band. Required for !marry. Grants +1% Shared Protection."},
+            {"name": "Epic Ring", "price": 25000, "shared_protection": 2, "desc": "Crude, but binds souls tightly. Required for !marry. Grants +2% Shared Protection."},
+            {"name": "Legendary Ring", "price": 40000, "shared_protection": 3, "desc": "Forged in the pit. Required for !marry. Grants +3% Shared Protection."},
+            {"name": "Supreme Ring", "price": 60000, "shared_protection": 4, "desc": "The highest mark of devotion. Required for !marry. Grants +4% Shared Protection."}
         ],
         "Normal": [
-            {"name": "Iron Girdle", "price": 250000, "desc": "Strong enough to withstand betrayal. +2% shared luck."},
-            {"name": "Steel Promise", "price": 400000, "desc": "A pact of iron and fire for best friends."},
-            {"name": "Leather Thong", "price": 650000, "desc": "Suggestive and binding. BDSM flavor."},
-            {"name": "Lead Shackle", "price": 1000000, "desc": "A heavy burden shared is a burden halved."},
-            {"name": "Brass Seal", "price": 1500000, "desc": "Official recognition of your partnership."}
+            {"name": "Iron Girdle", "price": 250000, "shared_protection": 5, "desc": "Strong enough to withstand betrayal. Grants +5% Shared Protection."},
+            {"name": "Steel Promise", "price": 400000, "shared_protection": 6, "desc": "A pact of iron and fire for best friends. Grants +6% Shared Protection."},
+            {"name": "Leather Thong", "price": 650000, "shared_protection": 7, "desc": "Suggestive and binding. BDSM flavor. Grants +7% Shared Protection."},
+            {"name": "Lead Shackle", "price": 1000000, "shared_protection": 8, "desc": "A heavy burden shared is a burden halved. Grants +8% Shared Protection."},
+            {"name": "Brass Seal", "price": 1500000, "shared_protection": 9, "desc": "Official recognition of your partnership. Grants +9% Shared Protection."}
         ],
         "Rare": [
-            {"name": "Silver Vow", "price": 2500000, "desc": "Lustrous and enduring. Shared protection 4%."},
-            {"name": "Amethyst Loop", "price": 3000000, "desc": "Protects the mind from arena-induced madness."},
-            {"name": "Sapphire Bond", "price": 3800000, "desc": "A deep connection, as vast as the dark sea."},
-            {"name": "Garnet Kiss", "price": 4500000, "desc": "A ring that tastes of salt and desire."},
-            {"name": "Emerald Trust", "price": 5500000, "desc": "The rarest commodity in the dungeon: Trust."}
+            {"name": "Silver Vow", "price": 2500000, "shared_protection": 10, "desc": "Lustrous and enduring. Grants +10% Shared Protection."},
+            {"name": "Amethyst Loop", "price": 3000000, "shared_protection": 11, "desc": "Protects the mind from arena-induced madness. Grants +11% Shared Protection."},
+            {"name": "Sapphire Bond", "price": 3800000, "shared_protection": 12, "desc": "A deep connection, as vast as the dark sea. Grants +12% Shared Protection."},
+            {"name": "Garnet Kiss", "price": 4500000, "shared_protection": 13, "desc": "A ring that tastes of salt and desire. Grants +13% Shared Protection."},
+            {"name": "Emerald Trust", "price": 5500000, "shared_protection": 14, "desc": "The rarest commodity in the dungeon: Trust. Grants +14% Shared Protection."}
         ],
         "Epic": [
-            {"name": "Gold Covenant", "price": 12000000, "desc": "Wealth and power shared between two dominant souls."},
-            {"name": "Ruby Passion", "price": 16000000, "desc": "Burns with the heat of the Red Room."},
-            {"name": "Diamond Decree", "price": 22000000, "desc": "A marriage that cannot be broken by death events."},
-            {"name": "Platinum Oath", "price": 28000000, "desc": "The highest tier of friendship. Shared income +10%."},
-            {"name": "Shadow Ring", "price": 35000000, "desc": "Two people, one shadow. Total synchronization."}
+            {"name": "Gold Covenant", "price": 12000000, "shared_protection": 15, "desc": "Wealth and power shared between two dominant souls. Grants +15% Shared Protection."},
+            {"name": "Ruby Passion", "price": 16000000, "shared_protection": 16, "desc": "Burns with the heat of the Red Room. Grants +16% Shared Protection."},
+            {"name": "Diamond Decree", "price": 22000000, "shared_protection": 17, "desc": "A marriage that cannot be broken by death events. Grants +17% Shared Protection."},
+            {"name": "Platinum Oath", "price": 28000000, "shared_protection": 18, "desc": "The highest tier of friendship. Grants +18% Shared Protection."},
+            {"name": "Shadow Ring", "price": 35000000, "shared_protection": 19, "desc": "Two people, one shadow. Total synchronization. Grants +19% Shared Protection."}
         ],
         "Legendary": [
-            {"name": "Obsidian Brand", "price": 50000000, "desc": "Permanent. Painful. Powerful. 12% Shared Luck."},
-            {"name": "Master's Blessing", "price": 65000000, "desc": "The Master himself officiates this bond."},
-            {"name": "Eldritch Eye", "price": 75000000, "desc": "A ring that blinks. You see what your partner sees."},
-            {"name": "Dragon's Heart", "price": 85000000, "desc": "Brave and fiery. Shared protection is 15%."},
-            {"name": "Void Marriage", "price": 100000000, "desc": "Bound beyond the grave. Respawn together."}
+            {"name": "Obsidian Brand", "price": 50000000, "shared_protection": 20, "desc": "Permanent. Painful. Powerful. Grants +20% Shared Protection."},
+            {"name": "Master's Blessing", "price": 65000000, "shared_protection": 21, "desc": "The Master himself officiates this bond. Grants +21% Shared Protection."},
+            {"name": "Eldritch Eye", "price": 75000000, "shared_protection": 22, "desc": "A ring that blinks. You see what your partner sees. Grants +22% Shared Protection."},
+            {"name": "Dragon's Heart", "price": 85000000, "shared_protection": 23, "desc": "Brave and fiery. Grants +23% Shared Protection."},
+            {"name": "Void Marriage", "price": 100000000, "shared_protection": 24, "desc": "Bound beyond the grave. Respawn together. Grants +24% Shared Protection."}
         ],
         "Supreme": [
-            {"name": "The One Ring", "price": 175000000, "desc": "SUPREME: One to rule the pit. Absolute shared dominance."},
-            {"name": "Soul Braid", "price": 250000000, "desc": "SUPREME: Your souls are literally woven together."},
-            {"name": "Infinity Band", "price": 350000000, "desc": "SUPREME: Shared balance and no cooldowns for partners."},
-            {"name": "Heart of Chaos", "price": 450000000, "desc": "SUPREME: You can sacrifice your partner to win instantly."},
-            {"name": "The Master's Rib", "price": 600000000, "desc": "SUPREME: Created from the Master. You are the creators."}
+            {"name": "The One Ring", "price": 175000000, "shared_protection": 25, "desc": "SUPREME: One to rule the pit. Absolute shared dominance. Grants +25% Shared Protection."},
+            {"name": "Soul Braid", "price": 250000000, "shared_protection": 26, "desc": "SUPREME: Your souls are literally woven together. Grants +26% Shared Protection."},
+            {"name": "Infinity Band", "price": 350000000, "shared_protection": 27, "desc": "SUPREME: Shared balance and no cooldowns for partners. Grants +27% Shared Protection."},
+            {"name": "Heart of Chaos", "price": 450000000, "shared_protection": 28, "desc": "SUPREME: You can sacrifice your partner to win instantly. Grants +28% Shared Protection."},
+            {"name": "The Master's Rib", "price": 600000000, "shared_protection": 29, "desc": "SUPREME: Created from the Master. You are the creators. Grants +29% Shared Protection."}
         ]
     },
     "Stones": {
@@ -514,9 +514,10 @@ class Shop(commands.Cog):
                 stat_text = ""
                 if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}%]"
                 elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
+                elif cat == "Rings": stat_text = f" [🛡️ Shared Prot: {item.get('shared_protection', 0)}%]"
                 
                 # ADDED: Show properties if item has protection or luck regardless of category
-                if cat not in ["Houses", "Pets"]:
+                if cat not in ["Houses", "Pets", "Rings"]:
                     extra_stats = []
                     if item.get('prot', 0) > 0: extra_stats.append(f"🛡️ Prot: {item.get('prot')}%")
                     if item.get('luck', 0) > 0: extra_stats.append(f"🍀 Luck: {item.get('luck')}%")
@@ -531,10 +532,13 @@ class Shop(commands.Cog):
                             if market_item['name'].lower() == name.lower():
                                 emoji = TIER_EMOJIS.get(tier_name, "⚪")
                                 stat_text = ""
-                                extra_stats = []
-                                if market_item.get('prot', 0) > 0: extra_stats.append(f"🛡️ Prot: {market_item.get('prot')}%")
-                                if market_item.get('luck', 0) > 0: extra_stats.append(f"🍀 Luck: {market_item.get('luck')}%")
-                                if extra_stats: stat_text = f" [{', '.join(extra_stats)}]"
+                                if market_cat == "Rings":
+                                    stat_text = f" [🛡️ Shared Prot: {market_item.get('shared_protection', 0)}%]"
+                                else:
+                                    extra_stats = []
+                                    if market_item.get('prot', 0) > 0: extra_stats.append(f"🛡️ Prot: {market_item.get('prot')}%")
+                                    if market_item.get('luck', 0) > 0: extra_stats.append(f"🍀 Luck: {market_item.get('luck')}%")
+                                    if extra_stats: stat_text = f" [{', '.join(extra_stats)}]"
                                 categories[market_cat].append(f"{emoji} **{market_item['name']}**{stat_text}")
                                 matched_backup = True
                                 break
@@ -601,28 +605,11 @@ class Shop(commands.Cog):
                 refund_conn.close()
                 return await channel.send(embed=discord.Embed(title="❌ Forbidden Narcissism", description="A bond requires two souls. Transaction refunded.", color=0xFF0000))
 
-            luck_bonus = 0.01 
+            luck_bonus = 0.0 
             income_bonus = 0.0 
-            protection_bonus = 0.01 # ADDED: Scaled base value tracking 1% upwards per ring tier
-
-            if tier == "Normal": 
-                luck_bonus = 0.02
-                protection_bonus = 0.02
-            elif tier == "Rare": 
-                luck_bonus = 0.04
-                protection_bonus = 0.03
-            elif tier == "Epic": 
-                luck_bonus = 0.08
-                income_bonus = 0.10
-                protection_bonus = 0.04
-            elif tier == "Legendary": 
-                luck_bonus = 0.12
-                income_bonus = 0.15
-                protection_bonus = 0.05
-            elif tier == "Supreme": 
-                luck_bonus = 0.20
-                income_bonus = 0.25
-                protection_bonus = 0.06
+            
+            # FIXED: Grabs the absolute sequential value specified dynamically from the custom data array parameter
+            protection_bonus = float(item.get('shared_protection', 0)) / 100.0
 
             with self.get_db_connection() as conn:
                 user = conn.execute("SELECT balance FROM users WHERE id = ?", (author.id,)).fetchone()
@@ -646,9 +633,7 @@ class Shop(commands.Cog):
 
             bond_emb = discord.Embed(title="💞 THE CHAINS OF DESIRE", color=0xFF1493)
             bond_emb.description = f"{author.mention} and {target.mention} have sealed their fates with the **{item['name']}**.\n\n" \
-                                   f"🛡️ **Shared Preservation (Protection):** +{int(protection_bonus*100)}%\n" \
-                                   f"🍀 **Shared Arousal (Luck):** +{int(luck_bonus*100)}%\n" \
-                                   f"💰 **Shared Ecstasy (Income):** +{int(income_bonus*100)}%"
+                                   f"🛡️ **Shared Preservation (Protection):** +{int(protection_bonus*100)}%"
             await channel.send(embed=bond_emb)
 
             main_mod = sys.modules['__main__']
@@ -704,7 +689,7 @@ class Shop(commands.Cog):
         conn.close()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(embed=sell_emb)
+        await ctx.send(sell_emb)
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
