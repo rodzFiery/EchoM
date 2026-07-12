@@ -1,7 +1,5 @@
 # FIX: Python 3.13 compatibility shim for audioop
 try:
-    import audioop# FIX: Python 3.13 compatibility shim for audioop
-try:
     import audioop
 except ImportError:
     try:
@@ -292,7 +290,7 @@ class ShopView(discord.ui.View):
         self.add_item(ShopDropdown(category))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.view.user.id if hasattr(self, 'view') else interaction.user.id != self.user.id:
+        if interaction.user.id != self.user.id:
             await interaction.response.send_message("Only the boutique customer can use these buttons.", ephemeral=True)
             return False
         return True
@@ -505,7 +503,6 @@ class Shop(commands.Cog):
         owned_names = json.loads(user['titles'])
         categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Rings": [], "Other": []}
          
-        # FIXED SECONND ISSUE: Safely scans the dynamic tier loop outputs to prevent wedding rings falling out of the lists.
         for name in owned_names:
             item, cat, tier = self.get_item_details(name)
             if item and cat in categories:
@@ -515,7 +512,6 @@ class Shop(commands.Cog):
                 elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
                 categories[cat].append(f"{emoji} **{item['name']}**{stat_text}")
             else:
-                # FIXED ALL RINGS: Fallback categorization checking ensures rings are matched properly even if data categories fluctuate.
                 matched_backup = False
                 for market_cat, tiers in MARKET_DATA.items():
                     for tier_name, item_list in tiers.items():
