@@ -419,8 +419,8 @@ class Shop(commands.Cog):
                 return await ctx.followup.send(embed=err_emb, ephemeral=True)
             return await ctx.send(embed=err_emb)
 
-        # FIXED: Logic to check if the item is a Marriage Ring specifically for main.py checks
-        is_marriage_ring = found_item['name'] in ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"] or found_cat == "Rings"
+        # FIXED FIRST ISSUE once and forever: ALL items under the "Rings" category now trigger the marriage/soul ceremony logic gates
+        is_marriage_ring = found_cat == "Rings"
 
         with self.get_db_connection() as conn:
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
@@ -453,8 +453,8 @@ class Shop(commands.Cog):
         # ADDED: Close the connection leak
         conn.close()
 
-        # FIXED: Logic Gate Corrected. If it IS a marriage ring, run the bonding ritual!
-        if found_cat == "Rings" or is_marriage_ring:
+        # FIXED FIRST ISSUE: Route item parameters securely into the mutual calibration ritual
+        if is_marriage_ring:
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
@@ -485,7 +485,7 @@ class Shop(commands.Cog):
             log_emb.description = f"🔞 **VOYEUR NOTE:** {author.display_name} is increasing their power. Their inventory has been updated with the {found_tier} asset: *{found_item['desc']}*"
             log_emb.set_footer(text="The Ledger never lies. Your wealth is monitored.")
             log_emb.timestamp = datetime.now(timezone.utc)
-            await audit_channel.send(embed=log_emb)
+            await audit_channel.send(log_emb)
 
     @commands.command(name="inv", aliases=["inventory", "assets"])
     async def inventory(self, ctx, member: discord.Member = None):
@@ -503,15 +503,17 @@ class Shop(commands.Cog):
         owned_names = json.loads(user['titles'])
         categories = {"Houses": [], "Pets": [], "Stones": [], "Toys": [], "Rings": [], "Other": []}
          
+        # FIXED SECOND ISSUE once and forever: Re-aligned item validation scanner loop to guarantee every bought item falls into its correct category arrays or matches the "Other" default slot cleanly
         for name in owned_names:
             item, cat, tier = self.get_item_details(name)
-            if item:
+            if item and cat in categories:
                 emoji = TIER_EMOJIS.get(tier, "⚪")
                 stat_text = ""
                 if cat == "Houses": stat_text = f" [🛡️ Prot: {item.get('prot', 0)}%]"
                 elif cat == "Pets": stat_text = f" [🍀 Luck: {item.get('luck', 0)}%]"
-                categories[cat].append(f"{emoji} **{name}**{stat_text}")
+                categories[cat].append(f"{emoji} **{item['name']}**{stat_text}")
             else:
+                # Catch custom items or raw strings securely
                 categories["Other"].append(f"⚪ **{name}**")
 
         embed = discord.Embed(title=f"🎒 {target.display_name.upper()}'S PRIVATE VAULT", color=0xFF69B4)
@@ -612,7 +614,7 @@ class Shop(commands.Cog):
                 log_emb.add_field(name="The Bond", value=f"{TIER_EMOJIS[tier]} **{item['name']}**", inline=True)
                 log_emb.description = f"💍 **VOYEUR NOTE:** Two assets are now synchronized. {author.display_name} has sacrificed `{item['price']:,}` 🔥 to weave their fate with {target.display_name}."
                 log_emb.timestamp = datetime.now(timezone.utc)
-                await audit_channel.send(embed=log_emb)
+                await audit_channel.send(log_emb)
 
         except Exception as e:
             # ADDED: Refund logic
