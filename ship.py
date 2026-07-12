@@ -374,20 +374,12 @@ class FieryShip(commands.Cog):
             return await asyncio.to_thread(draw_union)
         except: return None
 
-    # ADDED: Activity tracking for Proximity
+    # --- PRESREVED LISTENER ---
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
         main_mod = sys.modules['__main__']
-        
-        # Track proximity between the author and others recently active in the channel
-        def update_proximity():
-            # Get last 5 unique active users in this channel (excluding current author)
-            with main_mod.get_db_connection() as conn:
-                # This logic assumes a 'proximity_logs' table exists
-                # For brevity, we update a direct interaction score between users
-                pass # Logic handled dynamically in ship if needed, or via specific listeners
-        # To keep it lightweight, proximity is often calculated via a specific 'activity' counter
+        pass 
 
     @commands.command(name="ship")
     async def ship(self, ctx, user1: discord.Member, user2: discord.Member = None):
@@ -556,14 +548,14 @@ class FieryShip(commands.Cog):
         
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         
-        # We define pair_key broadly for Author's daily limit
-        pair_key = f"3some-limit-{ctx.author.id}"
+        # --- TOUCHED: KEY INCORPORATES GUILD ID TO ALLOW 3 SCANS PER SERVER ---
+        pair_key = f"3some-limit-{ctx.guild.id}-{ctx.author.id}"
         
         if pair_key not in self.ship_attempts or self.ship_attempts[pair_key]['date'] != today:
             self.ship_attempts[pair_key] = {'count': 0, 'date': today, 'used_targets': []}
             
         if self.ship_attempts[pair_key]['count'] >= 3:
-            return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today. Come back tomorrow.")
+            return await ctx.send(f"❌ **LIMIT REACHED:** This triad resonance is overtaxed for today in this server. Come back tomorrow.")
 
         # FIXED: Initialized target variables outside conditions to prevent UnboundLocalError during rerolls
         target1, target2 = t1, t2
@@ -579,7 +571,7 @@ class FieryShip(commands.Cog):
                 members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
                 if len(members) < 2:
                     return await ctx.send("❌ Not enough unique assets in the pit for a new scan.")
-            target1, target2 = random.sample(members, 2)
+                target1, target2 = random.sample(members, 2)
 
         # Record targets
         self.ship_attempts[pair_key]['used_targets'].extend([target1.id, target2.id])
@@ -1010,8 +1002,10 @@ class FieryShip(commands.Cog):
                     conn.execute("UPDATE users SET dungeon_cred = dungeon_cred + ? WHERE id = ?", (cred, target.id))
                     conn.commit()
             await asyncio.to_thread(add_cred)
+            await session_msg.clear_reactions()
             await ctx.send(embed=main_mod.fiery_embed("🖤 SESSION COMPLETE", f"{target.display_name} has endured. Obtained `{cred}` Dungeon Cred."))
         else:
+            await session_msg.clear_reactions()
             await ctx.send(embed=main_mod.fiery_embed("🥀 BROKEN", f"{target.display_name} could not endure. No cred earned."))
 
 async def setup(bot):
