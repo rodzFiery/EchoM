@@ -420,7 +420,7 @@ class Shop(commands.Cog):
             return await ctx.send(embed=err_emb)
 
         # FIXED: Logic to check if the item is a Marriage Ring specifically for main.py checks
-        is_marriage_ring = found_item['name'] in ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"]
+        is_marriage_ring = found_item['name'] in ["Rare Ring", "Epic Ring", "Legendary Ring", "Supreme Ring"] or found_cat == "Rings"
 
         with self.get_db_connection() as conn:
             user_row = conn.execute("SELECT balance, titles FROM users WHERE id = ?", (author.id,)).fetchone()
@@ -442,7 +442,7 @@ class Shop(commands.Cog):
                 own_emb = discord.Embed(title="❌ Already Possessed", description=f"You already own the **{found_item['name']}**.", color=0xFFFF00)
                 if isinstance(ctx, discord.Interaction):
                     return await ctx.followup.send(embed=own_emb, ephemeral=True)
-                return await ctx.send(embed=own_emb) # FIXED: missing embed= keyword
+                return await ctx.send(embed=own_emb)
 
             inv.append(found_item['name'])
             # FIXED: Crucial update to ensure the serialized list is saved back to 'titles' column
@@ -454,7 +454,7 @@ class Shop(commands.Cog):
         conn.close()
 
         # FIXED: Logic Gate Corrected. If it IS a marriage ring, run the bonding ritual!
-        if found_cat == "Rings" and is_marriage_ring:
+        if found_cat == "Rings" or is_marriage_ring:
             return await self.handle_ring_purchase(ctx, found_item, found_tier)
 
         success_emb = discord.Embed(title="🫦 Acquisition Successful", description=f"You have taken possession of: **{found_item['name']}**", color=0x00FF00)
@@ -555,7 +555,7 @@ class Shop(commands.Cog):
                         if item['name'] in inv: inv.remove(item['name'])
                         refund_conn.execute("UPDATE users SET balance = balance + ?, titles = ? WHERE id = ?", (item['price'], json.dumps(inv), author.id))
                         refund_conn.commit()
-                    refund_conn.close()
+                refund_conn.close()
                 return await channel.send(embed=discord.Embed(title="❌ Binding Failed", description="You cannot bind a ghost. Tag a user. Transaction refunded.", color=0xFF0000))
              
             target = msg.mentions[0]
@@ -568,7 +568,7 @@ class Shop(commands.Cog):
                         if item['name'] in inv: inv.remove(item['name'])
                         refund_conn.execute("UPDATE users SET balance = balance + ?, titles = ? WHERE id = ?", (item['price'], json.dumps(inv), author.id))
                         refund_conn.commit()
-                    refund_conn.close()
+                refund_conn.close()
                 return await channel.send(embed=discord.Embed(title="❌ Forbidden Narcissism", description="A bond requires two souls. Transaction refunded.", color=0xFF0000))
 
             luck_bonus = 0.01 
@@ -582,8 +582,6 @@ class Shop(commands.Cog):
 
             with self.get_db_connection() as conn:
                 user = conn.execute("SELECT balance FROM users WHERE id = ?", (author.id,)).fetchone()
-                # FIXED: The price was already deducted in buy_item. Checking if balance is less than price here will falsely deny users who had exact change.
-                # if not user or user['balance'] < item['price']:
                 if not user:
                     return await channel.send(embed=discord.Embed(title="❌ Account Error", description="Soul not found in the registry.", color=0xFF0000))
 
@@ -594,8 +592,6 @@ class Shop(commands.Cog):
                 # FIXED: Saved spouse metrics directly onto both users tables so `!inv` correctly reads relationship state
                 conn.execute("UPDATE users SET spouse = ? WHERE id = ?", (target.id, author.id))
                 conn.execute("UPDATE users SET spouse = ? WHERE id = ?", (author.id, target.id))
-                
-                # FIXED: Removed the secondary balance update here to prevent the ring costing double the flames.
                 conn.commit()
             # ADDED: Close the connection leak
             conn.close()
@@ -627,7 +623,7 @@ class Shop(commands.Cog):
                     if item['name'] in inv: inv.remove(item['name'])
                     refund_conn.execute("UPDATE users SET balance = balance + ?, titles = ? WHERE id = ?", (item['price'], json.dumps(inv), author.id))
                     refund_conn.commit()
-                refund_conn.close()
+            refund_conn.close()
             await channel.send(embed=discord.Embed(title="❌ Ritual Interrupted", description="The Master is bored by your hesitation. Request expired. Transaction refunded.", color=0xFF0000))
 
     @commands.command(name="sell")
@@ -659,7 +655,7 @@ class Shop(commands.Cog):
         conn.close()
 
         sell_emb = discord.Embed(title="💰 ASSET LIQUIDATED", description=f"The Master has reclaimed the **{found_item['name']}**.\n\nReturned: **{sell_value:,}** 🔥", color=0xFFFF00)
-        await ctx.send(embed=sell_emb) # FIXED: missing embed= keyword
+        await ctx.send(embed=sell_emb)
 
     @commands.command(name="checkbuffs")
     async def check_buffs(self, ctx, member: discord.Member = None):
@@ -667,29 +663,25 @@ class Shop(commands.Cog):
          
         with self.get_db_connection() as conn:
             user = conn.execute("SELECT titles FROM users WHERE id = ?", (target.id,)).fetchone()
-        # ADDED: Close the connection leak
         conn.close()
          
-        if not user or not user['titles'] or user['titles'] == "[]":
-            return await ctx.send(embed=discord.Embed(title="📊 Combat Analysis", description="This asset has no combat weightings. Total Luck: 0% | Total Protection: 0%", color=0x808080))
-
-        # FIXED: Variable was undefined
-        inv = json.loads(user['titles'])
         total_prot = 0
         total_luck = 0
-         
-        for name in inv:
-            item, cat, tier = self.get_item_details(name)
-            if item:
-                # DESIGN FIX: Switched from max() evaluation to cumulative additive stats (+=) so multiple items stack calculations properly!
-                if cat == "Houses": total_prot += item.get('prot', 0)
-                elif cat == "Pets": total_luck += item.get('luck', 0)
+        
+        if user and user['titles'] and user['titles'] != "[]":
+            inv = json.loads(user['titles'])
+            for name in inv:
+                item, cat, tier = self.get_item_details(name)
+                if item:
+                    if cat == "Houses": total_prot += item.get('prot', 0)
+                    elif cat == "Pets": total_luck += item.get('luck', 0)
 
         rel_luck = 0
+        # FIXED: Global query updated to sweep both user parameters safely within the layout bounds
         with self.get_db_connection() as conn:
-            rel = conn.execute("SELECT shared_luck FROM relationships WHERE (user_one = ? OR user_two = ?)", (target.id, target.id)).fetchone()
-            if rel: rel_luck = int(rel['shared_luck'] * 100)
-        # ADDED: Close the connection leak
+            rel = conn.execute("SELECT shared_luck FROM relationships WHERE user_one = ? OR user_two = ?", (target.id, target.id)).fetchone()
+            if rel: 
+                rel_luck = int(rel['shared_luck'] * 100)
         conn.close()
 
         embed = discord.Embed(title=f"📊 COMBAT ANALYSIS: {target.display_name.upper()}", color=0xFF4500)
