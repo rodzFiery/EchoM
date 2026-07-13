@@ -246,7 +246,7 @@ class FieryShip(commands.Cog):
                 def apply_erotic_frame_square(avatar, pulse_intensity=3):
                     glow_size = av_size + 80
                     glow = Image.new("RGBA", (glow_size, glow_size), (0, 0, 0, 0))
-                    draw_g = ImageDraw.Draw(glow)
+                    glow_g = ImageDraw.Draw(glow)
                     
                     glow_range = int(35 + (pulse_intensity * 3)) 
                     for i in range(glow_range, 0, -1):
@@ -254,7 +254,7 @@ class FieryShip(commands.Cog):
                         r = int(255) 
                         g = int(182)   
                         b = int(193)
-                        draw_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
+                        glow_g.rectangle([i, i, glow_size-i, glow_size-i], outline=(r, g, b, alpha), width=5)
                     
                     glow.paste(avatar, (40, 40), avatar)
                     return glow
@@ -374,7 +374,7 @@ class FieryShip(commands.Cog):
             return await asyncio.to_thread(draw_union)
         except: return None
 
-    # --- PRESREVED LISTENER ---
+    # --- PRESERVED LISTENER ---
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild: return
@@ -562,7 +562,7 @@ class FieryShip(commands.Cog):
 
         # If reroll (button), t1/t2 will be None, we need to pick NEW people
         # Excluding previously picked people in this session
-        if not t1 or not t2:
+        if not target1 or not target2:
             exclude = [ctx.author.id] + self.ship_attempts[pair_key]['used_targets']
             members = [m for m in ctx.channel.members if not m.bot and m.id not in exclude]
             if len(members) < 2:
@@ -571,7 +571,7 @@ class FieryShip(commands.Cog):
                 members = [m for m in ctx.channel.members if not m.bot and m.id != ctx.author.id]
                 if len(members) < 2:
                     return await ctx.send("❌ Not enough unique assets in the pit for a new scan.")
-                target1, target2 = random.sample(members, 2)
+            target1, target2 = random.sample(members, 2)
 
         # Record targets
         self.ship_attempts[pair_key]['used_targets'].extend([target1.id, target2.id])
