@@ -395,6 +395,7 @@ class CardSystem(commands.Cog):
                     
                     conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
                                  (user_id, db_rowid, db_name, avatar_url))
+                    conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
                     conn.commit()
                     await interaction.response.send_message(f"✅ **{db_name}** is now your active pet following you!", ephemeral=True)
                 else:
@@ -468,13 +469,12 @@ class CardSystem(commands.Cog):
             return
         print(f"[SYS] Manifestation point locked on: {channel.name}. Proceeding...") # ADDED
 
-        # FIXED: Enforced server localization by forcing an API chunk fetch to clean internal cross-server member leaks completely
+        # FIXED EXPLICITLY: Force an API-level fetch to guarantee we ONLY sample real local guild members
         try:
-            await guild.chunk()
+            members = [m for m in await guild.fetch_members(limit=None).flatten() if not m.bot]
         except:
-            pass
-
-        members = [m for m in guild.members if not m.bot]
+            members = [m for m in guild.members if not m.bot]
+            
         if not members: return
         target_member = random.choice(members)
 
