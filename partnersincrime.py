@@ -151,7 +151,7 @@ class CrimeLobbyView(discord.ui.View):
         if not available_slots:
             return await interaction.followup.send("❌ **The heist operations are full!** No more active squad openings.", ephemeral=True)
 
-        # Assign user randomly to one of the empty slots
+        # Assign user randomly to one of the empty slots in-memory first
         selected_team, selected_slot = random.choice(available_slots)
         self.teams[selected_team][selected_slot] = interaction.user.id
 
@@ -170,6 +170,7 @@ class CrimeLobbyView(discord.ui.View):
                 if row:
                     server_edition = row[0]
             
+            # Use the in-memory setup directly so rendering is instant and accurate
             updated_embeds = self.render_lobby_embeds(server_edition)
             await interaction.message.edit(embeds=updated_embeds, view=self)
             await interaction.followup.send(f"🤝 **Signed!** You have been assigned to **Squad Unit {selected_team}**.", ephemeral=True)
