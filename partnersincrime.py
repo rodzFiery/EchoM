@@ -365,7 +365,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.commit()
 
     def calculate_level(self, current_xp):
@@ -459,8 +459,8 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
 
     async def create_recap_image(self, winners, victims_list):
-        """Synthesizes a highly advanced visual layout matching recap.jpg template structure.
-        Showcases the Overlord Winners on the Left and the remaining target cell blocks on the Right."""
+        """Synthesizes a clean, high-impact flat recap visualization with zero background image dependency.
+        Draws giant Overlords with names on the Left, and structured vertical squads with mini-avatars on the Right."""
         try:
             async with aiohttp.ClientSession() as session:
                 winner_buffers = []
@@ -480,7 +480,7 @@ class PartnersInCrimeEngine(commands.Cog):
 
                 # Pre-download victim avatars
                 victim_avatars = {}
-                for s_id, members in list(grouped_victims.items())[:6]: # Display top 6 squads neatly
+                for s_id, members in list(grouped_victims.items())[:6]: # Display up to 6 cell squads cleanly
                     for m in members:
                         async with session.get(m.display_avatar.url, timeout=10) as resp:
                             if resp.status == 200:
@@ -489,49 +489,42 @@ class PartnersInCrimeEngine(commands.Cog):
             canvas_w = 1600
             canvas_h = 900
             
-            # Load and map specifically to your custom recap.jpg template background
-            bg_path = "recap.jpg"
-            if os.path.exists(bg_path):
-                bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h))
-            else:
-                bg = Image.open("1v1Background.jpg").convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists("1v1Background.jpg") else Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
-            
+            # Standard solid deep dark canvas with no background image dependency
+            bg = Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
             draw = ImageDraw.Draw(bg)
 
-            # 1. DRAW OVERLORD WINNERS (Left Side Column - Large Profiles)
-            # Fits precisely on the left half of the template layout
+            # 1. DRAW OVERLORD WINNERS (Left Half - Giant Framed Avatars Side-By-Side)
             w_size = 360
             for idx, buf in enumerate(winner_buffers[:2]):
                 av = Image.open(buf).convert("RGBA").resize((w_size, w_size))
-                av = ImageOps.expand(av, border=15, fill="#FF00FF") # Glowing pink border
+                av = ImageOps.expand(av, border=15, fill="#FF00FF") # Glowing pink border outline
                 bg.paste(av, (80, 80 + (idx * 410)), av)
                 
-                # Winner Title Labels
+                # Overlord visual overlay badges
                 draw.rectangle([80, 80 + (idx * 410) + w_size - 40, 80 + w_size + 30, 80 + (idx * 410) + w_size + 15], fill=(0, 0, 0, 220))
                 draw.text((100, 80 + (idx * 410) + w_size - 30), f"HEIST OVERLORD", fill=(255, 215, 0))
 
-            # Draw central dividing separation line
+            # Draw central boundary separator split line
             draw.line((580, 40, 580, 860), fill=(255, 0, 255), width=8)
 
-            # 2. DRAW TARGET DUOS GROUPED BY CELL SQUAD (Right Side Column Rows)
-            # Accommodates up to 6 distinct cell squads stacked sequentially
+            # 2. DRAW TARGET GROUPS (Right Half - Clean Stacked Row Blocks)
             y_offset = 60
             for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())[:6]):
-                # Draw Squad Division Frame
+                # Draw squad block row headers
                 draw.rectangle([620, y_offset, 1540, y_offset + 35], fill=(85, 0, 17, 180))
                 draw.text((635, y_offset + 8), f"CELL SQUAD UNIT #{squad_id}", fill=(255, 0, 255))
                 
-                # Draw both squad members inside this division row
+                # Draw members stacked horizontally in this squad block division row
                 for m_idx, member in enumerate(members[:2]):
                     m_x = 640 + (m_idx * 450)
                     m_y = y_offset + 50
                     
                     if member.id in victim_avatars:
                         v_av = Image.open(victim_avatars[member.id]).convert("RGBA").resize((70, 70))
-                        v_av = ImageOps.expand(v_av, border=3, fill="#550011") # Heavy red frame
+                        v_av = ImageOps.expand(v_av, border=3, fill="#550011") # Heavy red target frames
                         bg.paste(v_av, (m_x, m_y), v_av)
                     
-                    # Trim layout overflows
+                    # Prevent text overlap issues by clipping excessively long names
                     display_name = member.display_name if len(member.display_name) <= 18 else member.display_name[:15] + "..."
                     draw.text((m_x + 95, m_y + 22), display_name, fill=(255, 255, 255))
                     
@@ -734,127 +727,10 @@ class CrimeEngineControl(commands.Cog):
         if engine:
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **An active heist is already running.** Clear current operations first.")
-            if ctx.guild.id in engine.current_lobbies:
+            if ctx.guild.id in engine.current_lobobbies:
                 return await ctx.send("❌ **Lobby gates are already open in this city.**")
 
         with self.get_db_connection() as conn:
             # Re-migration safety check before setting up the game lobby
             try:
-                conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT 1")
-            except sqlite3.OperationalError:
-                conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
-
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
-            conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
-            
-            # --- THE FIX: SAFETY UPSERT ON STATS ---
-            # Using standard SQLite conflict resolution to initialize with 1 OR increment by 1 cleanly
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
-            conn.execute(
-                "INSERT INTO crime_server_stats (guild_id, server_edition) VALUES (?, 1) "
-                "ON CONFLICT(guild_id) DO UPDATE SET server_edition = server_edition + 1",
-                (ctx.guild.id,)
-            )
-            
-            row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
-            server_edition = row[0] if row else 1
-            conn.commit()
-
-        # Set game edition variables globally inside main
-        if not hasattr(main, "crime_game_edition"):
-            main.crime_game_edition = 1
-
-        # Instantiate lobby and generate dynamic layout cards
-        view = CrimeLobbyView(ctx.author, main.crime_game_edition, ctx.guild.id)
-        self.bot.add_view(view)
-
-        if engine: 
-            engine.current_lobbies[ctx.guild.id] = view
-
-        # Populate starting empty dictionary layout directly
-        teams = {i: [None, None] for i in range(1, 16)}
-        embeds = view.render_lobby_embeds(teams, server_edition, main.crime_game_edition)
-        await ctx.send(embeds=embeds, view=view)
-        
-        main.crime_game_edition += 1
-        self.save_game_config()
-
-    @commands.command(name="strip")
-    async def crime_strip_command(self, ctx, squad_num: int):
-        """Allows winning duo to target an entire team layout using its Squad ID index."""
-        engine = self.bot.get_cog("PartnersInCrimeEngine")
-        if not engine: 
-            return
-
-        active_winners = engine.reign_of_terror.get(ctx.channel.id)
-        if not active_winners:
-            return await ctx.send("❌ **No syndicate rulers are active in this territory.**")
-
-        if ctx.author.id not in active_winners:
-            return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission, or you already executed your pick!**")
-
-        # Pull match structural layouts from match tracking logs
-        match_history = engine.historical_match_squads.get(ctx.channel.id)
-        if not match_history or squad_num not in match_history:
-            return await ctx.send(f"❌ **Squad #{squad_num} was not found inside the registration file of this operation cycle.**")
-
-        target_members = match_history[squad_num]
-        if not target_members:
-            return await ctx.send("❌ Internal Error: Target squad is unassigned or empty.")
-
-        sentence = random.choice(engine.flash_sentences)
-        
-        # Compile target mentions for proper announcements
-        target_mentions_str = " & ".join([m.mention for m in target_members])
-        
-        embed = self.fiery_embed(
-            "Underworld Submission Mandate", 
-            f"📸 {ctx.author.mention} signs the warrant of absolute exposure over **Squad #{squad_num}**...\n\n"
-            f"**\"{sentence}\"**\n\n"
-            f"🔞 {target_mentions_str}, by blood-oath syndicate law, **YOU MUST FLASH!**",
-            color=0xFF00FF
-        )
-        
-        # Build ping headers to send out proper notifications
-        ping_content = " ".join([m.mention for m in target_members])
-        await ctx.send(content=ping_content, embed=embed)
-        
-        # Safe removal of only the command sender's ID from the registry
-        engine.reign_of_terror[ctx.channel.id].remove(ctx.author.id)
-        
-        # Clean the active channel entry from cache only when both winners have depleted their charges
-        if not engine.reign_of_terror[ctx.channel.id]:
-            del engine.reign_of_terror[ctx.channel.id]
-
-
-# ==============================================================================
-# SETUP AND REGISTRATION
-# ==============================================================================
-
-async def setup(bot):
-    import sys as _sys_setup
-    main = _sys_setup.modules['__main__']
-    
-    # Register the views globally with the bot so they survive reboots and never fail / fail to interact
-    bot.add_view(CrimeWinnerDetailsView())
-    bot.add_view(CrimeLobbyView())
-    
-    crime_engine = PartnersInCrimeEngine(
-        bot, 
-        main.update_user_stats_async, 
-        main.get_user, 
-        main.fiery_embed, 
-        main.get_db_connection, 
-        main.RANKS, 
-        main.CLASSES, 
-        main.AUDIT_CHANNEL_ID
-    )
-    await bot.add_cog(crime_engine)
-    
-    crime_engine_control = CrimeEngineControl(
-        bot,
-        main.fiery_embed,
-        main.save_game_config,
-        main.get_db_connection
-    )
-    await bot.add_cog(crime_engine_control)
+                conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT
