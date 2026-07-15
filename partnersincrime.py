@@ -365,7 +365,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.commit()
 
     def calculate_level(self, current_xp):
@@ -459,7 +459,8 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
 
     async def create_recap_image(self, winners, victims_list):
-        """Synthesizes an advanced layout drawing clear labels over available target squads for easier comprehension."""
+        """Synthesizes a highly advanced visual layout showcasing the winners on the left,
+        and group-by-group cell blocks on the right with formatted profiles."""
         try:
             async with aiohttp.ClientSession() as session:
                 winner_buffers = []
@@ -468,47 +469,67 @@ class PartnersInCrimeEngine(commands.Cog):
                         if resp.status == 200:
                             winner_buffers.append(io.BytesIO(await resp.read()))
                 
-                victim_buffers = []
+                # Group victims by squad index mapping: squad_id -> [list of members]
+                grouped_victims = {}
                 for v_team_num, v_member in victims_list:
-                    async with session.get(v_member.display_avatar.url, timeout=10) as resp:
-                        if resp.status == 200:
-                            victim_buffers.append((v_team_num, io.BytesIO(await resp.read())))
+                    if v_team_num not in grouped_victims:
+                        grouped_victims[v_team_num] = []
+                    # Keep unique entries only
+                    if v_member not in grouped_victims[v_team_num]:
+                        grouped_victims[v_team_num].append(v_member)
+
+                # Pre-download victim avatars
+                victim_avatars = {}
+                for s_id, members in list(grouped_victims.items())[:6]: # Restrict to top 6 squads visually to maintain fit
+                    for m in members:
+                        async with session.get(m.display_avatar.url, timeout=10) as resp:
+                            if resp.status == 200:
+                                victim_avatars[m.id] = io.BytesIO(await resp.read())
 
             canvas_w = 1600
             canvas_h = 900
             bg_path = "1v1Background.jpg"
             bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
             
-            # 1. DRAW WINNERS (Left Side - Prominent & Massive)
-            w_size = 450
+            draw = ImageDraw.Draw(bg)
+
+            # 1. DRAW OVERLORD WINNERS (Left Column - Huge Profiles)
+            w_size = 360
             for idx, buf in enumerate(winner_buffers[:2]):
                 av = Image.open(buf).convert("RGBA").resize((w_size, w_size))
-                av = ImageOps.expand(av, border=20, fill="#FF00FF") # Hot pink glowing border
-                bg.paste(av, (80, 100 + (idx * 400)), av)
-
-            # Draw central boundary line
-            draw = ImageDraw.Draw(bg)
-            draw.line((650, 50, 650, 850), fill=(255, 0, 255), width=15)
-
-            # 2. DRAW TARGET DUOS (Right Side - Grid Structure of smaller profiles with text overlay)
-            v_size = 180
-            x_start = 720
-            y_start = 80
-            spacing_x = 220
-            spacing_y = 210
-
-            for idx, (squad_id, buf) in enumerate(victim_buffers[:12]): # Showcase top 12 available targets in the pool
-                col = idx % 4
-                row = idx // 4
-                av = Image.open(buf).convert("RGBA").resize((v_size, v_size))
-                av = ImageOps.expand(av, border=8, fill="#550011") # Dark red frame
-                px = x_start + (col * spacing_x)
-                py = y_start + (row * spacing_y)
-                bg.paste(av, (px, py), av)
+                av = ImageOps.expand(av, border=15, fill="#FF00FF") # Glowing pink border
+                bg.paste(av, (80, 80 + (idx * 410)), av)
                 
-                # Stamp clear text banner over card to mark squad identity clearly
-                draw.rectangle([px + 8, py + v_size - 30, px + v_size - 8, py + v_size - 8], fill=(0, 0, 0, 200))
-                draw.text((px + 15, py + v_size - 26), f"SQUAD #{squad_id}", fill=(255, 255, 255))
+                # Winner Title Labels
+                draw.rectangle([80, 80 + (idx * 410) + w_size - 40, 80 + w_size + 30, 80 + (idx * 410) + w_size + 15], fill=(0, 0, 0, 220))
+                draw.text((100, 80 + (idx * 410) + w_size - 30), f"HEIST OVERLORD", fill=(255, 215, 0))
+
+            # Draw central boundaries split
+            draw.line((580, 40, 580, 860), fill=(255, 0, 255), width=8)
+
+            # 2. DRAW TARGET DUOS GROUPED BY CELL SQUAD (Right Side Rows)
+            # Display up to 6 victim cell squads neatly stacked vertically
+            y_offset = 60
+            for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())[:6]):
+                # Draw Row Title
+                draw.rectangle([620, y_offset, 1540, y_offset + 35], fill=(85, 0, 17, 180))
+                draw.text((635, y_offset + 8), f"CELL SQUAD UNIT #{squad_id}", fill=(255, 0, 255))
+                
+                # Draw up to 2 partners side-by-side in this squad block row
+                for m_idx, member in enumerate(members[:2]):
+                    m_x = 640 + (m_idx * 450)
+                    m_y = y_offset + 50
+                    
+                    if member.id in victim_avatars:
+                        v_av = Image.open(victim_avatars[member.id]).convert("RGBA").resize((70, 70))
+                        v_av = ImageOps.expand(v_av, border=3, fill="#550011") # Frame outline
+                        bg.paste(v_av, (m_x, m_y), v_av)
+                    
+                    # Cutout long names safely
+                    display_name = member.display_name if len(member.display_name) <= 18 else member.display_name[:15] + "..."
+                    draw.text((m_x + 95, m_y + 22), display_name, fill=(255, 255, 255))
+                    
+                y_offset += 135
 
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
@@ -651,9 +672,29 @@ class PartnersInCrimeEngine(commands.Cog):
             # Execute RECAP PROTOCOL
             recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
             recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
+            
+            # Generate the detailed members available list for the Discord text embed description
+            targets_text_list = ""
+            # Group by squad units for text-based emphasis too
+            txt_groups = {}
+            for squad_id, member in defeated_victims:
+                if squad_id not in txt_groups:
+                    txt_groups[squad_id] = []
+                if member not in txt_groups[squad_id]:
+                    txt_groups[squad_id].append(member)
+                    
+            for squad_id, members in txt_groups.items():
+                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
+                for member in members:
+                    targets_text_list += f"• {member.mention} ({member.display_name})\n"
+
             recap_emb = discord.Embed(
                 title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
-                description="The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (left) and the remaining vulnerable targets available to be forced into submission (right). Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!",
+                description=(
+                    "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (left) and the remaining vulnerable targets available to be forced into submission (right).\n"
+                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
+                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
+                ),
                 color=0xFF00FF
             )
             recap_emb.set_image(url="attachment://crime_recap.png")
@@ -699,7 +740,16 @@ class CrimeEngineControl(commands.Cog):
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            
+            # --- THE FIX: SAFETY UPSERT ON STATS ---
+            # Using standard SQLite conflict resolution to initialize with 1 OR increment by 1 cleanly
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute(
+                "INSERT INTO crime_server_stats (guild_id, server_edition) VALUES (?, 1) "
+                "ON CONFLICT(guild_id) DO UPDATE SET server_edition = server_edition + 1",
+                (ctx.guild.id,)
+            )
+            
             row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
             server_edition = row[0] if row else 1
             conn.commit()
@@ -722,10 +772,6 @@ class CrimeEngineControl(commands.Cog):
         
         main.crime_game_edition += 1
         self.save_game_config()
-        
-        with self.get_db_connection() as conn:
-            conn.execute("UPDATE crime_server_stats SET server_edition = server_edition + 1 WHERE guild_id = ?", (ctx.guild.id,))
-            conn.commit()
 
     @commands.command(name="strip")
     async def crime_strip_command(self, ctx, squad_num: int):
