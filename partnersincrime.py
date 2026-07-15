@@ -64,6 +64,12 @@ class CrimeLobbyView(discord.ui.View):
         teams = {i: [None, None] for i in range(1, 16)}
         try:
             with engine.get_db_connection() as conn:
+                # Safe migration recovery inside DB call
+                try:
+                    conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT 1")
+                except sqlite3.OperationalError:
+                    conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
+                
                 conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
                 rows = conn.execute("SELECT user_id, team_num, slot_num FROM crime_lobby_participants WHERE guild_id = ?", (guild_id,)).fetchall()
                 for r in rows:
@@ -195,7 +201,7 @@ class CrimeLobbyView(discord.ui.View):
 
         ignis_admin_role_id = None
         with engine.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id PRIMARY KEY, role_id INTEGER)")
             row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
             if row: 
                 ignis_admin_role_id = row[0]
@@ -284,6 +290,11 @@ class PartnersInCrimeEngine(commands.Cog):
 
     def _init_persistence(self):
         with self.get_db_connection() as conn:
+            try:
+                conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
+
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.commit()
@@ -499,6 +510,13 @@ class CrimeEngineControl(commands.Cog):
                 return await ctx.send("❌ **Registration is already open for this server.**")
 
         with self.get_db_connection() as conn:
+            # Re-migration safety check before setting up the game lobby
+            try:
+                conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
+
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
