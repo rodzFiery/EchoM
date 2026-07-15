@@ -59,6 +59,21 @@ class CrimeLobbyView(discord.ui.View):
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
+    def fetch_teams_from_db(self, engine, guild_id):
+        """Helper to build a clean 15-team squad map directly from the database state."""
+        teams = {i: [None, None] for i in range(1, 16)}
+        try:
+            with engine.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
+                rows = conn.execute("SELECT user_id, team_num, slot_num FROM crime_lobby_participants WHERE guild_id = ?", (guild_id,)).fetchall()
+                for r in rows:
+                    uid, t_num, s_num = r[0], r[1], r[2]
+                    if t_num in teams and s_num in [0, 1]:
+                        teams[t_num][s_num] = uid
+        except Exception as e:
+            print(f"Error fetching teams from DB: {e}")
+        return teams
+
     def render_lobby_embeds(self, teams, server_edition, edition_num):
         # Count current participants
         all_players = []
@@ -91,7 +106,7 @@ class CrimeLobbyView(discord.ui.View):
             
             status_symbol = "👥" if (slots[0] and slots[1]) else "👤" if (slots[0] or slots[1]) else "🔒"
             
-            # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed limits
+            # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed character limits
             if slots[0] or slots[1] or t_idx <= 6:
                 teams_embed.add_field(
                     name=f"{status_symbol} Squad Unit {t_idx}", 
@@ -112,14 +127,10 @@ class CrimeLobbyView(discord.ui.View):
         if not engine: 
             return await interaction.followup.send("❌ Internal Error: Engine not found.", ephemeral=True)
 
-        # Ensure our guild registration room exists inside central cog memory
-        if interaction.guild.id not in engine.active_lobbies:
-            engine.active_lobbies[interaction.guild.id] = {i: [None, None] for i in range(1, 16)}
+        # 1. Fetch synced team list directly from the database
+        lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
 
-        # Fetch the synced cog memory reference
-        lobby_teams = engine.active_lobbies[interaction.guild.id]
-
-        # Check if the user is already signed up in any team
+        # 2. Check if the user is already signed up in any team
         user_already_registered = False
         for t_idx, slots in lobby_teams.items():
             if interaction.user.id in slots:
@@ -129,7 +140,7 @@ class CrimeLobbyView(discord.ui.View):
         if user_already_registered:
             return await interaction.followup.send("🔗 **You are already chained to a cell partner.** There is no backing out.", ephemeral=True)
 
-        # Find empty slots across our squads
+        # 3. Find empty slots
         available_slots = []
         for t_idx, slots in lobby_teams.items():
             if slots[0] is None:
@@ -140,11 +151,11 @@ class CrimeLobbyView(discord.ui.View):
         if not available_slots:
             return await interaction.followup.send("❌ **The heist operations are full!** No more active squad openings.", ephemeral=True)
 
-        # Assign user randomly to one of the empty slots in memory
+        # 4. Assign user randomly to one of the empty slots
         selected_team, selected_slot = random.choice(available_slots)
         lobby_teams[selected_team][selected_slot] = interaction.user.id
 
-        # Back up choice immediately to database for persistence
+        # 5. Write assignment immediately to database
         with engine.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("INSERT INTO crime_lobby_participants (guild_id, user_id, team_num, slot_num) VALUES (?, ?, ?, ?)", 
@@ -159,7 +170,7 @@ class CrimeLobbyView(discord.ui.View):
                 if row:
                     server_edition = row[0]
             
-            # Re-render both embeds with absolute precision using synced memory state
+            # Re-render both embeds with the freshly updated database configuration
             updated_embeds = self.render_lobby_embeds(lobby_teams, server_edition, self.edition)
             await interaction.message.edit(embeds=updated_embeds, view=self)
             await interaction.followup.send(f"🤝 **Signed!** You have been assigned to **Squad Unit {selected_team}**.", ephemeral=True)
@@ -198,8 +209,8 @@ class CrimeLobbyView(discord.ui.View):
         if owner_id and interaction.user.id != owner_id and not is_staff:
             return await interaction.followup.send("🔒 **Clearance Denied: Only the Mob Boss or Staff can launch this heist.**", ephemeral=True)
         
-        # Load latest synced teams from cog memory fallback
-        lobby_teams = engine.active_lobbies.get(interaction.guild.id, {i: [None, None] for i in range(1, 16)})
+        # Load latest synced teams directly from database
+        lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
 
         # Collect and filter active players (ignore empty slots completely)
         final_teams_list = []
@@ -227,9 +238,6 @@ class CrimeLobbyView(discord.ui.View):
 
         if interaction.guild.id in engine.current_lobbies:
             del engine.current_lobbies[interaction.guild.id]
-
-        if interaction.guild.id in engine.active_lobbies:
-            del engine.active_lobbies[interaction.guild.id]
 
         with engine.get_db_connection() as conn:
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
@@ -264,9 +272,6 @@ class PartnersInCrimeEngine(commands.Cog):
         self.current_lobbies = {}
         self.current_survivors = {}
         self.reign_of_terror = {}  # Tracks last winner duos per channel
-        
-        # Centralized active lobby tracking dict to bypass view recreation memory wipes
-        self.active_lobbies = {} 
 
         self.flash_sentences = [
             "No honor among thieves. Strip down and pay your dues.",
@@ -504,18 +509,16 @@ class CrimeEngineControl(commands.Cog):
         if not hasattr(main, "crime_game_edition"):
             main.crime_game_edition = 1
 
-        # Instantiate lobby and save it directly into the cog's global lobbies structure
+        # Instantiate lobby and generate dynamic layout cards
         view = CrimeLobbyView(ctx.author, main.crime_game_edition, ctx.guild.id)
         self.bot.add_view(view)
 
         if engine: 
             engine.current_lobbies[ctx.guild.id] = view
-            # Initialize a completely empty 15-team cache slot directly inside the active cog memory
-            engine.active_lobbies[ctx.guild.id] = {i: [None, None] for i in range(1, 16)}
 
-        # Load blank roster directly from new memory segment
-        lobby_teams = engine.active_lobbies[ctx.guild.id]
-        embeds = view.render_lobby_embeds(lobby_teams, server_edition, main.crime_game_edition)
+        # Populate starting empty dictionary layout directly
+        teams = {i: [None, None] for i in range(1, 16)}
+        embeds = view.render_lobby_embeds(teams, server_edition, main.crime_game_edition)
         await ctx.send(embeds=embeds, view=view)
         
         main.crime_game_edition += 1
