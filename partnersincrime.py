@@ -34,7 +34,7 @@ class CrimeWinnerDetailsView(discord.ui.View):
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
-    @discord.ui.button(label="View Case File", style=discord.ButtonStyle.primary, emoji="📁", custom_id="crime_winner_details")
+    @discord.ui.button(label="Examine Crime File", style=discord.ButtonStyle.primary, emoji="🔞", custom_id="crime_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
 
@@ -51,11 +51,11 @@ class CrimeLobbyView(discord.ui.View):
         join_id = f"crime_join_{self.guild_id}" if self.guild_id else "crime_join_btn_default"
         start_id = f"crime_start_{self.guild_id}" if self.guild_id else "crime_start_btn_default"
 
-        join_btn = discord.ui.Button(label="Sign the Pact", style=discord.ButtonStyle.success, emoji="🖋️", custom_id=join_id)
+        join_btn = discord.ui.Button(label="Sign the Blood Pact", style=discord.ButtonStyle.success, emoji="🫦", custom_id=join_id)
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Lock Cells and Begin", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id=start_id)
+        start_btn = discord.ui.Button(label="Initiate Heist Operation", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id=start_id)
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
@@ -90,44 +90,44 @@ class CrimeLobbyView(discord.ui.View):
 
         # Embed 1: Lobby Status Details
         info_embed = discord.Embed(
-            title=f"Partners In Crime Spree # {edition_num}", 
-            description=f"**Server Edition: #{server_edition}**\n\nFind your crew, load your weapons, and sign the registry to claim your stake of the vault.", 
-            color=0x00FFFF
+            title=f"💦 Partners In Crime Spree # {edition_num} 💦", 
+            description=f"**Syndicate Grid Server Edition: #{server_edition}**\n\nFind your partner in bondage, lock and load your weapons, and seal your signatures in blood to claim your stake of the vault.", 
+            color=0xFF00FF
         )
         info_embed.add_field(
-            name="🧙‍♂️ Syndicate Roster Status", 
-            value=f"**{len(all_players)}** partners ready. Silent loading of rounds..." if len(all_players) > 0 else "Silent loading of rounds...", 
+            name="⛓️ Active Syndicate Underworld Roster", 
+            value=f"**{len(all_players)}** outlaws chained in cells... preparing tools.", 
             inline=False
         )
 
         # Embed 2: The Grid of Squad Teams
         teams_embed = discord.Embed(
-            title="⛓️ Operational Squads Registry",
-            color=0x00FFFF
+            title="🫦 Underworld Cell Block Divisions",
+            color=0xFF00FF
         )
         
         for t_idx, slots in teams.items():
-            p1_mention = f"<@{slots[0]}>" if slots[0] else "*Empty Slot*"
-            p2_mention = f"<@{slots[1]}>" if slots[1] else "*Empty Slot*"
+            p1_mention = f"<@{slots[0]}>" if slots[0] else "*Unassigned*"
+            p2_mention = f"<@{slots[1]}>" if slots[1] else "*Unassigned*"
             
-            status_symbol = "👥" if (slots[0] and slots[1]) else "👤" if (slots[0] or slots[1]) else "🔒"
+            status_symbol = "👅" if (slots[0] and slots[1]) else "👣" if (slots[0] or slots[1]) else "🔒"
             
             # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed character limits
             if slots[0] or slots[1] or t_idx <= 6:
                 teams_embed.add_field(
-                    name=f"{status_symbol} Squad Unit {t_idx}", 
-                    value=f"• **Partner 1:** {p1_mention}\n• **Partner 2:** {p2_mention}", 
+                    name=f"{status_symbol} Cell Squad Unit {t_idx}", 
+                    value=f"• **Dominant Partner:** {p1_mention}\n• **Submissive Partner:** {p2_mention}", 
                     inline=True
                 )
             
-        teams_embed.set_footer(text=f"Total Syndicate Count: {len(all_players)}/30 players locked in.")
+        teams_embed.set_footer(text=f"Underworld Registration Board: {len(all_players)}/30 locked in.")
         return [info_embed, teams_embed]
 
     async def join_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         if not self.active:
-            return await interaction.followup.send("❌ **The gates are locked.** The syndicate has already left.", ephemeral=True)
+            return await interaction.followup.send("❌ **The cell blocks are locked down.** The operation is already active.", ephemeral=True)
 
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
@@ -144,7 +144,7 @@ class CrimeLobbyView(discord.ui.View):
                 break
                 
         if user_already_registered:
-            return await interaction.followup.send("🔗 **You are already chained to a cell partner.** There is no backing out.", ephemeral=True)
+            return await interaction.followup.send("🔗 **You are already chained to your cell block.** The keys are gone.", ephemeral=True)
 
         # 3. Find empty slots
         available_slots = []
@@ -155,7 +155,7 @@ class CrimeLobbyView(discord.ui.View):
                 available_slots.append((t_idx, 1))
 
         if not available_slots:
-            return await interaction.followup.send("❌ **The heist operations are full!** No more active squad openings.", ephemeral=True)
+            return await interaction.followup.send("❌ **The cell blocks are packed!** No empty spots left.", ephemeral=True)
 
         # 4. Assign user randomly to one of the empty slots
         selected_team, selected_slot = random.choice(available_slots)
@@ -179,7 +179,7 @@ class CrimeLobbyView(discord.ui.View):
             # Re-render both embeds with the freshly updated database configuration
             updated_embeds = self.render_lobby_embeds(lobby_teams, server_edition, self.edition)
             await interaction.message.edit(embeds=updated_embeds, view=self)
-            await interaction.followup.send(f"🤝 **Signed!** You have been assigned to **Squad Unit {selected_team}**.", ephemeral=True)
+            await interaction.followup.send(f"🫦 **Pact Sealed!** You have been assigned to **Cell Squad Unit {selected_team}**.", ephemeral=True)
         except Exception as e:
             print(f"Crime Lobby Join Error: {e}")
             traceback.print_exc()
@@ -213,7 +213,7 @@ class CrimeLobbyView(discord.ui.View):
         
         owner_id = getattr(self.owner, 'id', None)
         if owner_id and interaction.user.id != owner_id and not is_staff:
-            return await interaction.followup.send("🔒 **Clearance Denied: Only the Mob Boss or Staff can launch this heist.**", ephemeral=True)
+            return await interaction.followup.send("🔒 **Clearance Denied: Only the Ring Leader or Staff can launch this operation.**", ephemeral=True)
         
         # Load latest synced teams directly from database
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -229,7 +229,7 @@ class CrimeLobbyView(discord.ui.View):
         flat_players = [p for squad in final_teams_list for p in squad]
 
         if len(flat_players) < 4:
-            return await interaction.followup.send("We need at least 4 outlaws inside the registration room to begin!", ephemeral=True)
+            return await interaction.followup.send("We need at least 4 devious outlaws inside the registration room to begin!", ephemeral=True)
         
         guild_games = 0
         for channel_id in engine.active_battles:
@@ -249,7 +249,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE ALARMS SCREAM... PARTNERS IN CRIME SPREE HAS BEGUN!**")
+        await interaction.channel.send("🚨 **THE SIRENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
         import sys as _sys_m
         main_mod = _sys_m.modules['__main__']
@@ -280,11 +280,11 @@ class PartnersInCrimeEngine(commands.Cog):
         self.reign_of_terror = {}  # Tracks last winner duos per channel
 
         self.flash_sentences = [
-            "No honor among thieves. Strip down and pay your dues.",
-            "You got caught red-handed. Shed the clothes and show your crimes.",
-            "The sirens are coming, and you're caught bare. Start striping.",
-            "Partners in chains, partners in shame. Expose your surrender.",
-            "Your heist failed. Pay the ultimate tax of exposure right now!"
+            "No honor among thieves. Strip down completely and pay your hot tax.",
+            "You got caught red-handed. Shed those clothes and show your dirty crimes.",
+            "The sirens are coming, and you're caught totally bare. Start striping.",
+            "Partners in chains, partners in shame. Expose your hot surrender right now.",
+            "Your heist failed. Pay the ultimate tax of complete exposure!"
         ]
         self._init_persistence()
 
@@ -322,12 +322,13 @@ class PartnersInCrimeEngine(commands.Cog):
                             raise Exception("Avatar download error")
                         buffers.append(io.BytesIO(await resp.read()))
             
-            canvas_w = 1000
-            canvas_h = 1000
+            canvas_w = 1200
+            canvas_h = 600
             bg_path = "1v1Background.jpg"
             bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (10, 10, 30, 255))
             
-            av_size = 200
+            # Massive visual profile size to emphasize profiles
+            av_size = 350
             
             # Load and size avatars
             a1 = Image.open(buffers[0]).convert("RGBA").resize((av_size, av_size))
@@ -335,37 +336,37 @@ class PartnersInCrimeEngine(commands.Cog):
             a3 = Image.open(buffers[2]).convert("RGBA").resize((av_size, av_size))
             a4 = Image.open(buffers[3]).convert("RGBA").resize((av_size, av_size))
             
-            # Add borders
-            a1 = ImageOps.expand(a1, border=8, fill="orange")
-            a2 = ImageOps.expand(a2, border=8, fill="orange")
+            # Massive neon glowing pink borders for the winners to stand out
+            a1 = ImageOps.expand(a1, border=15, fill="#FF00FF")
+            a2 = ImageOps.expand(a2, border=15, fill="#FF00FF")
             
-            # Losers get grayscale and red wash
+            # Losers get heavy grayscale and thick red wash overlay
             a3_gray = ImageOps.grayscale(a3).convert("RGBA")
             a4_gray = ImageOps.grayscale(a4).convert("RGBA")
-            red_overlay = Image.new("RGBA", (av_size, av_size), (255, 0, 0, 100))
+            red_overlay = Image.new("RGBA", (av_size, av_size), (255, 0, 0, 160))
             a3 = Image.alpha_composite(a3_gray, red_overlay)
             a4 = Image.alpha_composite(a4_gray, red_overlay)
-            a3 = ImageOps.expand(a3, border=8, fill="gray")
-            a4 = ImageOps.expand(a4, border=8, fill="gray")
+            a3 = ImageOps.expand(a3, border=10, fill="#220000")
+            a4 = ImageOps.expand(a4, border=10, fill="#220000")
 
             # Paste Team 1 (Winners) left side
-            bg.paste(a1, (50, 200), a1)
-            bg.paste(a2, (270, 200), a2)
+            bg.paste(a1, (50, 100), a1)
+            bg.paste(a2, (410, 100), a2)
 
             # Paste Team 2 (Losers) right side
-            bg.paste(a3, (510, 200), a3)
-            bg.paste(a4, (730, 200), a4)
+            bg.paste(a3, (800, 150), a3)
+            bg.paste(a4, (1160, 150), a4)
             
             draw = ImageDraw.Draw(bg)
-            draw.line((480, 150, 500, 450), fill=(220, 0, 0), width=15)
+            draw.line((775, 50, 785, 550), fill=(255, 0, 255), width=20)
             
             buf = io.BytesIO()
-            bg.crop((0, 100, 1000, 550)).save(buf, format="PNG")
+            bg.save(buf, format="PNG")
             buf.seek(0)
             return buf
         except Exception as e:
             print(f"Crime Image Synthesizer Error: {e}")
-            fallback = Image.new("RGBA", (1000, 450), (10, 10, 20, 255))
+            fallback = Image.new("RGBA", (1200, 600), (10, 10, 20, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -393,13 +394,13 @@ class PartnersInCrimeEngine(commands.Cog):
                     resolved_teams.append({
                         "p1": resolved_members[0],
                         "p2": resolved_members[1],
-                        "name": f"🎭 {resolved_members[0].display_name} & {resolved_members[1].display_name}"
+                        "name": f"😈 {resolved_members[0].display_name} & {resolved_members[1].display_name}"
                     })
                 elif len(resolved_members) == 1:
                     resolved_teams.append({
                         "p1": resolved_members[0],
                         "p2": resolved_members[0], # Clone for visualization protection
-                        "name": f"🐺 Solo Outlaw: {resolved_members[0].display_name}"
+                        "name": f"🐺 Rogue Renegade: {resolved_members[0].display_name}"
                     })
 
             # Shuffle battle matchup sequence to keep it dynamic
@@ -409,12 +410,12 @@ class PartnersInCrimeEngine(commands.Cog):
             # Display Teams
             roster_desc = ""
             for idx, duo in enumerate(resolved_teams, 1):
-                roster_desc += f"**Team {idx}:** {duo['name']}\n"
+                roster_desc += f"**Squad {idx}:** {duo['name']}\n"
                 
             roster_emb = self.fiery_embed(
-                f"Syndicate Roster - Spree #{edition}", 
-                f"The gangs have carved out their territories:\n\n" + roster_desc, 
-                color=0x00FFFF
+                f"⛓️ Operational Syndicate Roster - Heist Spree #{edition} ⛓️", 
+                f"The gangs have locked targets and marked territories:\n\n" + roster_desc, 
+                color=0xFF00FF
             )
             await channel.send(embed=roster_emb)
             await asyncio.sleep(5)
@@ -424,7 +425,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
                 t2 = resolved_teams.pop(random.randrange(len(resolved_teams)))
 
-                await channel.send(f"💥 **CLASH IN THE BACK ALLEY!** {t1['name']} encounters {t2['name']}...")
+                await channel.send(f"💥 **TERRITORY INVASION!** {t1['name']} corners {t2['name']} in a dark alleyway...")
                 await asyncio.sleep(3)
 
                 # Execute Fight
@@ -443,9 +444,9 @@ class PartnersInCrimeEngine(commands.Cog):
                 file = discord.File(fp=arena_image, filename="arena_duo.png")
 
                 emb = discord.Embed(
-                    title=f"⚔️ {winner['name']} WIPES OUT {loser['name']}!", 
-                    description=f"In a shower of sparks and gunfire, {loser['name']} has been run off the turf.", 
-                    color=0x00FF00
+                    title=f"🫦 {winner['name']} DOMINATES AND WIPES OUT {loser['name']}!", 
+                    description=f"Stripped of armor and dignity, {loser['name']} has been cast out of the heist zone.", 
+                    color=0xFF00FF
                 )
                 emb.set_image(url="attachment://arena_duo.png")
                 await channel.send(file=file, embed=emb)
@@ -460,19 +461,19 @@ class PartnersInCrimeEngine(commands.Cog):
                 await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
 
             win_emb = discord.Embed(
-                title=f"👑 CO-CHAMPIONS OF THE UNDERWORLD 👑",
+                title=f"👑 REIGNING SYNDICATE OVERLORDS 👑",
                 description=(
-                    f"Congratulations to **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
-                    f"They have cleaned out the vault! Both earn **30,000 Flames** and **3,000 XP**.\n\n"
-                    f"🔞 **Winner's Decree Ready:** You hold absolute command over the citizens. "
-                    f"Run `!strip @victim1 @victim2` to execute your punishment!"
+                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
+                    f"They have cleaned out the cache! Both partners claim **30,000 Flames** and **3,000 XP**.\n\n"
+                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
+                    f"Deploy `!strip @victim1 @victim2` to force your targets into submission!"
                 ),
                 color=0xFFD700
             )
             
             # Setup Winner detail layout cards
-            details_card = discord.Embed(title="📜 Case File: The Grand Sieve", color=0xFFD700)
-            details_card.add_field(name="Heist Details", value="All trace operations cleanly neutralized. Loot divided 50/50.")
+            details_card = discord.Embed(title="📜 Dossier: The Syndicate Vault Breakers", color=0xFFD700)
+            details_card.add_field(name="Heist Outcome", value="All defense layers neutralized. Treasures divided 50/50 under covenant rules.")
             view = CrimeWinnerDetailsView(details_card)
             self.bot.add_view(view)
 
@@ -505,9 +506,9 @@ class CrimeEngineControl(commands.Cog):
         engine = self.bot.get_cog("PartnersInCrimeEngine")
         if engine:
             if ctx.channel.id in engine.active_battles:
-                return await ctx.send("❌ **A heist is already in progress.** Wait for the police pursuit to finish.")
+                return await ctx.send("❌ **An active heist is already running.** Clear current operations first.")
             if ctx.guild.id in engine.current_lobbies:
-                return await ctx.send("❌ **Registration is already open for this server.**")
+                return await ctx.send("❌ **Lobby gates are already open in this city.**")
 
         with self.get_db_connection() as conn:
             # Re-migration safety check before setting up the game lobby
@@ -555,18 +556,18 @@ class CrimeEngineControl(commands.Cog):
 
         active_winners = engine.reign_of_terror.get(ctx.channel.id)
         if not active_winners:
-            return await ctx.send("❌ **No active heist winners are registered in this district.**")
+            return await ctx.send("❌ **No syndicate rulers are active in this territory.**")
 
         if ctx.author.id not in active_winners:
-            return await ctx.send("🫦 **Only the reigning partners in crime hold the keys to this vault.**")
+            return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission.**")
 
         sentence = random.choice(engine.flash_sentences)
         
         embed = self.fiery_embed(
-            "Exhibitionist Decree", 
-            f"📸 {ctx.author.mention} waves the syndicate contract over the targets...\n\n"
+            "Underworld Submission Mandate", 
+            f"📸 {ctx.author.mention} signs the warrant of absolute exposure over the defeated targets...\n\n"
             f"**\"{sentence}\"**\n\n"
-            f"🔞 {m1.mention} & {m2.mention}, by law of the underground, **YOU MUST FLASH!**",
+            f"🔞 {m1.mention} & {m2.mention}, by blood-oath syndicate law, **YOU MUST FLASH!**",
             color=0xFF00FF
         )
         await ctx.send(content=f"{m1.mention} {m2.mention}", embed=embed)
