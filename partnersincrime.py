@@ -93,7 +93,6 @@ class CrimeLobbyView(discord.ui.View):
                     all_players.append(player)
         
         for t_idx, slots in self.teams.items():
-            # To prevent reaching the Embed description limits with 15 fields, we only display teams with at least one member, or the first 6 squads if empty.
             p1_mention = f"<@{slots[0]}>" if slots[0] else "*Empty Slot*"
             p2_mention = f"<@{slots[1]}>" if slots[1] else "*Empty Slot*"
             
@@ -120,6 +119,18 @@ class CrimeLobbyView(discord.ui.View):
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
             return
+
+        # Double check fresh database data to make sure local cache is strictly synced
+        with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
+            rows = conn.execute("SELECT user_id, team_num, slot_num FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            
+            # Reset and load clean values from DB into self.teams first
+            self.teams = {i: [None, None] for i in range(1, 16)}
+            for r in rows:
+                uid, t_num, s_num = r[0], r[1], r[2]
+                if t_num in self.teams and s_num in [0, 1]:
+                    self.teams[t_num][s_num] = uid
 
         # Check if the user is already signed up in any team
         user_already_registered = False
@@ -148,7 +159,6 @@ class CrimeLobbyView(discord.ui.View):
 
         # Write choice to database
         with engine.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("INSERT INTO crime_lobby_participants (guild_id, user_id, team_num, slot_num) VALUES (?, ?, ?, ?)", 
                          (interaction.guild.id, interaction.user.id, selected_team, selected_slot))
             conn.commit()
