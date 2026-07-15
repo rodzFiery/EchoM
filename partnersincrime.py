@@ -460,21 +460,53 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
 
     async def create_recap_image(self, winners, victims_list):
-        """Synthesizes a clean layout showing only the two winning profile pictures as equal circular avatars with no background."""
+        """Synthesizes a clean visual layout with no background.
+        At the top, displays the two winning profiles in equal size side-by-side.
+        Below them, lists the details of each available duo to flash with their circular mini profile pictures and nicknames."""
         try:
+            # Group victims by squad index mapping: squad_id -> [list of members]
+            grouped_victims = {}
+            for v_team_num, v_member in victims_list:
+                if v_team_num not in grouped_victims:
+                    grouped_victims[v_team_num] = []
+                if v_member not in grouped_victims[v_team_num]:
+                    grouped_victims[v_team_num].append(v_member)
+
             async with aiohttp.ClientSession() as session:
+                # 1. Download winner profile pictures
                 winner_buffers = []
                 for w in winners:
                     async with session.get(w.display_avatar.url, timeout=10) as resp:
                         if resp.status == 200:
                             winner_buffers.append(io.BytesIO(await resp.read()))
 
-            # Transparent canvas for clean integration
+                # 2. Download victim profile pictures
+                victim_avatars = {}
+                for s_id, members in list(grouped_victims.items()):
+                    for m in members:
+                        async with session.get(m.display_avatar.url, timeout=10) as resp:
+                            if resp.status == 200:
+                                victim_avatars[m.id] = io.BytesIO(await resp.read())
+
+            # Canvas configurations: Calculate height based on number of squads
+            squad_count = len(grouped_victims)
             canvas_w = 800
-            canvas_h = 400
-            bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+            # Space for winners (420px) + Space per squad unit row (95px per row) + margin
+            canvas_h = 420 + max(1, squad_count) * 95 + 40
             
-            # Helper to crop to a clean circle
+            # Transparent canvas for clean visual integration
+            bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(bg)
+            
+            # Use default system font or fallback
+            try:
+                font_title = ImageFont.truetype("arial.ttf", 22)
+                font_text = ImageFont.truetype("arial.ttf", 16)
+            except IOError:
+                font_title = ImageFont.load_default()
+                font_text = ImageFont.load_default()
+
+            # Circular crop helper
             def make_circular(img, size):
                 img = img.resize((size, size), Image.Resampling.LANCZOS)
                 mask = Image.new("L", (size, size), 0)
@@ -484,17 +516,66 @@ class PartnersInCrimeEngine(commands.Cog):
                 output.paste(img, (0, 0), mask)
                 return output
 
-            size = 300
-            # Draw both winners equally sized side-by-side with transparent background
+            # 1. DRAW GRAND WINNERS AT THE TOP (Equally sized, perfect circle, side-by-side)
+            w_size = 300
+            w_y = 40
+            
             if len(winner_buffers) > 0:
                 im1 = Image.open(winner_buffers[0]).convert("RGBA")
-                circ1 = make_circular(im1, size)
-                bg.paste(circ1, (75, 50), circ1)
+                circ1 = make_circular(im1, w_size)
+                # Apply high quality circular golden border
+                border_mask = Image.new("L", (w_size + 12, w_size + 12), 0)
+                draw_bm = ImageDraw.Draw(border_mask)
+                draw_bm.ellipse((0, 0, w_size + 12, w_size + 12), fill=255)
+                border_bg = Image.new("RGBA", (w_size + 12, w_size + 12), (255, 215, 0, 255))
+                canvas_border1 = Image.new("RGBA", (w_size + 12, w_size + 12), (0, 0, 0, 0))
+                canvas_border1.paste(border_bg, (0, 0), border_mask)
+                canvas_border1.paste(circ1, (6, 6), circ1)
+                bg.paste(canvas_border1, (75 - 6, w_y - 6), canvas_border1)
                 
             if len(winner_buffers) > 1:
                 im2 = Image.open(winner_buffers[1]).convert("RGBA")
-                circ2 = make_circular(im2, size)
-                bg.paste(circ2, (425, 50), circ2)
+                circ2 = make_circular(im2, w_size)
+                # Apply high quality circular golden border
+                border_mask2 = Image.new("L", (w_size + 12, w_size + 12), 0)
+                draw_bm2 = ImageDraw.Draw(border_mask2)
+                draw_bm2.ellipse((0, 0, w_size + 12, w_size + 12), fill=255)
+                border_bg2 = Image.new("RGBA", (w_size + 12, w_size + 12), (255, 215, 0, 255))
+                canvas_border2 = Image.new("RGBA", (w_size + 12, w_size + 12), (0, 0, 0, 0))
+                canvas_border2.paste(border_bg2, (0, 0), border_mask2)
+                canvas_border2.paste(circ2, (6, 6), circ2)
+                bg.paste(canvas_border2, (425 - 6, w_y - 6), canvas_border2)
+
+            # Separator line under winners focus
+            draw.line((40, 390, 760, 390), fill=(255, 0, 255, 180), width=3)
+
+            # 2. DRAW EACH AVAILABLE TARGET DUO SCHEME BELOW (Circular mini profile pic + nickname)
+            y_start = 410
+            mini_size = 45
+
+            for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())):
+                current_y = y_start + (squad_idx * 95)
+                
+                # Squad Unit Header Text
+                draw.text((45, current_y), f"SQUAD {squad_id}:", fill=(255, 0, 255, 255), font=font_title)
+                
+                # Render Dominant (p1) and Submissive (p2) players of the squad side-by-side
+                for m_idx, member in enumerate(members[:2]):
+                    m_x = 45 + (m_idx * 360)
+                    m_y = current_y + 35
+                    
+                    # Draw mini circular profile avatar
+                    if member.id in victim_avatars:
+                        raw_av = Image.open(victim_avatars[member.id]).convert("RGBA")
+                        circ_av = make_circular(raw_av, mini_size)
+                        bg.paste(circ_av, (m_x, m_y), circ_av)
+                    
+                    # Cut display nickname if too long for spacing
+                    display_name = member.display_name if len(member.display_name) <= 20 else member.display_name[:17] + "..."
+                    role_label = "Dom: " if m_idx == 0 else "Sub: "
+                    
+                    # Draw Role + Nickname text
+                    draw.text((m_x + mini_size + 12, m_y + 12), f"{role_label}{display_name}", fill=(255, 255, 255, 255), font=font_text)
 
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
