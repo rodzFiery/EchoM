@@ -47,47 +47,38 @@ class CrimeLobbyView(discord.ui.View):
         self.guild_id = guild_id
         self.active = True
         
-        # Max capacity: 15 teams of 2 (30 spots)
-        self.teams = {i: [None, None] for i in range(1, 16)}
-        
-        # --- DYNAMIC CUSTOM ID FIX ---
-        join_id = f"crime_join_{self.guild_id}" if self.guild_id else "crime_join_button"
-        start_id = f"crime_start_{self.guild_id}" if self.guild_id else "crime_start_button"
-
-        join_btn = discord.ui.Button(label="Sign the Pact", style=discord.ButtonStyle.success, emoji="🖋️", custom_id=join_id)
+        # Static custom IDs are registered globally for flawless persistent interaction routing
+        join_btn = discord.ui.Button(label="Sign the Pact", style=discord.ButtonStyle.success, emoji="🖋️", custom_id="crime_join_pact_global")
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Lock Cells and Begin", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id=start_id)
+        start_btn = discord.ui.Button(label="Lock Cells and Begin", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="crime_start_heist_global")
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
-        # --- Persistence Rehydration ---
-        if self.guild_id:
-            try:
-                import sys as _sys
-                main = _sys.modules['__main__']
-                with main.get_db_connection() as conn:
-                    conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
-                    rows = conn.execute("SELECT user_id, team_num, slot_num FROM crime_lobby_participants WHERE guild_id = ?", (self.guild_id,)).fetchall()
-                    for r in rows:
-                        uid, t_num, s_num = r[0], r[1], r[2]
-                        if t_num in self.teams and s_num in [0, 1]:
-                            self.teams[t_num][s_num] = uid
-            except Exception as e:
-                print(f"Crime Rehydration Error: {e}")
+    def fetch_current_teams(self, engine, guild_id):
+        """Helper to build a clean 15-team squad map directly from the database state."""
+        teams = {i: [None, None] for i in range(1, 16)}
+        with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
+            rows = conn.execute("SELECT user_id, team_num, slot_num FROM crime_lobby_participants WHERE guild_id = ?", (guild_id,)).fetchall()
+            for r in rows:
+                uid, t_num, s_num = r[0], r[1], r[2]
+                if t_num in teams and s_num in [0, 1]:
+                    teams[t_num][s_num] = uid
+        return teams
 
-    def render_lobby_embeds(self, server_edition):
+    def render_lobby_embeds(self, teams, server_edition, edition_num):
         # Count current participants
         all_players = []
-        for t_idx, slots in self.teams.items():
+        for t_idx, slots in teams.items():
             for player in slots:
                 if player:
                     all_players.append(player)
 
         # Embed 1: Lobby Status Details
         info_embed = discord.Embed(
-            title=f"Partners In Crime Spree # {self.edition}", 
+            title=f"Partners In Crime Spree # {edition_num}", 
             description=f"**Server Edition: #{server_edition}**\n\nFind your crew, load your weapons, and sign the registry to claim your stake of the vault.", 
             color=0x00FFFF
         )
@@ -103,13 +94,13 @@ class CrimeLobbyView(discord.ui.View):
             color=0x00FFFF
         )
         
-        for t_idx, slots in self.teams.items():
+        for t_idx, slots in teams.items():
             p1_mention = f"<@{slots[0]}>" if slots[0] else "*Empty Slot*"
             p2_mention = f"<@{slots[1]}>" if slots[1] else "*Empty Slot*"
             
             status_symbol = "👥" if (slots[0] and slots[1]) else "👤" if (slots[0] or slots[1]) else "🔒"
             
-            # Show up to 15 squads, hiding empty squads past squad 6 to avoid reaching Discord embed limits
+            # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed character limits
             if slots[0] or slots[1] or t_idx <= 6:
                 teams_embed.add_field(
                     name=f"{status_symbol} Squad Unit {t_idx}", 
@@ -130,9 +121,12 @@ class CrimeLobbyView(discord.ui.View):
         if not engine: 
             return
 
-        # Check if the user is already signed up in any team using in-memory state
+        # Fetch current teams directly from the database to ensure absolute synchronization
+        current_teams = self.fetch_current_teams(engine, interaction.guild.id)
+
+        # Check if the user is already signed up in any team
         user_already_registered = False
-        for t_idx, slots in self.teams.items():
+        for t_idx, slots in current_teams.items():
             if interaction.user.id in slots:
                 user_already_registered = True
                 break
@@ -142,7 +136,7 @@ class CrimeLobbyView(discord.ui.View):
 
         # Find empty slots across our squads
         available_slots = []
-        for t_idx, slots in self.teams.items():
+        for t_idx, slots in current_teams.items():
             if slots[0] is None:
                 available_slots.append((t_idx, 0))
             if slots[1] is None:
@@ -151,31 +145,37 @@ class CrimeLobbyView(discord.ui.View):
         if not available_slots:
             return await interaction.followup.send("❌ **The heist operations are full!** No more active squad openings.", ephemeral=True)
 
-        # Assign user randomly to one of the empty slots in-memory first
+        # Assign user randomly to one of the empty slots
         selected_team, selected_slot = random.choice(available_slots)
-        self.teams[selected_team][selected_slot] = interaction.user.id
+        current_teams[selected_team][selected_slot] = interaction.user.id
 
-        # Write choice to database
+        # Write choice immediately to database
         with engine.get_db_connection() as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("INSERT INTO crime_lobby_participants (guild_id, user_id, team_num, slot_num) VALUES (?, ?, ?, ?)", 
                          (interaction.guild.id, interaction.user.id, selected_team, selected_slot))
             conn.commit()
         
         try:
-            # Query server stats to match server_edition rendering
+            # Query server stats and game edition settings
             server_edition = 1
             with engine.get_db_connection() as conn:
                 row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
                 if row:
                     server_edition = row[0]
             
-            # Use the in-memory setup directly so rendering is instant and accurate
-            updated_embeds = self.render_lobby_embeds(server_edition)
+            import sys as _sys_m
+            main_mod = _sys_m.modules['__main__']
+            edition_num = getattr(main_mod, "crime_game_edition", 1) - 1
+            if edition_num < 1:
+                edition_num = 1
+            
+            # Re-render with the freshly updated database configuration
+            updated_embeds = self.render_lobby_embeds(current_teams, server_edition, edition_num)
             await interaction.message.edit(embeds=updated_embeds, view=self)
             await interaction.followup.send(f"🤝 **Signed!** You have been assigned to **Squad Unit {selected_team}**.", ephemeral=True)
         except Exception as e:
             print(f"Crime Lobby Join Error: {e}")
+            traceback.print_exc()
             await interaction.followup.send("The Syndicate ledger glitched but your signature was captured!", ephemeral=True)
 
     async def start_button_callback(self, interaction: discord.Interaction):
@@ -204,13 +204,16 @@ class CrimeLobbyView(discord.ui.View):
         is_staff = any(role.name in ["Staff", "Admin", "Moderator"] or role.id == ignis_admin_role_id for role in getattr(interaction.user, 'roles', []))
         is_staff = is_staff or user_perms or is_admin
         
-        owner_id = getattr(self.owner, 'id', None)
-        if owner_id and interaction.user.id != owner_id and not is_staff:
+        # If the view is restored, owner check might fallback, check staff clearance
+        if self.owner and interaction.user.id != self.owner.id and not is_staff:
             return await interaction.followup.send("🔒 **Clearance Denied: Only the Mob Boss or Staff can launch this heist.**", ephemeral=True)
         
-        # Collect and filter active players directly from in-memory configuration
+        # Load the latest synchronized team list from database
+        current_teams = self.fetch_current_teams(engine, interaction.guild.id)
+
+        # Collect and filter active players (ignore empty slots completely)
         final_teams_list = []
-        for t_idx, slots in self.teams.items():
+        for t_idx, slots in current_teams.items():
             team_members = [player for player in slots if player is not None]
             if len(team_members) > 0:
                 final_teams_list.append(team_members)
@@ -512,7 +515,9 @@ class CrimeEngineControl(commands.Cog):
         if engine: 
             engine.current_lobbies[ctx.guild.id] = view
 
-        embeds = view.render_lobby_embeds(server_edition)
+        # Populate starting empty dictionary layout directly
+        teams = {i: [None, None] for i in range(1, 16)}
+        embeds = view.render_lobby_embeds(teams, server_edition, main.crime_game_edition)
         await ctx.send(embeds=embeds, view=view)
         
         main.crime_game_edition += 1
