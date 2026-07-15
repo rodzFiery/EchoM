@@ -18,7 +18,7 @@ import asyncio
 import json
 import traceback
 import sys
-from PIL import Image, ImageDraw, ImageOps, ImageEnhance
+from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFont
 import io
 import aiohttp
 
@@ -271,7 +271,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE SIRENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
+        await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
         import sys as _sys_m
         main_mod = _sys_m.modules['__main__']
@@ -389,38 +389,57 @@ class PartnersInCrimeEngine(commands.Cog):
             # Use partners.jpg as the core backdrop template
             bg_path = "partners.jpg"
             if os.path.exists(bg_path):
-                bg = Image.open(bg_path).convert("RGBA")
+                # Ensure the loaded canvas matches your custom template coordinates completely
+                bg = Image.open(bg_path).convert("RGBA").resize((1423, 735))
             else:
-                bg = Image.new("RGBA", (1366, 768), (10, 10, 30, 255))
+                bg = Image.new("RGBA", (1423, 735), (10, 10, 30, 255))
             
-            # The template golden squares are approximately 194x194 pixels
-            av_size = 194
+            # The template spaces are exactly 204x220 pixels
+            target_w = 204
+            target_h = 220
             
-            # Load and size avatars
-            a1 = Image.open(buffers[0]).convert("RGBA").resize((av_size, av_size))
-            a2 = Image.open(buffers[1]).convert("RGBA").resize((av_size, av_size))
-            a3 = Image.open(buffers[2]).convert("RGBA").resize((av_size, av_size))
-            a4 = Image.open(buffers[3]).convert("RGBA").resize((av_size, av_size))
+            def crop_to_fit(image, tw, th):
+                """Helper method executing central cropping (cover crop) to prevent distortion."""
+                iw, ih = image.size
+                iasp = iw / ih
+                tasp = tw / th
+                if iasp > tasp:
+                    nw = int(th * iasp)
+                    image = image.resize((nw, th), Image.Resampling.LANCZOS)
+                    left = (nw - tw) // 2
+                    image = image.crop((left, 0, left + tw, th))
+                else:
+                    nh = int(tw / iasp)
+                    image = image.resize((tw, nh), Image.Resampling.LANCZOS)
+                    top = (nh - th) // 2
+                    image = image.crop((0, top, tw, top + th))
+                return image
+
+            # Load, cover-crop, and size avatars
+            a1 = crop_to_fit(Image.open(buffers[0]).convert("RGBA"), target_w, target_h)
+            a2 = crop_to_fit(Image.open(buffers[1]).convert("RGBA"), target_w, target_h)
+            a3 = crop_to_fit(Image.open(buffers[2]).convert("RGBA"), target_w, target_h)
+            a4 = crop_to_fit(Image.open(buffers[3]).convert("RGBA"), target_w, target_h)
             
             # High-intensity red wash filter over the losers (Team B)
             a3_gray = ImageOps.grayscale(a3).convert("RGBA")
             a4_gray = ImageOps.grayscale(a4).convert("RGBA")
-            red_overlay = Image.new("RGBA", (av_size, av_size), (255, 0, 0, 130))
+            red_overlay = Image.new("RGBA", (target_w, target_h), (255, 0, 0, 130))
             a3 = Image.alpha_composite(a3_gray, red_overlay)
             a4 = Image.alpha_composite(a4_gray, red_overlay)
 
-            # --- PRECISE COORDINATES TO NEST WITHIN THE GOLDEN SQUARES ---
+            # --- PRECISE COORDINATES TO NEST WITHIN THE SPACES ---
             # Team A (Left Side): 
-            # - Left square bounds: x=115, y=318 (approx)
-            # - Right square bounds: x=334, y=318 (approx)
-            bg.paste(a1, (115, 318), a1)
-            bg.paste(a2, (334, 318), a2)
+            # - Slot 1 bounds: x=69, y=208
+            # - Slot 2 bounds: x=317, y=208
+            bg.paste(a1, (69, 208), a1)
+            bg.paste(a2, (317, 208), a2)
 
             # Team B (Right Side):
-            # - Left square bounds: x=937, y=318 (approx)
-            # - Right square bounds: x=1157, y=318 (approx)
-            bg.paste(a3, (937, 318), a3)
-            bg.paste(a4, (1157, 318), a4)
+            # - Slot 1 bounds: x=902, y=208
+            # - Slot 2 bounds: x=1150, y=208
+            bg.paste(a3, (902, 208), a3)
+            bg.paste(a4, (1150, 208), a4)
             
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
@@ -428,7 +447,7 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
         except Exception as e:
             print(f"Crime Image Synthesizer Error: {e}")
-            fallback = Image.new("RGBA", (1366, 768), (10, 10, 20, 255))
+            fallback = Image.new("RGBA", (1423, 735), (10, 10, 20, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
