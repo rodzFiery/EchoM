@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -67,6 +66,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 # These will be updated from the database in on_ready
 game_edition = 1 
+crime_game_edition = 1 # ADDED: Partners In Crime Game Edition tracker
 nsfw_mode_active = False # Flag for Grand Exhibition Special Event
 basic_nsfw_active = False # ADDED: Flag for Basic NSFW Special Event
 AUTO_IGNIS_CHANNEL = 0 # ADDED: Persistence for Automated Pit
@@ -89,20 +89,21 @@ def get_db_connection():
 
 # NEW PERSISTENCE HELPERS (Synced with database.py)
 def save_game_config():
-    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
+    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE, crime_game_edition
     db_module.save_game_config(game_edition, nsfw_mode_active)
-    # ADDED: Save basic nsfw, auto channel and role to config table
+    # ADDED: Save basic nsfw, auto channel, role, and Partners in Crime global edition to config table
     with get_db_connection() as conn:
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('basic_nsfw_active', ?)", (str(basic_nsfw_active),))
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_channel', ?)", (str(AUTO_IGNIS_CHANNEL),))
         conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('auto_ignis_role', ?)", (str(AUTO_IGNIS_ROLE),))
+        conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES ('crime_game_edition', ?)", (str(crime_game_edition),))
         conn.commit()
 
 def load_game_config():
-    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE
+    global game_edition, nsfw_mode_active, basic_nsfw_active, AUTO_IGNIS_CHANNEL, AUTO_IGNIS_ROLE, crime_game_edition
     # FIXED: Load via db_module
     game_edition, nsfw_mode_active = db_module.load_game_config()
-    # ADDED: Load basic nsfw, auto channel and role
+    # ADDED: Load basic nsfw, auto channel, role, and Partners in Crime edition tracking
     with get_db_connection() as conn:
         row_bs = conn.execute("SELECT value FROM config WHERE key = 'basic_nsfw_active'").fetchone()
         if row_bs: basic_nsfw_active = (row_bs['value'] == 'True')
@@ -110,6 +111,8 @@ def load_game_config():
         if row_ch: AUTO_IGNIS_CHANNEL = int(row_ch['value'])
         row_rl = conn.execute("SELECT value FROM config WHERE key = 'auto_ignis_role'").fetchone()
         if row_rl: AUTO_IGNIS_ROLE = int(row_rl['value'])
+        row_cr = conn.execute("SELECT value FROM config WHERE key = 'crime_game_edition'").fetchone()
+        if row_cr: crime_game_edition = int(row_cr['value'])
 
 def init_db():
     # FIXED: Initialize via db_module
@@ -125,6 +128,9 @@ def init_db():
                 PRIMARY KEY (user_one, user_two)
             )""")
         conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
+        # ADDED: Partners In Crime database tables synchronization
+        conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER)")
+        conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
         conn.commit()
 
 init_db()
@@ -431,9 +437,11 @@ async def echo(ctx):
     """ULTIMATE OMNI-PROTOCOL GUIDE: TRANSFORMED V8.0"""
     # Page 1: Gameplay & Combat Extensions
     emb1 = fiery_embed("⚔️ COMBAT & ARENA PROTOCOLS", 
-        "**Battle Extensions (ignis.py & fight.py)**\n"
+        "**Battle Extensions (ignis.py & fight.py & partnersincrime.py)**\n"
         "• `!echostart`: Force immediate Arena execution.\n"
         "• `!lobby`: Open the Red Room combat lobby.\n"
+        "• `!crimepartners`: Start a Partners in Crime heist lobby.\n"
+        "• `!strip`: Select targets to expose after winning PIC.\n"
         "• `!join` / `!leave`: Enter or exit the active simulation.\n"
         "• `!fight <@user>`: Trigger a health-bar based 1v1 duel.\n"
         "• `!@user`: Champion's decree (Available only to winners).\n"
@@ -781,12 +789,13 @@ async def on_message(message):
 async def load_all_extensions():
     # FIXED: Ensure all .py modules are physically loaded and view templates registered
     # SYNC POINT ADDED: "generatecolor" appended to loop structures sequentially alongside "color" 
+    # SYNC POINT ADDED: "partnersincrime" extension appended sequentially
     exts = [
         "admin", "classes", "extensions", "ship", "shop", "collect", 
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor", "partnersincrime"
     ]
     for e in exts:
         try:
