@@ -128,7 +128,14 @@ def init_db():
                 PRIMARY KEY (user_one, user_two)
             )""")
         conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
-        # ADDED: Partners In Crime database tables synchronization with the correct 4-column schema structure
+        
+        # Schema migration check: safely drop the old participants table if it lacks the correct schema columns
+        try:
+            conn.execute("SELECT team_num FROM crime_lobby_participants LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
+
+        # Re-register Partners In Crime tables under the exact specified 4-column schema architecture
         conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
         conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
         conn.commit()
