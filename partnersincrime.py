@@ -715,7 +715,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
                 t2 = resolved_teams.pop(random.randrange(len(resolved_teams)))
 
-                # INTEGRADO: Geração de narrativa dinâmica do piclexicon
+                # INTEGRADO: Geração de narrativa única do piclexicon sem repetições excessivas
                 fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
 
                 # Execute Fight
@@ -751,7 +751,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
                 file = discord.File(fp=arena_image, filename="arena_duo.png")
 
-                # FIX: Narrativa unificada diretamente acoplada dentro do embed de combate com a imagem
+                # FIX: Narrativa consolidada em uma única sentença sem inundar o canal de spam
                 emb = discord.Embed(
                     title=f"🫦 Squad {winner['id']} DOMINATES AND WIPES OUT Squad {loser['id']}!", 
                     description=fight_narrative, 
