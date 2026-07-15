@@ -382,7 +382,83 @@ class PartnersInCrimeEngine(commands.Cog):
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            
+            # --- DATABASE DEFINITION: USER STATS & LEGACY ---
+            # Creates the unified statistical database tracking user performance metrics
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS crime_user_stats (
+                    guild_id INTEGER,
+                    user_id INTEGER,
+                    wins INTEGER DEFAULT 0,
+                    kills INTEGER DEFAULT 0,
+                    games INTEGER DEFAULT 0,
+                    lifetime_flames INTEGER DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id)
+                )
+            """)
             conn.commit()
+
+    def get_user_arena_ranks(self, guild_id, user_id):
+        """Helper to calculate individual performance ranks compared against the server."""
+        wins_rank = 0
+        kills_rank = 0
+        games_rank = 0
+        
+        try:
+            with self.get_db_connection() as conn:
+                # Rank Wins
+                rows_wins = conn.execute("""
+                    SELECT user_id, wins FROM crime_user_stats 
+                    WHERE guild_id = ? ORDER BY wins DESC
+                """, (guild_id,)).fetchall()
+                for rank, r in enumerate(rows_wins, 1):
+                    if r[0] == user_id:
+                        wins_rank = rank
+                        break
+
+                # Rank Kills
+                rows_kills = conn.execute("""
+                    SELECT user_id, kills FROM crime_user_stats 
+                    WHERE guild_id = ? ORDER BY kills DESC
+                """, (guild_id,)).fetchall()
+                for rank, r in enumerate(rows_kills, 1):
+                    if r[0] == user_id:
+                        kills_rank = rank
+                        break
+
+                # Rank Games
+                rows_games = conn.execute("""
+                    SELECT user_id, games FROM crime_user_stats 
+                    WHERE guild_id = ? ORDER BY games DESC
+                """, (guild_id,)).fetchall()
+                for rank, r in enumerate(rows_games, 1):
+                    if r[0] == user_id:
+                        games_rank = rank
+                        break
+        except Exception as e:
+            print(f"Rank computation error: {e}")
+            
+        return wins_rank or "N/A", kills_rank or "N/A", games_rank or "N/A"
+
+    def get_user_legacy_metrics(self, guild_id, user_id):
+        """Helper to retrieve local database stats for a specific user profile."""
+        wins = 0
+        kills = 0
+        games = 0
+        lifetime_flames = 0
+        
+        try:
+            with self.get_db_connection() as conn:
+                row = conn.execute("""
+                    SELECT wins, kills, games, lifetime_flames FROM crime_user_stats 
+                    WHERE guild_id = ? AND user_id = ?
+                """, (guild_id, user_id)).fetchone()
+                if row:
+                    wins, kills, games, lifetime_flames = row[0], row[1], row[2], row[3]
+        except Exception as e:
+            print(f"Legacy metrics load error: {e}")
+            
+        return wins, kills, games, lifetime_flames
 
     def calculate_level(self, current_xp):
         level = 1
@@ -559,12 +635,14 @@ class PartnersInCrimeEngine(commands.Cog):
             
             # Convert user IDs to real member objects
             resolved_teams = []
+            all_participating_ids = []
             for t_idx, team_players in pre_made_teams:
                 resolved_members = []
                 for p_id in team_players:
                     m = channel.guild.get_member(p_id) or await channel.guild.fetch_member(p_id)
                     if m:
                         resolved_members.append(m)
+                        all_participating_ids.append(m.id)
                 
                 # Setup proper Duo targets based on registered headcount
                 if len(resolved_members) == 2:
@@ -607,6 +685,15 @@ class PartnersInCrimeEngine(commands.Cog):
             await channel.send(embed=roster_emb)
             await asyncio.sleep(5)
 
+            # Record game participation in DB for everyone registered in this session
+            with self.get_db_connection() as conn:
+                for user_id in all_participating_ids:
+                    conn.execute("""
+                        INSERT INTO crime_user_stats (guild_id, user_id, games) VALUES (?, ?, 1)
+                        ON CONFLICT(guild_id, user_id) DO UPDATE SET games = games + 1
+                    """, (channel.guild.id, user_id))
+                conn.commit()
+
             # Fight loop
             while len(resolved_teams) > 1:
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
@@ -623,6 +710,19 @@ class PartnersInCrimeEngine(commands.Cog):
                 defeated_victims.append((loser['id'], loser['p1']))
                 if loser['p2'] != loser['p1']:
                     defeated_victims.append((loser['id'], loser['p2']))
+
+                # Record Battle Kill (neutralized squad) to the winning duo in database stats
+                with self.get_db_connection() as conn:
+                    conn.execute("""
+                        INSERT INTO crime_user_stats (guild_id, user_id, kills) VALUES (?, ?, 1)
+                        ON CONFLICT(guild_id, user_id) DO UPDATE SET kills = kills + 1
+                    """, (channel.guild.id, winner['p1'].id))
+                    if winner['p2'].id != winner['p1'].id:
+                        conn.execute("""
+                            INSERT INTO crime_user_stats (guild_id, user_id, kills) VALUES (?, ?, 1)
+                            ON CONFLICT(guild_id, user_id) DO UPDATE SET kills = kills + 1
+                        """, (channel.guild.id, winner['p2'].id))
+                    conn.commit()
 
                 # Update survivors cache
                 if channel.id in self.current_survivors:
@@ -649,9 +749,20 @@ class PartnersInCrimeEngine(commands.Cog):
             # Track list of winner IDs. Each winner must use their own decree individually!
             self.reign_of_terror[channel.id] = [champion_duo['p1'].id, champion_duo['p2'].id]
 
-            # Rewards Implementation
-            for winner_member in [champion_duo['p1'], champion_duo['p2']]:
-                await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
+            # Rewards Implementation & Persistent Database Wins updates
+            with self.get_db_connection() as conn:
+                for winner_member in [champion_duo['p1'], champion_duo['p2']]:
+                    await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
+                    
+                    conn.execute("""
+                        INSERT INTO crime_user_stats (guild_id, user_id, wins, lifetime_flames) VALUES (?, ?, 1, 30000)
+                        ON CONFLICT(guild_id, user_id) DO UPDATE SET wins = wins + 1, lifetime_flames = lifetime_flames + 30000
+                    """, (channel.guild.id, winner_member.id))
+                conn.commit()
+
+            # Format the detail layout cards with the exact visual fields requested (SERVER STATS & LEGACY)
+            p1_wins_r, p1_kills_r, p1_games_r = self.get_user_arena_ranks(channel.guild.id, champion_duo['p1'].id)
+            p1_wins_v, p1_kills_v, p1_games_v, p1_flames_v = self.get_user_legacy_metrics(channel.guild.id, champion_duo['p1'].id)
 
             win_emb = discord.Embed(
                 title=f"👑 REIGNING SYNDICATE OVERLORDS: SQUAD {champion_duo['id']} 👑",
@@ -665,8 +776,19 @@ class PartnersInCrimeEngine(commands.Cog):
             )
             
             # Setup Winner detail layout cards
-            details_card = discord.Embed(title="📜 Dossier: The Syndicate Vault Breakers", color=0xFFD700)
-            details_card.add_field(name="Heist Outcome", value="All defense layers neutralized. Treasures divided 50/50 under covenant rules.")
+            details_card = discord.Embed(
+                title=f"👑 Echogames Winner 👑 # {edition}", 
+                description=f"**All defense layers neutralized. Treasures divided 50/50 under covenant rules.**\n\n"
+                            f"**📊 SERVER STATS**\n"
+                            f"🏆 **Wins:** Rank #{p1_wins_r}\n"
+                            f"⚔️ **Kills:** Rank #{p1_kills_r}\n"
+                            f"🎮 **Games:** Rank #{p1_games_r}\n\n"
+                            f"**🏛️ VICTOR'S LEGACY**\n"
+                            f"👑 **Total Arena Wins:** {p1_wins_v}\n"
+                            f"📝 **Total Participations:** {p1_games_v}\n"
+                            f"🔥 **Lifetime Arena Flames:** {p1_flames_v:,}F",
+                color=0xFFD700
+            )
             view = CrimeWinnerDetailsView(details_card)
             self.bot.add_view(view)
 
