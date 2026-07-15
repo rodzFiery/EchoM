@@ -276,7 +276,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
+        await interaction.channel.send("🚨 **THE SIRENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
         import sys as _sys_m
         main_mod = _sys_m.modules['__main__']
@@ -437,7 +437,6 @@ class PartnersInCrimeEngine(commands.Cog):
             # Team A (Left Side): 
             # - Slot 1 bounds: x=69, y=208
             # - Slot 2 bounds: x=317, y=208
-            # bg.paste(a1, (69, 208), a1)
             bg.paste(a1, (69, 208), a1)
             bg.paste(a2, (317, 208), a2)
 
@@ -454,115 +453,6 @@ class PartnersInCrimeEngine(commands.Cog):
         except Exception as e:
             print(f"Crime Image Synthesizer Error: {e}")
             fallback = Image.new("RGBA", (1423, 735), (10, 10, 20, 255))
-            buf = io.BytesIO()
-            fallback.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
-
-    async def create_recap_image(self, winners, victims_list):
-        """Synthesizes a highly advanced visual layout.
-        Showcases the Overlord Winners on a big plan at the top, and the remaining target cell blocks 
-        below with mini profile pictures placed cleanly directly next to their nicknames."""
-        try:
-            async with aiohttp.ClientSession() as session:
-                winner_buffers = []
-                for w in winners:
-                    async with session.get(w.display_avatar.url, timeout=10) as resp:
-                        if resp.status == 200:
-                            winner_buffers.append(io.BytesIO(await resp.read()))
-                
-                # Group victims by squad index mapping: squad_id -> [list of members]
-                grouped_victims = {}
-                for v_team_num, v_member in victims_list:
-                    if v_team_num not in grouped_victims:
-                        grouped_victims[v_team_num] = []
-                    # Keep unique entries only
-                    if v_member not in grouped_victims[v_team_num]:
-                        grouped_victims[v_team_num].append(v_member)
-
-                # Pre-download victim avatars
-                victim_avatars = {}
-                for s_id, members in list(grouped_victims.items())[:6]: # Display top 6 squads neatly
-                    for m in members:
-                        async with session.get(m.display_avatar.url, timeout=10) as resp:
-                            if resp.status == 200:
-                                victim_avatars[m.id] = io.BytesIO(await resp.read())
-
-            canvas_w = 1600
-            canvas_h = 1000  # Extra height for vertical stacked list structure
-            
-            # Load backdrop, or build from scratch dynamically (recap.jpg removed completely)
-            bg_path = "1v1Background.jpg"
-            if os.path.exists(bg_path):
-                bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h))
-            else:
-                bg = Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
-            
-            draw = ImageDraw.Draw(bg)
-
-            # 1. DRAW GRAND WINNERS IN A BIG PLAN (Top Center Layout)
-            # Displaying both winners side-by-side inside a highlighted focus frame
-            w_size = 320
-            w_y_pos = 100
-            
-            # Left Winner Side
-            if len(winner_buffers) > 0:
-                av1 = Image.open(winner_buffers[0]).convert("RGBA").resize((w_size, w_size))
-                av1 = ImageOps.expand(av1, border=12, fill="#FFD700")  # Glowing Gold Border
-                bg.paste(av1, (440, w_y_pos), av1)
-                
-            # Right Winner Side
-            if len(winner_buffers) > 1:
-                av2 = Image.open(winner_buffers[1]).convert("RGBA").resize((w_size, w_size))
-                av2 = ImageOps.expand(av2, border=12, fill="#FFD700")  # Glowing Gold Border
-                bg.paste(av2, (820, w_y_pos), av2)
-
-            # Draw Big Plan Winners Title Plate
-            draw.rectangle([440, w_y_pos + w_size + 20, 1152, w_y_pos + w_size + 65], fill=(0, 0, 0, 220))
-            draw.text((640, w_y_pos + w_size + 30), "★ HEIST OPERATION OVERLORDS ★", fill=(255, 215, 0))
-
-            # Separator bar separating Winners focus from cell roster blocks
-            draw.line((100, 520, 1500, 520), fill=(255, 0, 255), width=6)
-
-            # 2. DRAW TARGET DUOS GROUPED BY CELL SQUAD (Vertical rows: Mini Profile + Nickname stacked)
-            # Accommodates up to 6 distinct cell squads stacked sequentially inside two columns
-            y_offset = 550
-            col1_x = 120
-            col2_x = 860
-            
-            mini_size = 50
-            
-            for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())[:6]):
-                # Choose column placement dynamically
-                x_base = col1_x if squad_idx % 2 == 0 else col2_x
-                y_pos = y_offset + ((squad_idx // 2) * 140)
-                
-                # Draw Cell Squad unit header block
-                draw.rectangle([x_base, y_pos, x_base + 620, y_pos + 30], fill=(85, 0, 17, 180))
-                draw.text((x_base + 15, y_pos + 8), f"CELL SQUAD UNIT #{squad_id}", fill=(255, 0, 255))
-                
-                # Draw both members sequentially side-by-side or stacked inside their squad card
-                for m_idx, member in enumerate(members[:2]):
-                    m_x = x_base + 15 + (m_idx * 300)
-                    m_y = y_pos + 42
-                    
-                    # Draw mini profile pic
-                    if member.id in victim_avatars:
-                        v_av = Image.open(victim_avatars[member.id]).convert("RGBA").resize((mini_size, mini_size))
-                        v_av = ImageOps.expand(v_av, border=2, fill="#550011") # Heavy red frame
-                        bg.paste(v_av, (m_x, m_y), v_av)
-                    
-                    # Draw nickname next to the mini profile picture
-                    display_name = member.display_name if len(member.display_name) <= 15 else member.display_name[:12] + "..."
-                    draw.text((m_x + mini_size + 15, m_y + 15), display_name, fill=(255, 255, 255))
-
-            buf = io.BytesIO()
-            bg.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
-        except Exception as e:
-            print(f"Recap Canvas Generation Failure: {e}")
-            fallback = Image.new("RGBA", (1600, 1000), (15, 5, 25, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -674,56 +564,58 @@ class PartnersInCrimeEngine(commands.Cog):
             for winner_member in [champion_duo['p1'], champion_duo['p2']]:
                 await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
 
-            win_emb = discord.Embed(
-                title=f"👑 REIGNING SYNDICATE OVERLORDS: SQUAD {champion_duo['id']} 👑",
-                description=(
-                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
-                    f"They have cleaned out the cache! Both partners claim **30,000 Flames** and **3,000 XP**.\n\n"
-                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
-                    f"**EACH** partner has their own private pick! Run `!strip <squad_number>` (e.g. `!strip 12`) to force an entire squad into submission!"
-                ),
-                color=0xFFD700
-            )
-            
             # Setup Winner detail layout cards
             details_card = discord.Embed(title="📜 Dossier: The Syndicate Vault Breakers", color=0xFFD700)
             details_card.add_field(name="Heist Outcome", value="All defense layers neutralized. Treasures divided 50/50 under covenant rules.")
             view = CrimeWinnerDetailsView(details_card)
             self.bot.add_view(view)
 
+            # --- THE NEW EMBED RESTYLING LAYOUT (MATCHING IMAGE 2 STYLES) ---
+            # 1. Primary Winner Announcement Embed
+            win_emb = discord.Embed(
+                title="🏆 ECHOGAMES SYNDICATE WINNER 🏆",
+                description=(
+                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
+                    f"**💰 HEIST PAYOUT DETAILS:**\n"
+                    f"🥇 **{champion_duo['p1'].display_name}:** +30,000 Flames | +3,000 XP\n"
+                    f"🥈 **{champion_duo['p2'].display_name}:** +30,000 Flames | +3,000 XP\n\n"
+                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
+                    f"**EACH** partner has their own private pick! Run `!strip <squad_number>` to force an entire squad into submission!"
+                ),
+                color=0xFFD700
+            )
+            # Display both of the Grand Winners' profile picture assets directly as visual icons
+            win_emb.set_author(name="Reigning Underworld Overlord Duo", icon_url=champion_duo['p1'].display_avatar.url)
+            win_emb.set_thumbnail(url=champion_duo['p2'].display_avatar.url)
+
             await channel.send(embed=win_emb, view=view)
             await asyncio.sleep(2)
 
-            # Execute RECAP PROTOCOL
-            recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
-            recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
-            
-            # Generate the detailed members available list for the Discord text embed description
-            targets_text_list = ""
-            # Group by squad units for text-based emphasis too
+            # Group the defeated outlaws by cell squad divisions
             txt_groups = {}
             for squad_id, member in defeated_victims:
                 if squad_id not in txt_groups:
                     txt_groups[squad_id] = []
                 if member not in txt_groups[squad_id]:
                     txt_groups[squad_id].append(member)
-                    
+
+            # 2. Complete the Hit List text announcement using neat, scannable text rows instead of background banners
+            targets_desc = ""
             for squad_id, members in txt_groups.items():
-                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
+                targets_desc += f"\n**Cell Squad Unit {squad_id}**\n"
                 for member in members:
-                    targets_text_list += f"• {member.mention} ({member.display_name})\n"
+                    targets_desc += f"• {member.mention} ({member.display_name})\n"
 
             recap_emb = discord.Embed(
                 title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
                 description=(
-                    "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (top) and the remaining vulnerable targets available to be forced into submission (bottom).\n"
-                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
-                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
+                    "The heist is won, but the contract is incomplete. Run `!strip <squad_number>` now to execute submission over target cell blocks!\n\n"
+                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_desc
                 ),
                 color=0xFF00FF
             )
-            recap_emb.set_image(url="attachment://crime_recap.png")
-            await channel.send(file=recap_file, embed=recap_emb)
+            recap_emb.set_footer(text="Underworld Registry Ledger • Chained in Submission")
+            await channel.send(embed=recap_emb)
 
         except Exception as e:
             print(f"# CRITICAL CRIME ENGINE FAILURE: {e}")
