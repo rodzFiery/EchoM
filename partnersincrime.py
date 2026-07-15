@@ -718,28 +718,12 @@ class PartnersInCrimeEngine(commands.Cog):
             # Execute RECAP PROTOCOL
             recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
             recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
-            
-            # Generate the detailed members available list for the Discord text embed description
-            targets_text_list = ""
-            # Group by squad units for text-based emphasis too
-            txt_groups = {}
-            for squad_id, member in defeated_victims:
-                if squad_id not in txt_groups:
-                    txt_groups[squad_id] = []
-                if member not in txt_groups[squad_id]:
-                    txt_groups[squad_id].append(member)
-                    
-            for squad_id, members in txt_groups.items():
-                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
-                for member in members:
-                    targets_text_list += f"• {member.mention} ({member.display_name})\n"
 
             recap_emb = discord.Embed(
                 title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
                 description=(
                     "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (top) and the remaining vulnerable targets available to be forced into submission (bottom).\n"
-                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
-                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
+                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!"
                 ),
                 color=0xFF00FF
             )
