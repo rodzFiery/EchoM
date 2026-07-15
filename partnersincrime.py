@@ -22,8 +22,8 @@ from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFont
 import io
 import aiohttp
 
-# Importação do Lexicon para as frases de efeito
-from lexicon import FieryLexicon
+# Importação do novo Lexicon Sincronizado para as frases de efeito do submundo
+from piclexicon import PartnersInCrimeLexicon
 
 # ==============================================================================
 # VIEW SYSTEM (PERSISTENT COUPLING)
@@ -364,13 +364,9 @@ class PartnersInCrimeEngine(commands.Cog):
         self.reign_of_terror = {}  # Tracks last winner duos per channel
         self.historical_match_squads = {} # Tracks exact member profiles per squad index to allow squad targeting commands
 
-        self.flash_sentences = [
-            "No honor among thieves. Strip down completely and pay your hot tax.",
-            "You got caught red-handed. Shed those clothes and show your dirty crimes.",
-            "The sirens are coming, and you're caught totally bare. Start striping.",
-            "Partners in chains, partners in shame. Expose your hot surrender right now.",
-            "Your heist failed. Pay the ultimate tax of complete exposure!"
-        ]
+        # Instanciação direta do novo Léxico de Batalha de Partners in Crime
+        self.lexicon = PartnersInCrimeLexicon()
+
         self._init_persistence()
 
     def _init_persistence(self):
@@ -699,8 +695,10 @@ class PartnersInCrimeEngine(commands.Cog):
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
                 t2 = resolved_teams.pop(random.randrange(len(resolved_teams)))
 
-                await channel.send(f"💥 **TERRITORY INVASION!** {t1['name']} corners {t2['name']} in a dark alleyway...")
-                await asyncio.sleep(3)
+                # INTEGRADO: Chama a geração dinâmica do piclexicon utilizando o novo pool de textos NSFW
+                fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
+                await channel.send(fight_narrative)
+                await asyncio.sleep(4)
 
                 # Execute Fight
                 winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
@@ -937,7 +935,8 @@ class CrimeEngineControl(commands.Cog):
         if not target_members:
             return await ctx.send("❌ Internal Error: Target squad is unassigned or empty.")
 
-        sentence = random.choice(engine.flash_sentences)
+        # INTEGRADO: Agora consome as humilhações e decretos de exposição extrema de piclexicon.py
+        sentence = engine.lexicon.get_random_humiliation()
         
         # Compile target mentions for proper announcements
         target_mentions_str = " & ".join([m.mention for m in target_members])
