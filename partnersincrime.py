@@ -26,41 +26,46 @@ import aiohttp
 from lexicon import FieryLexicon
 
 # ==============================================================================
-# VIEW SYSTEM
+# VIEW SYSTEM (PERSISTENT COUPLING)
 # ==============================================================================
 
 class CrimeWinnerDetailsView(discord.ui.View):
-    def __init__(self, details_embed):
+    def __init__(self, details_embed=None):
+        # Setting timeout to None makes the view persistent and never expire
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
     @discord.ui.button(label="Examine Crime File", style=discord.ButtonStyle.primary, emoji="🔞", custom_id="crime_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Safe fallback if view was restored from cache without embed memory
+        if not self.details_embed:
+            self.details_embed = discord.Embed(
+                title="📜 Dossier: The Syndicate Vault Breakers", 
+                description="All defense layers neutralized. Treasures divided 50/50 under covenant rules.",
+                color=0xFFD700
+            )
         await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
 
 
 class CrimeLobbyView(discord.ui.View):
     def __init__(self, owner=None, edition=0, guild_id=None):
+        # Setting timeout to None makes the view persistent and never expire
         super().__init__(timeout=None)
         self.owner = owner
         self.edition = edition
         self.guild_id = guild_id
         self.active = True
         
-        # Unique IDs are generated dynamically to bind this view to this guild's active state
-        join_id = f"crime_join_{self.guild_id}" if self.guild_id else "crime_join_btn_default"
-        start_id = f"crime_start_{self.guild_id}" if self.guild_id else "crime_start_btn_default"
-        repost_id = f"crime_repost_{self.guild_id}" if self.guild_id else "crime_repost_btn_default"
-
-        join_btn = discord.ui.Button(label="Sign the Blood Pact", style=discord.ButtonStyle.success, emoji="🫦", custom_id=join_id)
+        # Hardcoded static custom_ids are mandatory for persistent views to prevent interaction failures after bot restarts
+        join_btn = discord.ui.Button(label="Sign the Blood Pact", style=discord.ButtonStyle.success, emoji="🫦", custom_id="crime_lobby_join")
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Initiate Heist Operation", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id=start_id)
+        start_btn = discord.ui.Button(label="Initiate Heist Operation", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="crime_lobby_start")
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
-        repost_btn = discord.ui.Button(label="Repost Lobby Board", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id=repost_id)
+        repost_btn = discord.ui.Button(label="Repost Lobby Board", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="crime_lobby_repost")
         repost_btn.callback = self.repost_button_callback
         self.add_item(repost_btn)
 
@@ -271,7 +276,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
+        await interaction.channel.send("🚨 **THE SIRENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
         import sys as _sys_m
         main_mod = _sys_m.modules['__main__']
@@ -777,6 +782,10 @@ class CrimeEngineControl(commands.Cog):
 async def setup(bot):
     import sys as _sys_setup
     main = _sys_setup.modules['__main__']
+    
+    # Register the views globally with the bot so they survive reboots and never fail / fail to interact
+    bot.add_view(CrimeWinnerDetailsView())
+    bot.add_view(CrimeLobbyView())
     
     crime_engine = PartnersInCrimeEngine(
         bot, 
