@@ -459,8 +459,8 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
 
     async def create_recap_image(self, winners, victims_list):
-        """Synthesizes a highly advanced visual layout showcasing the winners on the left,
-        and group-by-group cell blocks on the right with formatted profiles."""
+        """Synthesizes a highly advanced visual layout matching recap.jpg template structure.
+        Showcases the Overlord Winners on the Left and the remaining target cell blocks on the Right."""
         try:
             async with aiohttp.ClientSession() as session:
                 winner_buffers = []
@@ -480,7 +480,7 @@ class PartnersInCrimeEngine(commands.Cog):
 
                 # Pre-download victim avatars
                 victim_avatars = {}
-                for s_id, members in list(grouped_victims.items())[:6]: # Restrict to top 6 squads visually to maintain fit
+                for s_id, members in list(grouped_victims.items())[:6]: # Display top 6 squads neatly
                     for m in members:
                         async with session.get(m.display_avatar.url, timeout=10) as resp:
                             if resp.status == 200:
@@ -488,12 +488,18 @@ class PartnersInCrimeEngine(commands.Cog):
 
             canvas_w = 1600
             canvas_h = 900
-            bg_path = "1v1Background.jpg"
-            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
+            
+            # Load and map specifically to your custom recap.jpg template background
+            bg_path = "recap.jpg"
+            if os.path.exists(bg_path):
+                bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h))
+            else:
+                bg = Image.open("1v1Background.jpg").convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists("1v1Background.jpg") else Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
             
             draw = ImageDraw.Draw(bg)
 
-            # 1. DRAW OVERLORD WINNERS (Left Column - Huge Profiles)
+            # 1. DRAW OVERLORD WINNERS (Left Side Column - Large Profiles)
+            # Fits precisely on the left half of the template layout
             w_size = 360
             for idx, buf in enumerate(winner_buffers[:2]):
                 av = Image.open(buf).convert("RGBA").resize((w_size, w_size))
@@ -504,28 +510,28 @@ class PartnersInCrimeEngine(commands.Cog):
                 draw.rectangle([80, 80 + (idx * 410) + w_size - 40, 80 + w_size + 30, 80 + (idx * 410) + w_size + 15], fill=(0, 0, 0, 220))
                 draw.text((100, 80 + (idx * 410) + w_size - 30), f"HEIST OVERLORD", fill=(255, 215, 0))
 
-            # Draw central boundaries split
+            # Draw central dividing separation line
             draw.line((580, 40, 580, 860), fill=(255, 0, 255), width=8)
 
-            # 2. DRAW TARGET DUOS GROUPED BY CELL SQUAD (Right Side Rows)
-            # Display up to 6 victim cell squads neatly stacked vertically
+            # 2. DRAW TARGET DUOS GROUPED BY CELL SQUAD (Right Side Column Rows)
+            # Accommodates up to 6 distinct cell squads stacked sequentially
             y_offset = 60
             for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())[:6]):
-                # Draw Row Title
+                # Draw Squad Division Frame
                 draw.rectangle([620, y_offset, 1540, y_offset + 35], fill=(85, 0, 17, 180))
                 draw.text((635, y_offset + 8), f"CELL SQUAD UNIT #{squad_id}", fill=(255, 0, 255))
                 
-                # Draw up to 2 partners side-by-side in this squad block row
+                # Draw both squad members inside this division row
                 for m_idx, member in enumerate(members[:2]):
                     m_x = 640 + (m_idx * 450)
                     m_y = y_offset + 50
                     
                     if member.id in victim_avatars:
                         v_av = Image.open(victim_avatars[member.id]).convert("RGBA").resize((70, 70))
-                        v_av = ImageOps.expand(v_av, border=3, fill="#550011") # Frame outline
+                        v_av = ImageOps.expand(v_av, border=3, fill="#550011") # Heavy red frame
                         bg.paste(v_av, (m_x, m_y), v_av)
                     
-                    # Cutout long names safely
+                    # Trim layout overflows
                     display_name = member.display_name if len(member.display_name) <= 18 else member.display_name[:15] + "..."
                     draw.text((m_x + 95, m_y + 22), display_name, fill=(255, 255, 255))
                     
