@@ -525,7 +525,6 @@ class PartnersInCrimeEngine(commands.Cog):
             # Team A (Left Side): 
             # - Slot 1 bounds: x=69, y=208
             # - Slot 2 bounds: x=317, y=208
-            # bg.paste(a1, (69, 208), a1)
             bg.paste(a1, (69, 208), a1)
             bg.paste(a2, (317, 208), a2)
 
@@ -695,10 +694,8 @@ class PartnersInCrimeEngine(commands.Cog):
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
                 t2 = resolved_teams.pop(random.randrange(len(resolved_teams)))
 
-                # INTEGRADO: Chama a geração dinâmica do piclexicon utilizando o novo pool de textos NSFW
+                # INTEGRADO: Geração de narrativa dinâmica do piclexicon
                 fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
-                await channel.send(fight_narrative)
-                await asyncio.sleep(4)
 
                 # Execute Fight
                 winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
@@ -733,14 +730,15 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
                 file = discord.File(fp=arena_image, filename="arena_duo.png")
 
+                # FIX: Narrativa unificada diretamente acoplada dentro do embed de combate com a imagem
                 emb = discord.Embed(
                     title=f"🫦 Squad {winner['id']} DOMINATES AND WIPES OUT Squad {loser['id']}!", 
-                    description=f"Stripped of armor and dignity, {loser['name']} has been cast out of the heist zone.", 
+                    description=fight_narrative, 
                     color=0xFF00FF
                 )
                 emb.set_image(url="attachment://arena_duo.png")
                 await channel.send(file=file, embed=emb)
-                await asyncio.sleep(5)
+                await asyncio.sleep(6)
 
             # We have an absolute Winning Duo
             champion_duo = resolved_teams[0]
@@ -935,7 +933,7 @@ class CrimeEngineControl(commands.Cog):
         if not target_members:
             return await ctx.send("❌ Internal Error: Target squad is unassigned or empty.")
 
-        # INTEGRADO: Agora consome as humilhações e decretos de exposição extrema de piclexicon.py
+        # INTEGRADO: Consome as humilhações e decretos de exposição extrema de piclexicon.py
         sentence = engine.lexicon.get_random_humiliation()
         
         # Compile target mentions for proper announcements
