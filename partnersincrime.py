@@ -255,7 +255,7 @@ class CrimeLobbyView(discord.ui.View):
         
         guild_games = 0
         for channel_id in engine.active_battles:
-            ch = interaction.client.get_channel(ch_id)
+            ch = interaction.client.get_channel(channel_id)
             if ch and ch.guild and ch.guild.id == interaction.guild.id:
                 guild_games += 1
         
