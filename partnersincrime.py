@@ -276,7 +276,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE SIRENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
+        await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
         import sys as _sys_m
         main_mod = _sys_m.modules['__main__']
@@ -437,6 +437,7 @@ class PartnersInCrimeEngine(commands.Cog):
             # Team A (Left Side): 
             # - Slot 1 bounds: x=69, y=208
             # - Slot 2 bounds: x=317, y=208
+            # bg.paste(a1, (69, 208), a1)
             bg.paste(a1, (69, 208), a1)
             bg.paste(a2, (317, 208), a2)
 
@@ -453,6 +454,55 @@ class PartnersInCrimeEngine(commands.Cog):
         except Exception as e:
             print(f"Crime Image Synthesizer Error: {e}")
             fallback = Image.new("RGBA", (1423, 735), (10, 10, 20, 255))
+            buf = io.BytesIO()
+            fallback.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+
+    async def create_recap_image(self, winners, victims_list):
+        """Synthesizes a clean layout showing only the two winning profile pictures as equal circular avatars with no background."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                winner_buffers = []
+                for w in winners:
+                    async with session.get(w.display_avatar.url, timeout=10) as resp:
+                        if resp.status == 200:
+                            winner_buffers.append(io.BytesIO(await resp.read()))
+
+            # Transparent canvas for clean integration
+            canvas_w = 800
+            canvas_h = 400
+            bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
+            
+            # Helper to crop to a clean circle
+            def make_circular(img, size):
+                img = img.resize((size, size), Image.Resampling.LANCZOS)
+                mask = Image.new("L", (size, size), 0)
+                draw_mask = ImageDraw.Draw(mask)
+                draw_mask.ellipse((0, 0, size, size), fill=255)
+                output = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+                output.paste(img, (0, 0), mask)
+                return output
+
+            size = 300
+            # Draw both winners equally sized side-by-side with transparent background
+            if len(winner_buffers) > 0:
+                im1 = Image.open(winner_buffers[0]).convert("RGBA")
+                circ1 = make_circular(im1, size)
+                bg.paste(circ1, (75, 50), circ1)
+                
+            if len(winner_buffers) > 1:
+                im2 = Image.open(winner_buffers[1]).convert("RGBA")
+                circ2 = make_circular(im2, size)
+                bg.paste(circ2, (425, 50), circ2)
+
+            buf = io.BytesIO()
+            bg.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            print(f"Recap Canvas Generation Failure: {e}")
+            fallback = Image.new("RGBA", (800, 400), (0, 0, 0, 0))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -564,58 +614,56 @@ class PartnersInCrimeEngine(commands.Cog):
             for winner_member in [champion_duo['p1'], champion_duo['p2']]:
                 await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
 
+            win_emb = discord.Embed(
+                title=f"👑 REIGNING SYNDICATE OVERLORDS: SQUAD {champion_duo['id']} 👑",
+                description=(
+                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
+                    f"They have cleaned out the cache! Both partners claim **30,000 Flames** and **3,000 XP**.\n\n"
+                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
+                    f"**EACH** partner has their own private pick! Run `!strip <squad_number>` (e.g. `!strip 12`) to force an entire squad into submission!"
+                ),
+                color=0xFFD700
+            )
+            
             # Setup Winner detail layout cards
             details_card = discord.Embed(title="📜 Dossier: The Syndicate Vault Breakers", color=0xFFD700)
             details_card.add_field(name="Heist Outcome", value="All defense layers neutralized. Treasures divided 50/50 under covenant rules.")
             view = CrimeWinnerDetailsView(details_card)
             self.bot.add_view(view)
 
-            # --- THE NEW EMBED RESTYLING LAYOUT (MATCHING IMAGE 2 STYLES) ---
-            # 1. Primary Winner Announcement Embed
-            win_emb = discord.Embed(
-                title="🏆 ECHOGAMES SYNDICATE WINNER 🏆",
-                description=(
-                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
-                    f"**💰 HEIST PAYOUT DETAILS:**\n"
-                    f"🥇 **{champion_duo['p1'].display_name}:** +30,000 Flames | +3,000 XP\n"
-                    f"🥈 **{champion_duo['p2'].display_name}:** +30,000 Flames | +3,000 XP\n\n"
-                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
-                    f"**EACH** partner has their own private pick! Run `!strip <squad_number>` to force an entire squad into submission!"
-                ),
-                color=0xFFD700
-            )
-            # Display both of the Grand Winners' profile picture assets directly as visual icons
-            win_emb.set_author(name="Reigning Underworld Overlord Duo", icon_url=champion_duo['p1'].display_avatar.url)
-            win_emb.set_thumbnail(url=champion_duo['p2'].display_avatar.url)
-
             await channel.send(embed=win_emb, view=view)
             await asyncio.sleep(2)
 
-            # Group the defeated outlaws by cell squad divisions
+            # Execute RECAP PROTOCOL
+            recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
+            recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
+            
+            # Generate the detailed members available list for the Discord text embed description
+            targets_text_list = ""
+            # Group by squad units for text-based emphasis too
             txt_groups = {}
             for squad_id, member in defeated_victims:
                 if squad_id not in txt_groups:
                     txt_groups[squad_id] = []
                 if member not in txt_groups[squad_id]:
                     txt_groups[squad_id].append(member)
-
-            # 2. Complete the Hit List text announcement using neat, scannable text rows instead of background banners
-            targets_desc = ""
+                    
             for squad_id, members in txt_groups.items():
-                targets_desc += f"\n**Cell Squad Unit {squad_id}**\n"
+                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
                 for member in members:
-                    targets_desc += f"• {member.mention} ({member.display_name})\n"
+                    targets_text_list += f"• {member.mention} ({member.display_name})\n"
 
             recap_emb = discord.Embed(
                 title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
                 description=(
-                    "The heist is won, but the contract is incomplete. Run `!strip <squad_number>` now to execute submission over target cell blocks!\n\n"
-                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_desc
+                    "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (top) and the remaining vulnerable targets available to be forced into submission (bottom).\n"
+                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
+                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
                 ),
                 color=0xFF00FF
             )
-            recap_emb.set_footer(text="Underworld Registry Ledger • Chained in Submission")
-            await channel.send(embed=recap_emb)
+            recap_emb.set_image(url="attachment://crime_recap.png")
+            await channel.send(file=recap_file, embed=recap_emb)
 
         except Exception as e:
             print(f"# CRITICAL CRIME ENGINE FAILURE: {e}")
@@ -722,7 +770,7 @@ class CrimeEngineControl(commands.Cog):
             "Underworld Submission Mandate", 
             f"📸 {ctx.author.mention} signs the warrant of absolute exposure over **Squad #{squad_num}**...\n\n"
             f"**\"{sentence}\"**\n\n"
-            f"🔞 {target_mentions_str}, by blood-oath syndicate law, **YOU MUST FLASH!**",
+            f"**{target_mentions_str}**, by blood-oath syndicate law, **YOU MUST FLASH!**",
             color=0xFF00FF
         )
         
