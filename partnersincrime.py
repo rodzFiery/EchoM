@@ -460,55 +460,24 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
 
     async def create_recap_image(self, winners, victims_list):
-        """Synthesizes a clean visual layout with no background.
-        At the top, displays the two winning profiles in equal size side-by-side.
-        Below them, lists the details of each available duo to flash with their circular mini profile pictures and nicknames vertically stacked."""
+        """Synthesizes a clean visual layout with no background containing only 
+        the grand winners side-by-side at the top. The mini profiles list is removed."""
         try:
-            # Group victims by squad index mapping: squad_id -> [list of members]
-            grouped_victims = {}
-            for v_team_num, v_member in victims_list:
-                if v_team_num not in grouped_victims:
-                    grouped_victims[v_team_num] = []
-                if v_member not in grouped_victims[v_team_num]:
-                    grouped_victims[v_team_num].append(v_member)
-
             async with aiohttp.ClientSession() as session:
-                # 1. Download winner profile pictures
+                # Download winner profile pictures
                 winner_buffers = []
                 for w in winners:
                     async with session.get(w.display_avatar.url, timeout=10) as resp:
                         if resp.status == 200:
                             winner_buffers.append(io.BytesIO(await resp.read()))
 
-                # 2. Download victim profile pictures
-                victim_avatars = {}
-                for s_id, members in list(grouped_victims.items()):
-                    for m in members:
-                        async with session.get(m.display_avatar.url, timeout=10) as resp:
-                            if resp.status == 200:
-                                victim_avatars[m.id] = io.BytesIO(await resp.read())
-
-            # Canvas configurations: Calculate height based on number of squads
-            squad_count = len(grouped_victims)
             canvas_w = 800
-            
-            # --- CALCULATING NEW HEIGHT FOR VERTICAL LIST ---
-            # Space for winners (420px) + Space per squad unit (150px per squad unit) + margin
-            squad_unit_height = 150
-            canvas_h = 420 + max(1, squad_count) * squad_unit_height + 40
+            # Height configured strictly to showcase only the grand winners
+            canvas_h = 420
             
             # Transparent canvas for clean visual integration
             bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(bg)
             
-            # Use default system font or fallback
-            try:
-                font_title = ImageFont.truetype("arial.ttf", 22)
-                font_text = ImageFont.truetype("arial.ttf", 16)
-            except IOError:
-                font_title = ImageFont.load_default()
-                font_text = ImageFont.load_default()
-
             # Circular crop helper
             def make_circular(img, size):
                 img = img.resize((size, size), Image.Resampling.LANCZOS)
@@ -549,44 +518,13 @@ class PartnersInCrimeEngine(commands.Cog):
                 canvas_border2.paste(circ2, (6, 6), circ2)
                 bg.paste(canvas_border2, (425 - 6, w_y - 6), canvas_border2)
 
-            # Separator line under winners focus
-            draw.line((40, 390, 760, 390), fill=(255, 0, 255, 180), width=3)
-
-            # 2. DRAW EACH AVAILABLE TARGET DUO SCHEME BELOW (Vertical Stacked Mini circular profile pic + nickname)
-            y_start = 410
-            mini_size = 45
-
-            for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())):
-                current_y = y_start + (squad_idx * squad_unit_height)
-                
-                # Squad Unit Header Text
-                draw.text((45, current_y), f"SQUAD {squad_id}", fill=(255, 0, 255, 255), font=font_title)
-                
-                # Render Members Vertically instead of side-by-side
-                for m_idx, member in enumerate(members[:2]):
-                    m_x = 45
-                    # Offset the Y coordinate for each member vertically in the squad box
-                    m_y = current_y + 35 + (m_idx * (mini_size + 10))
-                    
-                    # Draw mini circular profile avatar
-                    if member.id in victim_avatars:
-                        raw_av = Image.open(victim_avatars[member.id]).convert("RGBA")
-                        circ_av = make_circular(raw_av, mini_size)
-                        bg.paste(circ_av, (m_x, m_y), circ_av)
-                    
-                    # Cut display nickname if too long for spacing
-                    display_name = member.display_name if len(member.display_name) <= 20 else member.display_name[:17] + "..."
-                    
-                    # Draw Nickname text directly to the right of the mini profile pic
-                    draw.text((m_x + mini_size + 12, m_y + 12), f"{display_name}", fill=(255, 255, 255, 255), font=font_text)
-
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
             buf.seek(0)
             return buf
         except Exception as e:
             print(f"Recap Canvas Generation Failure: {e}")
-            fallback = Image.new("RGBA", (800, 400), (0, 0, 0, 0))
+            fallback = Image.new("RGBA", (800, 420), (0, 0, 0, 0))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
