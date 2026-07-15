@@ -462,7 +462,7 @@ class PartnersInCrimeEngine(commands.Cog):
     async def create_recap_image(self, winners, victims_list):
         """Synthesizes a clean visual layout with no background.
         At the top, displays the two winning profiles in equal size side-by-side.
-        Below them, lists the details of each available duo to flash with their circular mini profile pictures and nicknames."""
+        Below them, lists the details of each available duo to flash with their circular mini profile pictures and nicknames vertically stacked."""
         try:
             # Group victims by squad index mapping: squad_id -> [list of members]
             grouped_victims = {}
@@ -491,8 +491,11 @@ class PartnersInCrimeEngine(commands.Cog):
             # Canvas configurations: Calculate height based on number of squads
             squad_count = len(grouped_victims)
             canvas_w = 800
-            # Space for winners (420px) + Space per squad unit row (95px per row) + margin
-            canvas_h = 420 + max(1, squad_count) * 95 + 40
+            
+            # --- CALCULATING NEW HEIGHT FOR VERTICAL LIST ---
+            # Space for winners (420px) + Space per squad unit (150px per squad unit) + margin
+            squad_unit_height = 150
+            canvas_h = 420 + max(1, squad_count) * squad_unit_height + 40
             
             # Transparent canvas for clean visual integration
             bg = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
@@ -549,20 +552,21 @@ class PartnersInCrimeEngine(commands.Cog):
             # Separator line under winners focus
             draw.line((40, 390, 760, 390), fill=(255, 0, 255, 180), width=3)
 
-            # 2. DRAW EACH AVAILABLE TARGET DUO SCHEME BELOW (Circular mini profile pic + nickname)
+            # 2. DRAW EACH AVAILABLE TARGET DUO SCHEME BELOW (Vertical Stacked Mini circular profile pic + nickname)
             y_start = 410
             mini_size = 45
 
             for squad_idx, (squad_id, members) in enumerate(list(grouped_victims.items())):
-                current_y = y_start + (squad_idx * 95)
+                current_y = y_start + (squad_idx * squad_unit_height)
                 
                 # Squad Unit Header Text
-                draw.text((45, current_y), f"SQUAD {squad_id}:", fill=(255, 0, 255, 255), font=font_title)
+                draw.text((45, current_y), f"SQUAD {squad_id}", fill=(255, 0, 255, 255), font=font_title)
                 
-                # Render Dominant (p1) and Submissive (p2) players of the squad side-by-side
+                # Render Members Vertically instead of side-by-side
                 for m_idx, member in enumerate(members[:2]):
-                    m_x = 45 + (m_idx * 360)
-                    m_y = current_y + 35
+                    m_x = 45
+                    # Offset the Y coordinate for each member vertically in the squad box
+                    m_y = current_y + 35 + (m_idx * (mini_size + 10))
                     
                     # Draw mini circular profile avatar
                     if member.id in victim_avatars:
@@ -572,10 +576,9 @@ class PartnersInCrimeEngine(commands.Cog):
                     
                     # Cut display nickname if too long for spacing
                     display_name = member.display_name if len(member.display_name) <= 20 else member.display_name[:17] + "..."
-                    role_label = "Dom: " if m_idx == 0 else "Sub: "
                     
-                    # Draw Role + Nickname text
-                    draw.text((m_x + mini_size + 12, m_y + 12), f"{role_label}{display_name}", fill=(255, 255, 255, 255), font=font_text)
+                    # Draw Nickname text directly to the right of the mini profile pic
+                    draw.text((m_x + mini_size + 12, m_y + 12), f"{display_name}", fill=(255, 255, 255, 255), font=font_text)
 
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
@@ -634,6 +637,10 @@ class PartnersInCrimeEngine(commands.Cog):
             self.current_survivors[channel.id] = resolved_teams.copy()
 
             # Display Teams
+            # Track initial losers mapped with team index numbers to present them inside the recap image template
+            defeated_victims = []
+
+            # Display Teams
             roster_desc = ""
             for duo in resolved_teams:
                 roster_desc += f"**Squad {duo['id']}:** {duo['name']}\n"
@@ -645,9 +652,6 @@ class PartnersInCrimeEngine(commands.Cog):
             )
             await channel.send(embed=roster_emb)
             await asyncio.sleep(5)
-
-            # Track initial losers mapped with team index numbers to present them inside the recap image template
-            defeated_victims = []
 
             # Fight loop
             while len(resolved_teams) > 1:
@@ -718,12 +722,28 @@ class PartnersInCrimeEngine(commands.Cog):
             # Execute RECAP PROTOCOL
             recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
             recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
+            
+            # Generate the detailed members available list for the Discord text embed description
+            targets_text_list = ""
+            # Group by squad units for text-based emphasis too
+            txt_groups = {}
+            for squad_id, member in defeated_victims:
+                if squad_id not in txt_groups:
+                    txt_groups[squad_id] = []
+                if member not in txt_groups[squad_id]:
+                    txt_groups[squad_id].append(member)
+                    
+            for squad_id, members in txt_groups.items():
+                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
+                for member in members:
+                    targets_text_list += f"• {member.mention} ({member.display_name})\n"
 
             recap_emb = discord.Embed(
                 title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
                 description=(
                     "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (top) and the remaining vulnerable targets available to be forced into submission (bottom).\n"
-                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!"
+                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
+                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
                 ),
                 color=0xFF00FF
             )
