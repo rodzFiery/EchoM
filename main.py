@@ -128,8 +128,8 @@ def init_db():
                 PRIMARY KEY (user_one, user_two)
             )""")
         conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
-        # ADDED: Partners In Crime database tables synchronization
-        conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER)")
+        # ADDED: Partners In Crime database tables synchronization with the correct 4-column schema structure
+        conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
         conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
         conn.commit()
 
@@ -388,7 +388,7 @@ async def me(ctx, member: discord.Member = None):
 
     # FIXED: Replaced .get() with standard bracket access for sqlite3.Row compatibility
     user_class = u['class'] if u['class'] else "Unassigned"
-    embed.add_field(name="❤ Class", value=f"**{user_class}**", inline=False)
+    embed.add_field(name="Class", value=f"**{user_class}**", inline=False)
     embed.add_field(name="🏅 Badges & Titles", value=badge_display, inline=False)
     embed.add_field(name="👜 Wallet", value=f"**Flames:** {u['balance']:,}\n**Global Level:** {u['level']} ({u['xp']:,} XP)", inline=True)
     embed.add_field(name="🔥 Echo Stats", value=f"**Level:** {lvl}\n**Rank:** {rank_name}\n**Total XP:** {u['fiery_xp']:,}", inline=True)
