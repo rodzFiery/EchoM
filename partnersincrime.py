@@ -90,7 +90,7 @@ class CrimeLobbyView(discord.ui.View):
             print(f"Error fetching teams from DB: {e}")
         return teams
 
-    def render_lobby_embeds(self, teams, server_edition, edition_num):
+    def render_lobby_embeds(self, teams, server_edition, global_edition):
         # Count current participants
         all_players = []
         for t_idx, slots in teams.items():
@@ -100,8 +100,8 @@ class CrimeLobbyView(discord.ui.View):
 
         # Embed 1: Lobby Status Details
         info_embed = discord.Embed(
-            title=f"💦 Partners In Crime Spree # {edition_num} 💦", 
-            description=f"**Syndicate Grid Server Edition: #{server_edition}**\n\nFind your partner in bondage, lock and load your weapons, and seal your signatures in blood to claim your stake of the vault.", 
+            title=f"💦 Partners In Crime Spree (Server Edition: #{server_edition}) 💦", 
+            description=f"**Syndicate Grid Global Spree: #{global_edition}**\n\nFind your partner in bondage, lock and load your weapons, and seal your signatures in blood to claim your stake of the vault.", 
             color=0xFF00FF
         )
         info_embed.add_field(
@@ -179,15 +179,21 @@ class CrimeLobbyView(discord.ui.View):
             conn.commit()
         
         try:
-            # Query server stats
+            # Query server stats and global stats
             server_edition = 1
+            global_edition = 1
             with engine.get_db_connection() as conn:
                 row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
                 if row:
                     server_edition = row[0]
+                
+                # Global stat marker is simulated using ID 999999999
+                row_glob = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = 999999999").fetchone()
+                if row_glob:
+                    global_edition = row_glob[0]
             
             # Re-render both embeds with the freshly updated database configuration
-            updated_embeds = self.render_lobby_embeds(lobby_teams, server_edition, self.edition)
+            updated_embeds = self.render_lobby_embeds(lobby_teams, server_edition, global_edition)
             await interaction.message.edit(embeds=updated_embeds, view=self)
             await interaction.followup.send(f"🫦 **Pact Sealed!** You have been assigned to **Cell Squad Unit {selected_team}**.", ephemeral=True)
 
@@ -278,9 +284,14 @@ class CrimeLobbyView(discord.ui.View):
         
         await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
         
-        import sys as _sys_m
-        main_mod = _sys_m.modules['__main__']
-        final_edition = self.edition if self.edition != 0 else getattr(main_mod, "crime_game_edition", 1)
+        # Pull dynamic server edition safely from the database to keep separate stats per Guild
+        server_edition = 1
+        with engine.get_db_connection() as conn:
+            row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+            if row:
+                server_edition = row[0]
+                
+        final_edition = self.edition if self.edition != 0 else server_edition
         
         # Launch battle using the dynamic pre-made squad arrangement
         asyncio.create_task(engine.start_battle_with_premade_teams(interaction.channel, final_teams_list, final_edition))
@@ -316,13 +327,18 @@ class CrimeLobbyView(discord.ui.View):
 
         # Query stats
         server_edition = 1
+        global_edition = 1
         with engine.get_db_connection() as conn:
             row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
             if row:
                 server_edition = row[0]
+            
+            row_glob = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = 999999999").fetchone()
+            if row_glob:
+                global_edition = row_glob[0]
 
         # 4. Build and send the lobby message down at the very bottom of the channel text history
-        updated_embeds = new_view.render_lobby_embeds(lobby_teams, server_edition, self.edition)
+        updated_embeds = new_view.render_lobby_embeds(lobby_teams, server_edition, global_edition)
         await interaction.channel.send(embeds=updated_embeds, view=new_view)
         await interaction.followup.send("🔄 **Lobby Board Reposted!** Board has been pushed to the bottom of the channel.", ephemeral=True)
         self.stop()
@@ -538,7 +554,7 @@ class PartnersInCrimeEngine(commands.Cog):
         try:
             await self.bot.wait_until_ready()
             
-            # Reset and map channel match tracking history
+            # Reset and map channel match tracking history (separated dynamically per channel ID)
             self.historical_match_squads[channel.id] = {}
             
             # Convert user IDs to real member objects
@@ -732,22 +748,32 @@ class CrimeEngineControl(commands.Cog):
             # --- THE FIX: SAFETY UPSERT ON STATS ---
             # Using standard SQLite conflict resolution to initialize with 1 OR increment by 1 cleanly
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            
+            # Increment server edition for this server specifically
             conn.execute(
                 "INSERT INTO crime_server_stats (guild_id, server_edition) VALUES (?, 1) "
                 "ON CONFLICT(guild_id) DO UPDATE SET server_edition = server_edition + 1",
                 (ctx.guild.id,)
             )
             
+            # Increment global edition using global ID (999999999) safely across all servers
+            conn.execute(
+                "INSERT INTO crime_server_stats (guild_id, server_edition) VALUES (999999999, 1) "
+                "ON CONFLICT(guild_id) DO UPDATE SET server_edition = server_edition + 1"
+            )
+            
             row = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
             server_edition = row[0] if row else 1
+            
+            row_glob = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = 999999999").fetchone()
+            global_edition = row_glob[0] if row_glob else 1
             conn.commit()
 
-        # Set game edition variables globally inside main
-        if not hasattr(main, "crime_game_edition"):
-            main.crime_game_edition = 1
+        # Set lobby local variables to prevent state desync
+        lobby_edition = server_edition
 
         # Instantiate lobby and generate dynamic layout cards
-        view = CrimeLobbyView(ctx.author, main.crime_game_edition, ctx.guild.id)
+        view = CrimeLobbyView(ctx.author, lobby_edition, ctx.guild.id)
         self.bot.add_view(view)
 
         if engine: 
@@ -755,10 +781,9 @@ class CrimeEngineControl(commands.Cog):
 
         # Populate starting empty dictionary layout directly
         teams = {i: [None, None] for i in range(1, 16)}
-        embeds = view.render_lobby_embeds(teams, server_edition, main.crime_game_edition)
+        embeds = view.render_lobby_embeds(teams, server_edition, global_edition)
         await ctx.send(embeds=embeds, view=view)
         
-        main.crime_game_edition += 1
         self.save_game_config()
 
     @commands.command(name="strip")
@@ -775,7 +800,7 @@ class CrimeEngineControl(commands.Cog):
         if ctx.author.id not in active_winners:
             return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission, or you already executed your pick!**")
 
-        # Pull match structural layouts from match tracking logs
+        # Pull match structural layouts from match tracking logs (separated per channel)
         match_history = engine.historical_match_squads.get(ctx.channel.id)
         if not match_history or squad_num not in match_history:
             return await ctx.send(f"❌ **Squad #{squad_num} was not found inside the registration file of this operation cycle.**")
