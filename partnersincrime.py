@@ -631,6 +631,11 @@ class PartnersInCrimeEngine(commands.Cog):
             # Convert user IDs to real member objects
             resolved_teams = []
             all_participating_ids = []
+            
+            # Listas temporárias para separar duplas originais de membros solos cadastrados
+            temp_duos = []
+            temp_solos = []
+            
             for t_idx, team_players in pre_made_teams:
                 resolved_members = []
                 for p_id in team_players:
@@ -639,25 +644,41 @@ class PartnersInCrimeEngine(commands.Cog):
                         resolved_members.append(m)
                         all_participating_ids.append(m.id)
                 
-                # Setup proper Duo targets based on registered headcount
+                # Armazena temporariamente dependendo do tamanho da equipe resolvida
                 if len(resolved_members) == 2:
-                    team_payload = {
-                        "id": t_idx,
-                        "p1": resolved_members[0],
-                        "p2": resolved_members[1],
-                        "name": f"😈 {resolved_members[0].display_name} & {resolved_members[1].display_name}"
-                    }
-                    resolved_teams.append(team_payload)
-                    self.historical_match_squads[channel.id][t_idx] = [resolved_members[0], resolved_members[1]]
+                    temp_duos.append((t_idx, resolved_members))
                 elif len(resolved_members) == 1:
-                    team_payload = {
-                        "id": t_idx,
-                        "p1": resolved_members[0],
-                        "p2": resolved_members[0], # Clone for visualization protection
-                        "name": f"🐺 Rogue Renegade: {resolved_members[0].display_name}"
-                    }
-                    resolved_teams.append(team_payload)
-                    self.historical_match_squads[channel.id][t_idx] = [resolved_members[0]]
+                    temp_solos.append((t_idx, resolved_members[0]))
+
+            # --- ADICIONADO: AGRUPAMENTO AUTOMÁTICO DE SOLOS EM DUPLAS ---
+            # Mescla membros que entraram sozinhos para formar novas duplas dinâmicas
+            while len(temp_solos) >= 2:
+                idx1, p1 = temp_solos.pop(0)
+                idx2, p2 = temp_solos.pop(0)
+                # Combina-os sob um ID de equipe unificado (usa o ID do primeiro jogador)
+                temp_duos.append((idx1, [p1, p2]))
+
+            # Monta e estrutura o payload final das equipes emparelhadas
+            for t_idx, members in temp_duos:
+                team_payload = {
+                    "id": t_idx,
+                    "p1": members[0],
+                    "p2": members[1],
+                    "name": f"😈 {members[0].display_name} & {members[1].display_name}"
+                }
+                resolved_teams.append(team_payload)
+                self.historical_match_squads[channel.id][t_idx] = [members[0], members[1]]
+
+            # Se sobrar apenas um único solo ímpar inevitável, ele joga como Renegado Solo
+            for remaining_idx, remaining_solo in temp_solos:
+                team_payload = {
+                    "id": remaining_idx,
+                    "p1": remaining_solo,
+                    "p2": remaining_solo, # Proteção visual de clone para a imagem da arena
+                    "name": f"🐺 Rogue Renegade: {remaining_solo.display_name}"
+                }
+                resolved_teams.append(team_payload)
+                self.historical_match_squads[channel.id][remaining_idx] = [remaining_solo]
 
             # Shuffle battle matchup sequence to keep it dynamic
             random.shuffle(resolved_teams)
