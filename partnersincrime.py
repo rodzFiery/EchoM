@@ -750,15 +750,21 @@ class PartnersInCrimeEngine(commands.Cog):
             self.reign_of_terror[channel.id] = [champion_duo['p1'].id, champion_duo['p2'].id]
 
             # Rewards Implementation & Persistent Database Wins updates
+            # --- FIX: SAFE SEPARATED TRANSACTION BLOCKS ---
+            # Update local statistics table first, closing connection immediately!
             with self.get_db_connection() as conn:
                 for winner_member in [champion_duo['p1'], champion_duo['p2']]:
-                    await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
-                    
                     conn.execute("""
                         INSERT INTO crime_user_stats (guild_id, user_id, wins, lifetime_flames) VALUES (?, ?, 1, 30000)
                         ON CONFLICT(guild_id, user_id) DO UPDATE SET wins = wins + 1, lifetime_flames = lifetime_flames + 30000
                     """, (channel.guild.id, winner_member.id))
                 conn.commit()
+
+            # Execute external user stats updates asynchronously OUTSIDE SQLite context blocks to avoid LOCKS
+            for winner_member in [champion_duo['p1'], champion_duo['p2']]:
+                await self.update_user_stats(winner_member.id, amount=30000, xp_gain=3000, wins=1, source="Syndicate Win")
+                # Minor buffer delay to let SQLite release any background transactional locks
+                await asyncio.sleep(0.5)
 
             # Format the detail layout cards with the exact visual fields requested (SERVER STATS & LEGACY)
             p1_wins_r, p1_kills_r, p1_games_r = self.get_user_arena_ranks(channel.guild.id, champion_duo['p1'].id)
