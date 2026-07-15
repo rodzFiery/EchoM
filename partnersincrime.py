@@ -397,7 +397,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 self.active_battles.remove(channel.id)
 
 
-class EngineControl(commands.Cog):
+class CrimeEngineControl(commands.Cog):
     def __init__(self, bot, fiery_embed, save_game_config, get_db_connection):
         self.bot = bot
         self.fiery_embed = fiery_embed
@@ -499,10 +499,10 @@ async def setup(bot):
     )
     await bot.add_cog(crime_engine)
     
-    engine_control = EngineControl(
+    crime_engine_control = CrimeEngineControl(
         bot,
         main.fiery_embed,
         main.save_game_config,
         main.get_db_connection
     )
-    await bot.add_cog(engine_control)
+    await bot.add_cog(crime_engine_control)
