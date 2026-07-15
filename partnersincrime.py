@@ -35,13 +35,13 @@ class CrimeWinnerDetailsView(discord.ui.View):
         super().__init__(timeout=None)
         self.details_embed = details_embed
 
-    @discord.ui.button(label="Examine Crime File", style=discord.ButtonStyle.primary, emoji="🔞", custom_id="crime_winner_details")
+    @discord.ui.button(label="Examine Dungeon Dossier", style=discord.ButtonStyle.primary, emoji="🔞", custom_id="crime_winner_details")
     async def details_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Safe fallback if view was restored from cache without embed memory
         if not self.details_embed:
             self.details_embed = discord.Embed(
-                title="📜 Dossier: The Syndicate Vault Breakers", 
-                description="All defense layers neutralized. Treasures divided 50/50 under covenant rules.",
+                title="📜 Dungeon Dossier: The Submissive Vault Breakers", 
+                description="All defensive limits neutralized. Bound partners divided 50/50 under the leather contract.",
                 color=0xFFD700
             )
         await interaction.response.send_message(embed=self.details_embed, ephemeral=True)
@@ -57,15 +57,15 @@ class CrimeLobbyView(discord.ui.View):
         self.active = True
         
         # Hardcoded static custom_ids are mandatory for persistent views to prevent interaction failures after bot restarts
-        join_btn = discord.ui.Button(label="Sign the Blood Pact", style=discord.ButtonStyle.success, emoji="🫦", custom_id="crime_lobby_join")
+        join_btn = discord.ui.Button(label="Sign the Submission Contract", style=discord.ButtonStyle.success, emoji="🫦", custom_id="crime_lobby_join")
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Initiate Heist Operation", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="crime_lobby_start")
+        start_btn = discord.ui.Button(label="Initiate Dungeon Session", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="crime_lobby_start")
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
-        repost_btn = discord.ui.Button(label="Repost Lobby Board", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="crime_lobby_repost")
+        repost_btn = discord.ui.Button(label="Repost Whipping Board", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="crime_lobby_repost")
         repost_btn.callback = self.repost_button_callback
         self.add_item(repost_btn)
 
@@ -100,48 +100,48 @@ class CrimeLobbyView(discord.ui.View):
 
         # Embed 1: Lobby Status Details
         info_embed = discord.Embed(
-            title=f"💦 Partners In Crime Spree (Server Edition: #{server_edition}) 💦", 
-            description=f"**Syndicate Grid Global Spree: #{global_edition}**\n\nFind your partner in bondage, lock and load your weapons, and seal your signatures in blood to claim your stake of the vault.", 
+            title=f"💦 Dungeon Bondage Spree (Server Session: #{server_edition}) 💦", 
+            description=f"**Kinky Global Dungeon Registry: #{global_edition}**\n\nFind your partner in chains, lock your collar, sign the leather contract with your saliva or blood, and prepare to serve.", 
             color=0xFF00FF
         )
         info_embed.add_field(
-            name="⛓️ Active Syndicate Underworld Roster", 
-            value=f"**{len(all_players)}** outlaws chained in cells... preparing tools.", 
+            name="⛓️ Active Dungeon Playroom Roster", 
+            value=f"**{len(all_players)}** subs and doms locked in cell blocks... sorting toys.", 
             inline=False
         )
 
         # Embed 2: The Grid of Squad Teams
         teams_embed = discord.Embed(
-            title="🫦 Underworld Cell Block Divisions",
+            title="🫦 Dom & Sub Cell Block Divisions",
             color=0xFF00FF
         )
         
         for t_idx, slots in teams.items():
-            p1_mention = f"<@{slots[0]}>" if slots[0] else "*Unassigned*"
-            p2_mention = f"<@{slots[1]}>" if slots[1] else "*Unassigned*"
+            p1_mention = f"<@{slots[0]}>" if slots[0] else "*Unassigned Dom*"
+            p2_mention = f"<@{slots[1]}>" if slots[1] else "*Unassigned Sub*"
             
             status_symbol = "👅" if (slots[0] and slots[1]) else "👣" if (slots[0] or slots[1]) else "🔒"
             
             # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed character limits
             if slots[0] or slots[1] or t_idx <= 6:
                 teams_embed.add_field(
-                    name=f"{status_symbol} Cell Squad Unit {t_idx}", 
+                    name=f"{status_symbol} Bondage Cell Unit {t_idx}", 
                     value=f"• **Dominant Partner:** {p1_mention}\n• **Submissive Partner:** {p2_mention}", 
                     inline=True
                 )
             
-        teams_embed.set_footer(text=f"Underworld Registration Board: {len(all_players)}/30 locked in.")
+        teams_embed.set_footer(text=f"Dungeon Toyroom Board: {len(all_players)}/30 locked in.")
         return [info_embed, teams_embed]
 
     async def join_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         if not self.active:
-            return await interaction.followup.send("❌ **The cell blocks are locked down.** The operation is already active.", ephemeral=True)
+            return await interaction.followup.send("❌ **The dungeon cells are locked.** The session is already active.", ephemeral=True)
 
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
-            return await interaction.followup.send("❌ Internal Error: Engine not found.", ephemeral=True)
+            return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
 
         # 1. Fetch synced team list directly from the database
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -154,7 +154,7 @@ class CrimeLobbyView(discord.ui.View):
                 break
                 
         if user_already_registered:
-            return await interaction.followup.send("🔗 **You are already chained to your cell block.** The keys are gone.", ephemeral=True)
+            return await interaction.followup.send("🔗 **You are already shackled to a cell block.** The key is swallowed.", ephemeral=True)
 
         # 3. Find empty slots
         available_slots = []
@@ -165,7 +165,7 @@ class CrimeLobbyView(discord.ui.View):
                 available_slots.append((t_idx, 1))
 
         if not available_slots:
-            return await interaction.followup.send("❌ **The cell blocks are packed!** No empty spots left.", ephemeral=True)
+            return await interaction.followup.send("❌ **The toyroom is packed!** No empty hooks left.", ephemeral=True)
 
         # 4. Assign user randomly to one of the empty slots
         selected_team, selected_slot = random.choice(available_slots)
@@ -195,7 +195,7 @@ class CrimeLobbyView(discord.ui.View):
             # Re-render both embeds with the freshly updated database configuration
             updated_embeds = self.render_lobby_embeds(lobby_teams, server_edition, global_edition)
             await interaction.message.edit(embeds=updated_embeds, view=self)
-            await interaction.followup.send(f"🫦 **Pact Sealed!** You have been assigned to **Cell Squad Unit {selected_team}**.", ephemeral=True)
+            await interaction.followup.send(f"🫦 **Submission Pact Sealed!** You are now bound to **Bondage Cell Unit {selected_team}**.", ephemeral=True)
 
             # Check if all 15 duos (30 spots total) are full to alert the lobby host
             current_participants_count = 0
@@ -205,15 +205,15 @@ class CrimeLobbyView(discord.ui.View):
                         current_participants_count += 1
 
             if current_participants_count == 30:
-                host_mention = f"<@{self.owner.id}>" if self.owner else "Ring Leader"
+                host_mention = f"<@{self.owner.id}>" if self.owner else "Dungeon Master"
                 await interaction.channel.send(
-                    f"🚨 **ALL 15 DUOS REGISTERED!** {host_mention}, the Underworld Cell Block Divisions are completely full! You can now launch the heist operation!"
+                    f"🚨 **ALL 15 DUNGEON DUOS REGISTERED!** {host_mention}, the playrooms are completely full! Unleash the whipping spree!"
                 )
 
         except Exception as e:
-            print(f"Crime Lobby Join Error: {e}")
+            print(f"Dungeon Lobby Join Error: {e}")
             traceback.print_exc()
-            await interaction.followup.send("The Syndicate ledger glitched but your signature was captured!", ephemeral=True)
+            await interaction.followup.send("The dungeon ledger glitched but your collar signature was captured!", ephemeral=True)
 
     async def start_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -243,7 +243,7 @@ class CrimeLobbyView(discord.ui.View):
         
         owner_id = getattr(self.owner, 'id', None)
         if owner_id and interaction.user.id != owner_id and not is_staff:
-            return await interaction.followup.send("🔒 **Clearance Denied: Only the Ring Leader or Staff can launch this operation.**", ephemeral=True)
+            return await interaction.followup.send("🔒 **Clearance Denied: Only the Dungeon Master or Staff can activate the playrooms.**", ephemeral=True)
         
         # Load latest synced teams directly from database
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -262,7 +262,7 @@ class CrimeLobbyView(discord.ui.View):
                 flat_players.append(p)
 
         if len(flat_players) < 4:
-            return await interaction.followup.send("We need at least 4 devious outlaws inside the registration room to begin!", ephemeral=True)
+            return await interaction.followup.send("We need at least 4 devious subs or doms ready to kneel in the playroom to begin!", ephemeral=True)
         
         guild_games = 0
         for channel_id in engine.active_battles:
@@ -271,7 +271,7 @@ class CrimeLobbyView(discord.ui.View):
                 guild_games += 1
         
         if guild_games >= 2:
-            return await interaction.followup.send("❌ **The streets are already full of conflict.** Wait for other operations to clean up.", ephemeral=True)
+            return await interaction.followup.send("❌ **The dungeon tables are already occupied.** Wait for other sessions to safely exit.", ephemeral=True)
 
         self.active = False
 
@@ -282,7 +282,7 @@ class CrimeLobbyView(discord.ui.View):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
-        await interaction.channel.send("🚨 **THE SIREENS SCREAM... PARTNERS IN CRIME SPREE IS NOW LIVE!**")
+        await interaction.channel.send("🚨 **THE WHIP CRACKS... THE DUNGEON BONDAGE SESSION IS NOW LIVE!**")
         
         # Pull dynamic server edition safely from the database to keep separate stats per Guild
         server_edition = 1
@@ -301,11 +301,11 @@ class CrimeLobbyView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
         if not self.active:
-            return await interaction.followup.send("❌ **The cell blocks are locked down.** The operation is already active.", ephemeral=True)
+            return await interaction.followup.send("❌ **The playroom cells are locked.** The session is active.", ephemeral=True)
 
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
-            return await interaction.followup.send("❌ Internal Error: Engine not found.", ephemeral=True)
+            return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
 
         try:
             # 1. Disable the old message view to avoid duplicate inputs or clutter
@@ -340,7 +340,7 @@ class CrimeLobbyView(discord.ui.View):
         # 4. Build and send the lobby message down at the very bottom of the channel text history
         updated_embeds = new_view.render_lobby_embeds(lobby_teams, server_edition, global_edition)
         await interaction.channel.send(embeds=updated_embeds, view=new_view)
-        await interaction.followup.send("🔄 **Lobby Board Reposted!** Board has been pushed to the bottom of the channel.", ephemeral=True)
+        await interaction.followup.send("🔄 **Whipping Board Reposted!** Board pushed down to the dungeon floor.", ephemeral=True)
         self.stop()
 
 # ==============================================================================
@@ -539,7 +539,7 @@ class PartnersInCrimeEngine(commands.Cog):
             buf.seek(0)
             return buf
         except Exception as e:
-            print(f"Crime Image Synthesizer Error: {e}")
+            print(f"Dungeon Image Synthesizer Error: {e}")
             fallback = Image.new("RGBA", (1423, 735), (10, 10, 20, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
@@ -664,7 +664,7 @@ class PartnersInCrimeEngine(commands.Cog):
                     "id": t_idx,
                     "p1": members[0],
                     "p2": members[1],
-                    "name": f"😈 {members[0].display_name} & {members[1].display_name}"
+                    "name": f"😈 Dom {members[0].display_name} & Sub {members[1].display_name}"
                 }
                 resolved_teams.append(team_payload)
                 self.historical_match_squads[channel.id][t_idx] = [members[0], members[1]]
@@ -675,7 +675,7 @@ class PartnersInCrimeEngine(commands.Cog):
                     "id": remaining_idx,
                     "p1": remaining_solo,
                     "p2": remaining_solo, # Proteção visual de clone para a imagem da arena
-                    "name": f"🐺 Rogue Renegade: {remaining_solo.display_name}"
+                    "name": f"🐺 Rogue Sub: {remaining_solo.display_name}"
                 }
                 resolved_teams.append(team_payload)
                 self.historical_match_squads[channel.id][remaining_idx] = [remaining_solo]
@@ -691,11 +691,11 @@ class PartnersInCrimeEngine(commands.Cog):
             # Display Teams
             roster_desc = ""
             for duo in resolved_teams:
-                roster_desc += f"**Squad {duo['id']}:** {duo['name']}\n"
+                roster_desc += f"**Bondage Unit {duo['id']}:** {duo['name']}\n"
                 
             roster_emb = self.fiery_embed(
-                f"⛓️ Operational Syndicate Roster - Heist Spree #{edition} ⛓️", 
-                f"The gangs have locked targets and marked territories:\n\n" + roster_desc, 
+                f"⛓️ Operational Dungeon Roster - Whipping Spree #{edition} ⛓️", 
+                f"The partners have bound themselves and selected their whips:\n\n" + roster_desc, 
                 color=0xFF00FF
             )
             await channel.send(embed=roster_emb)
@@ -753,7 +753,7 @@ class PartnersInCrimeEngine(commands.Cog):
 
                 # FIX: Narrativa consolidada em uma única sentença sem inundar o canal de spam
                 emb = discord.Embed(
-                    title=f"🫦 Squad {winner['id']} DOMINATES AND WIPES OUT Squad {loser['id']}!", 
+                    title=f"🫦 Unit {winner['id']} DOMINATES AND SUBMITS Unit {loser['id']}!", 
                     description=fight_narrative, 
                     color=0xFF00FF
                 )
@@ -788,28 +788,28 @@ class PartnersInCrimeEngine(commands.Cog):
             p1_wins_v, p1_kills_v, p1_games_v, p1_flames_v = self.get_user_legacy_metrics(channel.guild.id, champion_duo['p1'].id)
 
             win_emb = discord.Embed(
-                title=f"👑 REIGNING SYNDICATE OVERLORDS: SQUAD {champion_duo['id']} 👑",
+                title=f"👑 REIGNING DUNGEON MASTERS: UNIT {champion_duo['id']} 👑",
                 description=(
-                    f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
-                    f"They have cleaned out the cache! Both partners claim **30,000 Flames** and **3,000 XP**.\n\n"
-                    f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
-                    f"**EACH** partner has their own private pick! Run `!strip <squad_number>` (e.g. `!strip 12`) to force an entire squad into submission!"
+                    f"All bow before our absolute Masters of the Playroom: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
+                    f"The dungeon has been cleaned! Both master partners claim **30,000 Flames** and **3,000 XP**.\n\n"
+                    f"🔞 **Supreme Dom Decrees:** You hold absolute dominance over the submitted. "
+                    f"**EACH** master has their own whip! Run `!strip <squad_number>` (e.g. `!strip 12`) to force an entire submissive unit to obey!"
                 ),
                 color=0xFFD700
             )
             
             # Setup Winner detail layout cards
             details_card = discord.Embed(
-                title=f"👑 Echogames Winner 👑 # {edition}", 
-                description=f"**All defense layers neutralized. Treasures divided 50/50 under covenant rules.**\n\n"
-                            f"**📊 SERVER STATS**\n"
+                title=f"👑 Echogames Dungeon Winner 👑 # {edition}", 
+                description=f"**All defensive limits neutralized. Bound partners divided 50/50 under the leather contract.**\n\n"
+                            f"**📊 SERVER DUNGEON STATS**\n"
                             f"🏆 **Wins:** Rank #{p1_wins_r}\n"
-                            f"⚔️ **Kills:** Rank #{p1_kills_r}\n"
-                            f"🎮 **Games:** Rank #{p1_games_r}\n\n"
-                            f"**🏛️ VICTOR'S LEGACY**\n"
+                            f"⚔️ **Submissions:** Rank #{p1_kills_r}\n"
+                            f"🎮 **Sessions:** Rank #{p1_games_r}\n\n"
+                            f"**🏛️ DOM'S LEGACY**\n"
                             f"👑 **Total Arena Wins:** {p1_wins_v}\n"
                             f"📝 **Total Participations:** {p1_games_v}\n"
-                            f"🔥 **Lifetime Arena Flames:** {p1_flames_v:,}F",
+                            f"🔥 **Lifetime Dungeon Flames:** {p1_flames_v:,}F",
                 color=0xFFD700
             )
             view = CrimeWinnerDetailsView(details_card)
@@ -833,16 +833,16 @@ class PartnersInCrimeEngine(commands.Cog):
                     txt_groups[squad_id].append(member)
                     
             for squad_id, members in txt_groups.items():
-                targets_text_list += f"\n**Cell Squad {squad_id}**\n"
+                targets_text_list += f"\n**Cell Unit {squad_id}**\n"
                 for member in members:
                     targets_text_list += f"• {member.mention} ({member.display_name})\n"
 
             recap_emb = discord.Embed(
-                title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
+                title="🎯 TOYROOM RECAP: THE WHIP BOARD IS LIVE 🎯",
                 description=(
-                    "The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (top) and the remaining vulnerable targets available to be forced into submission (bottom).\n"
-                    "Look up their **SQUAD #** printed on the cards and run `!strip <squad_number>` now!\n\n"
-                    "**📋 ACTIVE REMAINING TARGETS:**" + targets_text_list
+                    "The whipping session is won, but the contract is incomplete. Below is the dungeon board containing your Dominants (top) and the remaining submissive targets ready to be forced into absolute submission (bottom).\n"
+                    "Look up their **CELL UNIT #** printed on the cards and run `!strip <squad_number>` now!\n\n"
+                    "**📋 ACTIVE SUBMISSIVE TARGETS:**" + targets_text_list
                 ),
                 color=0xFF00FF
             )
@@ -850,9 +850,9 @@ class PartnersInCrimeEngine(commands.Cog):
             await channel.send(file=recap_file, embed=recap_emb)
 
         except Exception as e:
-            print(f"# CRITICAL CRIME ENGINE FAILURE: {e}")
+            print(f"# CRITICAL DUNGEON FAILURE: {e}")
             traceback.print_exc()
-            await channel.send("❌ A critical syndicate error occurred. Call Dev.rodz.")
+            await channel.send("❌ A critical dungeon error occurred. Call Dungeon Keeper Dev.rodz.")
         finally:
             if channel.id in self.current_survivors:
                 del self.current_survivors[channel.id]
@@ -876,9 +876,9 @@ class CrimeEngineControl(commands.Cog):
         engine = self.bot.get_cog("PartnersInCrimeEngine")
         if engine:
             if ctx.channel.id in engine.active_battles:
-                return await ctx.send("❌ **An active heist is already running.** Clear current operations first.")
+                return await ctx.send("❌ **An active dungeon session is already running.** Wait for completion.")
             if ctx.guild.id in engine.current_lobbies:
-                return await ctx.send("❌ **Lobby gates are already open in this city.**")
+                return await ctx.send("❌ **Dungeon playroom gates are already open in this city.**")
 
         with self.get_db_connection() as conn:
             # Re-migration safety check before setting up the game lobby
@@ -940,19 +940,19 @@ class CrimeEngineControl(commands.Cog):
 
         active_winners = engine.reign_of_terror.get(ctx.channel.id)
         if not active_winners:
-            return await ctx.send("❌ **No syndicate rulers are active in this territory.**")
+            return await ctx.send("❌ **No playroom rulers are active in this territory.**")
 
         if ctx.author.id not in active_winners:
-            return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission, or you already executed your pick!**")
+            return await ctx.send("🫦 **Only the reigning masters of this playroom session hold the whip, or you already executed your strike!**")
 
         # Pull match structural layouts from match tracking logs (separated per channel)
         match_history = engine.historical_match_squads.get(ctx.channel.id)
         if not match_history or squad_num not in match_history:
-            return await ctx.send(f"❌ **Squad #{squad_num} was not found inside the registration file of this operation cycle.**")
+            return await ctx.send(f"❌ **Cell Unit #{squad_num} was not found inside the registration file of this dungeon cycle.**")
 
         target_members = match_history[squad_num]
         if not target_members:
-            return await ctx.send("❌ Internal Error: Target squad is unassigned or empty.")
+            return await ctx.send("❌ Internal Error: Target unit is empty.")
 
         # INTEGRADO: Consome as humilhações e decretos de exposição extrema de piclexicon.py
         sentence = engine.lexicon.get_random_humiliation()
@@ -961,10 +961,10 @@ class CrimeEngineControl(commands.Cog):
         target_mentions_str = " & ".join([m.mention for m in target_members])
         
         embed = self.fiery_embed(
-            "Underworld Submission Mandate", 
-            f"📸 {ctx.author.mention} signs the warrant of absolute exposure over **Squad #{squad_num}**...\n\n"
+            "Dungeon Submission Mandate", 
+            f"📸 {ctx.author.mention} cracks the leather whip of absolute exposure over **Cell Unit #{squad_num}**...\n\n"
             f"**\"{sentence}\"**\n\n"
-            f"**{target_mentions_str}**, by blood-oath syndicate law, **YOU MUST FLASH!**",
+            f"**{target_mentions_str}**, by the rules of the leather paddle, **YOU MUST SUBMIT AND FLASH!**",
             color=0xFF00FF
         )
         
