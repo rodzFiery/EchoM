@@ -7,7 +7,7 @@ logger = logging.getLogger("SyndicateLexicon")
 
 class PartnersInCrimeLexicon:
     def __init__(self) -> None:
-        # 1. Ações Diretas de Dominação & Submissão (Sentenças Gerais de Combate)
+        # 1. Sentenças Gerais de Combate (Retornam exatamente 1 única frase combinando a ação completa)
         self.actions: List[str] = [
             "shoves {loser} roughly onto the soft leather mattress, securing their wrists high above their head while they plead for mercy",
             "blindsides {loser} near the St. Andrew's cross, snapping a heavy padded leather collar shut around their neck with an ominous click",
@@ -42,51 +42,7 @@ class PartnersInCrimeLexicon:
             "strips away {loser}'s silk underwear with a decisive pull, exposing their bound posture in the playroom mirror"
         ]
 
-        # 2. Transições Ambientais (Environmental Transitions)
-        self.evasions: List[str] = [
-            "Low-frequency dungeon music echoes through the chamber, multiplying the hot tension.",
-            "Warm wax drops slowly from the ceiling candles, keeping their exposed skin highly sensitive.",
-            "Deep crimson lights pulse aggressively, painting their desperate struggles in shades of ruby and pink.",
-            "The heavy scent of premium leather, lavender oil, and heated skin hangs thick in the air.",
-            "There is absolutely no escape left for submissives once the dungeon door is locked from the outside.",
-            "The multi-angle security cameras record every single second of their delicious, humiliating defeat.",
-            "Dominants watch from behind the tinted glass, whispering and laughing at the total lack of dignity.",
-            "The cold steel of the wrist shackles cuts off any remaining illusion of control.",
-            "Thick steam escapes from the underground heating pipes, covering their bound bodies in hot, damp mist.",
-            "The intercom cracks with static as the master of ceremonies announces the next playtime rotation.",
-            "The main dungeon lights fade out completely, leaving them illuminated only by the warm glow of wax candles.",
-            "A heavy leather curtain sweeps closed across the play area, isolating them from the rest of the club.",
-            "Heavy bass rumbles from the dance floor upstairs, shaking the timber foundations of the private playroom.",
-            "The soft chime of a brass bell echoes through the hall, signaling that their time of submission has begun.",
-            "A cool draft sweeps through the dungeon floor, making their exposed, damp skin shiver intensely.",
-            "The low hum of the air ventilation system keeps the scent of leather and oil circulating through the room.",
-            "A red laser line sweeps across the floor, marking the boundary of the master's private play space.",
-            "The distinct sound of a leather whip cracking in the adjacent room raises the tension to its peak.",
-            "Soft classical music begins to play from the hidden speakers, contrastingly highlighting their heavy gasps.",
-            "The clicking sound of a high heel heel on the concrete floor echoes, signaling the master's approach.",
-            "Damp mist rises from the floor drains, wrapping their bound legs in a thin, cold fog."
-        ]
-
-        # 3. Golpes de Misericórdia (Finisher Executions)
-        self.finishers: List[str] = [
-            "delivers a devastating flurry of flogger strikes, stripping away every single piece of their remaining garments!",
-            "snaps heavy steel padlocks around their wrist chains, demanding their complete and absolute surrender!",
-            "completely overpowers their senses, forcing them into a state of absolute, heavy subspace!",
-            "neutralizes their desperate struggle, leaving them completely naked, bound, and blindfolded!",
-            "claims their total sensory tribute, leaving them breathless, exposed, and entirely at their Master's mercy!",
-            "forces them to sign the submissive contract with a cold metal whip handle pressed hard against their bare back!",
-            "drags them kicking and whimpering into the dark VIP playroom for their private punishment!",
-            "neutralizes their defenses completely, making them submit to the ultimate, breathless dungeon exposure!",
-            "shackles their ankles to the steel suspension ring, leaving them completely bare and suspended in the air!",
-            "locks a heavy leather posture collar around their neck, claiming absolute playroom ownership over their body!",
-            "slams their hands into the matching wall restraints, forcing them to watch their own naked surrender in the mirror!",
-            "confiscates all their remaining clothing and pride, leaving them stripped, bound, and kneeling on the rug!",
-            "marks their bare, flushed skin with a soft, warm wax seal of complete submissive dedication!",
-            "forces them to bow down before the master's throne, placing a heavy leather boot on their bound hands!",
-            "locks them in the iron playroom cage, leaving them completely exposed to any passing dungeon guest!"
-        ]
-
-        # 4. Decretos de Strip / Humilhação Extrema
+        # 2. Decretos de Strip / Humilhação Extrema
         self.humiliations: List[str] = [
             "Your resistance failed miserably. Shed every single piece of your clothing and accept your ultimate dungeon punishment.",
             "Caught red-handed and totally defenseless. Strip off your armor, show your submission, and kneel right now.",
@@ -99,24 +55,15 @@ class PartnersInCrimeLexicon:
 
     def generate_fight_flavor(self, winner_name: Optional[str], loser_name: Optional[str]) -> str:
         """
-        Gera uma narrativa de combate dinâmica, brutal e temática de dominação 
-        combinando múltiplos elementos do léxico. Protegido contra falhas de inputs nulos.
+        Gera uma narrativa de combate dinâmica de exatamente UMA frase coesa.
         """
         w_name = winner_name if winner_name else "Reigning Partner"
         l_name = loser_name if loser_name else "Defeated Outlaw"
 
         try:
-            # Seleciona uma única sentença geral de ação (combinando ataque e submissão)
+            # Seleciona exatamente 1 frase da lista combinada
             action = random.choice(self.actions).format(loser=l_name)
-            evasion = random.choice(self.evasions)
-            finisher = random.choice(self.finishers)
-            
-            narrative = (
-                f"💥 **{w_name}** {action}.\n"
-                f"🚨 *{evasion}*\n"
-                f"👑 **{w_name}** {finisher}"
-            )
-            return narrative
+            return f"💥 **{w_name}** {action}!"
         except Exception as e:
             logger.error(f"Failed to generate combat narrative: {e}")
             return f"💥 **{w_name}** completely overpowers **{l_name}** in a brutal showdown, claiming absolute victory!"
