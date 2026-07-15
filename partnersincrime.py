@@ -296,7 +296,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 conn.execute("DROP TABLE IF EXISTS crime_lobby_participants")
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
-            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             conn.commit()
 
     def calculate_level(self, current_xp):
@@ -322,13 +322,15 @@ class PartnersInCrimeEngine(commands.Cog):
                             raise Exception("Avatar download error")
                         buffers.append(io.BytesIO(await resp.read()))
             
-            canvas_w = 1200
-            canvas_h = 600
-            bg_path = "1v1Background.jpg"
-            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (10, 10, 30, 255))
+            # Use partners.jpg as the core backdrop template
+            bg_path = "partners.jpg"
+            if os.path.exists(bg_path):
+                bg = Image.open(bg_path).convert("RGBA")
+            else:
+                bg = Image.new("RGBA", (1366, 768), (10, 10, 30, 255))
             
-            # Massive visual profile size to emphasize profiles
-            av_size = 350
+            # The template golden squares are approximately 194x194 pixels
+            av_size = 194
             
             # Load and size avatars
             a1 = Image.open(buffers[0]).convert("RGBA").resize((av_size, av_size))
@@ -336,29 +338,25 @@ class PartnersInCrimeEngine(commands.Cog):
             a3 = Image.open(buffers[2]).convert("RGBA").resize((av_size, av_size))
             a4 = Image.open(buffers[3]).convert("RGBA").resize((av_size, av_size))
             
-            # Massive neon glowing pink borders for the winners to stand out
-            a1 = ImageOps.expand(a1, border=15, fill="#FF00FF")
-            a2 = ImageOps.expand(a2, border=15, fill="#FF00FF")
-            
-            # Losers get heavy grayscale and thick red wash overlay
+            # High-intensity red wash filter over the losers (Team B)
             a3_gray = ImageOps.grayscale(a3).convert("RGBA")
             a4_gray = ImageOps.grayscale(a4).convert("RGBA")
-            red_overlay = Image.new("RGBA", (av_size, av_size), (255, 0, 0, 160))
+            red_overlay = Image.new("RGBA", (av_size, av_size), (255, 0, 0, 130))
             a3 = Image.alpha_composite(a3_gray, red_overlay)
             a4 = Image.alpha_composite(a4_gray, red_overlay)
-            a3 = ImageOps.expand(a3, border=10, fill="#220000")
-            a4 = ImageOps.expand(a4, border=10, fill="#220000")
 
-            # Paste Team 1 (Winners) left side
-            bg.paste(a1, (50, 100), a1)
-            bg.paste(a2, (410, 100), a2)
+            # --- PRECISE COORDINATES TO NEST WITHIN THE GOLDEN SQUARES ---
+            # Team A (Left Side): 
+            # - Left square bounds: x=115, y=318 (approx)
+            # - Right square bounds: x=334, y=318 (approx)
+            bg.paste(a1, (115, 318), a1)
+            bg.paste(a2, (334, 318), a2)
 
-            # Paste Team 2 (Losers) right side
-            bg.paste(a3, (800, 150), a3)
-            bg.paste(a4, (1160, 150), a4)
-            
-            draw = ImageDraw.Draw(bg)
-            draw.line((775, 50, 785, 550), fill=(255, 0, 255), width=20)
+            # Team B (Right Side):
+            # - Left square bounds: x=937, y=318 (approx)
+            # - Right square bounds: x=1157, y=318 (approx)
+            bg.paste(a3, (937, 318), a3)
+            bg.paste(a4, (1157, 318), a4)
             
             buf = io.BytesIO()
             bg.save(buf, format="PNG")
@@ -366,7 +364,67 @@ class PartnersInCrimeEngine(commands.Cog):
             return buf
         except Exception as e:
             print(f"Crime Image Synthesizer Error: {e}")
-            fallback = Image.new("RGBA", (1200, 600), (10, 10, 20, 255))
+            fallback = Image.new("RGBA", (1366, 768), (10, 10, 20, 255))
+            buf = io.BytesIO()
+            fallback.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+
+    async def create_recap_image(self, winners, victims_list):
+        """Synthesizes a visual layout depicting winners (massive sizes) and available targets (smaller profiles)."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                winner_buffers = []
+                for w in winners:
+                    async with session.get(w.display_avatar.url, timeout=10) as resp:
+                        if resp.status == 200:
+                            winner_buffers.append(io.BytesIO(await resp.read()))
+                
+                victim_buffers = []
+                for v in victims_list:
+                    async with session.get(v.display_avatar.url, timeout=10) as resp:
+                        if resp.status == 200:
+                            victim_buffers.append(io.BytesIO(await resp.read()))
+
+            canvas_w = 1600
+            canvas_h = 900
+            bg_path = "1v1Background.jpg"
+            bg = Image.open(bg_path).convert("RGBA").resize((canvas_w, canvas_h)) if os.path.exists(bg_path) else Image.new("RGBA", (canvas_w, canvas_h), (15, 5, 25, 255))
+            
+            # 1. DRAW WINNERS (Left Side - Prominent & Massive)
+            w_size = 450
+            for idx, buf in enumerate(winner_buffers[:2]):
+                av = Image.open(buf).convert("RGBA").resize((w_size, w_size))
+                av = ImageOps.expand(av, border=20, fill="#FF00FF") # Hot pink glowing border
+                bg.paste(av, (80, 100 + (idx * 400)), av)
+
+            # Draw central boundary line
+            draw = ImageDraw.Draw(bg)
+            draw.line((650, 50, 650, 850), fill=(255, 0, 255), width=15)
+
+            # 2. DRAW TARGET DUOS (Right Side - Grid Structure of smaller profiles)
+            v_size = 180
+            x_start = 720
+            y_start = 80
+            spacing_x = 220
+            spacing_y = 210
+
+            for idx, buf in enumerate(victim_buffers[:12]): # Showcase top 12 available targets in the pool
+                col = idx % 4
+                row = idx // 4
+                av = Image.open(buf).convert("RGBA").resize((v_size, v_size))
+                av = ImageOps.expand(av, border=8, fill="#550011") # Dark red frame
+                px = x_start + (col * spacing_x)
+                py = y_start + (row * spacing_y)
+                bg.paste(av, (px, py), av)
+
+            buf = io.BytesIO()
+            bg.save(buf, format="PNG")
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            print(f"Recap Canvas Generation Failure: {e}")
+            fallback = Image.new("RGBA", (1600, 900), (15, 5, 25, 255))
             buf = io.BytesIO()
             fallback.save(buf, format="PNG")
             buf.seek(0)
@@ -420,6 +478,9 @@ class PartnersInCrimeEngine(commands.Cog):
             await channel.send(embed=roster_emb)
             await asyncio.sleep(5)
 
+            # Track initial losers to present them as the pool of targets inside the recap image
+            defeated_victims = []
+
             # Fight loop
             while len(resolved_teams) > 1:
                 t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
@@ -432,11 +493,17 @@ class PartnersInCrimeEngine(commands.Cog):
                 winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
                 resolved_teams.append(winner)
                 
+                # Record loser members for our Target Pool display
+                if loser['p1'] not in defeated_victims:
+                    defeated_victims.append(loser['p1'])
+                if loser['p2'] not in defeated_victims and loser['p2'] != loser['p1']:
+                    defeated_victims.append(loser['p2'])
+
                 # Update survivors cache
                 if channel.id in self.current_survivors:
                     self.current_survivors[channel.id] = resolved_teams.copy()
 
-                # Synthesize 2v2 Canvas
+                # Synthesize 2v2 Canvas using template background coordinates
                 arena_image = await self.create_duo_arena_image(
                     winner['p1'].display_avatar.url, winner['p2'].display_avatar.url,
                     loser['p1'].display_avatar.url, loser['p2'].display_avatar.url
@@ -454,6 +521,7 @@ class PartnersInCrimeEngine(commands.Cog):
 
             # We have an absolute Winning Duo
             champion_duo = resolved_teams[0]
+            # Track list of winner IDs. Each winner must use their own decree individually!
             self.reign_of_terror[channel.id] = [champion_duo['p1'].id, champion_duo['p2'].id]
 
             # Rewards Implementation
@@ -466,7 +534,7 @@ class PartnersInCrimeEngine(commands.Cog):
                     f"All hail our absolute Masters of the Vault: **{champion_duo['p1'].mention}** & **{champion_duo['p2'].mention}**!\n\n"
                     f"They have cleaned out the cache! Both partners claim **30,000 Flames** and **3,000 XP**.\n\n"
                     f"🔞 **Supreme Victor Decrees:** You hold absolute dominance over the defeated. "
-                    f"Deploy `!strip @victim1 @victim2` to force your targets into submission!"
+                    f"**EACH** partner has their own private pick! Run `!strip @victim1 @victim2` to force your targets into submission!"
                 ),
                 color=0xFFD700
             )
@@ -478,6 +546,18 @@ class PartnersInCrimeEngine(commands.Cog):
             self.bot.add_view(view)
 
             await channel.send(embed=win_emb, view=view)
+            await asyncio.sleep(2)
+
+            # Execute RECAP PROTOCOL
+            recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
+            recap_file = discord.File(fp=recap_banner, filename="crime_recap.png")
+            recap_emb = discord.Embed(
+                title="🎯 SYNDICATE RECAP: THE HIT LIST IS LIVE 🎯",
+                description="The heist is won, but the contract is incomplete. Below is the visual board containing your Overlords (left) and the remaining vulnerable targets available to be forced into submission (right). Execute your decree now!",
+                color=0xFF00FF
+            )
+            recap_emb.set_image(url="attachment://crime_recap.png")
+            await channel.send(file=recap_file, embed=recap_emb)
 
         except Exception as e:
             print(f"# CRITICAL CRIME ENGINE FAILURE: {e}")
@@ -559,7 +639,7 @@ class CrimeEngineControl(commands.Cog):
             return await ctx.send("❌ **No syndicate rulers are active in this territory.**")
 
         if ctx.author.id not in active_winners:
-            return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission.**")
+            return await ctx.send("🫦 **Only the reigning partners of this heist hold the power of submission, or you already executed your pick!**")
 
         sentence = random.choice(engine.flash_sentences)
         
@@ -572,8 +652,12 @@ class CrimeEngineControl(commands.Cog):
         )
         await ctx.send(content=f"{m1.mention} {m2.mention}", embed=embed)
         
-        # Clear reign values after execution to prevent repeat abuse
-        del engine.reign_of_terror[ctx.channel.id]
+        # Safe removal of only the command sender's ID from the registry
+        engine.reign_of_terror[ctx.channel.id].remove(ctx.author.id)
+        
+        # Clean the active channel entry from cache only when both winners have depleted their charges
+        if not engine.reign_of_terror[ctx.channel.id]:
+            del engine.reign_of_terror[ctx.channel.id]
 
 
 # ==============================================================================
