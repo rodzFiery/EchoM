@@ -59,11 +59,11 @@ class CrimeLobbyView(discord.ui.View):
         self.active = True
         
         # Hardcoded static custom_ids are mandatory for persistent views to prevent interaction failures after bot restarts
-        join_btn = discord.ui.Button(label="Sign the Submission Contract", style=discord.ButtonStyle.success, emoji="🫦", custom_id="crime_lobby_join")
+        join_btn = discord.ui.Button(label="Join the dynamic", style=discord.ButtonStyle.success, emoji="🫦", custom_id="crime_lobby_join")
         join_btn.callback = self.join_button_callback
         self.add_item(join_btn)
 
-        start_btn = discord.ui.Button(label="Initiate Dungeon Session", style=discord.ButtonStyle.danger, emoji="⛓️", custom_id="crime_lobby_start")
+        start_btn = discord.ui.Button(label="Initiate Dungeon Session", style=discord.ButtonStyle.danger, emoji="🔞", custom_id="crime_lobby_start")
         start_btn.callback = self.start_button_callback
         self.add_item(start_btn)
 
@@ -102,19 +102,18 @@ class CrimeLobbyView(discord.ui.View):
 
         # Embed 1: Lobby Status Details
         info_embed = discord.Embed(
-            title=f"💦 Dungeon Bondage Spree (Server Session: #{server_edition}) 💦", 
-            description=f"**Kinky Global Dungeon Registry: #{global_edition}**\n\nFind your partner in chains, lock your collar, sign the leather contract with your saliva or blood, and prepare to serve.", 
+            title=f"Partners in crime - Server Session: #{server_edition} 💦", 
+            description=f"**Kinky Global Dungeon Registry: #{global_edition}**\n\nFind your partner in chains, lock your collar, sign the leather contract with your saliva", 
             color=0xFF00FF
         )
         info_embed.add_field(
-            name="⛓️ Active Dungeon Playroom Roster", 
-            value=f"**{len(all_players)}** subs and doms locked in cell blocks... sorting toys.", 
+            value=f"🔞**{len(all_players)}** subs and doms locked in cell blocks... sorting toys.", 
             inline=False
         )
 
         # Embed 2: The Grid of Squad Teams
         teams_embed = discord.Embed(
-            title="🫦 Dom & Sub Cell Block Divisions",
+            title="🫦 Dom & Sub Cell Divisions",
             color=0xFF00FF
         )
         
@@ -127,7 +126,7 @@ class CrimeLobbyView(discord.ui.View):
             # Show up to 15 squads, hiding empty squads past squad 6 to avoid hitting Discord embed character limits
             if slots[0] or slots[1] or t_idx <= 6:
                 teams_embed.add_field(
-                    name=f"{status_symbol} Bondage Cell Unit {t_idx}", 
+                    name=f"{status_symbol} Bondage Cell {t_idx}", 
                     value=f"• **Dominant Partner:** {p1_mention}\n• **Submissive Partner:** {p2_mention}", 
                     inline=True
                 )
