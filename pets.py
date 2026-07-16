@@ -70,13 +70,12 @@ class DungeonPetsManager:
 
     def roll_pet_drop(self, participants_members: List[any]) -> Optional[Dict]:
         """
-        Determina se um pet foi dropado (sincronizado com os novos 50% de chance geral).
-        Se dropar, escolhe uma raridade, um mascote aleatório do template, e um participante aleatório
+        Determina se um pet foi dropado.
+        MODIFICAÇÃO: Ajustado para 100% de chance geral garantida para um dos vencedores de cada partida.
+        Escolhe uma raridade, um mascote aleatório do template, e um participante aleatório
         para servir de 'avatar/figura' do mascote.
         """
-        # SINCRONIZADO: Chance geral de drop aumentada para 50%
-        if random.random() > 0.50:
-            return None
+        # FORÇADO: 100% de chance de drop de pet por jogo. A validação anterior de 50% foi removida.
 
         # Escolhe a raridade com base nas probabilidades relativas ajustadas
         raridades = list(DROP_CHANCES.keys())
