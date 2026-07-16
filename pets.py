@@ -12,38 +12,38 @@ logger = logging.getLogger("DungeonPets")
 
 PET_TEMPLATES = {
     "Basic": {
-        "luck_boost": 0.05, # 5% de chance de evitar First Blood
+        "luck_boost": 0.03, # SINCRONIZADO: 3% de chance de evitar First Blood
         "names": ["Toy Slave", "Chained Pup", "Leather Mouse", "Floor Crawler", "Whispering Parrot"]
     },
     "Normal": {
-        "luck_boost": 0.10, # 10% de chance
+        "luck_boost": 0.05, # SINCRONIZADO: 5% de chance
         "names": ["Cell Warden", "Paddle Cat", "Whip Badger", "Key Snatcher", "Collar Guardian"]
     },
     "Rare": {
-        "luck_boost": 0.18, # 18% de chance
+        "luck_boost": 0.10, # SINCRONIZADO: 10% de chance
         "names": ["Spanking Rabbit", "Masked Ferret", "Dungeon Lynx", "Silk Spider", "Wax Raven"]
     },
     "Epic": {
-        "luck_boost": 0.28, # 28% de chance
+        "luck_boost": 0.15, # SINCRONIZADO: 15% de chance
         "names": ["Gagged Panther", "Bondage Cobra", "Velvet Fox", "Throne Gargoyle", "Shackle Falcon"]
     },
     "Legendary": {
-        "luck_boost": 0.40, # 40% de chance
+        "luck_boost": 0.20, # SINCRONIZADO: 20% de chance
         "names": ["Leather Dragon", "Dominant Chimera", "Submissive Phoenix", "Mistress Basilisk", "Iron Cerberus"]
     },
     "Supreme": {
-        "luck_boost": 0.60, # 60% de chance de salvar o portador do primeiro abate
+        "luck_boost": 0.30, # SINCRONIZADO: 30% de chance de salvar o portador do primeiro abate
         "names": ["The Dungeon Overlord", "The Leather Monarch", "Kinky Leviathan", "The Supreme Dominator", "Grand Master Beast"]
     }
 }
 
 DROP_CHANCES = {
-    "Basic": 0.45,
-    "Normal": 0.30,
-    "Rare": 0.15,
-    "Epic": 0.07,
-    "Legendary": 0.025,
-    "Supreme": 0.005
+    "Basic": 0.40,       # SINCRONIZADO: 40% de chance após confirmação de drop
+    "Normal": 0.30,      # SINCRONIZADO: 30% de chance
+    "Rare": 0.15,        # SINCRONIZADO: 15% de chance
+    "Epic": 0.09,        # SINCRONIZADO: 9% de chance
+    "Legendary": 0.05,   # SINCRONIZADO: 5% de chance
+    "Supreme": 0.01      # SINCRONIZADO: 1% de chance
 }
 
 class DungeonPetsManager:
@@ -70,15 +70,15 @@ class DungeonPetsManager:
 
     def roll_pet_drop(self, participants_members: List[any]) -> Optional[Dict]:
         """
-        Determina se um pet foi dropado (médio-raro: 35% de chance geral de drop ao fim do jogo).
+        Determina se um pet foi dropado (sincronizado com os novos 50% de chance geral).
         Se dropar, escolhe uma raridade, um mascote aleatório do template, e um participante aleatório
         para servir de 'avatar/figura' do mascote.
         """
-        # Chance geral de drop de 35% (médio-raro)
-        if random.random() > 0.35:
+        # SINCRONIZADO: Chance geral de drop aumentada para 50%
+        if random.random() > 0.50:
             return None
 
-        # Escolhe a raridade com base nas probabilidades relativas
+        # Escolhe a raridade com base nas probabilidades relativas ajustadas
         raridades = list(DROP_CHANCES.keys())
         pesos = list(DROP_CHANCES.values())
         chosen_rarity = random.choices(raridades, weights=pesos, k=1)[0]
