@@ -28,8 +28,76 @@ from piclexicon import PartnersInCrimeLexicon
 from pets import DungeonPetsManager
 
 # ==============================================================================
-# VIEW SYSTEM (PERSISTENT COUPLING)
+# VIEW SYSTEM (PERSISTENT COUPLING & PET EQUIPPING SELECT)
 # ==============================================================================
+
+class DungeonPetSelect(discord.ui.Select):
+    def __init__(self, pets, guild_id, user_id, engine):
+        options = []
+        for p in pets:
+            pet_name = p[0]
+            rarity = p[1]
+            boost = p[2]
+            equipped = p[3]
+            label = f"{pet_name} ({rarity})"
+            description = f"Boost: +{boost*100:.0f}% Luck"
+            if equipped == 1:
+                label += " [Equipped]"
+            options.append(discord.SelectOption(
+                label=label[:100], 
+                value=pet_name[:100], 
+                description=description[:100], 
+                default=bool(equipped)
+            ))
+        
+        super().__init__(
+            placeholder="Choose your active companion...", 
+            min_values=1, 
+            max_values=1, 
+            options=options
+        )
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.engine = engine
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ This is not your stable!", ephemeral=True)
+        
+        selected_pet = self.values[0]
+        try:
+            with self.engine.get_db_connection() as conn:
+                conn.execute("UPDATE user_pets SET equipped = 0 WHERE guild_id = ? AND user_id = ?", (self.guild_id, self.user_id))
+                conn.execute("UPDATE user_pets SET equipped = 1 WHERE guild_id = ? AND user_id = ? AND pet_name = ?", (self.guild_id, self.user_id, selected_pet))
+                conn.commit()
+            
+            with self.engine.get_db_connection() as conn:
+                pets = conn.execute("SELECT pet_name, rarity, luck_boost, equipped FROM user_pets WHERE guild_id = ? AND user_id = ?", (self.guild_id, self.user_id)).fetchall()
+            
+            pets_desc = ""
+            for p in pets:
+                eq_status = " 👑 **[ACTIVE COMPANION]**" if p[3] == 1 else ""
+                pets_desc += f"• **{p[0]}** ({p[1]}) — Grants `+{p[2]*100:.0f}%` Luck{eq_status}\n"
+            
+            total_luck = self.engine.get_equipped_luck(self.guild_id, self.user_id)
+            
+            emb = discord.Embed(
+                title=f"🐾 {interaction.user.display_name}'s Dungeon Companions 🐾",
+                description=f"Select your companion using the dropdown below to set your active boost! \n\n"
+                            f"🛡️ **Active Luck Boost:** `{total_luck*100:.0f}%` (Max 85%)\n\n"
+                            f"**Your Stable:**\n{pets_desc}",
+                color=0x1ABC9C
+            )
+            emb.set_thumbnail(url=interaction.user.display_avatar.url)
+            
+            new_view = discord.ui.View()
+            new_view.add_item(DungeonPetSelect(pets, self.guild_id, self.user_id, self.engine))
+            
+            await interaction.response.edit_message(embed=emb, view=new_view)
+        except Exception as e:
+            print(f"Companion selection callback error: {e}")
+            await interaction.response.send_message("An error occurred while equipping your pet.", ephemeral=True)
+
 
 class CrimeWinnerDetailsView(discord.ui.View):
     def __init__(self, details_embed=None):
@@ -107,6 +175,7 @@ class CrimeLobbyView(discord.ui.View):
             color=0xFF00FF
         )
         info_embed.add_field(
+            name="⛓️ Active Dungeon Playroom Status",
             value=f"🔞**{len(all_players)}** subs and doms locked in cell blocks... sorting toys.", 
             inline=False
         )
@@ -485,7 +554,36 @@ class PartnersInCrimeEngine(commands.Cog):
             except Exception as e:
                 print(f"Unique indexes ignored or already exist: {e}")
 
+            # Dynamic equipment column migration safety check
+            try:
+                conn.execute("ALTER TABLE user_pets ADD COLUMN equipped INTEGER DEFAULT 0")
+            except Exception:
+                pass
+
             conn.commit()
+
+    def get_equipped_luck(self, guild_id, user_id):
+        """Calculates total luck from the active equipped pet. Automatically sets legacy/first pet as equipped if none chosen."""
+        try:
+            with self.get_db_connection() as conn:
+                # Retrieve existing pet selection config
+                rows = conn.execute("SELECT pet_name, luck_boost, equipped FROM user_pets WHERE guild_id = ? AND user_id = ?", (guild_id, user_id)).fetchall()
+                if not rows:
+                    return 0.0
+                
+                # Check for active equipped pet
+                for r in rows:
+                    if r[2] == 1:
+                        return min(r[1], 0.85) # Clamp active luck safely at 85% maximum
+                
+                # Auto-equip selection fallback
+                first_pet_name = rows[0][0]
+                conn.execute("UPDATE user_pets SET equipped = 1 WHERE guild_id = ? AND user_id = ? AND pet_name = ?", (guild_id, user_id, first_pet_name))
+                conn.commit()
+                return min(rows[0][1], 0.85)
+        except Exception as e:
+            print(f"Dungeon active luck calculation failure: {e}")
+        return 0.0
 
     def get_user_arena_ranks(self, guild_id, user_id):
         """Helper to calculate individual performance ranks compared against the server."""
@@ -743,7 +841,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 elif len(resolved_members) == 1:
                     temp_solos.append((t_idx, resolved_members[0]))
 
-            # --- ADDED: AUTOMATIC GROUPING OF SOLOS INTO DUOS ---
+            # --- AUTOMATIC GROUPING OF SOLOS INTO DUOS ---
             # Merges players who signed up alone to form dynamic playing duos
             while len(temp_solos) >= 2:
                 idx1, p1 = temp_solos.pop(0)
@@ -830,8 +928,8 @@ class PartnersInCrimeEngine(commands.Cog):
                 # --- FIRST BLOOD PREVENTION USING EQUIPPED PETS ---
                 if len(defeated_victims) == 0 and not first_blood_prevented:
                     # Load individual luck buffs for both partners inside the losing squad
-                    luck_p1 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p1'].id)
-                    luck_p2 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p2'].id) if loser['p2'] != loser['p1'] else 0.0
+                    luck_p1 = self.get_equipped_luck(channel.guild.id, loser['p1'].id)
+                    luck_p2 = self.get_equipped_luck(channel.guild.id, loser['p2'].id) if loser['p2'] != loser['p1'] else 0.0
                     
                     # The squad uses the highest available luck rating from the duo
                     highest_squad_luck = max(luck_p1, luck_p2)
@@ -1176,25 +1274,51 @@ class CrimeEngineControl(commands.Cog):
             return
             
         target = member or ctx.author
-        pets = engine.pets_manager.get_user_equipped_pets(ctx.guild.id, target.id)
-        total_luck = engine.pets_manager.calculate_total_luck(ctx.guild.id, target.id)
+        
+        # Pull pets directly from DB to handle the equipment status
+        try:
+            with engine.get_db_connection() as conn:
+                # Dynamic upgrade safety checks
+                try:
+                    conn.execute("SELECT equipped FROM user_pets LIMIT 1")
+                except sqlite3.OperationalError:
+                    try:
+                        conn.execute("ALTER TABLE user_pets ADD COLUMN equipped INTEGER DEFAULT 0")
+                        conn.commit()
+                    except Exception:
+                        pass
+                
+                pets = conn.execute("SELECT pet_name, rarity, luck_boost, equipped FROM user_pets WHERE guild_id = ? AND user_id = ?", (ctx.guild.id, target.id)).fetchall()
+        except Exception as e:
+            print(f"Error fetching pets: {e}")
+            pets = []
+            
+        total_luck = engine.get_equipped_luck(ctx.guild.id, target.id)
         
         if not pets:
             return await ctx.send(f"❌ **{target.display_name}** does not have any dungeon pets yet! Keep winning Spree sessions to find them.")
             
         pets_desc = ""
         for p in pets:
-            pets_desc += f"• **{p['pet_name']}** ({p['rarity']}) — Grants `+{p['luck_boost']*100:.0f}%` Luck\n"
+            eq_status = " 👑 **[ACTIVE COMPANION]**" if p[3] == 1 else ""
+            pets_desc += f"• **{p[0]}** ({p[1]}) — Grants `+{p[2]*100:.0f}%` Luck{eq_status}\n"
             
         emb = discord.Embed(
             title=f"🐾 {target.display_name}'s Dungeon Companions 🐾",
-            description=f"These pets protect you and your partner from being first blood! \n\n"
-                        f"🛡️ **Total Accumulated Luck:** `{total_luck*100:.0f}%` (Max 85%)\n\n"
-                        f"**Equipped Companions:**\n{pets_desc}",
+            description=f"Select your companion using the dropdown below to set your active boost! \n\n"
+                        f"🛡️ **Active Luck Boost:** `{total_luck*100:.0f}%` (Max 85%)\n\n"
+                        f"**Your Stable:**\n{pets_desc}",
             color=0x1ABC9C
         )
         emb.set_thumbnail(url=target.display_avatar.url)
-        await ctx.send(embed=emb)
+        
+        # Display selection menu only to the profile owner
+        if len(pets) > 1 and target.id == ctx.author.id:
+            view = discord.ui.View()
+            view.add_item(DungeonPetSelect(pets, ctx.guild.id, target.id, engine))
+            await ctx.send(embed=emb, view=view)
+        else:
+            await ctx.send(embed=emb)
 
 
 # ==============================================================================
