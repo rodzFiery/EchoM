@@ -397,29 +397,90 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
             """)
             
-            # --- ADICIONADO: RECONSTRUÇÃO SEGURA DA TABELA DE PETS (EVITAR ERRO DE CONSTRAINT/MIGRAÇÃO) ---
-            # Se a estrutura antiga não tiver os campos requeridos, nós a resetamos de forma limpa para recriar as chaves únicas necessárias
+            # --- ADICIONADO: RECONSTRUÇÃO SEGURA DA TABELA DE PETS (MIGRAÇÃO DE PRIMARY KEY COMPLETA) ---
+            # Verificamos as chaves primárias atuais da tabela 'user_pets'
+            pk_columns = []
             try:
-                conn.execute("SELECT guild_id, pet_name, rarity FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                conn.execute("DROP TABLE IF EXISTS user_pets")
+                cursor = conn.execute("PRAGMA table_info(user_pets)")
+                cols = cursor.fetchall()
+                for col in cols:
+                    if col[5] > 0:
+                        pk_columns.append(col[1])
+            except Exception:
+                pass
 
-            # Criando a tabela de pets garantindo a chave primária composta correta
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS user_pets (
-                    guild_id INTEGER,
-                    user_id INTEGER,
-                    pet_name TEXT,
-                    rarity TEXT,
-                    luck_boost REAL DEFAULT 0.0,
-                    avatar_owner_id INTEGER,
-                    avatar_owner_name TEXT,
-                    PRIMARY KEY (guild_id, user_id, pet_name)
-                )
-            """)
+            # Se os campos de chave primária não corresponderem exatamente aos campos compostos exigidos, fazemos a migração segura
+            if not pk_columns or set(pk_columns) != {"guild_id", "user_id", "pet_name"}:
+                has_table = False
+                try:
+                    conn.execute("SELECT 1 FROM user_pets LIMIT 1")
+                    has_table = True
+                except sqlite3.OperationalError:
+                    pass
+
+                if has_table:
+                    # Carrega as colunas existentes para migrar o que for compatível
+                    cursor = conn.execute("PRAGMA table_info(user_pets)")
+                    existing_cols = [c[1] for c in cursor.fetchall()]
+                    
+                    conn.execute("DROP TABLE IF EXISTS user_pets_backup")
+                    conn.execute("ALTER TABLE user_pets RENAME TO user_pets_backup")
+                    
+                    # Cria a tabela com a PK correta
+                    conn.execute("""
+                        CREATE TABLE user_pets (
+                            guild_id INTEGER,
+                            user_id INTEGER,
+                            pet_name TEXT,
+                            rarity TEXT,
+                            luck_boost REAL DEFAULT 0.0,
+                            avatar_owner_id INTEGER,
+                            avatar_owner_name TEXT,
+                            PRIMARY KEY (guild_id, user_id, pet_name)
+                        )
+                    """)
+                    
+                    # Filtra apenas colunas comuns
+                    target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name"]
+                    common_cols = [col for col in target_columns if col in existing_cols]
+                    
+                    if "user_id" in common_cols:
+                        select_statements = []
+                        for col in common_cols:
+                            select_statements.append(col)
+                        
+                        # Valores padrão para evitar falhas de restrição NULL na chave primária
+                        if "guild_id" not in common_cols:
+                            common_cols.append("guild_id")
+                            select_statements.append("0 as guild_id")
+                        if "pet_name" not in common_cols:
+                            common_cols.append("pet_name")
+                            select_statements.append("'Legacy Pet' as pet_name")
+                        
+                        insert_cols_str = ", ".join(common_cols)
+                        select_cols_str = ", ".join(select_statements)
+                        
+                        try:
+                            conn.execute(f"INSERT OR IGNORE INTO user_pets ({insert_cols_str}) SELECT {select_cols_str} FROM user_pets_backup")
+                        except Exception as e:
+                            print(f"Erro ao recuperar mascotes antigos durante migração: {e}")
+                    
+                    conn.execute("DROP TABLE IF EXISTS user_pets_backup")
+                else:
+                    conn.execute("""
+                        CREATE TABLE IF NOT EXISTS user_pets (
+                            guild_id INTEGER,
+                            user_id INTEGER,
+                            pet_name TEXT,
+                            rarity TEXT,
+                            luck_boost REAL DEFAULT 0.0,
+                            avatar_owner_id INTEGER,
+                            avatar_owner_name TEXT,
+                            PRIMARY KEY (guild_id, user_id, pet_name)
+                        )
+                    """)
             
             # --- ADICIONADO: COMPATIBILIDADE EXTREMA COM "ON CONFLICT" ---
-            # Caso o pets_manager utilize variações de upsert, criamos índices únicos que satisfazem qualquer target de conflito no SQLite
             try:
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_guild_user ON user_pets (guild_id, user_id)")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_name ON user_pets (user_id, pet_name)")
@@ -934,7 +995,7 @@ class PartnersInCrimeEngine(commands.Cog):
                                 f"**{lucky_winner.mention}** has dropped and tamed a new companion:\n"
                                 f"• **Pet:** `{dropped_pet['pet_name']}`\n"
                                 f"• **Rarity:** **{dropped_pet['rarity']}**\n"
-                                f"• **Attributes:** Concedeu **+{dropped_pet['luck_boost']*100:.0f}% Sorte** para evitar First Blood em futuras sessões!\n\n"
+                                f"• **Attributes:** Concedeu **+{dropped_pet['luck_boost']*100:.0f}% Sorte** para evitar First Blood em futuras sesões!\n\n"
                                 f"*" + f"Este mascote carrega a alma e feições de {dropped_pet['avatar_owner_name']}! " + "*",
                     color=0x1ABC9C
                 )
@@ -1130,7 +1191,7 @@ class CrimeEngineControl(commands.Cog):
             color=0x1ABC9C
         )
         emb.set_thumbnail(url=target.display_avatar.url)
-        await ctx.send(emb)
+        await ctx.send(embed=emb)
 
 
 # ==============================================================================
