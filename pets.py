@@ -46,13 +46,45 @@ DROP_CHANCES = {
     "Supreme": 0.01      # SYNCHRONIZED: 1% chance
 }
 
+# ==============================================================================
+# DUNGEON TOYS POOL
+# ==============================================================================
+
+TOY_TEMPLATES = {
+    "Dominant": [
+        {"name": "Flogger", "boost": 0.02},
+        {"name": "Paddle", "boost": 0.02},
+        {"name": "Wartenberg Wheel", "boost": 0.04},
+        {"name": "Crop", "boost": 0.04},
+        {"name": "Remote Control Vibrator", "boost": 0.06},
+        {"name": "Violet Wand", "boost": 0.06},
+        {"name": "Feather Teaser", "boost": 0.08},
+        {"name": "Low-Temperature Wax Candle", "boost": 0.08},
+        {"name": "Bamboo or Acrylic Cane", "boost": 0.10},
+        {"name": "Textured Gloves", "boost": 0.10}
+    ],
+    "Submissive": [
+        {"name": "Wrist Cuffs", "boost": 0.02},
+        {"name": "Ball Gag", "boost": 0.02},
+        {"name": "Collar & Leash", "boost": 0.04},
+        {"name": "Blindfold", "boost": 0.04},
+        {"name": "Chastity Cage", "boost": 0.06},
+        {"name": "Spreader Bar", "boost": 0.06},
+        {"name": "Nipple Clamps", "boost": 0.08},
+        {"name": "Anal Plug", "boost": 0.08},
+        {"name": "Sensory Gloves", "boost": 0.10},
+        {"name": "Ankle Cuffs", "boost": 0.10}
+    ]
+}
+
+
 class DungeonPetsManager:
     def __init__(self, get_db_connection) -> None:
         self.get_db_connection = get_db_connection
         self._init_db()
 
     def _init_db(self) -> None:
-        """Initializes the user pets database table safely if it does not exist."""
+        """Initializes the user pets and toys database table safely if it does not exist."""
         with self.get_db_connection() as conn:
             # We check if the existing table already has the correct composite Primary Key
             pk_columns = []
@@ -92,11 +124,12 @@ class DungeonPetsManager:
                             luck_boost REAL,
                             avatar_owner_id INTEGER,
                             avatar_owner_name TEXT,
+                            equipped INTEGER DEFAULT 0,
                             PRIMARY KEY (guild_id, user_id, pet_name)
                         )
                     """)
                     
-                    target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name"]
+                    target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name", "equipped"]
                     common_cols = [col for col in target_columns if col in existing_cols]
                     
                     if "user_id" in common_cols:
@@ -131,9 +164,23 @@ class DungeonPetsManager:
                             luck_boost REAL,
                             avatar_owner_id INTEGER,
                             avatar_owner_name TEXT,
+                            equipped INTEGER DEFAULT 0,
                             PRIMARY KEY (guild_id, user_id, pet_name)
                         )
                     """)
+
+            # Create Toys storage database layout safely
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_toys (
+                    guild_id INTEGER,
+                    user_id INTEGER,
+                    toy_name TEXT,
+                    category TEXT,
+                    boost REAL,
+                    equipped INTEGER DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id, toy_name)
+                )
+            """)
             conn.commit()
 
     def roll_pet_drop(self, participants_members: List[any]) -> Optional[Dict]:
@@ -143,8 +190,6 @@ class DungeonPetsManager:
         Chooses a rarity, a random pet from templates, and a random participant to serve
         as the avatar/figure of the pet.
         """
-        # FORCED: 100% pet drop chance per game. Previous 50% validation was removed.
-
         # Selects rarity based on adjusted relative probabilities
         rarities = list(DROP_CHANCES.keys())
         weights = list(DROP_CHANCES.values())
@@ -174,6 +219,18 @@ class DungeonPetsManager:
             "avatar_owner_name": avatar_owner_name
         }
 
+    def roll_toy_drop(self) -> Dict:
+        """
+        Pulls a random toy from the active list. Combines Category splits equally.
+        """
+        category = random.choice(["Dominant", "Submissive"])
+        selected_template = random.choice(TOY_TEMPLATES[category])
+        return {
+            "toy_name": selected_template["name"],
+            "category": category,
+            "boost": selected_template["boost"]
+        }
+
     def save_user_pet(self, guild_id: int, user_id: int, pet_data: Dict) -> None:
         """Saves or updates the pet claimed by the winning user in the database."""
         with self.get_db_connection() as conn:
@@ -192,6 +249,24 @@ class DungeonPetsManager:
                 pet_data["luck_boost"],
                 pet_data["avatar_owner_id"],
                 pet_data["avatar_owner_name"]
+            ))
+            conn.commit()
+
+    def save_user_toy(self, guild_id: int, user_id: int, toy_data: Dict) -> None:
+        """Saves or updates the toy claimed by the winning user in the database."""
+        with self.get_db_connection() as conn:
+            conn.execute("""
+                INSERT INTO user_toys (guild_id, user_id, toy_name, category, boost)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(guild_id, user_id, toy_name) DO UPDATE SET
+                    boost = excluded.boost,
+                    category = excluded.category
+            """, (
+                guild_id,
+                user_id,
+                toy_data["toy_name"],
+                toy_data["category"],
+                toy_data["boost"]
             ))
             conn.commit()
 
