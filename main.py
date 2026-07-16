@@ -138,6 +138,20 @@ def init_db():
         # Re-register Partners In Crime tables under the exact specified 4-column schema architecture
         conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
         conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+        
+        # --- ADDED: DATABASE INITIALIZATION FOR DUNGEON PETS ---
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_pets (
+                guild_id INTEGER,
+                user_id INTEGER,
+                pet_name TEXT,
+                rarity TEXT,
+                luck_boost REAL,
+                avatar_owner_id INTEGER,
+                avatar_owner_name TEXT,
+                PRIMARY KEY (guild_id, user_id, pet_name)
+            )
+        """)
         conn.commit()
 
 init_db()
@@ -449,6 +463,7 @@ async def echo(ctx):
         "• `!lobby`: Open the Red Room combat lobby.\n"
         "• `!crimepartners`: Start a Partners in Crime heist lobby.\n"
         "• `!strip`: Select targets to expose after winning PIC.\n"
+        "• `!dungeonpets`: View your equipped dungeon pets.\n" # ADDED: Guideline update for new Pets feature
         "• `!join` / `!leave`: Enter or exit the active simulation.\n"
         "• `!fight <@user>`: Trigger a health-bar based 1v1 duel.\n"
         "• `!@user`: Champion's decree (Available only to winners).\n"
