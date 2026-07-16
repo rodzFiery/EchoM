@@ -693,7 +693,7 @@ class PartnersInCrimeEngine(commands.Cog):
             defeated_victims = []
 
             # Display Teams
-             roster_desc = ""
+            roster_desc = ""
             for duo in resolved_teams:
                 roster_desc += f"**Bondage Unit {duo['id']}:** {duo['name']}\n"
                 
@@ -1114,7 +1114,7 @@ class CrimeEngineControl(commands.Cog):
             color=0x1ABC9C
         )
         emb.set_thumbnail(url=target.display_avatar.url)
-        await ctx.send(emb)
+        await ctx.send(embed=emb)
 
 
 # ==============================================================================
