@@ -22,9 +22,9 @@ from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFont
 import io
 import aiohttp
 
-# Importação do novo Lexicon Sincronizado para as frases de efeito do submundo
+# Importing Synchronized Lexicon for underworld flavor lines
 from piclexicon import PartnersInCrimeLexicon
-# --- IMPORTAÇÃO DO GERENCIADOR DE PETS SCONCRONIZADO ---
+# --- IMPORTING THE SYNCHRONIZED DUNGEON PETS MANAGER ---
 from pets import DungeonPetsManager
 
 # ==============================================================================
@@ -366,9 +366,9 @@ class PartnersInCrimeEngine(commands.Cog):
         self.reign_of_terror = {}  # Tracks last winner duos per channel
         self.historical_match_squads = {} # Tracks exact member profiles per squad index to allow squad targeting commands
 
-        # Instanciação direta do novo Léxico de Batalha de Partners in Crime
+        # Direct instantiation of the Partners in Crime Battle Lexicon
         self.lexicon = PartnersInCrimeLexicon()
-        # --- INSTANCIAÇÃO DO NOVO GERENCIADOR DE PETS SINCRO ---
+        # --- INSTANTIATION OF SYNCHRONIZED PETS MANAGER ---
         self.pets_manager = DungeonPetsManager(get_db_connection)
 
         self._init_persistence()
@@ -397,8 +397,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
             """)
             
-            # --- ADICIONADO: RECONSTRUÇÃO SEGURA DA TABELA DE PETS (MIGRAÇÃO DE PRIMARY KEY COMPLETA) ---
-            # Verificamos as chaves primárias atuais da tabela 'user_pets'
+            # --- ADDED: SAFE RECONSTRUCTION OF PETS TABLE (PRIMARY KEY COMPOSITE MIGRATION) ---
             pk_columns = []
             try:
                 cursor = conn.execute("PRAGMA table_info(user_pets)")
@@ -409,7 +408,6 @@ class PartnersInCrimeEngine(commands.Cog):
             except Exception:
                 pass
 
-            # Se os campos de chave primária não corresponderem exatamente aos campos compostos exigidos, fazemos a migração segura
             if not pk_columns or set(pk_columns) != {"guild_id", "user_id", "pet_name"}:
                 has_table = False
                 try:
@@ -419,14 +417,14 @@ class PartnersInCrimeEngine(commands.Cog):
                     pass
 
                 if has_table:
-                    # Carrega as colunas existentes para migrar o que for compatível
+                    # Load existing columns to migrate compatibly
                     cursor = conn.execute("PRAGMA table_info(user_pets)")
                     existing_cols = [c[1] for c in cursor.fetchall()]
                     
                     conn.execute("DROP TABLE IF EXISTS user_pets_backup")
                     conn.execute("ALTER TABLE user_pets RENAME TO user_pets_backup")
                     
-                    # Cria a tabela com a PK correta
+                    # Create correct physical table structure
                     conn.execute("""
                         CREATE TABLE user_pets (
                             guild_id INTEGER,
@@ -440,7 +438,7 @@ class PartnersInCrimeEngine(commands.Cog):
                         )
                     """)
                     
-                    # Filtra apenas colunas comuns
+                    # Filter matching columns
                     target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name"]
                     common_cols = [col for col in target_columns if col in existing_cols]
                     
@@ -449,7 +447,7 @@ class PartnersInCrimeEngine(commands.Cog):
                         for col in common_cols:
                             select_statements.append(col)
                         
-                        # Valores padrão para evitar falhas de restrição NULL na chave primária
+                        # Default fallback values to prevent PK NULL failures
                         if "guild_id" not in common_cols:
                             common_cols.append("guild_id")
                             select_statements.append("0 as guild_id")
@@ -463,7 +461,7 @@ class PartnersInCrimeEngine(commands.Cog):
                         try:
                             conn.execute(f"INSERT OR IGNORE INTO user_pets ({insert_cols_str}) SELECT {select_cols_str} FROM user_pets_backup")
                         except Exception as e:
-                            print(f"Erro ao recuperar mascotes antigos durante migração: {e}")
+                            print(f"Error restoring old pets during migration: {e}")
                     
                     conn.execute("DROP TABLE IF EXISTS user_pets_backup")
                 else:
@@ -480,13 +478,13 @@ class PartnersInCrimeEngine(commands.Cog):
                         )
                     """)
             
-            # --- ADICIONADO: COMPATIBILIDADE EXTREMA COM "ON CONFLICT" ---
+            # --- ADDED: EXTREME COMPATIBILITY INDEXES FOR "ON CONFLICT" ---
             try:
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_guild_user ON user_pets (guild_id, user_id)")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_name ON user_pets (user_id, pet_name)")
                 conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_id ON user_pets (user_id)")
             except Exception as e:
-                print(f"Índices únicos de backup já existentes ou ignorados: {e}")
+                print(f"Unique indexes ignored or already exist: {e}")
 
             conn.commit()
 
@@ -728,7 +726,7 @@ class PartnersInCrimeEngine(commands.Cog):
             resolved_teams = []
             all_participating_ids = []
             
-            # Listas temporárias para separar duplas originais de membros solos cadastrados
+            # Temporary lists to separate duo configurations from single player signups
             temp_duos = []
             temp_solos = []
             
@@ -740,21 +738,21 @@ class PartnersInCrimeEngine(commands.Cog):
                         resolved_members.append(m)
                         all_participating_ids.append(m.id)
                 
-                # Armazena temporariamente dependendo do tamanho da equipe resolvida
+                # Store temporarily depending on the size of the resolved team
                 if len(resolved_members) == 2:
                     temp_duos.append((t_idx, resolved_members))
                 elif len(resolved_members) == 1:
                     temp_solos.append((t_idx, resolved_members[0]))
 
-            # --- ADICIONADO: AGRUPAMENTO AUTOMÁTICO DE SOLOS EM DUPLAS ---
-            # Mescla membros que entraram sozinhos para formar novas duplas dinâmicas
+            # --- ADDED: AUTOMATIC GROUPING OF SOLOS INTO DUOS ---
+            # Merges players who signed up alone to form dynamic playing duos
             while len(temp_solos) >= 2:
                 idx1, p1 = temp_solos.pop(0)
                 idx2, p2 = temp_solos.pop(0)
-                # Combina-os sob um ID de equipe unificado (usa o ID do primeiro jogador)
+                # Combines them under a unified team ID (uses first player's team slot)
                 temp_duos.append((idx1, [p1, p2]))
 
-            # Monta e estrutura o payload final das equipes emparelhadas
+            # Package and structure final dynamic paired teams
             for t_idx, members in temp_duos:
                 team_payload = {
                     "id": t_idx,
@@ -765,12 +763,12 @@ class PartnersInCrimeEngine(commands.Cog):
                 resolved_teams.append(team_payload)
                 self.historical_match_squads[channel.id][t_idx] = [members[0], members[1]]
 
-            # Se sobrar apenas um único solo ímpar inevitável, ele joga como Renegado Solo
+            # If there is an inevitable odd solo left behind, they fight as a Rogue Solo Sub
             for remaining_idx, remaining_solo in temp_solos:
                 team_payload = {
                     "id": remaining_idx,
                     "p1": remaining_solo,
-                    "p2": remaining_solo, # Proteção visual de clone para a imagem da arena
+                    "p2": remaining_solo, # Visual placeholder clone mapping for the arena canvas
                     "name": f"🐺 Rogue Sub: {remaining_solo.display_name}"
                 }
                 resolved_teams.append(team_payload)
@@ -806,12 +804,12 @@ class PartnersInCrimeEngine(commands.Cog):
                     """, (channel.guild.id, user_id))
                 conn.commit()
 
-            # Variável de controle para verificar proteção de First Blood por Mascote
+            # Control flag for checking First Blood protection trigger
             first_blood_prevented = False
 
             # Fight loop
             while len(resolved_teams) > 1:
-                # Seleciona de forma robusta duas posições do pool ativo
+                # Selects two active indexes robustly from the pool
                 idx1 = random.randrange(len(resolved_teams))
                 t1 = resolved_teams[idx1]
                 
@@ -820,27 +818,27 @@ class PartnersInCrimeEngine(commands.Cog):
                     idx2 = random.randrange(len(resolved_teams))
                 t2 = resolved_teams[idx2]
 
-                # Retira os dois combatentes temporariamente para a disputa
+                # Pull out both combatants temporarily for the encounter
                 resolved_teams.remove(t1)
                 resolved_teams.remove(t2)
 
-                # INTEGRADO: Geração de narrativa única do piclexicon sem repetições excessivas
+                # INTEGRATED: Unique battle narratives generated with piclexicon
                 fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
 
                 # Execute Fight
                 winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
 
-                # --- PROTEÇÃO CONTRA FIRST BLOOD USANDO OS PETS EQUIPADOS ---
+                # --- FIRST BLOOD PREVENTION USING EQUIPPED PETS ---
                 if len(defeated_victims) == 0 and not first_blood_prevented:
-                    # Carrega bônus individual de ambos os portadores do esquadrão perdedor
+                    # Load individual luck buffs for both partners inside the losing squad
                     luck_p1 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p1'].id)
                     luck_p2 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p2'].id) if loser['p2'] != loser['p1'] else 0.0
                     
-                    # O squad usa o maior bônus de sorte ativo da dupla
+                    # The squad uses the highest available luck rating from the duo
                     highest_squad_luck = max(luck_p1, luck_p2)
 
                     if highest_squad_luck > 0.0 and random.random() < highest_squad_luck:
-                        # Ativação bem-sucedida! Devolve os dois ao pool e cancela o primeiro abate
+                        # Luck trigger successful! Put them back and skip the first kill
                         first_blood_prevented = True
                         resolved_teams.append(t1)
                         resolved_teams.append(t2)
@@ -856,7 +854,7 @@ class PartnersInCrimeEngine(commands.Cog):
                         await asyncio.sleep(4)
                         continue
 
-                # Processo normal de abate
+                # Standard defeat process
                 resolved_teams.append(winner)
                 
                 # Record loser members coupled with squad identification
@@ -888,7 +886,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
                 file = discord.File(fp=arena_image, filename="arena_duo.png")
 
-                # FIX: Narrativa consolidada em uma única sentença sem inundar o canal de spam
+                # FIX: Narrative consolidated into a single embed sentence to prevent spam
                 emb = discord.Embed(
                     title=f"🫦 Unit {winner['id']} DOMINATES AND SUBMITS Unit {loser['id']}!", 
                     description=fight_narrative, 
@@ -955,23 +953,22 @@ class PartnersInCrimeEngine(commands.Cog):
             await channel.send(embed=win_emb, view=view)
             await asyncio.sleep(2)
 
-            # --- INTEGRAÇÃO: RECURSO DE DROPS DE MASCOTES ---
-            # Todos os membros resolvidos no início participam como potenciais figuras/avatares de pet
+            # --- PET DROP PROTOCOL ---
+            # All players registered at start are eligible to drop as companion templates/avatars
             lobby_full_members = []
             for t_idx, squad_members in self.historical_match_squads[channel.id].items():
                 for m in squad_members:
                     if m not in lobby_full_members:
                         lobby_full_members.append(m)
 
-            # Sorteia um dos dois parceiros vitoriosos para tentar o drop
+            # Select one of the winning duo partners randomly to claim the pet drop
             lucky_winner = random.choice([champion_duo['p1'], champion_duo['p2']])
             
-            # --- CORREÇÃO DA LÓGICA DE DROP UTILIZANDO O GERENCIADOR SINCRO ---
-            # Removemos os cálculos paralelos e deixamos o DungeonPetsManager processar tudo de ponta a ponta
+            # Roll and generate pet metrics entirely through the synchronized manager
             dropped_pet = self.pets_manager.roll_pet_drop(lobby_full_members)
 
-            # --- FIX: FALLBACK DE SEGURANÇA 100% GARANTIDO PARA OS VENCEDORES ---
-            # Se a rolagem padrão falhar, forçamos a criação de um drop de mascote válido a partir de um participante aleatório
+            # --- SAFETY FALLBACK: 100% COMPANION DISPENSATION FOR CHAMPIONS ---
+            # In case base generation fails, force create a companion using an active lobby target
             if not dropped_pet and lobby_full_members:
                 random_target_member = random.choice(lobby_full_members)
                 rarities = ["Common", "Rare", "Epic", "Legendary"]
@@ -985,18 +982,18 @@ class PartnersInCrimeEngine(commands.Cog):
                 }
 
             if dropped_pet:
-                # Salva o pet para o vencedor no banco de dados
+                # Save the pet for the winner in the database
                 self.pets_manager.save_user_pet(channel.guild.id, lucky_winner.id, dropped_pet)
                 
-                # Envia o embed de anúncio do pet logo após o card de vitória
+                # Send the companion unlock embed card
                 pet_drop_emb = discord.Embed(
                     title="🐾 UNIQUE DUNGEON PET ACQUIRED! 🐾",
                     description=f"🎁 **Amazing Luck!** A mysterious crate left behind in the toyroom started shaking...\n\n"
                                 f"**{lucky_winner.mention}** has dropped and tamed a new companion:\n"
                                 f"• **Pet:** `{dropped_pet['pet_name']}`\n"
                                 f"• **Rarity:** **{dropped_pet['rarity']}**\n"
-                                f"• **Attributes:** Concedeu **+{dropped_pet['luck_boost']*100:.0f}% Sorte** para evitar First Blood em futuras sesões!\n\n"
-                                f"*" + f"Este mascote carrega a alma e feições de {dropped_pet['avatar_owner_name']}! " + "*",
+                                f"• **Attributes:** Granted **+{dropped_pet['luck_boost']*100:.0f}% Luck** to avoid First Blood in future sessions!\n\n"
+                                f"*" + f"This companion carries the soul and features of {dropped_pet['avatar_owner_name']}! " + "*",
                     color=0x1ABC9C
                 )
                 pet_drop_emb.set_thumbnail(url=lucky_winner.display_avatar.url)
@@ -1076,7 +1073,6 @@ class CrimeEngineControl(commands.Cog):
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
             
             # --- THE FIX: SAFETY UPSERT ON STATS ---
-            # Using standard SQLite conflict resolution to initialize with 1 OR increment by 1 cleanly
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
             
             # Increment server edition for this server specifically
@@ -1139,7 +1135,7 @@ class CrimeEngineControl(commands.Cog):
         if not target_members:
             return await ctx.send("❌ Internal Error: Target unit is empty.")
 
-        # INTEGRADO: Consome as humilhações e decretos de exposição extrema de piclexicon.py
+        # INTEGRATED: Consumes extreme humiliation lines from piclexicon
         sentence = engine.lexicon.get_random_humiliation()
         
         # Compile target mentions for proper announcements
@@ -1181,12 +1177,12 @@ class CrimeEngineControl(commands.Cog):
             
         pets_desc = ""
         for p in pets:
-            pets_desc += f"• **{p['pet_name']}** ({p['rarity']}) — Concede `+{p['luck_boost']*100:.0f}%` Sorte\n"
+            pets_desc += f"• **{p['pet_name']}** ({p['rarity']}) — Grants `+{p['luck_boost']*100:.0f}%` Luck\n"
             
         emb = discord.Embed(
             title=f"🐾 {target.display_name}'s Dungeon Companions 🐾",
             description=f"These pets protect you and your partner from being first blood! \n\n"
-                        f"🛡️ **Total Accumulated Sorte (Luck):** `{total_luck*100:.0f}%` (Max 85%)\n\n"
+                        f"🛡️ **Total Accumulated Luck:** `{total_luck*100:.0f}%` (Max 85%)\n\n"
                         f"**Equipped Companions:**\n{pets_desc}",
             color=0x1ABC9C
         )
@@ -1202,7 +1198,7 @@ async def setup(bot):
     import sys as _sys_setup
     main = _sys_setup.modules['__main__']
     
-    # Register the views globally with the bot so they survive reboots and never fail / fail to interact
+    # Register the views globally with the bot so they survive reboots and never fail to interact
     bot.add_view(CrimeWinnerDetailsView())
     bot.add_view(CrimeLobbyView())
     
