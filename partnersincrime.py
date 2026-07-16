@@ -693,7 +693,7 @@ class PartnersInCrimeEngine(commands.Cog):
             defeated_victims = []
 
             # Display Teams
-            roster_desc = ""
+             roster_desc = ""
             for duo in resolved_teams:
                 roster_desc += f"**Bondage Unit {duo['id']}:** {duo['name']}\n"
                 
@@ -873,7 +873,39 @@ class PartnersInCrimeEngine(commands.Cog):
 
             # Sorteia um dos dois parceiros vitoriosos para tentar o drop
             lucky_winner = random.choice([champion_duo['p1'], champion_duo['p2']])
-            dropped_pet = self.pets_manager.roll_pet_drop(lobby_full_members)
+            
+            # --- NOVA LÓGICA DE ROLLS COMPARTILHADA DIRETAMENTE NO FLUXO (CHANCE DE 50%) ---
+            dropped_pet = None
+            if lobby_full_members and random.random() < 0.50:  # Chance de drop aumentada para 50%
+                avatar_owner = random.choice(lobby_full_members)
+                roll = random.random()
+                
+                # Distribuição interna de pesos da raridade
+                if roll < 0.01:      # 1.0% de Chance de ser Supreme
+                    rarity = "Supreme"
+                    luck_boost = 0.30
+                elif roll < 0.06:    # 5.0% de Chance de ser Legendary
+                    rarity = "Legendary"
+                    luck_boost = 0.20
+                elif roll < 0.15:    # 9.0% de Chance de ser Epic
+                    rarity = "Epic"
+                    luck_boost = 0.15
+                elif roll < 0.30:    # 15.0% de Chance de ser Rare
+                    rarity = "Rare"
+                    luck_boost = 0.10
+                elif roll < 0.60:    # 30.0% de Chance de ser Normal
+                    rarity = "Normal"
+                    luck_boost = 0.05
+                else:                # 40.0% de Chance de ser Basic
+                    rarity = "Basic"
+                    luck_boost = 0.03
+
+                dropped_pet = {
+                    "pet_name": f"Mini {avatar_owner.display_name}",
+                    "rarity": rarity,
+                    "luck_boost": luck_boost,
+                    "avatar_owner_name": avatar_owner.display_name
+                }
 
             if dropped_pet:
                 # Salva o pet para o vencedor no banco de dados
@@ -1082,7 +1114,7 @@ class CrimeEngineControl(commands.Cog):
             color=0x1ABC9C
         )
         emb.set_thumbnail(url=target.display_avatar.url)
-        await ctx.send(embed=emb)
+        await ctx.send(emb)
 
 
 # ==============================================================================
