@@ -3,7 +3,7 @@ import random
 import logging
 from typing import Dict, List, Optional, Tuple
 
-# Configuração de Logger para sincronização e rastreio de geração de texto
+# Logger Configuration for synchronization and tracing text generation
 logger = logging.getLogger("DungeonPets")
 
 # ==============================================================================
@@ -12,38 +12,38 @@ logger = logging.getLogger("DungeonPets")
 
 PET_TEMPLATES = {
     "Basic": {
-        "luck_boost": 0.03, # SINCRONIZADO: 3% de chance de evitar First Blood
+        "luck_boost": 0.03, # SYNCHRONIZED: 3% chance to avoid First Blood
         "names": ["Toy Slave", "Chained Pup", "Leather Mouse", "Floor Crawler", "Whispering Parrot"]
     },
     "Normal": {
-        "luck_boost": 0.05, # SINCRONIZADO: 5% de chance
+        "luck_boost": 0.05, # SYNCHRONIZED: 5% chance
         "names": ["Cell Warden", "Paddle Cat", "Whip Badger", "Key Snatcher", "Collar Guardian"]
     },
     "Rare": {
-        "luck_boost": 0.10, # SINCRONIZADO: 10% de chance
+        "luck_boost": 0.10, # SYNCHRONIZED: 10% chance
         "names": ["Spanking Rabbit", "Masked Ferret", "Dungeon Lynx", "Silk Spider", "Wax Raven"]
     },
     "Epic": {
-        "luck_boost": 0.15, # SINCRONIZADO: 15% de chance
+        "luck_boost": 0.15, # SYNCHRONIZED: 15% chance
         "names": ["Gagged Panther", "Bondage Cobra", "Velvet Fox", "Throne Gargoyle", "Shackle Falcon"]
     },
     "Legendary": {
-        "luck_boost": 0.20, # SINCRONIZADO: 20% de chance
+        "luck_boost": 0.20, # SYNCHRONIZED: 20% chance
         "names": ["Leather Dragon", "Dominant Chimera", "Submissive Phoenix", "Mistress Basilisk", "Iron Cerberus"]
     },
     "Supreme": {
-        "luck_boost": 0.30, # SINCRONIZADO: 30% de chance de salvar o portador do primeiro abate
+        "luck_boost": 0.30, # SYNCHRONIZED: 30% chance to save owner from first blood
         "names": ["The Dungeon Overlord", "The Leather Monarch", "Kinky Leviathan", "The Supreme Dominator", "Grand Master Beast"]
     }
 }
 
 DROP_CHANCES = {
-    "Basic": 0.40,       # SINCRONIZADO: 40% de chance após confirmação de drop
-    "Normal": 0.30,      # SINCRONIZADO: 30% de chance
-    "Rare": 0.15,        # SINCRONIZADO: 15% de chance
-    "Epic": 0.09,        # SINCRONIZADO: 9% de chance
-    "Legendary": 0.05,   # SINCRONIZADO: 5% de chance
-    "Supreme": 0.01      # SINCRONIZADO: 1% de chance
+    "Basic": 0.40,       # SYNCHRONIZED: 40% chance after drop confirmation
+    "Normal": 0.30,      # SYNCHRONIZED: 30% chance
+    "Rare": 0.15,        # SYNCHRONIZED: 15% chance
+    "Epic": 0.09,        # SYNCHRONIZED: 9% chance
+    "Legendary": 0.05,   # SYNCHRONIZED: 5% chance
+    "Supreme": 0.01      # SYNCHRONIZED: 1% chance
 }
 
 class DungeonPetsManager:
@@ -52,9 +52,9 @@ class DungeonPetsManager:
         self._init_db()
 
     def _init_db(self) -> None:
-        """Inicializa a tabela de mascotes dos usuários se ela não existir de forma segura."""
+        """Initializes the user pets database table safely if it does not exist."""
         with self.get_db_connection() as conn:
-            # Verificamos se a tabela existente já possui as colunas e a Primary Key composta correta
+            # We check if the existing table already has the correct composite Primary Key
             pk_columns = []
             try:
                 cursor = conn.execute("PRAGMA table_info(user_pets)")
@@ -65,7 +65,7 @@ class DungeonPetsManager:
             except Exception:
                 pass
 
-            # Reconstrói a tabela usando migração de backup se as chaves não coincidirem
+            # Rebuilds the table using backup migration if keys do not match
             if not pk_columns or set(pk_columns) != {"guild_id", "user_id", "pet_name"}:
                 has_table = False
                 try:
@@ -75,14 +75,14 @@ class DungeonPetsManager:
                     pass
 
                 if has_table:
-                    # Coleta colunas compatíveis com a tabela antiga
+                    # Gather compatible columns from the old table
                     cursor = conn.execute("PRAGMA table_info(user_pets)")
                     existing_cols = [c[1] for c in cursor.fetchall()]
                     
                     conn.execute("DROP TABLE IF EXISTS user_pets_backup")
                     conn.execute("ALTER TABLE user_pets RENAME TO user_pets_backup")
                     
-                    # Cria a tabela correta
+                    # Create the correct table structure
                     conn.execute("""
                         CREATE TABLE user_pets (
                             guild_id INTEGER,
@@ -104,7 +104,7 @@ class DungeonPetsManager:
                         for col in common_cols:
                             select_statements.append(col)
                         
-                        # Preenche valores obrigatórios para as chaves primárias inexistentes
+                        # Populate mandatory values for non-existent primary keys
                         if "guild_id" not in common_cols:
                             common_cols.append("guild_id")
                             select_statements.append("0 as guild_id")
@@ -118,7 +118,7 @@ class DungeonPetsManager:
                         try:
                             conn.execute(f"INSERT OR IGNORE INTO user_pets ({insert_cols_str}) SELECT {select_cols_str} FROM user_pets_backup")
                         except Exception as e:
-                            logger.error(f"Erro ao recuperar mascotes antigos durante migração em pets.py: {e}")
+                            logger.error(f"Error restoring old pets during migration in pets.py: {e}")
                     
                     conn.execute("DROP TABLE IF EXISTS user_pets_backup")
                 else:
@@ -138,23 +138,23 @@ class DungeonPetsManager:
 
     def roll_pet_drop(self, participants_members: List[any]) -> Optional[Dict]:
         """
-        Determina se um pet foi dropado.
-        MODIFICAÇÃO: Ajustado para 100% de chance geral garantida para um dos vencedores de cada partida.
-        Escolhe uma raridade, um mascote aleatório do template, e um participante aleatório
-        para servir de 'avatar/figura' do mascote.
+        Determines if a pet was dropped.
+        MODIFICATION: Configured for 100% guaranteed drop chance for one of the winners of each match.
+        Chooses a rarity, a random pet from templates, and a random participant to serve
+        as the avatar/figure of the pet.
         """
-        # FORÇADO: 100% de chance de drop de pet por jogo. A validação anterior de 50% foi removida.
+        # FORCED: 100% pet drop chance per game. Previous 50% validation was removed.
 
-        # Escolhe a raridade com base nas probabilidades relativas ajustadas
-        raridades = list(DROP_CHANCES.keys())
-        pesos = list(DROP_CHANCES.values())
-        chosen_rarity = random.choices(raridades, weights=pesos, k=1)[0]
+        # Selects rarity based on adjusted relative probabilities
+        rarities = list(DROP_CHANCES.keys())
+        weights = list(DROP_CHANCES.values())
+        chosen_rarity = random.choices(rarities, weights=weights, k=1)[0]
 
-        # Escolhe um nome aleatório dessa raridade
+        # Selects a random name from that rarity
         chosen_template_name = random.choice(PET_TEMPLATES[chosen_rarity]["names"])
         luck_boost = PET_TEMPLATES[chosen_rarity]["luck_boost"]
 
-        # Escolhe um participante do lobby para virar a "figura" do mascote
+        # Selects a participant from the lobby to become the pet's avatar
         if participants_members:
             chosen_member = random.choice(participants_members)
             avatar_owner_id = chosen_member.id
@@ -163,7 +163,7 @@ class DungeonPetsManager:
             avatar_owner_id = 0
             avatar_owner_name = "Mysterious Sub"
 
-        # O nome final do pet é a fusão do template com o membro homenageado
+        # Final pet name fuses template name with the honored member's name
         final_pet_name = f"{chosen_template_name} ({avatar_owner_name})"
 
         return {
@@ -175,7 +175,7 @@ class DungeonPetsManager:
         }
 
     def save_user_pet(self, guild_id: int, user_id: int, pet_data: Dict) -> None:
-        """Salva ou atualiza o pet conquistado pelo usuário vencedor no banco de dados."""
+        """Saves or updates the pet claimed by the winning user in the database."""
         with self.get_db_connection() as conn:
             conn.execute("""
                 INSERT INTO user_pets (guild_id, user_id, pet_name, rarity, luck_boost, avatar_owner_id, avatar_owner_name)
@@ -196,7 +196,7 @@ class DungeonPetsManager:
             conn.commit()
 
     def get_user_equipped_pets(self, guild_id: int, user_id: int) -> List[Dict]:
-        """Recupera a lista de mascotes que o usuário possui no servidor."""
+        """Retrieves the list of pets owned by the user on the server."""
         pets_list = []
         try:
             with self.get_db_connection() as conn:
@@ -219,13 +219,13 @@ class DungeonPetsManager:
 
     def calculate_total_luck(self, guild_id: int, user_id: int) -> float:
         """
-        Calcula o bônus acumulado de sorte (luck_boost) de todos os pets do usuário.
-        Limitado a um teto de 85% para não quebrar a lógica do jogo.
+        Calculates accumulated luck boost from all user pets.
+        Capped at 85% maximum threshold to prevent game loop failure.
         """
         pets = self.get_user_equipped_pets(guild_id, user_id)
         if not pets:
             return 0.0
         
-        # Soma a sorte de todos os pets acumulados
+        # Accumulates luck values across all pets
         total_luck = sum(p["luck_boost"] for p in pets)
         return min(total_luck, 0.85)
