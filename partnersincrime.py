@@ -396,6 +396,69 @@ class PartnersInCrimeEngine(commands.Cog):
                     PRIMARY KEY (guild_id, user_id)
                 )
             """)
+            
+            # --- ADICIONADO: SEGURANÇA E MIGRAÇÃO AUTOMÁTICA DA TABELA DE PETS ---
+            # Garante que a tabela exista de antemão caso ela não tenha sido criada
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_pets (
+                    user_id INTEGERPRIMARY KEY
+                )
+            """)
+            
+            # Migração em runtime: Adiciona 'guild_id' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT guild_id FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN guild_id INTEGER")
+                except Exception as e:
+                    print(f"Migration warning user_pets (guild_id): {e}")
+
+            # Migração em runtime: Adiciona 'pet_name' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT pet_name FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN pet_name TEXT")
+                except Exception as e:
+                    print(f"Migration warning user_pets (pet_name): {e}")
+
+            # Migração em runtime: Adiciona 'rarity' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT rarity FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN rarity TEXT")
+                except Exception as e:
+                    print(f"Migration warning user_pets (rarity): {e}")
+
+            # Migração em runtime: Adiciona 'luck_boost' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT luck_boost FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN luck_boost REAL DEFAULT 0.0")
+                except Exception as e:
+                    print(f"Migration warning user_pets (luck_boost): {e}")
+
+            # Migração em runtime: Adiciona 'avatar_owner_id' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT avatar_owner_id FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN avatar_owner_id INTEGER")
+                except Exception as e:
+                    print(f"Migration warning user_pets (avatar_owner_id): {e}")
+
+            # Migração em runtime: Adiciona 'avatar_owner_name' se estiver faltando na tabela existente
+            try:
+                conn.execute("SELECT avatar_owner_name FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                try:
+                    conn.execute("ALTER TABLE user_pets ADD COLUMN avatar_owner_name TEXT")
+                except Exception as e:
+                    print(f"Migration warning user_pets (avatar_owner_name): {e}")
+
             conn.commit()
 
     def get_user_arena_ranks(self, guild_id, user_id):
