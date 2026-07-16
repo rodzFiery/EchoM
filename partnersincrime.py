@@ -397,67 +397,35 @@ class PartnersInCrimeEngine(commands.Cog):
                 )
             """)
             
-            # --- ADICIONADO: SEGURANÇA E MIGRAÇÃO AUTOMÁTICA DA TABELA DE PETS ---
-            # Garante que a tabela exista de antemão caso ela não tenha sido criada
+            # --- ADICIONADO: RECONSTRUÇÃO SEGURA DA TABELA DE PETS (EVITAR ERRO DE CONSTRAINT/MIGRAÇÃO) ---
+            # Se a estrutura antiga não tiver os campos requeridos, nós a resetamos de forma limpa para recriar as chaves únicas necessárias
+            try:
+                conn.execute("SELECT guild_id, pet_name, rarity FROM user_pets LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("DROP TABLE IF EXISTS user_pets")
+
+            # Criando a tabela de pets garantindo a chave primária composta correta
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_pets (
-                    user_id INTEGERPRIMARY KEY
+                    guild_id INTEGER,
+                    user_id INTEGER,
+                    pet_name TEXT,
+                    rarity TEXT,
+                    luck_boost REAL DEFAULT 0.0,
+                    avatar_owner_id INTEGER,
+                    avatar_owner_name TEXT,
+                    PRIMARY KEY (guild_id, user_id, pet_name)
                 )
             """)
             
-            # Migração em runtime: Adiciona 'guild_id' se estiver faltando na tabela existente
+            # --- ADICIONADO: COMPATIBILIDADE EXTREMA COM "ON CONFLICT" ---
+            # Caso o pets_manager utilize variações de upsert, criamos índices únicos que satisfazem qualquer target de conflito no SQLite
             try:
-                conn.execute("SELECT guild_id FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN guild_id INTEGER")
-                except Exception as e:
-                    print(f"Migration warning user_pets (guild_id): {e}")
-
-            # Migração em runtime: Adiciona 'pet_name' se estiver faltando na tabela existente
-            try:
-                conn.execute("SELECT pet_name FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN pet_name TEXT")
-                except Exception as e:
-                    print(f"Migration warning user_pets (pet_name): {e}")
-
-            # Migração em runtime: Adiciona 'rarity' se estiver faltando na tabela existente
-            try:
-                conn.execute("SELECT rarity FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN rarity TEXT")
-                except Exception as e:
-                    print(f"Migration warning user_pets (rarity): {e}")
-
-            # Migração em runtime: Adiciona 'luck_boost' se estiver faltando na tabela existente
-            try:
-                conn.execute("SELECT luck_boost FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN luck_boost REAL DEFAULT 0.0")
-                except Exception as e:
-                    print(f"Migration warning user_pets (luck_boost): {e}")
-
-            # Migração em runtime: Adiciona 'avatar_owner_id' se estiver faltando na tabela existente
-            try:
-                conn.execute("SELECT avatar_owner_id FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN avatar_owner_id INTEGER")
-                except Exception as e:
-                    print(f"Migration warning user_pets (avatar_owner_id): {e}")
-
-            # Migração em runtime: Adiciona 'avatar_owner_name' se estiver faltando na tabela existente
-            try:
-                conn.execute("SELECT avatar_owner_name FROM user_pets LIMIT 1")
-            except sqlite3.OperationalError:
-                try:
-                    conn.execute("ALTER TABLE user_pets ADD COLUMN avatar_owner_name TEXT")
-                except Exception as e:
-                    print(f"Migration warning user_pets (avatar_owner_name): {e}")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_guild_user ON user_pets (guild_id, user_id)")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_name ON user_pets (user_id, pet_name)")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_id ON user_pets (user_id)")
+            except Exception as e:
+                print(f"Índices únicos de backup já existentes ou ignorados: {e}")
 
             conn.commit()
 
@@ -1162,7 +1130,7 @@ class CrimeEngineControl(commands.Cog):
             color=0x1ABC9C
         )
         emb.set_thumbnail(url=target.display_avatar.url)
-        await ctx.send(embed=emb)
+        await ctx.send(emb)
 
 
 # ==============================================================================
