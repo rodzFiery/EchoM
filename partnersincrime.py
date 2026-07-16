@@ -1015,9 +1015,12 @@ class PartnersInCrimeEngine(commands.Cog):
                 # Minor buffer delay to let SQLite release any background transactional locks
                 await asyncio.sleep(0.5)
 
-            # Format the detail layout cards with the exact visual fields requested (SERVER STATS & LEGACY)
+            # Format the detail layout cards with the exact visual fields requested (SERVER STATS & LEGACY) for BOTH winners
             p1_wins_r, p1_kills_r, p1_games_r = self.get_user_arena_ranks(channel.guild.id, champion_duo['p1'].id)
             p1_wins_v, p1_kills_v, p1_games_v, p1_flames_v = self.get_user_legacy_metrics(channel.guild.id, champion_duo['p1'].id)
+
+            p2_wins_r, p2_kills_r, p2_games_r = self.get_user_arena_ranks(channel.guild.id, champion_duo['p2'].id)
+            p2_wins_v, p2_kills_v, p2_games_v, p2_flames_v = self.get_user_legacy_metrics(channel.guild.id, champion_duo['p2'].id)
 
             win_emb = discord.Embed(
                 title=f"👑 REIGNING DUNGEON MASTERS: UNIT {champion_duo['id']} 👑",
@@ -1030,18 +1033,18 @@ class PartnersInCrimeEngine(commands.Cog):
                 color=0xFFD700
             )
             
-            # Setup Winner detail layout cards
+            # Setup Winner detail layout cards with stats mapped for BOTH partners
             details_card = discord.Embed(
                 title=f"👑 Echogames Dungeon Winner 👑 # {edition}", 
                 description=f"**All defensive limits neutralized. Bound partners divided 50/50 under the leather contract.**\n\n"
-                            f"**📊 SERVER DUNGEON STATS**\n"
-                            f"🏆 **Wins:** Rank #{p1_wins_r}\n"
-                            f"⚔️ **Submissions:** Rank #{p1_kills_r}\n"
-                            f"🎮 **Sessions:** Rank #{p1_games_r}\n\n"
-                            f"**🏛️ DOM'S LEGACY**\n"
-                            f"👑 **Total Arena Wins:** {p1_wins_v}\n"
-                            f"📝 **Total Participations:** {p1_games_v}\n"
-                            f"🔥 **Lifetime Dungeon Flames:** {p1_flames_v:,}F",
+                            f"**🛡️ WINNER 1: {champion_duo['p1'].display_name}**\n"
+                            f"🏆 **Wins:** Rank #{p1_wins_r} | ⚔️ **Submissions:** Rank #{p1_kills_r} | 🎮 **Sessions:** Rank #{p1_games_r}\n"
+                            f"👑 **Total Arena Wins:** {p1_wins_v} | 📝 **Total Participations:** {p1_games_v}\n"
+                            f"🔥 **Lifetime Dungeon Flames:** {p1_flames_v:,}F\n\n"
+                            f"**🛡️ WINNER 2: {champion_duo['p2'].display_name}**\n"
+                            f"🏆 **Wins:** Rank #{p2_wins_r} | ⚔️ **Submissions:** Rank #{p2_kills_r} | 🎮 **Sessions:** Rank #{p2_games_r}\n"
+                            f"👑 **Total Arena Wins:** {p2_wins_v} | 📝 **Total Participations:** {p2_games_v}\n"
+                            f"🔥 **Lifetime Dungeon Flames:** {p2_flames_v:,}F",
                 color=0xFFD700
             )
             view = CrimeWinnerDetailsView(details_card)
