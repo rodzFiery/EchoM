@@ -878,6 +878,20 @@ class PartnersInCrimeEngine(commands.Cog):
             # Removemos os cálculos paralelos e deixamos o DungeonPetsManager processar tudo de ponta a ponta
             dropped_pet = self.pets_manager.roll_pet_drop(lobby_full_members)
 
+            # --- FIX: FALLBACK DE SEGURANÇA 100% GARANTIDO PARA OS VENCEDORES ---
+            # Se a rolagem padrão falhar, forçamos a criação de um drop de mascote válido a partir de um participante aleatório
+            if not dropped_pet and lobby_full_members:
+                random_target_member = random.choice(lobby_full_members)
+                rarities = ["Common", "Rare", "Epic", "Legendary"]
+                selected_rarity = random.choices(rarities, weights=[50, 30, 15, 5])[0]
+                boosts = {"Common": 0.05, "Rare": 0.10, "Epic": 0.15, "Legendary": 0.20}
+                dropped_pet = {
+                    'pet_name': f"Bound Spirit of {random_target_member.display_name}",
+                    'rarity': selected_rarity,
+                    'luck_boost': boosts[selected_rarity],
+                    'avatar_owner_name': random_target_member.display_name
+                }
+
             if dropped_pet:
                 # Salva o pet para o vencedor no banco de dados
                 self.pets_manager.save_user_pet(channel.guild.id, lucky_winner.id, dropped_pet)
