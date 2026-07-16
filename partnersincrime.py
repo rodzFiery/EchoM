@@ -24,6 +24,8 @@ import aiohttp
 
 # Importação do novo Lexicon Sincronizado para as frases de efeito do submundo
 from piclexicon import PartnersInCrimeLexicon
+# --- IMPORTAÇÃO DO GERENCIADOR DE PETS SCONCRONIZADO ---
+from pets import DungeonPetsManager
 
 # ==============================================================================
 # VIEW SYSTEM (PERSISTENT COUPLING)
@@ -366,6 +368,8 @@ class PartnersInCrimeEngine(commands.Cog):
 
         # Instanciação direta do novo Léxico de Batalha de Partners in Crime
         self.lexicon = PartnersInCrimeLexicon()
+        # --- INSTANCIAÇÃO DO NOVO GERENCIADOR DE PETS SINCRO ---
+        self.pets_manager = DungeonPetsManager(get_db_connection)
 
         self._init_persistence()
 
@@ -710,16 +714,57 @@ class PartnersInCrimeEngine(commands.Cog):
                     """, (channel.guild.id, user_id))
                 conn.commit()
 
+            # Variável de controle para verificar proteção de First Blood por Mascote
+            first_blood_prevented = False
+
             # Fight loop
             while len(resolved_teams) > 1:
-                t1 = resolved_teams.pop(random.randrange(len(resolved_teams)))
-                t2 = resolved_teams.pop(random.randrange(len(resolved_teams)))
+                # Seleciona de forma robusta duas posições do pool ativo
+                idx1 = random.randrange(len(resolved_teams))
+                t1 = resolved_teams[idx1]
+                
+                idx2 = random.randrange(len(resolved_teams))
+                while idx2 == idx1:
+                    idx2 = random.randrange(len(resolved_teams))
+                t2 = resolved_teams[idx2]
+
+                # Retira os dois combatentes temporariamente para a disputa
+                resolved_teams.remove(t1)
+                resolved_teams.remove(t2)
 
                 # INTEGRADO: Geração de narrativa única do piclexicon sem repetições excessivas
                 fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
 
                 # Execute Fight
                 winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
+
+                # --- PROTEÇÃO CONTRA FIRST BLOOD USANDO OS PETS EQUIPADOS ---
+                if len(defeated_victims) == 0 and not first_blood_prevented:
+                    # Carrega bônus individual de ambos os portadores do esquadrão perdedor
+                    luck_p1 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p1'].id)
+                    luck_p2 = self.pets_manager.calculate_total_luck(channel.guild.id, loser['p2'].id) if loser['p2'] != loser['p1'] else 0.0
+                    
+                    # O squad usa o maior bônus de sorte ativo da dupla
+                    highest_squad_luck = max(luck_p1, luck_p2)
+
+                    if highest_squad_luck > 0.0 and random.random() < highest_squad_luck:
+                        # Ativação bem-sucedida! Devolve os dois ao pool e cancela o primeiro abate
+                        first_blood_prevented = True
+                        resolved_teams.append(t1)
+                        resolved_teams.append(t2)
+
+                        pet_saved_emb = discord.Embed(
+                            title="🛡️ MASCOT LUCK TRIGGERED! 🛡️",
+                            description=f"💥 {loser['name']} was about to suffer **First Blood**! "
+                                        f"However, their equipped dungeon pets protected them with a **{highest_squad_luck*100:.0f}%** luck boost! "
+                                        f"They slip out of their ropes and return to the shadows of the playroom...",
+                            color=0x00FFFF
+                        )
+                        await channel.send(embed=pet_saved_emb)
+                        await asyncio.sleep(4)
+                        continue
+
+                # Processo normal de abate
                 resolved_teams.append(winner)
                 
                 # Record loser members coupled with squad identification
@@ -817,6 +862,37 @@ class PartnersInCrimeEngine(commands.Cog):
 
             await channel.send(embed=win_emb, view=view)
             await asyncio.sleep(2)
+
+            # --- INTEGRAÇÃO: RECURSO DE DROPS DE MASCOTES ---
+            # Todos os membros resolvidos no início participam como potenciais figuras/avatares de pet
+            lobby_full_members = []
+            for t_idx, squad_members in self.historical_match_squads[channel.id].items():
+                for m in squad_members:
+                    if m not in lobby_full_members:
+                        lobby_full_members.append(m)
+
+            # Sorteia um dos dois parceiros vitoriosos para tentar o drop
+            lucky_winner = random.choice([champion_duo['p1'], champion_duo['p2']])
+            dropped_pet = self.pets_manager.roll_pet_drop(lobby_full_members)
+
+            if dropped_pet:
+                # Salva o pet para o vencedor no banco de dados
+                self.pets_manager.save_user_pet(channel.guild.id, lucky_winner.id, dropped_pet)
+                
+                # Envia o embed de anúncio do pet logo após o card de vitória
+                pet_drop_emb = discord.Embed(
+                    title="🐾 UNIQUE DUNGEON PET ACQUIRED! 🐾",
+                    description=f"🎁 **Amazing Luck!** A mysterious crate left behind in the toyroom started shaking...\n\n"
+                                f"**{lucky_winner.mention}** has dropped and tamed a new companion:\n"
+                                f"• **Pet:** `{dropped_pet['pet_name']}`\n"
+                                f"• **Rarity:** **{dropped_pet['rarity']}**\n"
+                                f"• **Attributes:** Concedeu **+{dropped_pet['luck_boost']*100:.0f}% Sorte** para evitar First Blood em futuras sessões!\n\n"
+                                f"*" + f"Este mascote carrega a alma e feições de {dropped_pet['avatar_owner_name']}! " + "*",
+                    color=0x1ABC9C
+                )
+                pet_drop_emb.set_thumbnail(url=lucky_winner.display_avatar.url)
+                await channel.send(embed=pet_drop_emb)
+                await asyncio.sleep(2)
 
             # Execute RECAP PROTOCOL
             recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
@@ -978,6 +1054,35 @@ class CrimeEngineControl(commands.Cog):
         # Clean the active channel entry from cache only when both winners have depleted their charges
         if not engine.reign_of_terror[ctx.channel.id]:
             del engine.reign_of_terror[ctx.channel.id]
+
+    # --- COMANDO ADICIONAL: EXIBIR MASCOTES ---
+    @commands.command(name="dungeonpets")
+    async def show_dungeon_pets(self, ctx, member: discord.Member = None):
+        """Displays your equipped dungeon companions and total luck boost."""
+        engine = self.bot.get_cog("PartnersInCrimeEngine")
+        if not engine: 
+            return
+            
+        target = member or ctx.author
+        pets = engine.pets_manager.get_user_equipped_pets(ctx.guild.id, target.id)
+        total_luck = engine.pets_manager.calculate_total_luck(ctx.guild.id, target.id)
+        
+        if not pets:
+            return await ctx.send(f"❌ **{target.display_name}** does not have any dungeon pets yet! Keep winning Spree sessions to find them.")
+            
+        pets_desc = ""
+        for p in pets:
+            pets_desc += f"• **{p['pet_name']}** ({p['rarity']}) — Concede `+{p['luck_boost']*100:.0f}%` Sorte\n"
+            
+        emb = discord.Embed(
+            title=f"🐾 {target.display_name}'s Dungeon Companions 🐾",
+            description=f"These pets protect you and your partner from being first blood! \n\n"
+                        f"🛡️ **Total Accumulated Sorte (Luck):** `{total_luck*100:.0f}%` (Max 85%)\n\n"
+                        f"**Equipped Companions:**\n{pets_desc}",
+            color=0x1ABC9C
+        )
+        emb.set_thumbnail(url=target.display_avatar.url)
+        await ctx.send(embed=emb)
 
 
 # ==============================================================================
