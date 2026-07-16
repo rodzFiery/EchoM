@@ -985,18 +985,26 @@ class PartnersInCrimeEngine(commands.Cog):
                 # Save the pet for the winner in the database
                 self.pets_manager.save_user_pet(channel.guild.id, lucky_winner.id, dropped_pet)
                 
-                # Send the companion unlock embed card
+                # Dynamically match avatar of dropped member for presentation
+                target_avatar_url = lucky_winner.display_avatar.url
+                for m in lobby_full_members:
+                    if m.display_name == dropped_pet.get('avatar_owner_name'):
+                        target_avatar_url = m.display_avatar.url
+                        break
+                
+                # Send the companion unlock embed card with customized details
                 pet_drop_emb = discord.Embed(
                     title="🐾 UNIQUE DUNGEON PET ACQUIRED! 🐾",
-                    description=f"🎁 **Amazing Luck!** A mysterious crate left behind in the toyroom started shaking...\n\n"
-                                f"**{lucky_winner.mention}** has dropped and tamed a new companion:\n"
-                                f"• **Pet:** `{dropped_pet['pet_name']}`\n"
-                                f"• **Rarity:** **{dropped_pet['rarity']}**\n"
-                                f"• **Attributes:** Granted **+{dropped_pet['luck_boost']*100:.0f}% Luck** to avoid First Blood in future sessions!\n\n"
-                                f"*" + f"This companion carries the soul and features of {dropped_pet['avatar_owner_name']}! " + "*",
+                    description=(
+                        f"🎁 **The Vault Cracks Open!**\n\n"
+                        f"Besides winning the game, **{lucky_winner.mention}** dropped a mini pet **{dropped_pet['avatar_owner_name']}** "
+                        f"with **+{dropped_pet['luck_boost']*100:.0f}% Luck** stats (**{dropped_pet['rarity']}** tier)!\n\n"
+                        f"This miniature copy of {dropped_pet['avatar_owner_name']} will follow you into the dark, protecting you "
+                        f"from First Blood in future playroom sessions."
+                    ),
                     color=0x1ABC9C
                 )
-                pet_drop_emb.set_thumbnail(url=lucky_winner.display_avatar.url)
+                pet_drop_emb.set_thumbnail(url=target_avatar_url)
                 await channel.send(embed=pet_drop_emb)
                 await asyncio.sleep(2)
 
