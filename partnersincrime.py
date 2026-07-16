@@ -28,7 +28,7 @@ from piclexicon import PartnersInCrimeLexicon
 from pets import DungeonPetsManager
 
 # ==============================================================================
-# VIEW SYSTEM (PERSISTENT COUPLING & PET EQUIPPING SELECT)
+# VIEW SYSTEM (PERSISTENT COUPLING, PET & TOY EQUIPPING SELECT)
 # ==============================================================================
 
 class DungeonPetSelect(discord.ui.Select):
@@ -97,6 +97,71 @@ class DungeonPetSelect(discord.ui.Select):
         except Exception as e:
             print(f"Companion selection callback error: {e}")
             await interaction.response.send_message("An error occurred while equipping your pet.", ephemeral=True)
+
+
+class DungeonToySelect(discord.ui.Select):
+    def __init__(self, toys, guild_id, user_id, engine):
+        options = []
+        for t in toys:
+            toy_name = t[0]
+            category = t[1]
+            boost = t[2]
+            equipped = t[3]
+            label = f"{toy_name} ({category})"
+            description = f"Boost: +{boost*100:.0f}% Protection/Win Chance"
+            if equipped == 1:
+                label += " [Equipped]"
+            options.append(discord.SelectOption(
+                label=label[:100], 
+                value=toy_name[:100], 
+                description=description[:100], 
+                default=bool(equipped)
+            ))
+        
+        super().__init__(
+            placeholder="Choose your active dungeon toy...", 
+            min_values=1, 
+            max_values=1, 
+            options=options
+        )
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.engine = engine
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            return await interaction.response.send_message("❌ This is not your toy box!", ephemeral=True)
+        
+        selected_toy = self.values[0]
+        try:
+            with self.engine.get_db_connection() as conn:
+                conn.execute("UPDATE user_toys SET equipped = 0 WHERE guild_id = ? AND user_id = ?", (self.guild_id, self.user_id))
+                conn.execute("UPDATE user_toys SET equipped = 1 WHERE guild_id = ? AND user_id = ? AND toy_name = ?", (self.guild_id, self.user_id, selected_toy))
+                conn.commit()
+            
+            with self.engine.get_db_connection() as conn:
+                toys = conn.execute("SELECT toy_name, category, boost, equipped FROM user_toys WHERE guild_id = ? AND user_id = ?", (self.guild_id, self.user_id)).fetchall()
+            
+            toys_desc = ""
+            for t in toys:
+                eq_status = " 👅 **[ACTIVE TOY]**" if t[3] == 1 else ""
+                toys_desc += f"• **{t[0]}** ({t[1]}) — Grants `+{t[2]*100:.0f}%` Power{eq_status}\n"
+            
+            emb = discord.Embed(
+                title=f"🍆 {interaction.user.display_name}'s Dungeon Toys 🍆",
+                description=f"Select your active toy using the dropdown below to scale up your final win parameters!\n\n"
+                            f"**Your Toy Chest:**\n{toys_desc}",
+                color=0xE0115F
+            )
+            emb.set_thumbnail(url=interaction.user.display_avatar.url)
+            
+            new_view = discord.ui.View()
+            new_view.add_item(DungeonToySelect(toys, self.guild_id, self.user_id, self.engine))
+            
+            await interaction.response.edit_message(embed=emb, view=new_view)
+        except Exception as e:
+            print(f"Toy selection callback error: {e}")
+            await interaction.response.send_message("An error occurred while equipping your toy.", ephemeral=True)
 
 
 class CrimeWinnerDetailsView(discord.ui.View):
@@ -502,12 +567,13 @@ class PartnersInCrimeEngine(commands.Cog):
                             luck_boost REAL DEFAULT 0.0,
                             avatar_owner_id INTEGER,
                             avatar_owner_name TEXT,
+                            equipped INTEGER DEFAULT 0,
                             PRIMARY KEY (guild_id, user_id, pet_name)
                         )
                     """)
                     
                     # Filter matching columns
-                    target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name"]
+                    target_columns = ["guild_id", "user_id", "pet_name", "rarity", "luck_boost", "avatar_owner_id", "avatar_owner_name", "equipped"]
                     common_cols = [col for col in target_columns if col in existing_cols]
                     
                     if "user_id" in common_cols:
@@ -542,6 +608,7 @@ class PartnersInCrimeEngine(commands.Cog):
                             luck_boost REAL DEFAULT 0.0,
                             avatar_owner_id INTEGER,
                             avatar_owner_name TEXT,
+                            equipped INTEGER DEFAULT 0,
                             PRIMARY KEY (guild_id, user_id, pet_name)
                         )
                     """)
@@ -559,6 +626,19 @@ class PartnersInCrimeEngine(commands.Cog):
                 conn.execute("ALTER TABLE user_pets ADD COLUMN equipped INTEGER DEFAULT 0")
             except Exception:
                 pass
+
+            # Create User Toys Database layout safely
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_toys (
+                    guild_id INTEGER,
+                    user_id INTEGER,
+                    toy_name TEXT,
+                    category TEXT,
+                    boost REAL,
+                    equipped INTEGER DEFAULT 0,
+                    PRIMARY KEY (guild_id, user_id, toy_name)
+                )
+            """)
 
             conn.commit()
 
@@ -583,6 +663,20 @@ class PartnersInCrimeEngine(commands.Cog):
                 return min(rows[0][1], 0.85)
         except Exception as e:
             print(f"Dungeon active luck calculation failure: {e}")
+        return 0.0
+
+    def get_equipped_toy_boost(self, guild_id, user_id, category):
+        """Retrieves active equipped toy boost for a specific category (Dominant or Submissive)."""
+        try:
+            with self.get_db_connection() as conn:
+                row = conn.execute(
+                    "SELECT boost FROM user_toys WHERE guild_id = ? AND user_id = ? AND category = ? AND equipped = 1", 
+                    (guild_id, user_id, category)
+                ).fetchone()
+                if row:
+                    return row[0]
+        except Exception as e:
+            print(f"Dungeon active toy boost fetch failure: {e}")
         return 0.0
 
     def get_user_arena_ranks(self, guild_id, user_id):
@@ -689,7 +783,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 tasp = tw / th
                 if iasp > tasp:
                     nw = int(th * iasp)
-                    image = image.resize((nw, th), Image.Resampling.LANCZOS)
+                    image = image.resize((nw, tw), Image.Resampling.LANCZOS)
                     left = (nw - tw) // 2
                     image = image.crop((left, 0, left + tw, th))
                 else:
@@ -922,8 +1016,39 @@ class PartnersInCrimeEngine(commands.Cog):
                 # INTEGRATED: Unique battle narratives generated with piclexicon
                 fight_narrative = self.lexicon.generate_fight_flavor(t1['name'], t2['name'])
 
-                # Execute Fight
-                winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
+                # --- EXECUTING FIGHT AND CALCULATING TOY MODIFIERS IF LAST DUO FIGHT ---
+                # Check if this is the absolute last duo vs duo match
+                if len(resolved_teams) == 0:
+                    # T1 Toys Calculations
+                    t1_dom_toy = self.get_equipped_toy_boost(channel.guild.id, t1['p1'].id, "Dominant")
+                    t1_sub_toy = self.get_equipped_toy_boost(channel.guild.id, t1['p2'].id, "Submissive") if t1['p2'] != t1['p1'] else 0.0
+
+                    # T2 Toys Calculations
+                    t2_dom_toy = self.get_equipped_toy_boost(channel.guild.id, t2['p1'].id, "Dominant")
+                    t2_sub_toy = self.get_equipped_toy_boost(channel.guild.id, t2['p2'].id, "Submissive") if t2['p2'] != t2['p1'] else 0.0
+
+                    # Final chance weighting
+                    # Sub toys boost direct win chance parameters, Dom toys block opposing win scaling factors (acting as defense percentage)
+                    t1_win_factor = 0.5 + t1_sub_toy - t2_dom_toy
+                    t2_win_factor = 0.5 + t2_sub_toy - t1_dom_toy
+                    
+                    # Normalize weights to protect calculation limits
+                    total_factor = max(t1_win_factor, 0.01) + max(t2_win_factor, 0.01)
+                    t1_chance = max(t1_win_factor, 0.01) / total_factor
+
+                    winner, loser = (t1, t2) if random.random() < t1_chance else (t2, t1)
+                    
+                    # Log active combat triggers 
+                    if t1_dom_toy > 0 or t1_sub_toy > 0 or t2_dom_toy > 0 or t2_sub_toy > 0:
+                        toy_announcement = (
+                            "🔥 **DUNGEON TOYS ACTIVATED FOR THE FINAL DUO SHOWDOWN!**\n"
+                            f"• **{t1['name']}:** Dom Toy (+{t1_dom_toy*100:.0f}% Def) | Sub Toy (+{t1_sub_toy*100:.0f}% Win Chance)\n"
+                            f"• **{t2['name']}:** Dom Toy (+{t2_dom_toy*100:.0f}% Def) | Sub Toy (+{t2_sub_toy*100:.0f}% Win Chance)\n"
+                        )
+                        await channel.send(embed=discord.Embed(title="⚙️ Toybox Parameters Applied", description=toy_announcement, color=0xE0115F))
+                        await asyncio.sleep(3)
+                else:
+                    winner, loser = (t1, t2) if random.random() < 0.5 else (t2, t1)
 
                 # --- FIRST BLOOD PREVENTION USING EQUIPPED PETS ---
                 if len(defeated_victims) == 0 and not first_blood_prevented:
@@ -1053,7 +1178,7 @@ class PartnersInCrimeEngine(commands.Cog):
             await channel.send(embed=win_emb, view=view)
             await asyncio.sleep(2)
 
-            # --- PET DROP PROTOCOL ---
+            # --- DUAL COUPLING DROP PROTOCOL: PETS & TOYS ---
             # All players registered at start are eligible to drop as companion templates/avatars
             lobby_full_members = []
             for t_idx, squad_members in self.historical_match_squads[channel.id].items():
@@ -1061,14 +1186,14 @@ class PartnersInCrimeEngine(commands.Cog):
                     if m not in lobby_full_members:
                         lobby_full_members.append(m)
 
-            # Select one of the winning duo partners randomly to claim the pet drop
-            lucky_winner = random.choice([champion_duo['p1'], champion_duo['p2']])
+            # Assign drops to each winner separately
+            lucky_pet_winner = champion_duo['p1']
+            lucky_toy_winner = champion_duo['p2']
             
-            # Roll and generate pet metrics entirely through the synchronized manager
+            # 1. Roll and generate pet metrics entirely through the synchronized manager
             dropped_pet = self.pets_manager.roll_pet_drop(lobby_full_members)
 
             # --- SAFETY FALLBACK: 100% COMPANION DISPENSATION FOR CHAMPIONS ---
-            # In case base generation fails, force create a companion using an active lobby target
             if not dropped_pet and lobby_full_members:
                 random_target_member = random.choice(lobby_full_members)
                 rarities = ["Common", "Rare", "Epic", "Legendary"]
@@ -1083,10 +1208,10 @@ class PartnersInCrimeEngine(commands.Cog):
 
             if dropped_pet:
                 # Save the pet for the winner in the database
-                self.pets_manager.save_user_pet(channel.guild.id, lucky_winner.id, dropped_pet)
+                self.pets_manager.save_user_pet(channel.guild.id, lucky_pet_winner.id, dropped_pet)
                 
                 # Dynamically match avatar of dropped member for presentation
-                target_avatar_url = lucky_winner.display_avatar.url
+                target_avatar_url = lucky_pet_winner.display_avatar.url
                 for m in lobby_full_members:
                     if m.display_name == dropped_pet.get('avatar_owner_name'):
                         target_avatar_url = m.display_avatar.url
@@ -1097,16 +1222,32 @@ class PartnersInCrimeEngine(commands.Cog):
                     title="🐾 UNIQUE DUNGEON PET ACQUIRED! 🐾",
                     description=(
                         f"🎁 **The Vault Cracks Open!**\n\n"
-                        f"Besides winning the game, **{lucky_winner.mention}** dropped a mini pet **{dropped_pet['avatar_owner_name']}** "
+                        f"Congratulations **{lucky_pet_winner.mention}** on receiving the mini pet **{dropped_pet['avatar_owner_name']}** "
                         f"with **+{dropped_pet['luck_boost']*100:.0f}% Luck** stats (**{dropped_pet['rarity']}** tier)!\n\n"
-                        f"This miniature copy of {dropped_pet['avatar_owner_name']} will follow you into the dark, protecting you "
-                        f"from First Blood in future playroom sessions."
+                        f"This companion will follow you into the dark, protecting you from First Blood."
                     ),
                     color=0x1ABC9C
                 )
                 pet_drop_emb.set_thumbnail(url=target_avatar_url)
                 await channel.send(embed=pet_drop_emb)
                 await asyncio.sleep(2)
+
+            # 2. Roll and generate toy metrics
+            dropped_toy = self.pets_manager.roll_toy_drop()
+            self.pets_manager.save_user_toy(channel.guild.id, lucky_toy_winner.id, dropped_toy)
+
+            toy_drop_emb = discord.Embed(
+                title="🍆 NEW DUNGEON TOY ACQUIRED! 🍆",
+                description=(
+                    f"🎁 **Underworld Armory Restocked!**\n\n"
+                    f"Partner **{lucky_toy_winner.mention}** has been gifted a brand new **{dropped_toy['category']} Toy**: **{dropped_toy['toy_name']}**!\n\n"
+                    f"Grants **+{dropped_toy['boost']*100:.0f}%** performance modification. Dom toys protect defense, and Sub toys boost raw win rates during the final match."
+                ),
+                color=0xE0115F
+            )
+            toy_drop_emb.set_thumbnail(url=lucky_toy_winner.display_avatar.url)
+            await channel.send(embed=toy_drop_emb)
+            await asyncio.sleep(2)
 
             # Execute RECAP PROTOCOL
             recap_banner = await self.create_recap_image([champion_duo['p1'], champion_duo['p2']], defeated_victims)
@@ -1319,6 +1460,56 @@ class CrimeEngineControl(commands.Cog):
         if len(pets) > 1 and target.id == ctx.author.id:
             view = discord.ui.View()
             view.add_item(DungeonPetSelect(pets, ctx.guild.id, target.id, engine))
+            await ctx.send(embed=emb, view=view)
+        else:
+            await ctx.send(embed=emb)
+
+    # --- COMANDO ADICIONAL: EXIBIR BRINQUEDOS ---
+    @commands.command(name="dungeontoys")
+    async def show_dungeon_toys(self, ctx, member: discord.Member = None):
+        """Displays your equipped dungeon toys and active boost attributes."""
+        engine = self.bot.get_cog("PartnersInCrimeEngine")
+        if not engine: 
+            return
+            
+        target = member or ctx.author
+        
+        try:
+            with engine.get_db_connection() as conn:
+                toys = conn.execute("SELECT toy_name, category, boost, equipped FROM user_toys WHERE guild_id = ? AND user_id = ?", (ctx.guild.id, target.id)).fetchall()
+        except Exception as e:
+            print(f"Error fetching toys: {e}")
+            toys = []
+            
+        if not toys:
+            return await ctx.send(f"❌ **{target.display_name}** does not have any dungeon toys yet! Keep winning Spree sessions to unlock them.")
+            
+        toys_desc = ""
+        active_dom_boost = 0.0
+        active_sub_boost = 0.0
+        for t in toys:
+            eq_status = " 👅 **[ACTIVE TOY]**" if t[3] == 1 else ""
+            toys_desc += f"• **{t[0]}** ({t[1]}) — Grants `+{t[2]*100:.0f}%` Power{eq_status}\n"
+            if t[3] == 1:
+                if t[1] == "Dominant":
+                    active_dom_boost = t[2]
+                else:
+                    active_sub_boost = t[2]
+            
+        emb = discord.Embed(
+            title=f"🍆 {target.display_name}'s Dungeon Toybox 🍆",
+            description=f"Select your companion using the dropdown below to set your active boost! \n\n"
+                        f"🛡️ **Equipped Dom Toy Boost:** `+{active_dom_boost*100:.0f}%` Defense\n"
+                        f"🫦 **Equipped Sub Toy Boost:** `+{active_sub_boost*100:.0f}%` Win Chance\n\n"
+                        f"**Your Stable:**\n{toys_desc}",
+            color=0xE0115F
+        )
+        emb.set_thumbnail(url=target.display_avatar.url)
+        
+        # Display selection menu only to the profile owner
+        if len(toys) > 1 and target.id == ctx.author.id:
+            view = discord.ui.View()
+            view.add_item(DungeonToySelect(toys, ctx.guild.id, target.id, engine))
             await ctx.send(embed=emb, view=view)
         else:
             await ctx.send(embed=emb)
