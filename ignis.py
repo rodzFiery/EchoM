@@ -1064,12 +1064,12 @@ class IgnisEngine(commands.Cog):
                         for p_id in participants:
                             m = channel.guild.get_member(p_id)
                             if m and m.id != winner_member.id:
-                                if winner_is_male:
-                                    if any(r.name.lower() in ["she/her", "female"] for r in m.roles):
-                                        faction_flashers.append(m)
-                                elif winner_is_female:
-                                    if any(r.name.lower() in ["he/him", "male"] for r in m.roles):
-                                        faction_flashers.append(m)
+                                m_is_female = any(r.name.lower() in ["she/her", "female"] for r in m.roles)
+                                m_is_male = any(r.name.lower() in ["he/him", "male"] for r in m.roles)
+                                if winner_is_male and m_is_female:
+                                    faction_flashers.append(m)
+                                elif winner_is_female and m_is_male:
+                                    faction_flashers.append(m)
                     elif rules['faction_theme'] == "usa_vs_world":
                         winner_is_na = any(r.name.lower() == "north america" for r in winner_member.roles)
                         for p_id in participants:
@@ -1168,7 +1168,7 @@ class IgnisEngine(commands.Cog):
                     l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
                     
                     all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member Baby and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
                     
                     random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
                     random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
