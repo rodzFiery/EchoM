@@ -264,9 +264,21 @@ class ModerationLog(commands.Cog):
         if not log_channel or log_channel.guild.id != payload.guild_id:
             return
 
+        # Added explicit channel resolution fallback step to safely trace the exact name string
+        resolved_channel = self.bot.get_channel(payload.channel_id)
+        if not resolved_channel:
+            try:
+                resolved_channel = await self.bot.fetch_channel(payload.channel_id)
+            except:
+                pass
+
+        channel_display = f"<#{payload.channel_id}>"
+        if resolved_channel:
+            channel_display = f"{resolved_channel.mention} (**#{resolved_channel.name}**)"
+
         embed = discord.Embed(color=self.color_deleted)
         embed.set_author(name="Ghost Message Deleted (Uncached)")
-        embed.description = f"An older message was deleted in <#{payload.channel_id}>\n\n*Note: Because this message was sent before the bot's recent deployment/restart, Discord restricts access to the author and content.*"
+        embed.description = f"An older message was deleted in {channel_display}\n\n*Note: Because this message was sent before the bot's recent deployment/restart, Discord restricts access to the author and content.*"
         embed.set_footer(text=f"Message ID: {payload.message_id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
         await log_channel.send(embed=embed)
 
@@ -287,14 +299,42 @@ class ModerationLog(commands.Cog):
         if 'content' not in data:
             return 
 
-        author_name = data.get('author', {}).get('username', 'Unknown Author')
-        author_id = data.get('author', {}).get('id', 'Unknown ID')
+        # Added dynamic structure checks to fetch incomplete or obscured target parameters out of the data block
+        author_data = data.get('author', {})
+        author_name = author_data.get('username', 'Unknown Author')
+        author_id = author_data.get('id', 'Unknown ID')
         new_content = data.get('content', '')
 
+        # Added step to attempt to fetch user from the server guild directly if fields match
+        resolved_author = None
+        if author_id != 'Unknown ID':
+            try:
+                guild_obj = self.bot.get_guild(payload.guild_id)
+                if guild_obj:
+                    resolved_author = guild_obj.get_member(int(author_id)) or await guild_obj.fetch_member(int(author_id))
+            except:
+                pass
+
+        author_display_string = f"@{author_name}"
+        if resolved_author:
+            author_display_string = f"{resolved_author.display_name} (@{resolved_author.name})"
+
+        # Added explicit channel name text extraction block to survive cache updates
+        resolved_channel = self.bot.get_channel(payload.channel_id)
+        if not resolved_channel:
+            try:
+                resolved_channel = await self.bot.fetch_channel(payload.channel_id)
+            except:
+                pass
+
+        channel_display = f"<#{payload.channel_id}>"
+        if resolved_channel:
+            channel_display = f"{resolved_channel.mention} (**#{resolved_channel.name}**)"
+
         embed = discord.Embed(color=self.color_edited)
-        embed.set_author(name=f"@{author_name} (Uncached Edit)")
+        embed.set_author(name=f"{author_display_string} (Uncached Edit)")
         
-        desc = f"Message edited in <#{payload.channel_id}> - [Jump to message](https://discord.com/channels/{payload.guild_id}/{payload.channel_id}/{payload.message_id})\n\n"
+        desc = f"Message edited in {channel_display} - [Jump to message](https://discord.com/channels/{payload.guild_id}/{payload.channel_id}/{payload.message_id})\n\n"
         desc += f"**Old**\n*Unknown (Message was not in bot cache)*\n\n"
         desc += f"**New**\n{new_content[:1000]}"
         
