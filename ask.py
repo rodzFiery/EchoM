@@ -204,24 +204,35 @@ class RecipientView(discord.ui.View):
         self.req_id = req_id
         self.tar_id = tar_id
 
+    # Helper execution step added directly inside to extract correct user IDs during a persistent state recovery 
+    def check_permissions(self, inter: discord.Interaction):
+        current_target_id = self.tar_id
+        current_requester_id = self.req_id
+        if current_target_id == 0 or current_requester_id == 0:
+            try:
+                desc = inter.message.embeds[0].description
+                current_target_id = int(desc.split('<@')[1].split('>')[0])
+                current_requester_id = int(desc.split('filed by <@')[1].split('>')[0])
+            except:
+                pass
+        return current_target_id, current_requester_id
+
     # --- ADDED: THE INTERROGATION TRIGGER ---
     @discord.ui.button(label="👁️ Make a question first", style=discord.ButtonStyle.primary, custom_id="ask_dm_interrogate_v3")
     async def interrogate(self, inter: discord.Interaction, btn: discord.ui.Button):
-        target_id = self.tar_id or inter.user.id 
+        target_id, requester_id = self.check_permissions(inter)
         if inter.user.id != target_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
+            return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         
-        await inter.response.send_modal(InterrogateModal(self.req_id, target_id, inter.message.id))
+        await inter.response.send_modal(InterrogateModal(requester_id, target_id, inter.message.id))
 
     @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept_v3")
     async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
-        # Determine target from interaction if initialized with 0
-        target_id = self.tar_id or inter.user.id 
+        target_id, requester_id = self.check_permissions(inter)
         if inter.user.id != target_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
+            return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         
         main_mod = sys.modules['__main__']
-        # Try to find requester from mentions in message content/embed if not set
         requester_mention = inter.message.content.split('by ')[1].split('.')[0] if "filed by" in inter.message.content else "Member"
         
         success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", f"**ACCEPTED.** The request was accepted by {inter.user.mention}.")
@@ -229,8 +240,10 @@ class RecipientView(discord.ui.View):
 
     @discord.ui.button(label="Reject DM request", style=discord.ButtonStyle.danger, emoji="❌", custom_id="ask_dm_reject_v3")
     async def deny(self, inter: discord.Interaction, btn: discord.ui.Button):
-        if self.tar_id != 0 and inter.user.id != self.tar_id: 
-            return await inter.response.send_message("❌ Access denied.", ephemeral=True)
+        target_id, requester_id = self.check_permissions(inter)
+        if inter.user.id != target_id: 
+            return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
+            
         main_mod = sys.modules['__main__']
         fail_emb = main_mod.fiery_embed("❌ REQUEST DENIED", f"**DENIED.** {inter.user.mention} has rejected the request.")
         await inter.response.send_message(embed=fail_emb)
@@ -241,12 +254,29 @@ class PlayView(discord.ui.View):
         self.req_id = req_id
         self.tar_id = tar_id
 
+    # Helper execution step added directly inside to extract correct user IDs during a persistent state recovery 
+    def check_permissions(self, inter: discord.Interaction):
+        current_target_id = self.tar_id
+        if current_target_id == 0:
+            try:
+                desc = inter.message.embeds[0].description
+                current_target_id = int(desc.split('<@')[1].split('>')[0])
+            except:
+                pass
+        return current_target_id
+
     @discord.ui.button(label="Accept Sync", style=discord.ButtonStyle.success, emoji="🔥", custom_id="ask_play_accept_v3")
     async def accept_play(self, inter: discord.Interaction, btn: discord.ui.Button):
+        target_id = self.check_permissions(inter)
+        if inter.user.id != target_id:
+            return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         await inter.response.send_message(f"🔞 **SYNC INITIALIZED.** {inter.user.mention} is ready.")
 
     @discord.ui.button(label="Abort Sync", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ask_play_deny_v3")
     async def deny_play(self, inter: discord.Interaction, btn: discord.ui.Button):
+        target_id = self.check_permissions(inter)
+        if inter.user.id != target_id:
+            return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         await inter.response.send_message(f"🔒 **SYNC ABORTED.** {inter.user.mention} has locked their gate.")
 
 # --- COG CLASS ---
