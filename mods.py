@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timezone
 import sys
+import io
+import aiohttp
 
 class ModerationLog(commands.Cog):
     def __init__(self, bot):
@@ -206,22 +208,38 @@ class ModerationLog(commands.Cog):
         if message.content:
             desc += f"**Content**\n{message.content[:2000]}\n"
         
+        discord_files_to_send = []
         if message.attachments:
             desc += "\n**Attachments Caught:**\n"
             media_already_rendered = False
-            for att in message.attachments:
-                desc += f"📎 [{att.filename}]({att.proxy_url})\n"
-                
-                # --- NEW: ACTIVE MEDIA EMBED VISUAL GENERATOR ---
-                if not media_already_rendered:
-                    if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
-                        embed.set_image(url=att.proxy_url)
-                        media_already_rendered = True
-                # -------------------------------------------------
+            
+            async with aiohttp.ClientSession() as session:
+                for att in message.attachments:
+                    desc += f"📎 [{att.filename}]({att.proxy_url})\n"
+                    
+                    # --- NEW: ACTIVE MEDIA EMBED VISUAL GENERATOR ---
+                    if not media_already_rendered:
+                        if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.webp']):
+                            embed.set_image(url=att.proxy_url)
+                            media_already_rendered = True
+                    
+                    # --- ADDED: DOWNLOAD ARCHIVE ATTACHMENT BEFORE CDN WIPE ---
+                    try:
+                        async with session.get(att.proxy_url) as resp:
+                            if resp.status == 200:
+                                media_bytes = io.BytesIO(await resp.read())
+                                d_file = discord.File(media_bytes, filename=att.filename)
+                                discord_files_to_send.append(d_file)
+                    except Exception as download_error:
+                        print(f"Failed archive pre-fetch data streaming download: {download_error}")
 
         embed.description = desc
         embed.set_footer(text=f"User ID: {message.author.id} • {datetime.now(timezone.utc).strftime('%H:%M')}")
-        await log_channel.send(embed=embed)
+        
+        if discord_files_to_send:
+            await log_channel.send(embed=embed, files=discord_files_to_send)
+        else:
+            await log_channel.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before, after):
