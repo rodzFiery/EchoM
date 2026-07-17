@@ -187,7 +187,7 @@ class DungeonCounter(commands.Cog):
         await ctx.send(embed=fiery_embed(self.bot, False, "MATH PROTOCOL ADJUSTED", desc))
 
     # --- THE MEDIA PURGE PROTOCOL ---
-    @commands.command(name="deletemymidia")
+    @commands.command(name="deletemymedia")
     async def delete_my_media(self, ctx, days: int):
         """PURGE PROTOCOL: Scans server history and targets user files older than specified days."""
         if days < 0:
