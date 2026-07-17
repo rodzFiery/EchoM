@@ -203,6 +203,7 @@ class DungeonCounter(commands.Cog):
         earliest_timestamp = None
         latest_timestamp = None
         
+        # FIXED: Restricted history scanning parameters exclusively to channels matching the current contextual guild layout
         for channel in ctx.guild.text_channels:
             # Verify permissions before checking history frames
             perms = channel.permissions_for(ctx.guild.me)
