@@ -1,7 +1,7 @@
 import discord
 import os
 from discord.ext import commands
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import database as db_module # Ensure this is imported for independent lookup
 import json
 import random # Ensure random is available for the new logic
@@ -185,6 +185,75 @@ class DungeonCounter(commands.Cog):
         desc = f"The Master has recalibrated the sequence. The current count is now **{new_number}**.\n\n" \
                f"The next required number is **{new_number + 1}**."
         await ctx.send(embed=fiery_embed(self.bot, False, "MATH PROTOCOL ADJUSTED", desc))
+
+    # --- THE MEDIA PURGE PROTOCOL ---
+    @commands.command(name="deletemymidia")
+    async def delete_my_media(self, ctx, days: int):
+        """PURGE PROTOCOL: Scans server history and targets user files older than specified days."""
+        if days < 0:
+            return await ctx.send("❌ **Sequence Failure:** Time criteria metrics cannot fall into negative boundaries.")
+        
+        status_msg = await ctx.send("⚙️ **SCANNING SERVERS...** Querying server history frames for archive links. Please remain patient...")
+        
+        now = datetime.now(timezone.utc)
+        cutoff_date = now - timedelta(days=days)
+        
+        deleted_count = 0
+        channels_scanned = 0
+        earliest_timestamp = None
+        latest_timestamp = None
+        
+        for channel in ctx.guild.text_channels:
+            # Verify permissions before checking history frames
+            perms = channel.permissions_for(ctx.guild.me)
+            if not perms.read_message_history or not perms.read_messages:
+                continue
+                
+            channels_scanned += 1
+            try:
+                async for msg in channel.history(limit=500, before=cutoff_date):
+                    if msg.author.id == ctx.author.id:
+                        if msg.attachments or any(embed.type in ['image', 'video', 'gifv'] for embed in msg.embeds):
+                            msg_time = msg.created_at.replace(tzinfo=timezone.utc)
+                            
+                            # Keep track of dates found
+                            if earliest_timestamp is None or msg_time < earliest_timestamp:
+                                earliest_timestamp = msg_time
+                            if latest_timestamp is None or msg_time > latest_timestamp:
+                                latest_timestamp = msg_time
+                                
+                            try:
+                                await msg.delete()
+                                deleted_count += 1
+                            except:
+                                pass
+            except Exception as channel_error:
+                print(f"Skipping channel scanning track loop: {channel_error}")
+                
+        await status_msg.delete()
+        
+        # Build layout details for response block
+        earliest_str = earliest_timestamp.strftime('%d de %b de %Y %H:%M') if earliest_timestamp else "N/A"
+        latest_str = latest_timestamp.strftime('%d de %b de %Y %H:%M') if latest_timestamp else "N/A"
+        
+        report_desc = (
+            f"Asset {ctx.author.mention}, your historical footprints file wipe has concluded successfully.\n\n"
+            f"### 🧪 DELETION BREAKDOWN:\n"
+            f"* **Purged Items:** `{deleted_count}` active media/attachments\n"
+            f"* **Channels Processed:** `{channels_scanned}` targets checked\n"
+            f"* **Target Timeline Limit:** Older than `{days}` days\n\n"
+            f"### 🗓️ CHRONOLOGICAL RANGE OF DELETED ITEMS:\n"
+            f"* **Oldest File Found:** `{earliest_str}`\n"
+            f"* **Newest File Found:** `{latest_str}`"
+        )
+        
+        embed = fiery_embed(self.bot, True, "🗑️ FILES WIPED FROM LEDGER", report_desc)
+        
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_message(self, message):
