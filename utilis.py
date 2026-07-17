@@ -213,6 +213,7 @@ class DungeonCounter(commands.Cog):
             channels_scanned += 1
             try:
                 async for msg in channel.history(limit=500, before=cutoff_date):
+                    # STRICT OWNER RULE: Ensure we ONLY target and match the ID of the person executing the command
                     if msg.author.id == ctx.author.id:
                         if msg.attachments or any(embed.type in ['image', 'video', 'gifv'] for embed in msg.embeds):
                             msg_time = msg.created_at.replace(tzinfo=timezone.utc)
