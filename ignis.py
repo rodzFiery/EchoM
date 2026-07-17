@@ -75,7 +75,7 @@ class LobbyView(discord.ui.View):
                     rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (self.guild_id,)).fetchall()
                     self.participants = [r[0] for r in rows]
             except Exception as e:
-                print(f"Rehydration Error: {e}")
+                print(f"Persistence Rehydration Error: {e}")
 
     async def join_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -818,11 +818,11 @@ class IgnisEngine(commands.Cog):
                         
                         import sys as _sys_mod
                         main = _sys_mod.modules['__main__']
-                        if (main.nsfw_mode_active or main.basic_nsfw_active) and rules["first_blood"]:
+                        if (main.nsfw_mode_active or main.basic_nsfw_active) and rules.get("first_blood"):
                             flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
-                    if rules["suicide"]:
+                    if rules.get("suicide"):
                         suicide_victims.append(channel.guild.get_member(victim['id']))
                     
                     if channel.id in self.current_survivors:
@@ -884,11 +884,11 @@ class IgnisEngine(commands.Cog):
                              first_loser_member = channel.guild.get_member(loser['id'])
                              import sys as _sys_mod
                              main = _sys_mod.modules['__main__']
-                             if (main.nsfw_mode_active or main.basic_nsfw_active) and rules["first_blood"]:
+                             if (main.nsfw_mode_active or main.basic_nsfw_active) and rules.get("first_blood"):
                                  flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                                  await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
-                        if rules["legendary"]:
+                        if rules.get("legendary"):
                             legendary_victims.append(channel.guild.get_member(loser['id']))
 
                         if channel.id in self.current_survivors:
@@ -935,7 +935,7 @@ class IgnisEngine(commands.Cog):
                     first_loser_member = channel.guild.get_member(loser['id'])
                     import sys as _sys_mod
                     main = _sys_mod.modules['__main__']
-                    if (main.nsfw_mode_active or main.basic_nsfw_active) and rules["first_blood"]:
+                    if (main.nsfw_mode_active or main.basic_nsfw_active) and rules.get("first_blood"):
                         flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
                         await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
                     first_blood_recorded = True
@@ -1053,28 +1053,28 @@ class IgnisEngine(commands.Cog):
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
-                f_death = f"{first_loser_member.mention} (FLASH)" if (first_loser_member and rules["first_blood"]) else "None"
-                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if (suicide_victims and rules["suicide"]) else "None"
-                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules["legendary"]) else "None"
+                f_death = f"{first_loser_member.mention} (FLASH)" if (first_loser_member and rules.get("first_blood")) else "None"
+                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if (suicide_victims and rules.get("suicide")) else "None"
+                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
                 
                 all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules["first_blood"]) else None] + ([v.id for v in suicide_victims] if rules["suicide"] else []) + ([v.id for v in legendary_victims] if rules["legendary"] else []) + [winner_member.id]]
+                possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
                 
-                random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules["bot_random"]) else None
+                random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
                 random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
                 
                 remaining_assets = [m.mention for m in possible_flashers if m != random_flasher_member]
                 available_assets_text = " ".join(remaining_assets) if remaining_assets else "None (Everyone else is already exposed or dead)"
                 
                 ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
-                if first_loser_member and rules["first_blood"]: ping_content += f"{first_loser_member.mention} "
-                if suicide_victims and rules["suicide"]: ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
-                if legendary_victims and rules["legendary"]: ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
+                if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
+                if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
+                if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
                 if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
                 ping_content += f"{winner_member.mention}"
                 
                 recap_file = None
-                if rules.get("is_custom_setup") and rules['faction_theme'] in ["men_vs_girls", "usa_vs_world"]:
+                if rules.get("is_custom_setup") and rules.get('faction_theme') in ["men_vs_girls", "usa_vs_world"]:
                     faction_flashers = []
                     if rules['faction_theme'] == "men_vs_girls":
                         winner_is_male = any(r.name.lower() in ["he/him", "male"] for r in winner_member.roles)
@@ -1094,6 +1094,7 @@ class IgnisEngine(commands.Cog):
                             m = channel.guild.get_member(p_id)
                             if m and m.id != winner_member.id:
                                 m_is_na = any(r.name.lower() == "north america" for r in m.roles)
+                                # FIXED USA VS WORLD SELECTION LOGIC GATE
                                 if winner_is_na and not m_is_na:
                                     faction_flashers.append(m)
                                 elif not winner_is_na and m_is_na:
@@ -1146,7 +1147,7 @@ class IgnisEngine(commands.Cog):
                 elif rules.get("is_custom_setup"):
                     nsfw_embed = discord.Embed(
                         title="🔮 CUSTOM ARCHITECT PROTOCOL: RECAP 🔮",
-                        description=f"**Faction Mode Configuration Matrix:** `{rules['faction_theme'].upper()}`",
+                        description=f"**Faction Mode Configuration Matrix:** `{rules.get('faction_theme', 'FFA').upper()}`",
                         color=0x9400D3
                     )
                     nsfw_embed.add_field(name="💀 FIRST SACRIFICE PENALTY", value=f_death, inline=True)
@@ -1154,7 +1155,7 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="⚔️ TACTICAL CLEANSE WIPE", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
                     nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
-                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules['winner_picks']} victims**. Run `!flash @user` to apply your decree.", inline=False)
+                    nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules.get('winner_picks', 0)} victims**. Run `!flash @user` to apply your decree.", inline=False)
                 else:
                     nsfw_embed = discord.Embed(
                         title="🔞 NSFW PROTOCOL: RECAP 🔞",
@@ -1165,7 +1166,7 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="⚔️ WIPED (LEGENDARY EVENT)", value=l_victims, inline=False)
                     nsfw_embed.add_field(name="🫦 RANDOMLY SELECTED FLASH", value=random_flasher, inline=False)
                     nsfw_embed.add_field(name="🎯 AVAILABLE ASSETS TO FLASH", value=available_assets_text, inline=False)
-                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules['winner_picks']} Victims**)", inline=False)
+                    nsfw_embed.add_field(name="👑 WINNER'S DECREE", value=f"{winner_member.mention}, YOU OWN THEM. USE `!flash @xx` TO STRIP YOUR CHOSEN ASSETS. (**Rule Limit: Pick {rules.get('winner_picks', 3)} Victims**)", inline=False)
                 
                 if recap_file:
                     await channel.send(content=ping_content, file=recap_file, embed=nsfw_embed)
