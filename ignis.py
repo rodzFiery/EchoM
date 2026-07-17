@@ -1168,7 +1168,7 @@ class IgnisEngine(commands.Cog):
                     l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
                     
                     all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member Baby and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
                     
                     random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
                     random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
