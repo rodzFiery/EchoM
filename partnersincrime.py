@@ -271,12 +271,12 @@ class CrimeLobbyView(discord.ui.View):
     async def join_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        if not self.active:
-            return await interaction.followup.send("❌ **The dungeon cells are locked.** The session is already active.", ephemeral=True)
-
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
             return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
+
+        if interaction.guild.id not in engine.current_lobbies:
+            return await interaction.followup.send("❌ **The dungeon cells are locked.** The session is already active.", ephemeral=True)
 
         # 1. Fetch synced team list directly from the database
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -435,12 +435,12 @@ class CrimeLobbyView(discord.ui.View):
     async def repost_button_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        if not self.active:
-            return await interaction.followup.send("❌ **The playroom cells are locked.** The session is active.", ephemeral=True)
-
         engine = interaction.client.get_cog("PartnersInCrimeEngine")
         if not engine: 
             return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
+
+        if interaction.guild.id not in engine.current_lobbies:
+            return await interaction.followup.send("❌ **The playroom cells are locked.** The session is active.", ephemeral=True)
 
         try:
             # 1. Disable the old message view to avoid duplicate inputs or clutter
@@ -1309,7 +1309,7 @@ class CrimeEngineControl(commands.Cog):
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **An active dungeon session is already running.** Wait for completion.")
             if ctx.guild.id in engine.current_lobbies:
-                return await ctx.send("❌ **Dungeon playroom gates are already open in this city.**")
+                return await ctx.send("❌ **Dungeon playroom playroom gates are already open in this city.**")
 
         with self.get_db_connection() as conn:
             # Re-migration safety check before setting up the game lobby
