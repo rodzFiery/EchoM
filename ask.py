@@ -15,6 +15,8 @@ from PIL import Image, ImageDraw, ImageOps, ImageFilter
 with sqlite3.connect("dungeon_ask.db") as conn:
     conn.execute("CREATE TABLE IF NOT EXISTS tributes (req_id INTEGER, tar_id INTEGER, tribute TEXT)")
     conn.execute("CREATE TABLE IF NOT EXISTS interrogations (msg_id INTEGER, alert_msg_id INTEGER, tar_id INTEGER, question TEXT)")
+    # New configuration layout storage block for admin settings
+    conn.execute("CREATE TABLE IF NOT EXISTS config (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, role_id INTEGER)")
     conn.commit()
 
 # --- ADDED: FEATURE 2 - INTERROGATION SYSTEM COMPONENTS ---
@@ -379,6 +381,28 @@ class DungeonAsk(commands.Cog):
             print(f"Visual Error: {e}")
             return None
 
+    # --- ADDED: CONFIGURATION COMMAND GROUP FOR SYSTEM SETUP ---
+    @commands.group(name="askadmin", invoke_without_command=True)
+    @commands.has_permissions(administrator=True)
+    async def askadmin(self, ctx):
+        await ctx.send("ℹ️ **Usage:** `!askadmin channel #channel` or `!askadmin role @role`")
+
+    @askadmin.command(name="channel")
+    @commands.has_permissions(administrator=True)
+    async def askadmin_channel(self, ctx, channel: discord.TextChannel):
+        with sqlite3.connect("dungeon_ask.db") as conn:
+            conn.execute("INSERT INTO config (guild_id, channel_id) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET channel_id=excluded.channel_id", (ctx.guild.id, channel.id))
+            conn.commit()
+        await ctx.send(f"✅ **Admin Reporting Channel locked to:** {channel.mention}")
+
+    @askadmin.command(name="role")
+    @commands.has_permissions(administrator=True)
+    async def askadmin_role(self, ctx, role: discord.Role):
+        with sqlite3.connect("dungeon_ask.db") as conn:
+            conn.execute("INSERT INTO config (guild_id, role_id) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET role_id=excluded.role_id", (ctx.guild.id, role.id))
+            conn.commit()
+        await ctx.send(f"✅ **Admin Notification Role locked to:** {role.mention}")
+
     @commands.command(name="ask")
     async def ask(self, ctx, member: discord.Member):
         if member.id == ctx.author.id:
@@ -386,13 +410,48 @@ class DungeonAsk(commands.Cog):
 
         # --- ADDED: SECURITY GATE FOR CLOSED ROLES ---
         has_closed_role = False
+        blocked_by_role_name = ""
         for role in member.roles:
             if "closed" in role.name.lower():
                 has_closed_role = True
+                blocked_by_role_name = role.name
                 break
 
         if has_closed_role:
             block_msg = await ctx.send(f"❌ Request blocked. {member.mention} currently has private gates closed.")
+            
+            # --- ADDED: FANCY REPORT DISPATCH TO ADMIN CHANNEL ---
+            try:
+                with sqlite3.connect("dungeon_ask.db") as conn:
+                    row = conn.execute("SELECT channel_id, role_id FROM config WHERE guild_id=?", (ctx.guild.id,)).fetchone()
+                
+                if row:
+                    target_channel_id, ping_role_id = row
+                    report_channel = ctx.guild.get_channel(target_channel_id)
+                    
+                    if report_channel:
+                        main_mod = sys.modules['__main__']
+                        
+                        # Generating the highly detailed tracking embed
+                        report_embed = main_mod.fiery_embed("🚨 BLOCKED TRANSMISSION ATTEMPT", 
+                            f"An initial DM request handshake was auto-terminated due to user role locks.\n\n"
+                            f"### ⚔️ INTERCEPT SUMMARY:\n"
+                            f"* **Initiator Asset:** {ctx.author.mention} (`{ctx.author.id}`)\n"
+                            f"* **Target Target:** {member.mention} (`{member.id}`)\n"
+                            f"* **Active Gate Block:** `{blocked_by_role_name}`\n\n"
+                            f"### 🗓️ TIMESTAMP OF INCIDENT:\n> <t:{int(datetime.now(timezone.utc).timestamp())}:F>")
+                        
+                        report_embed.set_thumbnail(url=ctx.author.display_avatar.url)
+                        report_embed.color = 0xFF0000
+                        
+                        ping_content = ""
+                        if ping_role_id:
+                            ping_content = f"<@&{ping_role_id}>"
+                            
+                        await report_channel.send(content=ping_content, embed=report_embed)
+            except Exception as report_error:
+                print(f"Logging System Incident Failure: {report_error}")
+
             await asyncio.sleep(10)
             try:
                 await block_msg.delete()
