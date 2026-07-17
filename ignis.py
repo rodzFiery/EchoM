@@ -1053,27 +1053,9 @@ class IgnisEngine(commands.Cog):
             import sys as _sys_end
             main_end = _sys_end.modules['__main__']
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
-                f_death = f"{first_loser_member.mention} (FLASH)" if (first_loser_member and rules.get("first_blood")) else "None"
-                s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if (suicide_victims and rules.get("suicide")) else "None"
-                l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
-                
-                all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
-                
-                random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
-                random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
-                
-                remaining_assets = [m.mention for m in possible_flashers if m != random_flasher_member]
-                available_assets_text = " ".join(remaining_assets) if remaining_assets else "None (Everyone else is already exposed or dead)"
-                
-                ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
-                if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
-                if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
-                if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
-                if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
-                ping_content += f"{winner_member.mention}"
-                
                 recap_file = None
+                
+                # BRANCH A: FACTION MATCHES ONLY (STRICT SEPARATION)
                 if rules.get("is_custom_setup") and rules.get('faction_theme') in ["men_vs_girls", "usa_vs_world"]:
                     faction_flashers = []
                     if rules['faction_theme'] == "men_vs_girls":
@@ -1094,7 +1076,6 @@ class IgnisEngine(commands.Cog):
                             m = channel.guild.get_member(p_id)
                             if m and m.id != winner_member.id:
                                 m_is_na = any(r.name.lower() == "north america" for r in m.roles)
-                                # FIXED USA VS WORLD SELECTION LOGIC GATE
                                 if winner_is_na and not m_is_na:
                                     faction_flashers.append(m)
                                 elif not winner_is_na and m_is_na:
@@ -1141,10 +1122,33 @@ class IgnisEngine(commands.Cog):
                         recap_file = discord.File(fp=buf_strip, filename="faction_strip.png")
                         nsfw_embed.set_image(url="attachment://faction_strip.png")
 
+                    ping_content = f"🔞 **FACTION MASS WIPE PROTOCOL PINGS:** "
                     if faction_flashers:
-                        ping_content = f"🔞 **FACTION MASS WIPE PROTOCOL PINGS:** " + " ".join([m.mention for m in faction_flashers]) + f" {winner_member.mention}"
+                        ping_content += " ".join([m.mention for m in faction_flashers]) + " "
+                    ping_content += f"{winner_member.mention}"
                 
+                # BRANCH B: CUSTOM RULES (NON-FACTION MODELS)
                 elif rules.get("is_custom_setup"):
+                    f_death = f"{first_loser_member.mention} (FLASH)" if (first_loser_member and rules.get("first_blood")) else "None"
+                    s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if (suicide_victims and rules.get("suicide")) else "None"
+                    l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
+                    
+                    all_participants = [channel.guild.get_member(p_id) for p_id in participants]
+                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    
+                    random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
+                    random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
+                    
+                    remaining_assets = [m.mention for m in possible_flashers if m != random_flasher_member]
+                    available_assets_text = " ".join(remaining_assets) if remaining_assets else "None (Everyone else is already exposed or dead)"
+                    
+                    ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
+                    if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
+                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
+                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
+                    if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
+                    ping_content += f"{winner_member.mention}"
+
                     nsfw_embed = discord.Embed(
                         title="🔮 CUSTOM ARCHITECT PROTOCOL: RECAP 🔮",
                         description=f"**Faction Mode Configuration Matrix:** `{rules.get('faction_theme', 'FFA').upper()}`",
@@ -1156,7 +1160,29 @@ class IgnisEngine(commands.Cog):
                     nsfw_embed.add_field(name="🫦 SYSTEM AUTOMATED PICKS", value=random_flasher, inline=True)
                     nsfw_embed.add_field(name="🎯 ELIGIBLE REMAINING ASSETS", value=available_assets_text, inline=True)
                     nsfw_embed.add_field(name="👑 VICTOR DECREE CONSTRAINTS", value=f"{winner_member.mention}, rules mandate execution command control over exactly **{rules.get('winner_picks', 0)} victims**. Run `!flash @user` to apply your decree.", inline=False)
+                
+                # BRANCH C: GLOBAL STANDARD ENVIRONMENT MODE
                 else:
+                    f_death = f"{first_loser_member.mention} (FLASH)" if (first_loser_member and rules.get("first_blood")) else "None"
+                    s_victims = " ".join([m.mention + " (FLASH)" for m in suicide_victims if m]) if (suicide_victims and rules.get("suicide")) else "None"
+                    l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
+                    
+                    all_participants = [channel.guild.get_member(p_id) for p_id in participants]
+                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    
+                    random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
+                    random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
+                    
+                    remaining_assets = [m.mention for m in possible_flashers if m != random_flasher_member]
+                    available_assets_text = " ".join(remaining_assets) if remaining_assets else "None (Everyone else is already exposed or dead)"
+                    
+                    ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
+                    if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
+                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
+                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
+                    if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
+                    ping_content += f"{winner_member.mention}"
+
                     nsfw_embed = discord.Embed(
                         title="🔞 NSFW PROTOCOL: RECAP 🔞",
                         color=0xFF00FF
