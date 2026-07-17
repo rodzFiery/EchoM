@@ -384,6 +384,23 @@ class DungeonAsk(commands.Cog):
         if member.id == ctx.author.id:
             return await ctx.send("❌ You can't ask to DM yourself.")
 
+        # --- ADDED: SECURITY GATE FOR CLOSED ROLES ---
+        has_closed_role = False
+        for role in member.roles:
+            if "closed" in role.name.lower():
+                has_closed_role = True
+                break
+
+        if has_closed_role:
+            block_msg = await ctx.send(f"❌ Request blocked. {member.mention} currently has private gates closed.")
+            await asyncio.sleep(10)
+            try:
+                await block_msg.delete()
+                await ctx.message.delete()
+            except:
+                pass
+            return
+
         main_mod = sys.modules['__main__']
         img = await self.create_ask_lobby(ctx.author.display_avatar.url, member.display_avatar.url, "")
         file = discord.File(img, filename="ask.png")
