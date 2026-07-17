@@ -22,7 +22,7 @@ class AnswerModal(discord.ui.Modal, title="Submit an answer"):
     answer = discord.ui.TextInput(label="Your Answer", style=discord.TextStyle.paragraph, required=True)
 
     def __init__(self, tar_id, msg_id, question):
-        super().__init__()
+        super().__init__(custom_id=f"ask_ans_modal:{tar_id}:{msg_id}")
         self.tar_id = tar_id
         self.msg_id = msg_id
         self.question = question
@@ -61,13 +61,21 @@ class InterrogateModal(discord.ui.Modal, title="Make a question before accept"):
     question = discord.ui.TextInput(label="Your Question", style=discord.TextStyle.paragraph, required=True)
 
     def __init__(self, req_id, tar_id, msg_id):
-        super().__init__()
+        super().__init__(custom_id=f"ask_int_modal:{req_id}:{tar_id}:{msg_id}")
         self.req_id = req_id
         self.tar_id = tar_id
         self.msg_id = msg_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
         req_user = interaction.guild.get_member(self.req_id)
+        if not req_user:
+            try:
+                req_user = await interaction.guild.fetch_member(self.req_id)
+            except:
+                return await interaction.followup.send("❌ Could not retrieve the requester asset.", ephemeral=True)
+                
         embed = discord.Embed(title="👁️ Questions:", description=f"{req_user.mention}, you are being interrogated by {interaction.user.mention} before they open the gate.\n\n**QUESTION:** {self.question.value}", color=0xFFD700)
         view = AnswerView()
         alert_msg = await interaction.channel.send(content=req_user.mention, embed=embed, view=view)
@@ -76,21 +84,21 @@ class InterrogateModal(discord.ui.Modal, title="Make a question before accept"):
             conn.execute("INSERT INTO interrogations VALUES (?, ?, ?, ?)", (self.msg_id, alert_msg.id, self.tar_id, self.question.value))
             conn.commit()
             
-        await interaction.response.send_message("✅ Interrogation transmitted.", ephemeral=True)
+        await interaction.followup.send("✅ Interrogation transmitted.", ephemeral=True)
 
 # --- ADDED: FEATURE 1 - TRIBUTE/ENCRYPTION MODAL ---
 class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
     tribute = discord.ui.TextInput(label="Encryption Key / Tribute", style=discord.TextStyle.paragraph, placeholder="Why should they accept? Enter your tribute here...", required=True, max_length=1000)
 
     def __init__(self, req_id, tar_id, intents, intent_display):
-        super().__init__()
+        super().__init__(custom_id=f"ask_trib_modal:{req_id}:{tar_id}")
         self.req_id = req_id
         self.tar_id = tar_id
         self.intents = intents
         self.intent_display = intent_display
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer() 
+        await interaction.response.defer(ephemeral=True) 
 
         # --- FEATURE 3: DYNAMIC VISUAL CALCULATION ---
         intent_color = None
@@ -104,8 +112,20 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
             conn.commit()
 
         main_mod = sys.modules.get('__main__')
+        
         target_user = interaction.guild.get_member(self.tar_id)
+        if not target_user:
+            try:
+                target_user = await interaction.guild.fetch_member(self.tar_id)
+            except:
+                return await interaction.followup.send("❌ Error fetching target user data.", ephemeral=True)
+                
         requester_user = interaction.guild.get_member(self.req_id)
+        if not requester_user:
+            try:
+                requester_user = await interaction.guild.fetch_member(self.req_id)
+            except:
+                return await interaction.followup.send("❌ Error fetching requester user data.", ephemeral=True)
 
         cog = interaction.client.get_cog('DungeonAsk')
         img_buf = await cog.create_dynamic_ask_lobby(requester_user.display_avatar.url, target_user.display_avatar.url, intent_color)
@@ -123,6 +143,7 @@ class TributeModal(discord.ui.Modal, title="Secure Payload Entry"):
 
         view = RecipientView(self.req_id, self.tar_id)
         await interaction.channel.send(content=target_user.mention, embed=final_embed, view=view, file=file)
+        await interaction.followup.send("✅ Verification request dispatched successfully.", ephemeral=True)
 
 # --- PERSISTENT VIEW CLASSES (MOVED AND DECOUPLED FOR TOTAL STABILITY) ---
 
@@ -188,8 +209,18 @@ class InitialView(discord.ui.View):
             return await interaction.response.send_message("❌ Access denied.", ephemeral=True)
         
         main_mod = sys.modules['__main__']
+        
         target_user = interaction.guild.get_member(tar_id)
+        if not target_user:
+            try:
+                target_user = await interaction.guild.fetch_member(tar_id)
+            except: return
+            
         requester_user = interaction.guild.get_member(req_id)
+        if not requester_user:
+            try:
+                requester_user = await interaction.guild.fetch_member(req_id)
+            except: return
 
         play_embed = main_mod.fiery_embed("🔞 SEX-BOT TRIAL REQUEST 🔞", 
             f"{target_user.mention}, {requester_user.mention} wants to initiate a deep-sync session.\n\n"
@@ -224,7 +255,7 @@ class RecipientView(discord.ui.View):
         if inter.user.id != target_id: 
             return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         
-        await inter.response.send_modal(InterrogateModal(requester_id, target_id, inter.message.id))
+        await inter.open_modal(InterrogateModal(requester_id, target_id, inter.message.id))
 
     @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept_v3")
     async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
@@ -233,7 +264,6 @@ class RecipientView(discord.ui.View):
             return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         
         main_mod = sys.modules['__main__']
-        requester_mention = inter.message.content.split('by ')[1].split('.')[0] if "filed by" in inter.message.content else "Member"
         
         success_emb = main_mod.fiery_embed("💖 DM ACCEPTED", f"**ACCEPTED.** The request was accepted by {inter.user.mention}.")
         await inter.response.send_message(embed=success_emb)
