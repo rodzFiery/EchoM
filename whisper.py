@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timezone
 import sqlite3
+import os
+import json
 
 # Maps {receiver_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
@@ -11,6 +13,47 @@ lobby_channel_id = None
 BOT_OWNER_ID = 1482648173016252439
 # ADDED: Default log channel ID
 DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
+
+# --- ADDED: PERSISTENCE LAYER FUNCTIONS TO PREVENT DATA LOSS ON RAILWAY DEPLOYS ---
+def save_backup_config(key, value):
+    filename = "whisper_backup_config.json"
+    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": []}
+    if os.path.exists(filename):
+        try:
+            with open(filename, "r") as f:
+                data = json.load(f)
+        except:
+            pass
+            
+    if "opt_outs" not in data:
+        data["opt_outs"] = []
+            
+    if key == "lobby_channel_id":
+        data["lobby_channel_id"] = value
+    elif key == "add_server":
+        if value not in data.get("monitored_servers", []):
+            if "monitored_servers" not in data:
+                data["monitored_servers"] = []
+            data["monitored_servers"].append(value)
+    elif key == "add_opt_out":
+        if value not in data["opt_outs"]:
+            data["opt_outs"].append(value)
+    elif key == "remove_opt_out":
+        if value in data["opt_outs"]:
+            data["opt_outs"].remove(value)
+            
+    with open(filename, "w") as f:
+        json.dump(data, f)
+
+def load_backup_config():
+    filename = "whisper_backup_config.json"
+    if not os.path.exists(filename):
+        return None
+    try:
+        with open(filename, "r") as f:
+            return json.load(f)
+    except:
+        return None
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None, content=None):
     # 1. Database logic for audit log (fully isolated)
@@ -22,6 +65,15 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         cursor = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,))
         audit_row = cursor.fetchone()
         if audit_row: is_logging_enabled = True
+        
+    # BACKUP RECOVERY CHECK: If DB was wiped on deploy, check backup file configurations
+    if not is_logging_enabled:
+        backup = load_backup_config()
+        if backup and guild.id in backup.get("monitored_servers", []):
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (guild.id,))
+                conn.commit()
+            is_logging_enabled = True
     
     if is_logging_enabled:
         # FIXED: main.py overrides client.get_user to return a DB Row, so we strictly use fetch_user to get the Discord Object
@@ -35,7 +87,25 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             try:
                 # ADDED: Include whisper content in audit log for moderation
                 msg_desc = f"**Content:** {content}" if content else "No content available."
-                embed = discord.Embed(title=f"Whisper Audit: {guild.name}", description=f"{target_member.mention} has {action} a whisper.\n{msg_desc}", color=discord.Color.red())
+                
+                # ENHANCED LOGGING FORMAT FOR BOT OWNER MODERATION PURPOSES
+                if action == "replied to":
+                    audit_text = f"{target_member.mention} (`{target_member.id}`) replied to {sender.mention} (`{sender.id}`) with this message:\n{msg_desc}"
+                elif action == "blocked / opt-out":
+                    sender_text = sender.mention if sender else "Unknown User"
+                    sender_id_text = f"`{sender.id}`" if sender else "`Unknown ID`"
+                    audit_text = f"🚨 **BLOCKED ATTEMPT:** {sender_text} ({sender_id_text}) tried to whisper {target_member.mention} (`{target_member.id}`), but the target has whispers disabled.\n{msg_desc}"
+                else:
+                    sender_text = sender.mention if sender else "Unknown User"
+                    sender_id_text = f"`{sender.id}`" if sender else "`Unknown ID`"
+                    audit_text = f"{sender_text} ({sender_id_text}) sent a whisper to {target_member.mention} (`{target_member.id}`) with this message:\n{msg_desc}"
+
+                embed = discord.Embed(
+                    title=f"Whisper Audit Tracker: {guild.name}", 
+                    description=audit_text, 
+                    color=discord.Color.red(),
+                    timestamp=datetime.now(timezone.utc)
+                )
                 await owner.send(embed=embed)
             except Exception as e:
                 print(f"Could not send log to owner: {e}")
@@ -43,13 +113,24 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             # ADDED: Error log for owner fetch fail
             print("Could not find owner to send log.")
 
-    # ADDED: Stop the execution here if it is a reply, so it doesn't log to any channel
-    if action == "replied to":
+    # ADDED: Stop the execution here if it is a reply or a blocked attempt, so it doesn't log to any public channel
+    if action == "replied to" or action == "blocked / opt-out":
         return
 
     # 2. Logic for Lobby channel announcement
     global lobby_channel_id
-    lobby_channel = guild.get_channel(lobby_channel_id)
+    
+    # BACKUP RECOVERY CHECK FOR LOBBY CHANNEL
+    if lobby_channel_id is None:
+        backup = load_backup_config()
+        if backup and backup.get("lobby_channel_id"):
+            lobby_channel_id = int(backup["lobby_channel_id"])
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
+                conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (lobby_channel_id,))
+                conn.commit()
+
+    lobby_channel = guild.get_channel(lobby_channel_id) if lobby_channel_id else None
     
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
@@ -80,6 +161,27 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
 
+        # REPOST THE WHISPER LOBBY AUTOMATICALLY SO IT STAYS BEHIND
+        try:
+            # Delete old lobby messages to prevent channel flooding
+            async for old_msg in lobby_channel.history(limit=20):
+                if old_msg.author.id == client.user.id and old_msg.embeds and "💋 NEURAL WHISPER LOBBY 💋" in str(old_msg.embeds[0].title):
+                    await old_msg.delete()
+        except Exception as delete_error:
+            print(f"Lobby clean error: {delete_error}")
+
+        lobby_embed = discord.Embed(
+            title="💋 NEURAL WHISPER LOBBY 💋", 
+            description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
+                        "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
+                        "• **Complete Anonymity:** The server records won't save your footprint.\n"
+                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "*Go ahead... hit the switch below and leave them wondering all night.*", 
+            color=0xE0115F
+        )
+        lobby_embed.set_footer(text="Encrypted Connection Online • Proceed at your own risk.")
+        await lobby_channel.send(embed=lobby_embed, view=LobbyView())
+
     # 3. ADDED: Default server log channel logic
     default_log_channel = client.get_channel(DEFAULT_LOG_CHANNEL_ID)
     if not default_log_channel:
@@ -98,7 +200,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
                 color=discord.Color.dark_gray(),
                 timestamp=datetime.now(timezone.utc)
             )
-            await default_log_channel.send(embed=log_embed)
+            await default_log_channel.send(log_embed)
         except Exception as e:
             print(f"Could not send log to default log channel: {e}")
 
@@ -181,6 +283,28 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # CHECK TARGET OPT-OUT STATUS PRIOR TO DISPATCHING DATA
+            is_opted_out = False
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+                cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (self.target_member.id,))
+                if cursor.fetchone():
+                    is_opted_out = True
+            
+            if not is_opted_out:
+                backup = load_backup_config()
+                if backup and self.target_member.id in backup.get("opt_outs", []):
+                    with sqlite3.connect("database.db") as conn:
+                        conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (self.target_member.id,))
+                        conn.commit()
+                    is_opted_out = True
+
+            if is_opted_out:
+                # LOG THE BLOCKED ATTEMPT SECURELY TO THE BOT OWNER
+                await log_whisper_activity(interaction.client, interaction.guild, self.target_member, action="blocked / opt-out", sender=interaction.user, content=self.message_content.value)
+                # RETURN EXPLICIT ANONYMOUS NOTICE BACK TO THE INITIATOR WITHOUT EXPOSING IDENTITIES
+                return await interaction.response.send_message("❌ This member does not accept whispers.", ephemeral=True)
+
             await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
             await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
         except discord.Forbidden:
@@ -203,7 +327,7 @@ class LobbyView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Send Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_lobby_btn")
+    @discord.ui.button(label="Transmit Secret", style=discord.ButtonStyle.danger, emoji="💋", custom_id="persistent_lobby_btn")
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("Search for the receiver:", view=UserSelectView(), ephemeral=True)
 
@@ -233,12 +357,32 @@ class WhisperCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         global lobby_channel_id
+        
+        # BACKUP RECOVERY CHECK ON SYSTEM BOOTUP
+        backup = load_backup_config()
+        
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             # ADDED: Ensure whisper_counts exists on ready
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+            
+            # Repopulate server logs table if wiped out
+            if backup and backup.get("monitored_servers"):
+                for s_id in backup["monitored_servers"]:
+                    conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (s_id,))
+            
+            # Repopulate opt-out list table if wiped out
+            if backup and backup.get("opt_outs"):
+                for u_id in backup["opt_outs"]:
+                    conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (u_id,))
+            
+            # Repopulate lobby configurations if wiped out
+            if backup and backup.get("lobby_channel_id"):
+                conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (backup["lobby_channel_id"],))
+            conn.commit()
             
             # ADDED: Table creation and memory load for sessions on startup
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
@@ -250,8 +394,32 @@ class WhisperCog(commands.Cog):
             row = cursor.fetchone()
             if row and row[0] is not None:
                 lobby_channel_id = int(row[0])
+                
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
+
+    @commands.command(name="nowhisper")
+    async def toggle_whisper_opt_out(self, ctx):
+        """Allows members to opt out or opt back into receiving anonymous whispers."""
+        is_opted_out = False
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+            cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
+            if cursor.fetchone():
+                is_opted_out = True
+                
+        if is_opted_out:
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
+                conn.commit()
+            save_backup_config("remove_opt_out", ctx.author.id)
+            await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
+        else:
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
+                conn.commit()
+            save_backup_config("add_opt_out", ctx.author.id)
+            await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
 
     @commands.command()
     async def setwhisper(self, ctx, channel: discord.TextChannel):
@@ -262,6 +430,7 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
+        save_backup_config("lobby_channel_id", channel.id)
         await ctx.send(f"Whisper lobby set to {channel.mention}")
 
     @commands.command()
@@ -271,11 +440,21 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
             conn.commit()
+        save_backup_config("add_server", server_id)
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
 
     @commands.command()
     async def openwhisper(self, ctx):
-        embed = discord.Embed(title="Anonymous Whisper Lobby", description="Click below to send a whisper.", color=discord.Color.gold())
+        embed = discord.Embed(
+            title="💋 NEURAL WHISPER LOBBY 💋", 
+            description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
+                        "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
+                        "• **Complete Anonymity:** The server records won't save your footprint.\n"
+                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "*Go ahead... hit the switch below and leave them wondering all night.*", 
+            color=0xE0115F
+        )
+        embed.set_footer(text="Encrypted Connection Online • Proceed at your own risk.")
         await ctx.send(embed=embed, view=LobbyView())
 
 async def setup(bot):
