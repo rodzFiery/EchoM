@@ -256,18 +256,11 @@ class ReplyModal(discord.ui.Modal):
                 
                 if sender:
                     embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
-                    whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
                     
-                    # ADDED: Save reverse session to database
-                    with sqlite3.connect("database.db") as conn:
-                        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
-                        conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id) VALUES (?, ?, ?)", (sender.id, interaction.user.id, guild_id))
-                        conn.commit()
-
-                    # ADDED: view=ReplyView() so the sender can reply back to the reply
+                    # MODIFIED: Dispatched directly to target box without setting legacy user id maps to prevent cross-chatter bugs
                     outbound_msg = await sender.send(embed=embed, view=ReplyView())
                     
-                    # ADDED: Track outbound message session specifically to keep threads separated on replies
+                    # ADDED: Track outbound message session specifically to keep threads separated on subsequent replies
                     if outbound_msg:
                         whisper_sessions[outbound_msg.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
                         with sqlite3.connect("database.db") as conn:
@@ -378,7 +371,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     # ADDED: view=ReplyView() so the receiver actually gets the button in their DM!
     dm_msg = await target_member.send(embed=embed, view=ReplyView())
     
-    # ADDED: Save the individual message ID connection for multi-whisper thread isolation
+    # FIXED: Tied directly via unique message ID dictionary maps and database logging mapping
     if dm_msg:
         whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id}
         with sqlite3.connect("database.db") as conn:
