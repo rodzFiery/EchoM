@@ -314,9 +314,9 @@ class ReactionRoleSystem(commands.Cog):
             ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
 
-        # Create the channel
+        # Create the channel (UPDATED name framework from war-room-logs to ticket-logs)
         admin_channel = await ctx.guild.create_text_channel(
-            name="war-room-logs",
+            name="ticket-logs",
             overwrites=overwrites,
             topic="Private logs for the Master and appointed Admins."
         )
@@ -358,6 +358,20 @@ class ReactionRoleSystem(commands.Cog):
             """, (ctx.guild.id, count))
             conn.commit()
         await ctx.send(f"✅ Ticket counter adjusted. The next session will be **#{count + 1}**.")
+
+    # --- NEW TICKETNUMBER COMMAND SYSTEM ---
+    @commands.command(name="ticketnumber")
+    @commands.has_permissions(administrator=True)
+    async def ticketnumber(self, ctx, count: int):
+        """Manually sets the ticket counter configuration to a specific value."""
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, ticket_count) 
+                VALUES (?, ?) 
+                ON CONFLICT(guild_id) DO UPDATE SET ticket_count=excluded.ticket_count
+            """, (ctx.guild.id, count))
+            conn.commit()
+        await ctx.send(f"✅ Ticket number matrix calibrated. Next execution will register as session **#{count + 1}**.")
 
     # --- NEW ARCHIVE BROWSER ---
     @commands.command(name="archives")
@@ -492,9 +506,9 @@ class TicketLobbyView(discord.ui.View):
         if admin_role:
             overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
         
-        # FORMATTED NAME: ticket[number]-[category]
+        # FIXED FORMATTED NAME: number-member-buttonclicked (e.g. 448-rodri-verification)
         ticket_channel = await interaction.guild.create_text_channel(
-            name=f"ticket{current_num}-{category.replace('_', '-')}",
+            name=f"{current_num}-{interaction.user.name}-{category.replace('_', '-')}",
             overwrites=overwrites,
             category=target_category,
             topic=f"Asset ID: {interaction.user.id} | Session #{current_num}"
