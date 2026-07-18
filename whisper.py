@@ -5,6 +5,12 @@ import sqlite3
 import os
 import json
 
+# --- ADDED: DETECT AND ESTABLISH PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
+# In your Railway Dashboard -> Volume settings, mount a volume to "/data" and add an Environment Variable: PERSISTENT_STORAGE_DIR = /data
+STORAGE_DIR = os.getenv("PERSISTENT_STORAGE_DIR", ".")
+DB_PATH = os.path.join(STORAGE_DIR, "database.db")
+BACKUP_PATH = os.path.join(STORAGE_DIR, "whisper_backup_config.json")
+
 # Maps {receiver_id: {"sender_id": id, "guild_id": id}} or {message_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
 # Maps {guild_id: True}
@@ -16,9 +22,67 @@ DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 # ADDED: Global state toggle for system pause/resume tracking
 whisper_system_active = True
 
-# --- ADDED: PERSISTENCE LAYER FUNCTIONS TO PREVENT DATA LOSS ON RAILWAY DEPLOYS ---
+# --- MODIFIED: INTELLIGENT DM INDUCTION SENSOR + OWNER ALERT ENGINE ---
+async def alert_and_check_dm_induction(client, user: discord.User, text: str, context_type: str) -> bool:
+    """
+    Checks if the given text contains attempts to invite or move the user to private DMs.
+    If detected, fires a secure real-time log notification to the bot owner automatically.
+    """
+    if not text:
+        return False
+    
+    normalized_text = text.lower()
+    
+    # Forbidden absolute keyword phrases
+    forbidden_phrases = [
+        "talking in private",
+        "slide",
+        "can i",
+        "send you a message",
+        "send u a message",
+        "private"
+    ]
+    
+    detected = False
+    triggered_phrase = None
+    
+    for phrase in forbidden_phrases:
+        if phrase in normalized_text:
+            detected = True
+            triggered_phrase = phrase
+            break
+            
+    if not detected:
+        # Clean up variations of DM (e.g., d.m, d-m, d'm, d m)
+        cleaned_text = normalized_text.replace(".", "").replace("-", "").replace("'", "").replace(" ", "")
+        if "dm" in cleaned_text:
+            detected = True
+            triggered_phrase = "dm (or variant formatting)"
+
+    if detected:
+        try:
+            owner = await client.fetch_user(BOT_OWNER_ID)
+            if owner:
+                alert_embed = discord.Embed(
+                    title="⚠️ DM INDUCTION SENSOR ALERT ⚠️",
+                    description=f"The intelligent filter has intercepted a blocked phrase variation.",
+                    color=discord.Color.orange(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                alert_embed.add_field(name="👤 Triggered By", value=f"{user.mention} (`{user.id}`)", inline=True)
+                alert_embed.add_field(name="📁 Transmission Type", value=context_type, inline=True)
+                alert_embed.add_field(name="🚫 Detected Trigger", value=f"`{triggered_phrase}`", inline=False)
+                alert_embed.add_field(name="📝 Flagged Content", value=text, inline=False)
+                await owner.send(embed=alert_embed)
+        except Exception as alert_error:
+            print(f"Failed to transmit filter alert to bot owner: {alert_error}")
+        return True
+        
+    return False
+
+# --- MODIFIED: PATHS REDIRECTED TO MOUNTED STORAGE FILE LAYER ---
 def save_backup_config(key, value):
-    filename = "whisper_backup_config.json"
+    filename = BACKUP_PATH
     data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": [], "system_active": True}
     if os.path.exists(filename):
         try:
@@ -52,7 +116,7 @@ def save_backup_config(key, value):
         json.dump(data, f)
 
 def load_backup_config():
-    filename = "whisper_backup_config.json"
+    filename = BACKUP_PATH
     if not os.path.exists(filename):
         return None
     try:
@@ -64,7 +128,7 @@ def load_backup_config():
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None, content=None):
     # 1. Database logic for audit log (fully isolated)
     is_logging_enabled = False
-    with sqlite3.connect("database.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = None
         # ADDED: Ensure table exists so it doesn't fail if DB wiped
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
@@ -76,7 +140,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if not is_logging_enabled:
         backup = load_backup_config()
         if backup and guild.id in backup.get("monitored_servers", []):
-            with sqlite3.connect("database.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (guild.id,))
             is_logging_enabled = True
     
@@ -131,7 +195,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         backup = load_backup_config()
         if backup and backup.get("lobby_channel_id"):
             lobby_channel_id = int(backup["lobby_channel_id"])
-            with sqlite3.connect("database.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (lobby_channel_id,))
 
@@ -139,7 +203,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
             # ADDED: Table failsafe so it doesn't crash before reaching Step 3 if DB resets
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
@@ -224,13 +288,17 @@ class ReplyModal(discord.ui.Modal):
             if not whisper_system_active:
                 return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Please try again later.", ephemeral=True)
 
+            # --- MODIFIED: AWAIT DM INDUCTION DETECTION + OWNER ALERT ---
+            if await alert_and_check_dm_induction(interaction.client, interaction.user, self.reply_content.value, "Session Reply Box"):
+                return await interaction.response.send_message("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
+
             session_data = None
             
             # ADDED: Target mapping via unique message ID first to completely separate distinct whispers
             if self.message_id:
                 session_data = whisper_sessions.get(self.message_id)
                 if not session_data:
-                    with sqlite3.connect("database.db") as conn:
+                    with sqlite3.connect(DB_PATH) as conn:
                         conn.row_factory = None
                         cursor = conn.execute("SELECT sender_id, guild_id FROM whisper_message_sessions WHERE message_id = ?", (self.message_id,))
                         row = cursor.fetchone()
@@ -242,7 +310,7 @@ class ReplyModal(discord.ui.Modal):
             if not session_data:
                 session_data = whisper_sessions.get(interaction.user.id)
                 if not session_data:
-                    with sqlite3.connect("database.db") as conn:
+                    with sqlite3.connect(DB_PATH) as conn:
                         conn.row_factory = None
                         cursor = conn.execute("SELECT sender_id, guild_id FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
                         row = cursor.fetchone()
@@ -273,7 +341,7 @@ class ReplyModal(discord.ui.Modal):
                     # ADDED: Track outbound message session specifically to keep threads separated on subsequent replies
                     if outbound_msg:
                         whisper_sessions[outbound_msg.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
-                        with sqlite3.connect("database.db") as conn:
+                        with sqlite3.connect(DB_PATH) as conn:
                             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
                             conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id) VALUES (?, ?, ?)", (outbound_msg.id, interaction.user.id, guild_id))
                             conn.commit()
@@ -322,9 +390,13 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             if not whisper_system_active:
                 return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
 
+            # --- MODIFIED: AWAIT DM INDUCTION DETECTION + OWNER ALERT ---
+            if await alert_and_check_dm_induction(interaction.client, interaction.user, self.message_content.value, "Initial Outbound Whisper"):
+                return await interaction.response.send_message("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
+
             # CHECK TARGET OPT-OUT STATUS PRIOR TO DISPATCHING DATA
             is_opted_out = False
-            with sqlite3.connect("database.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
                 cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (self.target_member.id,))
                 if cursor.fetchone():
@@ -333,7 +405,7 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             if not is_opted_out:
                 backup = load_backup_config()
                 if backup and self.target_member.id in backup.get("opt_outs", []):
-                    with sqlite3.connect("database.db") as conn:
+                    with sqlite3.connect(DB_PATH) as conn:
                         conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (self.target_member.id,))
                         conn.commit()
                     is_opted_out = True
@@ -377,7 +449,7 @@ class LobbyView(discord.ui.View):
         await interaction.response.send_message("Search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
-    with sqlite3.connect("database.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
@@ -397,7 +469,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     # FIXED: Tied directly via unique message ID dictionary maps and database logging mapping
     if dm_msg:
         whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id}
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id) VALUES (?, ?, ?)", (dm_msg.id, sender.id, guild.id))
             conn.commit()
@@ -415,7 +487,7 @@ class WhisperCog(commands.Cog):
         # BACKUP RECOVERY CHECK ON SYSTEM BOOTUP
         backup = load_backup_config()
         
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
@@ -479,7 +551,7 @@ class WhisperCog(commands.Cog):
         global whisper_system_active
         whisper_system_active = not whisper_system_active
         
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
             conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
             conn.commit()
@@ -495,20 +567,20 @@ class WhisperCog(commands.Cog):
     async def toggle_whisper_opt_out(self, ctx):
         """Allows members to opt out or opt back into receiving anonymous whispers."""
         is_opted_out = False
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
             if cursor.fetchone():
                 is_opted_out = True
                 
         if is_opted_out:
-            with sqlite3.connect("database.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
                 conn.commit()
             save_backup_config("remove_opt_out", ctx.author.id)
             await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
         else:
-            with sqlite3.connect("database.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
                 conn.commit()
             save_backup_config("add_opt_out", ctx.author.id)
@@ -518,7 +590,7 @@ class WhisperCog(commands.Cog):
     async def setwhisper(self, ctx, channel: discord.TextChannel):
         global lobby_channel_id
         lobby_channel_id = channel.id
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             # ADDED: Ensure table exists just in case
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
@@ -528,7 +600,7 @@ class WhisperCog(commands.Cog):
 
     @commands.command()
     async def whisperserverset(self, ctx, server_id: int):
-        with sqlite3.connect("database.db") as conn:
+        with sqlite3.connect(DB_PATH) as conn:
             # ADDED: Ensure table exists just in case
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
