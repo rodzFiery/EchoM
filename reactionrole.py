@@ -492,10 +492,12 @@ class TicketCustomButton(discord.ui.Button):
     def __init__(self, label, emoji, index, staff_role_id=None):
         self.category_slug = label.lower().replace(" ", "_")
         self.staff_role_id = str(staff_role_id) if staff_role_id else None
+        # Store raw label for dynamic temporary category generation titles
+        self.raw_label = label
         super().__init__(style=discord.ButtonStyle.secondary, label=label, emoji=emoji, custom_id=f"tkt_customized:{index}:{self.category_slug}")
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view.create_ticket(interaction, self.category_slug, self.staff_role_id)
+        await self.view.create_ticket(interaction, self.category_slug, self.staff_role_id, self.raw_label)
 
 class TicketLobbyView(discord.ui.View):
     def __init__(self, button_configs=None):
@@ -504,42 +506,43 @@ class TicketLobbyView(discord.ui.View):
             for idx, cfg in enumerate(button_configs):
                 self.add_item(TicketCustomButton(label=cfg['label'], emoji=cfg['emoji'], index=idx, staff_role_id=cfg.get('staff_role_id')))
 
-    async def create_ticket(self, interaction: discord.Interaction, category: str, staff_role_id: str = None):
-        # --- LAYER 1: FETCH BASE VALUES FROM DB ---
-        db_count = 0
+    async def create_ticket(self, interaction: discord.Interaction, category: str, staff_role_id: str = None, raw_label: str = "Support"):
+        # --- SAFE ADVANCED AUTO-HEALING MATRIX PROTOCOL START ---
+        highest_found_count = 0
+        
+        # 1. Inspect local configuration registry state if existing
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = sqlite3.Row
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
             if config and config['ticket_count']:
-                db_count = config['ticket_count']
-                
-            # Fetch highest number index historically stored in archives to ensure persistence across absolute wipes
+                if config['ticket_count'] > highest_found_count:
+                    highest_found_count = config['ticket_count']
+                    
+            # 2. Complete deep inspection parse across all past historical sealed logs in archive tables
             try:
                 archive_rows = conn.execute("SELECT ticket_id FROM ticket_archives WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
                 for r in archive_rows:
                     try:
                         arch_num = int(r['ticket_id'].split('-')[0])
-                        if arch_num > db_count:
-                            db_count = arch_num
+                        if arch_num > highest_found_count:
+                            highest_found_count = arch_num
                     except Exception:
                         pass
             except Exception:
                 pass
 
-        # --- LAYER 2: SCAN ACTIVE DISCORD CHANNELS FOR HIGHEST INDEX ---
-        cat_name = "Ticket Logs"
-        target_category = discord.utils.get(interaction.guild.categories, name=cat_name)
-        if target_category:
-            for channel in target_category.text_channels:
+        # 3. Dynamic real-time execution scanning of live server channel networks (Ensures absolute persistence)
+        for cat_obj in interaction.guild.categories:
+            for channel in cat_obj.text_channels:
                 try:
                     chan_num = int(channel.name.split('-')[0])
-                    if chan_num > db_count:
-                        db_count = chan_num
+                    if chan_num > highest_found_count:
+                        highest_found_count = chan_num
                 except Exception:
                     pass
 
-        # Calculate absolute true progressive incremental position
-        current_num = db_count + 1
+        # Establish absolute un-wipeable true sequential counter position
+        current_num = highest_found_count + 1
 
         # Save absolute validated sequential coordinate permanently back down to DB
         with sqlite3.connect("database.db") as conn:
@@ -550,10 +553,15 @@ class TicketLobbyView(discord.ui.View):
             """, (interaction.guild.id, current_num, current_num))
             conn.commit()
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+        # --- SAFE ADVANCED AUTO-HEALING MATRIX PROTOCOL END ---
 
         chosen_staff_string = staff_role_id if staff_role_id else str(config['admin_role_id']) if config['admin_role_id'] else ""
         parsed_role_ids = [int(r.strip()) for r in chosen_staff_string.split(",") if r.strip().isdigit()]
 
+        # --- DYNAMIC CATEGORY ROUTING MATCHING THE TEXT LABEL OF CLICKED BUTTON ---
+        cat_name = raw_label
+        target_category = discord.utils.get(interaction.guild.categories, name=cat_name)
+        
         if not target_category:
             overwrites_cat = {
                 interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -730,6 +738,7 @@ class TicketControls(discord.ui.View):
                 conn.row_factory = sqlite3.Row
                 config = conn.execute("SELECT admin_channel FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
             
+            # --- TRANSCRIPT SHIPPED DIRECTLY TO YOUR PREDETERMINED ADMIN LOGGING CHANNEL MATRIX ---
             if config and config['admin_channel']:
                 admin_chan = interaction.guild.get_channel(config['admin_channel'])
                 if admin_chan:
