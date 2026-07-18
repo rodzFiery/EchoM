@@ -17,7 +17,7 @@ DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 # --- ADDED: PERSISTENCE LAYER FUNCTIONS TO PREVENT DATA LOSS ON RAILWAY DEPLOYS ---
 def save_backup_config(key, value):
     filename = "whisper_backup_config.json"
-    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": []}
+    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": [], "system_disabled": False}
     if os.path.exists(filename):
         try:
             with open(filename, "r") as f:
@@ -27,6 +27,8 @@ def save_backup_config(key, value):
             
     if "opt_outs" not in data:
         data["opt_outs"] = []
+    if "system_disabled" not in data:
+        data["system_disabled"] = False
             
     if key == "lobby_channel_id":
         data["lobby_channel_id"] = value
@@ -41,6 +43,8 @@ def save_backup_config(key, value):
     elif key == "remove_opt_out":
         if value in data["opt_outs"]:
             data["opt_outs"].remove(value)
+    elif key == "system_disabled":
+        data["system_disabled"] = bool(value)
             
     with open(filename, "w") as f:
         json.dump(data, f)
@@ -95,6 +99,10 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
                     sender_text = sender.mention if sender else "Unknown User"
                     sender_id_text = f"`{sender.id}`" if sender else "`Unknown ID`"
                     audit_text = f"🚨 **BLOCKED ATTEMPT:** {sender_text} ({sender_id_text}) tried to whisper {target_member.mention} (`{target_member.id}`), but the target has whispers disabled.\n{msg_desc}"
+                elif action == "system_disabled_block":
+                    sender_text = sender.mention if sender else "Unknown User"
+                    sender_id_text = f"`{sender.id}`" if sender else "`Unknown ID`"
+                    audit_text = f"🛑 **GLOBAL SHUTDOWN BLOCK:** {sender_text} ({sender_id_text}) attempted to initiate a handshake with {target_member.mention} (`{target_member.id}`), but the system is currently turned off globally.\n{msg_desc}"
                 else:
                     sender_text = sender.mention if sender else "Unknown User"
                     sender_id_text = f"`{sender.id}`" if sender else "`Unknown ID`"
@@ -113,9 +121,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             # ADDED: Error log for owner fetch fail
             print("Could not find owner to send log.")
 
-    # MODIFIED: Stopped execution early for replies and blocks right here. 
+    # MODIFIED: Stopped execution early for replies, blocks, and shutdown blocks right here. 
     # This completely skips public channel messages/pings for replies, but lets everything above (like DB updates and Owner Logs) execute properly.
-    if action == "replied to" or action == "blocked / opt-out":
+    if action == "replied to" or action == "blocked / opt-out" or action == "system_disabled_block":
         return
 
     # 2. Logic for Lobby channel announcement
@@ -160,7 +168,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.set_thumbnail(url=target_member.display_avatar.url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
+        # MODIFIED: Passing target_member.id down to the ReplyView constructor so it can validate the clicker
+        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView(allowed_user_id=target_member.id))
 
         # REPOST THE WHISPER LOBBY AUTOMATICALLY SO IT STAYS BEHIND
         try:
@@ -211,6 +220,22 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # ADDED: CHECK GLOBAL DISABLE CONFIG ON INTERACTION SUBMIT FOR REPLIES TOO
+            is_disabled = False
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_status (key TEXT PRIMARY KEY, val INTEGER)")
+                cursor = conn.execute("SELECT val FROM whisper_global_status WHERE key = 'disabled'")
+                row = cursor.fetchone()
+                if row and row[0] == 1:
+                    is_disabled = True
+            if not is_disabled:
+                backup = load_backup_config()
+                if backup and backup.get("system_disabled", False):
+                    is_disabled = True
+                    
+            if is_disabled:
+                return await interaction.response.send_message("❌ The whisper transaction network is temporarily deactivated by the bot administrator.", ephemeral=True)
+
             session_data = whisper_sessions.get(interaction.user.id)
             
             # ADDED: Fallback to database if memory is empty after a restart
@@ -248,7 +273,7 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
                         conn.commit()
 
                     # ADDED: view=ReplyView() so the sender can reply back to the reply
-                    await sender.send(embed=embed, view=ReplyView())
+                    await sender.send(embed=embed, view=ReplyView(allowed_user_id=sender.id))
                     guild = interaction.client.get_guild(guild_id)
                     # ADDED: Fetch guild fallback if not cached
                     if not guild:
@@ -268,11 +293,16 @@ class ReplyModal(discord.ui.Modal, title='Reply to Anonymous Whisper'):
             await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
 
 class ReplyView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, allowed_user_id=None):
         super().__init__(timeout=None)
+        self.allowed_user_id = allowed_user_id
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # MODIFIED: Strict comparison validation check so random users cannot open the reply frame
+        if self.allowed_user_id is not None and interaction.user.id != self.allowed_user_id:
+            return await interaction.response.send_message("❌ Only the member who received this whisper can use this button.", ephemeral=True)
+            
         await interaction.response.send_modal(ReplyModal())
 
 class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
@@ -322,6 +352,25 @@ class UserSelectView(discord.ui.View):
         target = select.values[0]
         if not isinstance(target, discord.Member):
             target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
+            
+        # ADDED: CHECK GLOBAL DISABLE CONFIG HERE SO IT BLOCKS THE ATTEMPT IMMEDIATELY ANONYMOUSLY
+        is_disabled = False
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_status (key TEXT PRIMARY KEY, val INTEGER)")
+            cursor = conn.execute("SELECT val FROM whisper_global_status WHERE key = 'disabled'")
+            row = cursor.fetchone()
+            if row and row[0] == 1:
+                is_disabled = True
+        if not is_disabled:
+            backup = load_backup_config()
+            if backup and backup.get("system_disabled", False):
+                is_disabled = True
+                
+        if is_disabled:
+            # ROUTE SYSTEM LOCK LOG TO BOT OWNER SECURELY WITHOUT SHOWING IDENTITY TO INITIATOR
+            await log_whisper_activity(interaction.client, interaction.guild, target, action="system_disabled_block", sender=interaction.user, content="[System Deactivated - Attempt Aborted]")
+            return await interaction.response.send_message("❌ The whisper transaction network is temporarily deactivated by the bot administrator.", ephemeral=True)
+
         await interaction.response.send_modal(WhisperMessageModal(target))
 
 class LobbyView(discord.ui.View):
@@ -348,7 +397,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     # ADDED: view=ReplyView() so the receiver actually gets the button in their DM!
-    await target_member.send(embed=embed, view=ReplyView())
+    await target_member.send(embed=embed, view=ReplyView(allowed_user_id=target_member.id))
     await log_whisper_activity(client, guild, target_member, action="received", sender=sender, content=content)
 
 class WhisperCog(commands.Cog):
@@ -369,6 +418,11 @@ class WhisperCog(commands.Cog):
             # ADDED: Ensure whisper_counts exists on ready
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_status (key TEXT PRIMARY KEY, val INTEGER)")
+            
+            # Repopulate system disabled state if wiped out
+            if backup and backup.get("system_disabled", False):
+                conn.execute("INSERT OR REPLACE INTO whisper_global_status (key, val) VALUES ('disabled', 1)")
             
             # Repopulate server logs table if wiped out
             if backup and backup.get("monitored_servers"):
@@ -398,6 +452,33 @@ class WhisperCog(commands.Cog):
                 
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
+
+    @commands.command(name="stopwhispers")
+    async def toggle_global_whisper_system(self, ctx):
+        """Allows exclusively the bot owner to temporarily freeze or reactivate all whisper functionality across the bot."""
+        if ctx.author.id != BOT_OWNER_ID:
+            return await ctx.send("❌ **Access Denied:** You do not possess the clearance codes required to execute this systemic command.")
+            
+        current_disabled = False
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_status (key TEXT PRIMARY KEY, val INTEGER)")
+            cursor = conn.execute("SELECT val FROM whisper_global_status WHERE key = 'disabled'")
+            row = cursor.fetchone()
+            if row and row[0] == 1:
+                current_disabled = True
+                
+        if current_disabled:
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("INSERT OR REPLACE INTO whisper_global_status (key, val) VALUES ('disabled', 0)")
+                conn.commit()
+            save_backup_config("system_disabled", False)
+            await ctx.send("🚨 **SYSTEM ONLINE:** The global whisper network has been reactivated. Transmission portals are now completely open.")
+        else:
+            with sqlite3.connect("database.db") as conn:
+                conn.execute("INSERT OR REPLACE INTO whisper_global_status (key, val) VALUES ('disabled', 1)")
+                conn.commit()
+            save_backup_config("system_disabled", True)
+            await ctx.send("🛑 **SYSTEM FREEZE:** The global whisper network has been temporarily locked down. No new whispers can break through until further notice.")
 
     @commands.command(name="nowhisper")
     async def toggle_whisper_opt_out(self, ctx):
