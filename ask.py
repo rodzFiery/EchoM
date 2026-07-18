@@ -19,6 +19,43 @@ with sqlite3.connect("dungeon_ask.db") as conn:
     conn.execute("CREATE TABLE IF NOT EXISTS config (guild_id INTEGER PRIMARY KEY, channel_id INTEGER, role_id INTEGER)")
     conn.commit()
 
+# --- ADDED: BACKUP/RESTORE SYSTEM FOR RAILWAY DEPLOYMENT PERSISTENCE ---
+def save_backup_config(guild_id, channel_id=None, role_id=None):
+    filename = "ask_backup_config.json"
+    data = {}
+    if os.path.exists(filename):
+        try:
+            with open(filename, "r") as f:
+                data = json.load(f)
+        except:
+            data = {}
+    
+    g_id_str = str(guild_id)
+    if g_id_str not in data:
+        data[g_id_str] = {"channel_id": None, "role_id": None}
+        
+    if channel_id is not None:
+        data[g_id_str]["channel_id"] = channel_id
+    if role_id is not None:
+        data[g_id_str]["role_id"] = role_id
+        
+    with open(filename, "w") as f:
+        json.dump(data, f)
+
+def load_backup_config(guild_id):
+    filename = "ask_backup_config.json"
+    if not os.path.exists(filename):
+        return None
+    try:
+        with open(filename, "r") as f:
+            data = json.load(f)
+        g_id_str = str(guild_id)
+        if g_id_str in data:
+            return data[g_id_str]
+    except:
+        return None
+    return None
+
 # --- ADDED: FEATURE 2 - INTERROGATION SYSTEM COMPONENTS ---
 class AnswerModal(discord.ui.Modal, title="Submit an answer"):
     answer = discord.ui.TextInput(label="Your Answer", style=discord.TextStyle.paragraph, required=True)
@@ -393,6 +430,7 @@ class DungeonAsk(commands.Cog):
         with sqlite3.connect("dungeon_ask.db") as conn:
             conn.execute("INSERT INTO config (guild_id, channel_id) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET channel_id=excluded.channel_id", (ctx.guild.id, channel.id))
             conn.commit()
+        save_backup_config(ctx.guild.id, channel_id=channel.id)
         await ctx.send(f"✅ **Admin Reporting Channel locked to:** {channel.mention}")
 
     @askadmin.command(name="role")
@@ -401,6 +439,7 @@ class DungeonAsk(commands.Cog):
         with sqlite3.connect("dungeon_ask.db") as conn:
             conn.execute("INSERT INTO config (guild_id, role_id) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET role_id=excluded.role_id", (ctx.guild.id, role.id))
             conn.commit()
+        save_backup_config(ctx.guild.id, role_id=role.id)
         await ctx.send(f"✅ **Admin Notification Role locked to:** {role.mention}")
 
     @commands.command(name="ask")
@@ -425,6 +464,17 @@ class DungeonAsk(commands.Cog):
                 with sqlite3.connect("dungeon_ask.db") as conn:
                     row = conn.execute("SELECT channel_id, role_id FROM config WHERE guild_id=?", (ctx.guild.id,)).fetchone()
                 
+                # If database was wiped on deploy, restore it using backup config values
+                if not row:
+                    backup = load_backup_config(ctx.guild.id)
+                    if backup:
+                        target_channel_id = backup.get("channel_id")
+                        ping_role_id = backup.get("role_id")
+                        with sqlite3.connect("dungeon_ask.db") as conn:
+                            conn.execute("INSERT INTO config (guild_id, channel_id, role_id) VALUES (?, ?, ?)", (ctx.guild.id, target_channel_id, ping_role_id))
+                            conn.commit()
+                        row = (target_channel_id, ping_role_id)
+
                 if row:
                     target_channel_id, ping_role_id = row
                     report_channel = ctx.guild.get_channel(target_channel_id)
