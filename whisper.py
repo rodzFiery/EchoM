@@ -171,11 +171,11 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             print(f"Lobby clean error: {delete_error}")
 
         lobby_embed = discord.Embed(
-            title="💋 NEURAL WHISPER LOBBY 💋", 
-            description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
+            title="Send a whisper 💌", 
+            description="### 💌 Whisper\n"
                         "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
-                        "• **Complete Anonymity:** The server records won't save your footprint.\n"
-                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "• **Complete Anonymity:**Be respectful\n"
+                        "• **Receiver:** Your target receives a secure panel directly in their private DMs.\n\n"
                         "*Go ahead... hit the switch below and leave them wondering all night.*", 
             color=0xE0115F
         )
