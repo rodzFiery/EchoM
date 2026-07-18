@@ -507,6 +507,9 @@ class TicketLobbyView(discord.ui.View):
                 self.add_item(TicketCustomButton(label=cfg['label'], emoji=cfg['emoji'], index=idx, staff_role_id=cfg.get('staff_role_id')))
 
     async def create_ticket(self, interaction: discord.Interaction, category: str, staff_role_id: str = None, raw_label: str = "Support"):
+        # --- FIX: ACKNOWLEDGE INTERACTION IMMEDIATELY TO PREVENT "INTERACTION FAILED" LOGGING ---
+        await interaction.response.defer(ephemeral=True)
+
         # --- SAFE ADVANCED AUTO-HEALING MATRIX PROTOCOL START ---
         highest_found_count = 0
         
@@ -617,7 +620,8 @@ class TicketLobbyView(discord.ui.View):
             log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
             await admin_chan.send(embed=log)
 
-        await interaction.response.send_message(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
+        # --- UPDATED: DELIVER RESPONSE VIA FOLLOWUP DUETO THE INITIAL DEFERRAL SYSTEM ---
+        await interaction.followup.send(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
 
 class ArchiveViewer(discord.ui.View):
     def __init__(self, ticket_id=None):
