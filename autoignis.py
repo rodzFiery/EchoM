@@ -37,7 +37,7 @@ class AutoLobbyView(discord.ui.View):
         self.participants = []
 
     # ADDED: custom_id to make the interaction persistent across bot restarts
-    @discord.ui.button(label="Enter the Red Room ", style=discord.ButtonStyle.danger, emoji="🔞", custom_id="auto_ignis_join")
+    @discord.ui.button(label="Enter the Red Room ", style=discord.ButtonStyle.danger, emoji="⚔️", custom_id="auto_ignis_join")
     async def join_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id in self.participants:
             return await interaction.response.send_message("You are already registered for the next cycle, pet.", ephemeral=True)
@@ -129,22 +129,16 @@ class IgnisAuto(commands.Cog):
             # 2. Start NEW lobby for the next 30 minutes
             self.current_auto_lobby = AutoLobbyView()
             
-            lobby_desc = """🔞 **The scent of worn leather and cold iron fills the air.**\n\nBy entering, you submit your soul to the Master's algorithms for the next 30 minutes."""
+            lobby_desc = """**The scent of worn leather and cold iron fills the air.**\n\nBy entering, you submit your soul to the Master's algorithms for the next 30 minutes."""
 
             embed = main.fiery_embed(
-                "🔞 AUTOMATED RED ROOM CYCLE", 
+                "AUTOMATED RED ROOM CYCLE", 
                 lobby_desc,
                 color=0x5865F2
             )
             
             image_path = "LobbyTopRight.jpg"
             embed.add_field(name="🧙‍♂️ REGISTERED SINNERS", value="""```fix\nTOTAL: 0 SOULS\n```\n*Awaiting the harvest...*""", inline=False)
-            
-            embed.add_field(
-                name="⛓️ Dungeon Protocol",
-                value="""• **The Execution:** Once the timer hits zero, the session begins automatically.\n""",
-                inline=False
-            )
             
             # TIMEZONE FIXED: Forced datetime evaluation mapping to leverage strict timezone-aware UTC indicators
             now = datetime.now(timezone.utc)
@@ -180,7 +174,7 @@ class IgnisAuto(commands.Cog):
                     ignis_engine = self.bot.get_cog("IgnisEngine")
 
                     if ignis_engine:
-                        await channel.send("🔞 **TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
+                        await channel.send("**TIME IS UP. THE DOORS LOCK AUTOMATICALLY...**")
                         
                         import sys
                         main_module = sys.modules['__main__']
@@ -201,7 +195,7 @@ class IgnisAuto(commands.Cog):
                     else:
                         await channel.send("❌ Error: IgnisEngine not found. System failure.")
                 else:
-                    await channel.send("🔞 **Insufficient tributes for the previous cycle. The void remains hungry.**")
+                    await channel.send("**Insufficient tributes for the previous cycle. The void remains hungry.**")
 
             # RE-ENABLE SEQUENTIAL LOOPS BY DROPPING DESIRED FLAGS AFTER COMPLETE ROUND EVALUATIONS
             self.last_processed_window = None
@@ -237,7 +231,7 @@ class IgnisAuto(commands.Cog):
 
         # FIXED: Converted to triple quotes here as well to make it structurally bulletproof
         embed = main.fiery_embed(
-            "🔞 AUTOMATED RED ROOM: INITIALIZED", 
+            "AUTOMATED RED ROOM: INITIALIZED", 
             """🥀 **Automated Pit set and synchronized.**\n\nThe Master has claimed this territory. Registration is now open for the first cycle.\nThis lobby will close at the next 30-minute mark.""", 
             color=0x00FF00
         )
