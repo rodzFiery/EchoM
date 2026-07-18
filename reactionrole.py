@@ -218,7 +218,7 @@ class ReactionRoleSystem(commands.Cog):
             return m.author == ctx.author and m.channel == ctx.channel
 
         try:
-            # Step 1: Target Channel
+            # Step 1: Target Lobby Channel
             await ctx.send("🎯 **STEP 1:** Mention the **channel** where the ticket lobby panel should be sent (e.g., #support).")
             # --- ADDED: EXPLICIT CANCELLATION INSTRUCTION ---
             await ctx.send("*(Type `cancel` at any point during this process to safely abort and restart)*")
@@ -227,13 +227,20 @@ class ReactionRoleSystem(commands.Cog):
             if not target_channel:
                 return await ctx.send("❌ Invalid channel. Cancelled protocol.")
 
-            # Step 2: Content Copy Design
-            await ctx.send("📝 **STEP 2:** Type the **description copy** that will appear in your support lobby panel embed.")
+            # --- ADDED STEP: Define Admin Logging Archive Target ---
+            await ctx.send("🗄️ **STEP 2:** Mention the **admin logging channel** where sealed ticket logs and transcripts should be sent (e.g., #ticket-logs).")
+            msg_log_chan = await self.bot.wait_for("message", check=check, timeout=None)
+            admin_logging_channel = msg_log_chan.channel_mentions[0] if msg_log_chan.channel_mentions else None
+            if not admin_logging_channel:
+                return await ctx.send("❌ Invalid logging channel. Cancelled protocol.")
+
+            # Step 3: Content Copy Design
+            await ctx.send("📝 **STEP 3:** Type the **description copy** that will appear in your support lobby panel embed.")
             msg = await self.bot.wait_for("message", check=check, timeout=None)
             lobby_desc = msg.content
 
-            # Step 3: Custom Upload/Link Selection
-            await ctx.send("🖼️ **STEP 3:** Upload a **custom image attachment** or paste an image link for this panel. (Type `none` to skip).")
+            # Step 4: Custom Upload/Link Selection
+            await ctx.send("🖼️ **STEP 4:** Upload a **custom image attachment** or paste an image link for this panel. (Type `none` to skip).")
             msg = await self.bot.wait_for("message", check=check, timeout=None)
             ticket_image_url = None
             
@@ -243,8 +250,8 @@ class ReactionRoleSystem(commands.Cog):
                 elif msg.content.startswith("http"):
                     ticket_image_url = msg.content.strip()
 
-            # Step 4: Button Quantity Personalization
-            await ctx.send("🔢 **STEP 4:** How many **custom buttons** would you like to build for this lobby? (Maximum of 5).")
+            # Step 5: Button Quantity Personalization
+            await ctx.send("🔢 **STEP 5:** How many **custom buttons** would you like to build for this lobby? (Maximum of 5).")
             msg = await self.bot.wait_for("message", check=check, timeout=None)
             try:
                 btn_count = int(msg.content.strip())
@@ -253,7 +260,7 @@ class ReactionRoleSystem(commands.Cog):
             except ValueError:
                 return await ctx.send("❌ Please enter a valid number configuration.")
 
-            # Step 5: Loop to gather personalized Button Labels, Emojis, and Department Roles
+            # Step 6: Loop to gather personalized Button Labels, Emojis, and Department Roles
             button_configs = []
             for i in range(btn_count):
                 await ctx.send(f"🏷️ **BUTTON {i+1} NAME:** Enter the label text for Button #{i+1} (e.g., Verification).")
@@ -283,11 +290,14 @@ class ReactionRoleSystem(commands.Cog):
 
             # Execute Config Mapping Pushes
             with sqlite3.connect("database.db") as conn:
+                # MANDATORY PERSISTENCE FIX: On conflict, do NOT reset the ticket_count matrix under any circumstances. Keep old counters intact.
                 conn.execute("""
-                    INSERT INTO ticket_config (guild_id, lobby_channel) 
-                    VALUES (?, ?) 
-                    ON CONFLICT(guild_id) DO UPDATE SET lobby_channel=excluded.lobby_channel
-                """, (ctx.guild.id, target_channel.id))
+                    INSERT INTO ticket_config (guild_id, lobby_channel, admin_channel, ticket_count) 
+                    VALUES (?, ?, ?, 0) 
+                    ON CONFLICT(guild_id) DO UPDATE SET 
+                        lobby_channel=excluded.lobby_channel,
+                        admin_channel=excluded.admin_channel
+                """, (ctx.guild.id, target_channel.id, admin_logging_channel.id))
                 
                 # --- ADDED: SAVE BUTTON CONFIGS WITH THEIR ASSIGNED STAFF ROLES FOR PERSISTENCE ---
                 conn.execute("DELETE FROM ticket_buttons WHERE guild_id = ?", (ctx.guild.id,))
@@ -311,7 +321,7 @@ class ReactionRoleSystem(commands.Cog):
             # Generate the personalized layout view
             view = TicketLobbyView(button_configs)
             await target_channel.send(embed=embed, view=view)
-            await ctx.send(f"✅ **SUCCESS:** Personalized Ticket Lobby successfully engineered and deployed inside {target_channel.mention}")
+            await ctx.send(f"✅ **SUCCESS:** Personalized Ticket Lobby designed and deployed inside {target_channel.mention}. Transcripts assigned to {admin_logging_channel.mention}.")
 
         except asyncio.TimeoutError:
             await ctx.send("⌛ **TIMEOUT:** Configuration sequence timed out. Restart with `!ticket`.")
@@ -319,32 +329,17 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="ticketadmin")
     @commands.has_permissions(administrator=True)
     async def set_ticket_admin(self, ctx, role: discord.Role):
-        """Sets the Admin Role and creates a private channel for notifications."""
-        # Define overwrites for the new private admin channel
-        overwrites = {
-            ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            role: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-            ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
-
-        # Create the channel (UPDATED name framework from war-room-logs to ticket-logs)
-        admin_channel = await ctx.guild.create_text_channel(
-            name="ticket-logs",
-            overwrites=overwrites,
-            topic="Private logs for the Master and appointed Admins."
-        )
-
+        """Sets the Default Admin Role and configures the tracking database."""
         with sqlite3.connect("database.db") as conn:
             conn.execute("""
-                INSERT INTO ticket_config (guild_id, admin_channel, admin_role_id) 
-                VALUES (?, ?, ?) 
+                INSERT INTO ticket_config (guild_id, admin_role_id) 
+                VALUES (?, ?) 
                 ON CONFLICT(guild_id) DO UPDATE SET 
-                    admin_channel=excluded.admin_channel, 
                     admin_role_id=excluded.admin_role_id
-            """, (ctx.guild.id, admin_channel.id, role.id))
+            """, (ctx.guild.id, role.id))
             conn.commit()
 
-        await ctx.send(f"✅ Admin Role and Channel Persisted: {admin_channel.mention}\nOnly users with the role {role.mention} can see it.")
+        await ctx.send(f"✅ Default Admin Role Persisted: {role.mention}. Base matrix updated.")
 
     @commands.command(name="ticketcategory")
     @commands.has_permissions(administrator=True)
@@ -470,18 +465,21 @@ class TicketCustomButton(discord.ui.Button):
 
 class TicketLobbyView(discord.ui.View):
     def __init__(self, button_configs=None):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None) # MANDATORY FIX: timeout=None prevents expiry
         # If initialized by setup loop or persistent register reload
         if button_configs:
             for idx, cfg in enumerate(button_configs):
                 self.add_item(TicketCustomButton(label=cfg['label'], emoji=cfg['emoji'], index=idx, staff_role_id=cfg.get('staff_role_id')))
 
     async def create_ticket(self, interaction: discord.Interaction, category: str, staff_role_id: int = None):
-        # Fetch and Increment config
+        # MANDATORY FIX: Execute atomic update sequences to block counter dropping
         with sqlite3.connect("database.db") as conn:
             conn.row_factory = sqlite3.Row
-            # Update counter first
-            conn.execute("UPDATE ticket_config SET ticket_count = ticket_count + 1 WHERE guild_id = ?", (interaction.guild.id,))
+            conn.execute("""
+                INSERT INTO ticket_config (guild_id, ticket_count) 
+                VALUES (?, 1) 
+                ON CONFLICT(guild_id) DO UPDATE SET ticket_count = ticket_count + 1
+            """, (interaction.guild.id,))
             conn.commit()
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
         
@@ -532,7 +530,7 @@ class TicketLobbyView(discord.ui.View):
         # --- MODIFIED: PING THE APPOINTED STAFF ---
         ping_content = f"{interaction.user.mention} | {admin_role.mention if admin_role else ''}"
 
-        # Send greeting in ticket
+        # Send greeting in ticket with all control buttons attached
         tkt_embed = discord.Embed(
             title=f"⛓️ SESSION #{current_num} INITIATED: {category.upper().replace('_', ' ')}",
             description=f"Welcome {interaction.user.mention}. State your business clearly. "
@@ -540,7 +538,9 @@ class TicketLobbyView(discord.ui.View):
             color=0x8B0000
         )
         tkt_embed.set_footer(text="The Master is watching.")
-        await ticket_channel.send(content=ping_content, embed=tkt_embed, view=TicketControls())
+        
+        # Build views, appending the targeted department role id into persistent tracking data
+        await ticket_channel.send(content=ping_content, embed=tkt_embed, view=TicketControls(staff_role_id=chosen_staff_id))
 
         # Notify Master Logging Matrix
         admin_chan = interaction.guild.get_channel(config['admin_channel'])
@@ -557,7 +557,7 @@ class TicketLobbyView(discord.ui.View):
 class ArchiveViewer(discord.ui.View):
     # MODIFIED: Default ticket_id to None to allow setup initialization
     def __init__(self, ticket_id=None):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None) # MANDATORY FIX: timeout=None prevents expiry
         self.ticket_id = ticket_id
 
     @discord.ui.button(label="VIEW DATA", style=discord.ButtonStyle.secondary, emoji="👁️", custom_id="persistent_view_archive")
@@ -581,8 +581,74 @@ class ArchiveViewer(discord.ui.View):
             await interaction.response.send_message("❌ Data block corrupted or missing.", ephemeral=True)
 
 class TicketControls(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
+    def __init__(self, staff_role_id=None):
+        super().__init__(timeout=None) # MANDATORY FIX: timeout=None prevents expiry
+        self.staff_role_id = staff_role_id
+
+    # --- NEW: CLAIM TICKET PROTOCOL ---
+    @discord.ui.button(label="CLAIM TICKET", style=discord.ButtonStyle.success, emoji="🙋‍♂️", custom_id="tkt:claim")
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Extract target opener text name metrics via channel structure logs
+        try:
+            opener_name = interaction.channel.name.split("-")[1]
+            opener = discord.utils.get(interaction.guild.members, name=opener_name)
+        except Exception:
+            opener = None
+
+        # Redefine channel access permissions exclusively for the claiming staff asset
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        
+        if opener:
+            overwrites[opener] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True)
+
+        # Apply locked down privacy overrides to isolate conversation tracking
+        await interaction.channel.edit(
+            overwrites=overwrites,
+            topic=f"Claimed by: {interaction.user.display_name} | Handler ID: {interaction.user.id}"
+        )
+
+        # Disable claim button interaction natively to indicate locking sequence complete
+        button.disabled = True
+        button.label = f"Claimed by {interaction.user.display_name}"
+        await interaction.response.edit_message(view=self)
+        await interaction.channel.send(f"💼 **TICKET ASSIGNED:** {interaction.user.mention} has claimed this session and will take care of it.")
+
+    # --- NEW: PING ADMINS EMERGENCY PROTOCOL ---
+    @discord.ui.button(label="PING ADMINS", style=discord.ButtonStyle.primary, emoji="🔔", custom_id="tkt:ping_admins")
+    async def ping_admins(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Attempt to auto-parse assigned staff roles from contextual custom component payloads
+        target_role_id = self.staff_role_id
+        
+        # Database verification fallback routing if view memory was dropped between system refreshes
+        if not target_role_id:
+            try:
+                category_slug = interaction.channel.name.split("-")[-1].replace("-", "_")
+                with sqlite3.connect("database.db") as conn:
+                    conn.row_factory = sqlite3.Row
+                    res = conn.execute("SELECT staff_role_id FROM ticket_buttons WHERE label LIKE ? LIMIT 1", (category_slug.replace("_", " "),)).fetchone()
+                    if res:
+                        target_role_id = res["staff_role_id"]
+            except Exception:
+                pass
+
+        # Global system admin fallback route if button configuration profiles are missing entirely
+        if not target_role_id:
+            with sqlite3.connect("database.db") as conn:
+                conn.row_factory = sqlite3.Row
+                config = conn.execute("SELECT admin_role_id FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+                if config:
+                    target_role_id = config["admin_role_id"]
+
+        staff_role = interaction.guild.get_role(int(target_role_id)) if target_role_id else None
+        
+        if staff_role:
+            await interaction.response.send_message(f"⚠️ {staff_role.mention} **ATTENTION REQUIRED:** Appointed support reinforcement has been signaled immediately!", allowed_mentions=discord.AllowedMentions(roles=True))
+        else:
+            await interaction.response.send_message("❌ Error: Assigned department role matrix could not be resolved.", ephemeral=True)
 
     @discord.ui.button(label="CLOSE SESSION", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="tkt:close")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
