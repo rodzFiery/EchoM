@@ -275,8 +275,28 @@ class CrimeLobbyView(discord.ui.View):
         if not engine: 
             return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
 
-        if interaction.guild.id not in engine.current_lobbies:
+        # Persistence Recovery: Validate if the lobby is alive via database history records
+        db_lobby_exists = False
+        db_owner_id = None
+        db_edition = 0
+        with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
+            row = conn.execute("SELECT owner_id, edition FROM crime_active_lobbies WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+            if row:
+                db_lobby_exists = True
+                db_owner_id = row[0]
+                db_edition = row[1]
+
+        if not db_lobby_exists and interaction.guild.id not in engine.current_lobbies:
             return await interaction.followup.send("❌ **The dungeon cells are locked.** The session is already active.", ephemeral=True)
+
+        # Re-verify and map variables to this instance if executing after reboot execution cycles
+        if self.guild_id is None:
+            self.guild_id = interaction.guild.id
+        if self.edition == 0:
+            self.edition = db_edition
+        if self.owner is None and db_owner_id:
+            self.owner = interaction.guild.get_member(db_owner_id) or await interaction.guild.fetch_member(db_owner_id)
 
         # 1. Fetch synced team list directly from the database
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -364,6 +384,29 @@ class CrimeLobbyView(discord.ui.View):
             print("DEBUG: PartnersInCrimeEngine Cog NOT FOUND during start click.")
             return
 
+        # Persistence Recovery: Validate if the lobby is alive via database history records
+        db_lobby_exists = False
+        db_owner_id = None
+        db_edition = 0
+        with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
+            row = conn.execute("SELECT owner_id, edition FROM crime_active_lobbies WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+            if row:
+                db_lobby_exists = True
+                db_owner_id = row[0]
+                db_edition = row[1]
+
+        if not db_lobby_exists and interaction.guild.id not in engine.current_lobbies:
+            return await interaction.followup.send("❌ **The session has already been processed or closed.**", ephemeral=True)
+
+        # Re-verify and map variables to this instance if executing after reboot execution cycles
+        if self.guild_id is None:
+            self.guild_id = interaction.guild.id
+        if self.edition == 0:
+            self.edition = db_edition
+        if self.owner is None and db_owner_id:
+            self.owner = interaction.guild.get_member(db_owner_id) or await interaction.guild.fetch_member(db_owner_id)
+
         ignis_admin_role_id = None
         with engine.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id PRIMARY KEY, role_id INTEGER)")
@@ -415,6 +458,7 @@ class CrimeLobbyView(discord.ui.View):
 
         with engine.get_db_connection() as conn:
             conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (interaction.guild.id,))
+            conn.execute("DELETE FROM crime_active_lobbies WHERE guild_id = ?", (interaction.guild.id,))
             conn.commit()
         
         await interaction.channel.send("🚨 **THE WHIP CRACKS... THE DUNGEON BONDAGE SESSION IS NOW LIVE!**")
@@ -439,8 +483,28 @@ class CrimeLobbyView(discord.ui.View):
         if not engine: 
             return await interaction.followup.send("❌ Internal Error: Dungeon engine not found.", ephemeral=True)
 
-        if interaction.guild.id not in engine.current_lobbies:
+        # Persistence Recovery: Validate if the lobby is alive via database history records
+        db_lobby_exists = False
+        db_owner_id = None
+        db_edition = 0
+        with engine.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
+            row = conn.execute("SELECT owner_id, edition FROM crime_active_lobbies WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
+            if row:
+                db_lobby_exists = True
+                db_owner_id = row[0]
+                db_edition = row[1]
+
+        if not db_lobby_exists and interaction.guild.id not in engine.current_lobbies:
             return await interaction.followup.send("❌ **The playroom cells are locked.** The session is active.", ephemeral=True)
+
+        # Re-verify and map variables to this instance if executing after reboot execution cycles
+        if self.guild_id is None:
+            self.guild_id = interaction.guild.id
+        if self.edition == 0:
+            self.edition = db_edition
+        if self.owner is None and db_owner_id:
+            self.owner = interaction.guild.get_member(db_owner_id) or await interaction.guild.fetch_member(db_owner_id)
 
         try:
             # 1. Disable the old message view to avoid duplicate inputs or clutter
@@ -454,8 +518,8 @@ class CrimeLobbyView(discord.ui.View):
         new_view = CrimeLobbyView(self.owner, self.edition, self.guild_id)
         interaction.client.add_view(new_view)
 
-        if interaction.guild.id in engine.current_lobbies:
-            engine.current_lobbies[interaction.guild.id] = new_view
+        # Track new lobby view in volatile cache too
+        engine.current_lobbies[interaction.guild.id] = new_view
 
         # 3. Pull teams configuration fresh from DB 
         lobby_teams = self.fetch_teams_from_db(engine, interaction.guild.id)
@@ -515,6 +579,7 @@ class PartnersInCrimeEngine(commands.Cog):
 
             conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS crime_server_stats (guild_id INTEGER PRIMARY KEY, server_edition INTEGER DEFAULT 1)")
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
             
             # --- DATABASE DEFINITION: USER STATS & LEGACY ---
             # Creates the unified statistical database tracking user performance metrics
@@ -554,10 +619,9 @@ class PartnersInCrimeEngine(commands.Cog):
                     cursor = conn.execute("PRAGMA table_info(user_pets)")
                     existing_cols = [c[1] for c in cursor.fetchall()]
                     
+                    # Create correct physical table structure
                     conn.execute("DROP TABLE IF EXISTS user_pets_backup")
                     conn.execute("ALTER TABLE user_pets RENAME TO user_pets_backup")
-                    
-                    # Create correct physical table structure
                     conn.execute("""
                         CREATE TABLE user_pets (
                             guild_id INTEGER,
@@ -974,7 +1038,7 @@ class PartnersInCrimeEngine(commands.Cog):
             defeated_victims = []
 
             # Display Teams
-            roster_desc = ""
+             roster_desc = ""
             for duo in resolved_teams:
                 roster_desc += f"**Bondage Unit {duo['id']}:** {duo['name']}\n"
                 
@@ -1273,7 +1337,7 @@ class PartnersInCrimeEngine(commands.Cog):
                 description=(
                     "The whipping session is won, but the contract is incomplete. Below is the dungeon board containing your Dominants (top) and the remaining submissive targets ready to be forced into absolute submission (bottom).\n"
                     "Look up their **CELL UNIT #** printed on the cards and run `!strip <squad_number>` now!\n\n"
-                    "**📋 ACTIVE SUBMISSIVE TARGETS:**" + targets_text_list
+                    f"**📋 ACTIVE SUBMISSIVE TARGETS:**{targets_text_list}"
                 ),
                 color=0xFF00FF
             )
@@ -1305,11 +1369,23 @@ class CrimeEngineControl(commands.Cog):
         main = sys.modules['__main__']
         
         engine = self.bot.get_cog("PartnersInCrimeEngine")
+        
+        # Check database registry status in addition to local engine mapping configs to catch post-reboot duplication
+        db_lobby_exists = False
         if engine:
             if ctx.channel.id in engine.active_battles:
                 return await ctx.send("❌ **An active dungeon session is already running.** Wait for completion.")
             if ctx.guild.id in engine.current_lobbies:
                 return await ctx.send("❌ **Dungeon playroom playroom gates are already open in this city.**")
+
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
+            row_check = conn.execute("SELECT 1 FROM crime_active_lobbies WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+            if row_check:
+                db_lobby_exists = True
+
+        if db_lobby_exists:
+            return await ctx.send("❌ **Dungeon playroom playroom gates are already open in this city.**")
 
         with self.get_db_connection() as conn:
             # Re-migration safety check before setting up the game lobby
@@ -1342,6 +1418,10 @@ class CrimeEngineControl(commands.Cog):
             
             row_glob = conn.execute("SELECT server_edition FROM crime_server_stats WHERE guild_id = 999999999").fetchone()
             global_edition = row_glob[0] if row_glob else 1
+            
+            # Save the active lobby to the persistent storage table
+            conn.execute("INSERT OR REPLACE INTO crime_active_lobbies (guild_id, owner_id, edition) VALUES (?, ?, ?)", 
+                         (ctx.guild.id, ctx.author.id, server_edition))
             conn.commit()
 
         # Set lobby local variables to prevent state desync
