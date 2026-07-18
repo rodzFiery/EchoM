@@ -53,11 +53,14 @@ async def alert_and_check_dm_induction(client, user: discord.User, text: str, co
             break
             
     if not detected:
-        # Clean up variations of DM (e.g., d.m, d-m, d'm, d m)
-        cleaned_text = normalized_text.replace(".", "").replace("-", "").replace("'", "").replace(" ", "")
-        if "dm" in cleaned_text:
+        # LIGHTER REFINEMENT: Remove punctuation styling splits but maintain word breaks to avoid 'and me' false alarms
+        cleaned_for_words = normalized_text.replace(".", "").replace("-", "").replace("'", "")
+        words_list = cleaned_for_words.split()
+        
+        # Check for standalone variant hits specifically
+        if "dm" in words_list or "dms" in words_list:
             detected = True
-            triggered_phrase = "dm (or variant formatting)"
+            triggered_phrase = "dm / dms (standalone word identifier)"
 
     if detected:
         try:
