@@ -677,13 +677,14 @@ class PartnersInCrimeEngine(commands.Cog):
                         )
                     """)
             
-            # --- ADDED: EXTREME COMPATIBILITY INDEXES FOR "ON CONFLICT" ---
+            # --- MODIFIED: REMOVED CONFLICTING UNIQUE USER_ID CONSTANT CONSTRAINTS ---
             try:
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_guild_user ON user_pets (guild_id, user_id)")
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_name ON user_pets (user_id, pet_name)")
-                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_user_id ON user_pets (user_id)")
+                conn.execute("DROP INDEX IF EXISTS idx_user_pets_user_id")
+                conn.execute("DROP INDEX IF EXISTS idx_user_pets_guild_user")
+                conn.execute("DROP INDEX IF EXISTS idx_user_pets_user_name")
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_pets_composite_key ON user_pets (guild_id, user_id, pet_name)")
             except Exception as e:
-                print(f"Unique indexes ignored or already exist: {e}")
+                print(f"Unique composite mapping index failed: {e}")
 
             # Dynamic equipment column migration safety check
             try:
