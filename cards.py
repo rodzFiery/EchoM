@@ -395,7 +395,6 @@ class CardSystem(commands.Cog):
                     
                     conn.execute("INSERT OR REPLACE INTO user_pets (user_id, card_rowid, card_name, avatar_url) VALUES (?, ?, ?, ?)", 
                                  (user_id, db_rowid, db_name, avatar_url))
-                    conn.execute("UPDATE users SET spouse = ?, marriage_date = ? WHERE id = ?", (member.id, today, ctx.author.id))
                     conn.commit()
                     await interaction.response.send_message(f"✅ **{db_name}** is now your active pet following you!", ephemeral=True)
                 else:
@@ -467,6 +466,13 @@ class CardSystem(commands.Cog):
         if not channel: 
             print(f"[SYS] Aborting spawn: Channel ID {self.spawn_channel_id} not found in guild.") # ADDED
             return
+            
+        # --- START ADDITION: EXPLICIT CROSS-SERVER PRIVACY VERIFICATION WRAPPER ---
+        if channel.guild.id != guild.id:
+            print(f"[SYS] Critical Privacy Blocked: Channel resolved inside foreign guild map: {channel.guild.id} instead of {guild.id}")
+            return
+        # --- END ADDITION ---
+        
         print(f"[SYS] Manifestation point locked on: {channel.name}. Proceeding...") # ADDED
 
         # FIXED EXPLICITLY: Force an API-level fetch to guarantee we ONLY sample real local guild members
