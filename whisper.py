@@ -13,11 +13,13 @@ lobby_channel_id = None
 BOT_OWNER_ID = 1482648173016252439
 # ADDED: Default log channel ID
 DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
+# ADDED: Global state toggle for system pause/resume tracking
+whisper_system_active = True
 
 # --- ADDED: PERSISTENCE LAYER FUNCTIONS TO PREVENT DATA LOSS ON RAILWAY DEPLOYS ---
 def save_backup_config(key, value):
     filename = "whisper_backup_config.json"
-    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": []}
+    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": [], "system_active": True}
     if os.path.exists(filename):
         try:
             with open(filename, "r") as f:
@@ -27,6 +29,8 @@ def save_backup_config(key, value):
             
     if "opt_outs" not in data:
         data["opt_outs"] = []
+    if "system_active" not in data:
+        data["system_active"] = True
             
     if key == "lobby_channel_id":
         data["lobby_channel_id"] = value
@@ -41,6 +45,8 @@ def save_backup_config(key, value):
     elif key == "remove_opt_out":
         if value in data["opt_outs"]:
             data["opt_outs"].remove(value)
+    elif key == "system_active":
+        data["system_active"] = value
             
     with open(filename, "w") as f:
         json.dump(data, f)
@@ -214,6 +220,10 @@ class ReplyModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # ADDED: Global emergency pause handling checks
+            if not whisper_system_active:
+                return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Please try again later.", ephemeral=True)
+
             session_data = None
             
             # ADDED: Target mapping via unique message ID first to completely separate distinct whispers
@@ -292,6 +302,9 @@ class ReplyView(discord.ui.View):
 
     @discord.ui.button(label="Reply to the Whisper", style=discord.ButtonStyle.primary, custom_id="persistent_reply_btn")
     async def reply_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # ADDED: Global emergency pause handling checks
+        if not whisper_system_active:
+            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration.", ephemeral=True)
         # ADDED: Pass the unique DM message ID down to the modal handler
         msg_id = interaction.message.id if interaction.message else None
         await interaction.response.send_modal(ReplyModal(message_id=msg_id))
@@ -305,6 +318,10 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # ADDED: Global emergency pause handling checks
+            if not whisper_system_active:
+                return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
+
             # CHECK TARGET OPT-OUT STATUS PRIOR TO DISPATCHING DATA
             is_opted_out = False
             with sqlite3.connect("database.db") as conn:
@@ -340,6 +357,9 @@ class UserSelectView(discord.ui.View):
 
     @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Search and select the receiver...")
     async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        # ADDED: Global emergency pause handling checks
+        if not whisper_system_active:
+            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration.", ephemeral=True)
         target = select.values[0]
         if not isinstance(target, discord.Member):
             target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
@@ -351,6 +371,9 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Transmit Secret", style=discord.ButtonStyle.danger, emoji="💋", custom_id="persistent_lobby_btn")
     async def send_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # ADDED: Global emergency pause handling checks
+        if not whisper_system_active:
+            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
         await interaction.response.send_message("Search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
@@ -387,7 +410,7 @@ class WhisperCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        global lobby_channel_id
+        global lobby_channel_id, whisper_system_active
         
         # BACKUP RECOVERY CHECK ON SYSTEM BOOTUP
         backup = load_backup_config()
@@ -401,6 +424,8 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
             # ADDED: Ensure message tracking table exists on ready boot
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+            # ADDED: Handle bot-wide switch tracking layout inside the DB schema safely
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
             
             # Repopulate server logs table if wiped out
             if backup and backup.get("monitored_servers"):
@@ -417,6 +442,17 @@ class WhisperCog(commands.Cog):
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (backup["lobby_channel_id"],))
             conn.commit()
             
+            # ADDED: Restore system status visibility metrics
+            if backup and "system_active" in backup:
+                whisper_system_active = backup["system_active"]
+                conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
+                conn.commit()
+            else:
+                cursor = conn.execute("SELECT status FROM whisper_global_state WHERE key = 'bot_active'")
+                state_row = cursor.fetchone()
+                if state_row:
+                    whisper_system_active = True if state_row[0] == 1 else False
+
             # ADDED: Table creation and memory load for sessions on startup
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
             cursor = conn.execute("SELECT receiver_id, sender_id, guild_id FROM whisper_sessions")
@@ -435,6 +471,25 @@ class WhisperCog(commands.Cog):
                 
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
+
+    @commands.command(name="togglewhisperbot")
+    @commands.is_owner()
+    async def toggle_global_whisper_system(self, ctx):
+        """ADDED: Owner-only emergency toggle command to securely pause or resume the entire system without losing configurations."""
+        global whisper_system_active
+        whisper_system_active = not whisper_system_active
+        
+        with sqlite3.connect("database.db") as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
+            conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
+            conn.commit()
+            
+        save_backup_config("system_active", whisper_system_active)
+        
+        if whisper_system_active:
+            await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed. All configurations, channels, and logs remain perfectly active.")
+        else:
+            await ctx.send("⏸️ **System Paused:** The Whisper System has been temporarily locked down. All settings are preserved, but transmissions are locked.")
 
     @commands.command(name="nowhisper")
     async def toggle_whisper_opt_out(self, ctx):
