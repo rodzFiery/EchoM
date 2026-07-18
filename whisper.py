@@ -539,10 +539,13 @@ class WhisperCog(commands.Cog):
             for msg_row in cursor.fetchall():
                 whisper_sessions[msg_row[0]] = {"sender_id": msg_row[1], "guild_id": msg_row[2]}
             
+            # --- MODIFIED: SYSTEMatically FORCE MEMORY VARIABLE POPULATION ON STARTUP ---
             cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
             row = cursor.fetchone()
             if row and row[0] is not None:
                 lobby_channel_id = int(row[0])
+            elif backup and backup.get("lobby_channel_id"):
+                lobby_channel_id = int(backup["lobby_channel_id"])
                 
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
