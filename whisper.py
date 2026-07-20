@@ -16,7 +16,7 @@ BACKUP_PATH = os.path.join(STORAGE_DIR, "whisper_backup_config.json")
 # Maps {receiver_id: {"sender_id": id, "guild_id": id}} or {message_id: {"sender_id": id, "guild_id": id}}
 whisper_sessions = {}
 # Maps {guild_id: True}
-whisper_log_destinations = {} 
+whisper_log_destinations = {}
 lobby_channel_id = None
 BOT_OWNER_ID = 1482648173016252439
 # ADDED: Default log channel ID
