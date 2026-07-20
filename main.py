@@ -875,13 +875,25 @@ async def setup_hook():
         topgg_poster.start()
 
 async def main():
-    try:
-        async with bot: 
-            await bot.start(TOKEN)
-    except KeyboardInterrupt: pass
-    finally:
-        if not bot.is_closed(): await bot.close()
+    async with bot:
+        retry_delay = 15
+        while True:
+            try:
+                await bot.start(TOKEN)
+                break
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    print(f"⚠️ Discord Global Rate Limit Hit (429). Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 300)
+                else:
+                    raise e
+            except Exception as e:
+                print(f"❌ Unexpected error in bot loop: {e}")
+                raise e
 
 if __name__ == "__main__": 
-    try: asyncio.run(main())
-    except KeyboardInterrupt: pass
+    try: 
+        asyncio.run(main())
+    except KeyboardInterrupt: 
+        pass
