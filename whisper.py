@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 import sqlite3
 import os
 import json
+import asyncio
+import hashlib
 
 # --- ADDED: DETECT AND ESTABLISH PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
 # In your Railway Dashboard -> Volume settings, mount a volume to "/data" and add an Environment Variable: PERSISTENT_STORAGE_DIR = /data
@@ -21,6 +23,29 @@ BOT_OWNER_ID = 1482648173016252439
 DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 # ADDED: Global state toggle for system pause/resume tracking
 whisper_system_active = True
+
+# --- ADDED: DEDUPLICATION & CONCURRENCY LOCK ENGINE ---
+active_whisper_locks = set()
+processed_payload_hashes = set()
+
+def acquire_whisper_lock(key: str) -> bool:
+    if key in active_whisper_locks:
+        return False
+    active_whisper_locks.add(key)
+    return True
+
+def release_whisper_lock(key: str):
+    active_whisper_locks.discard(key)
+
+def is_duplicate_payload(sender_id: int, target_id: int, content: str) -> bool:
+    raw_key = f"{sender_id}:{target_id}:{content}"
+    payload_hash = hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+    if payload_hash in processed_payload_hashes:
+        return True
+    processed_payload_hashes.add(payload_hash)
+    # Automatically purge after 10 seconds to prevent unbounded memory growth
+    asyncio.get_event_loop().call_later(10, processed_payload_hashes.discard, payload_hash)
+    return False
 
 # --- MODIFIED: INTELLIGENT DM INDUCTION SENSOR + OWNER ALERT ENGINE ---
 async def alert_and_check_dm_induction(client, user: discord.User, text: str, context_type: str) -> bool:
@@ -118,6 +143,10 @@ def save_backup_config(key, value):
     with open(filename, "w") as f:
         json.dump(data, f)
 
+# ADDED: Async wrapper for save_backup_config to prevent blocking event loop (Fix #3)
+async def async_save_backup_config(key, value):
+    await asyncio.to_thread(save_backup_config, key, value)
+
 def load_backup_config():
     filename = BACKUP_PATH
     if not os.path.exists(filename):
@@ -145,6 +174,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         if backup and guild.id in backup.get("monitored_servers", []):
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (guild.id,))
+                conn.commit() # ADDED: Missing commit fixed (Fix #2)
             is_logging_enabled = True
     
     if is_logging_enabled:
@@ -201,6 +231,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (lobby_channel_id,))
+                conn.commit() # ADDED: Missing commit fixed (Fix #2)
 
     lobby_channel = guild.get_channel(lobby_channel_id) if lobby_channel_id else None
     
@@ -227,8 +258,14 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="🌐 System Protocol", value="Encrypted transmission active", inline=True)
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.add_field(name="📊 Total Whispers Received", value=str(total_count), inline=False)
-        embed.set_author(name="Whisper Log Registry", icon_url=guild.icon.url if guild.icon else None)
-        embed.set_thumbnail(url=target_member.display_avatar.url)
+        
+        # FIXED: Safe fetch for guild icon URL and target member avatar URL to avoid Null attribute exceptions (Fix #5)
+        guild_icon_url = guild.icon.url if guild and guild.icon else None
+        target_avatar_url = target_member.display_avatar.url if target_member and hasattr(target_member, "display_avatar") else None
+        
+        embed.set_author(name="Whisper Log Registry", icon_url=guild_icon_url)
+        if target_avatar_url:
+            embed.set_thumbnail(url=target_avatar_url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
         await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
@@ -286,6 +323,11 @@ class ReplyModal(discord.ui.Modal):
         self.message_id = message_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        # ADDED: Concurrency Lock to avoid double modal handling execution
+        lock_key = f"reply:{interaction.user.id}:{self.message_id or 'fallback'}"
+        if not acquire_whisper_lock(lock_key):
+            return await interaction.response.send_message("⚠️ A reply submission is already processing. Please wait.", ephemeral=True)
+
         try:
             # ADDED: Global emergency pause handling checks
             if not whisper_system_active:
@@ -329,6 +371,10 @@ class ReplyModal(discord.ui.Modal):
                 raw_guild = session_data["guild_id"]
                 guild_id = raw_guild[0] if type(raw_guild).__name__ == 'Row' else int(raw_guild)
                 
+                # ADDED: Deduplication safeguard against duplicate replies
+                if is_duplicate_payload(interaction.user.id, original_sender_id, self.reply_content.value):
+                    return await interaction.response.send_message("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
+
                 try:
                     # FIXED: main.py overrides get_user, returning a sqlite Row. We strictly use fetch_user to get the Discord User.
                     sender = await interaction.client.fetch_user(original_sender_id)
@@ -366,6 +412,9 @@ class ReplyModal(discord.ui.Modal):
             await interaction.response.send_message("❌ Could not send the reply. The user has DMs closed or has blocked the bot.", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
+        finally:
+            # ADDED: Clean up execution lock
+            release_whisper_lock(lock_key)
 
 class ReplyView(discord.ui.View):
     def __init__(self):
@@ -388,6 +437,11 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
+        # ADDED: Concurrency Lock to prevent duplicate initial outbound whispers
+        lock_key = f"outbound:{interaction.user.id}:{self.target_member.id}"
+        if not acquire_whisper_lock(lock_key):
+            return await interaction.response.send_message("⚠️ A whisper to this user is currently processing. Please wait.", ephemeral=True)
+
         try:
             # ADDED: Global emergency pause handling checks
             if not whisper_system_active:
@@ -396,6 +450,10 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             # --- MODIFIED: AWAIT DM INDUCTION DETECTION + OWNER ALERT ---
             if await alert_and_check_dm_induction(interaction.client, interaction.user, self.message_content.value, "Initial Outbound Whisper"):
                 return await interaction.response.send_message("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
+
+            # ADDED: Deduplication check to prevent dual execution
+            if is_duplicate_payload(interaction.user.id, self.target_member.id, self.message_content.value):
+                return await interaction.response.send_message("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
 
             # CHECK TARGET OPT-OUT STATUS PRIOR TO DISPATCHING DATA
             is_opted_out = False
@@ -425,6 +483,9 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             await interaction.response.send_message("❌ Could not send the whisper. The user has DMs closed or has blocked the bot.", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
+        finally:
+            # ADDED: Clean up execution lock
+            release_whisper_lock(lock_key)
 
 class UserSelectView(discord.ui.View):
     def __init__(self):
@@ -562,7 +623,7 @@ class WhisperCog(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
             conn.commit()
             
-        save_backup_config("system_active", whisper_system_active)
+        await async_save_backup_config("system_active", whisper_system_active) # FIXED: Non-blocking backup save (Fix #3)
         
         if whisper_system_active:
             await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed. All configurations, channels, and logs remain perfectly active.")
@@ -583,16 +644,17 @@ class WhisperCog(commands.Cog):
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
                 conn.commit()
-            save_backup_config("remove_opt_out", ctx.author.id)
+            await async_save_backup_config("remove_opt_out", ctx.author.id) # FIXED: Non-blocking backup save (Fix #3)
             await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
         else:
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
                 conn.commit()
-            save_backup_config("add_opt_out", ctx.author.id)
+            await async_save_backup_config("add_opt_out", ctx.author.id) # FIXED: Non-blocking backup save (Fix #3)
             await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
 
     @commands.command()
+    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def setwhisper(self, ctx, channel: discord.TextChannel):
         global lobby_channel_id
         lobby_channel_id = channel.id
@@ -601,20 +663,22 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
-        save_backup_config("lobby_channel_id", channel.id)
+        await async_save_backup_config("lobby_channel_id", channel.id) # FIXED: Non-blocking backup save (Fix #3)
         await ctx.send(f"Whisper lobby set to {channel.mention}")
 
     @commands.command()
+    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def whisperserverset(self, ctx, server_id: int):
         with sqlite3.connect(DB_PATH) as conn:
             # ADDED: Ensure table exists just in case
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
-            conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
+            conn.execute("INSERT OR REPLACE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
             conn.commit()
-        save_backup_config("add_server", server_id)
+        await async_save_backup_config("add_server", server_id) # FIXED: Non-blocking backup save (Fix #3)
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
 
     @commands.command()
+    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def openwhisper(self, ctx):
         embed = discord.Embed(
             title="💋 NEURAL WHISPER LOBBY 💋", 
