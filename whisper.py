@@ -279,12 +279,14 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         except Exception as delete_error:
             print(f"Lobby clean error: {delete_error}")
 
+        # ADDED: Updated lobby text to inform members about opt-out commands
         lobby_embed = discord.Embed(
             title="💋 NEURAL WHISPER LOBBY 💋", 
             description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
                         "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
                         "• **Complete Anonymity:** The server records won't save your footprint.\n"
                         "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "🔒 **Opt-Out Control:** Don't want whispers? Type `!nomorewhispers` to lock your portal. Use `!backtowhisper` anytime to reactivate.\n\n"
                         "*Go ahead... hit the switch below and leave them wondering all night.*", 
             color=0xE0115F
         )
@@ -653,6 +655,28 @@ class WhisperCog(commands.Cog):
             await async_save_backup_config("add_opt_out", ctx.author.id) # FIXED: Non-blocking backup save (Fix #3)
             await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
 
+    # ADDED: Explicit opt-out command for members
+    @commands.command(name="nomorewhispers")
+    async def opt_out_whispers_explicit(self, ctx):
+        """Explicitly disables whisper reception for the command invoker."""
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+            conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
+            conn.commit()
+        await async_save_backup_config("add_opt_out", ctx.author.id)
+        await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
+
+    # ADDED: Explicit opt-in command for members
+    @commands.command(name="backtowhisper")
+    async def opt_in_whispers_explicit(self, ctx):
+        """Re-enables whisper reception for members who previously opted out."""
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
+            conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
+            conn.commit()
+        await async_save_backup_config("remove_opt_out", ctx.author.id)
+        await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
+
     @commands.command()
     @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def setwhisper(self, ctx, channel: discord.TextChannel):
@@ -680,12 +704,14 @@ class WhisperCog(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def openwhisper(self, ctx):
+        # ADDED: Updated lobby text to inform members about opt-out commands
         embed = discord.Embed(
             title="💋 NEURAL WHISPER LOBBY 💋", 
             description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
                         "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
                         "• **Complete Anonymity:** The server records won't save your footprint.\n"
                         "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "🔒 **Opt-Out Control:** Don't want whispers? Type `!nomorewhispers` to lock your portal. Use `!backtowhisper` anytime to reactivate.\n\n"
                         "*Go ahead... hit the switch below and leave them wondering all night.*", 
             color=0xE0115F
         )
