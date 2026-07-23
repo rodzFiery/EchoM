@@ -143,7 +143,7 @@ class PremiumSystem(commands.Cog):
             "ranking", "hall", "streaks", "quests", "ask", "dice", "blackjack", 
             "roulette", "slots", "stealemoji", "echopurge", "limit", "echostart", 
             "autorole", "setroles", "ticket", "match3some", "flirtyship", "matchme", 
-            "matchmaking", "thread", "threadall", "math"
+            "matchmaking", "threadall", "math"
         ]
         self.bot.add_check(self.global_premium_interceptor)
         
