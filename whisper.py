@@ -29,8 +29,6 @@ lobby_channel_id = None
 guild_lobby_channels = {}
 
 BOT_OWNER_ID = 1482648173016252439
-# Default log channel ID
-DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
 # Global state toggle for system pause/resume tracking
 whisper_system_active = True
 
@@ -205,7 +203,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if is_logging_enabled:
         try: 
             owner = await client.fetch_user(BOT_OWNER_ID)
-        except: 
+        except Exception: 
             owner = None
         
         print(f"Log debug: owner found = {owner is not None}")
@@ -313,7 +311,10 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             embed.set_thumbnail(url=target_avatar_url)
         embed.set_footer(text="Whisper log updated - Identity of sender remains classified.")
             
-        await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
+        try:
+            await lobby_channel.send(content=f"🔔 ATTENTION: {target_member.mention} has received a new whisper!", embed=embed, view=ReplyView())
+        except Exception as send_err:
+            print(f"Failed to send whisper notification to lobby: {send_err}")
 
         try:
             async for old_msg in lobby_channel.history(limit=20):
@@ -333,31 +334,10 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             color=0xE0115F
         )
         lobby_embed.set_footer(text="Encrypted Connection Online • Proceed at your own risk.")
-        await lobby_channel.send(embed=lobby_embed, view=LobbyView())
-
-    default_log_channel = client.get_channel(DEFAULT_LOG_CHANNEL_ID)
-    if not default_log_channel:
         try:
-            default_log_channel = await client.fetch_channel(DEFAULT_LOG_CHANNEL_ID)
-        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
-            print(f"Log Error: Fetch failed - {e}")
-            default_log_channel = None
-        except Exception as e:
-            print(f"Log Error: Unexpected fetch error - {e}")
-            default_log_channel = None
-            
-    if default_log_channel:
-        try:
-            sender_info = sender.mention if sender else "Anonymous / Session Reply"
-            log_embed = discord.Embed(
-                title="Global Whisper System Log", 
-                description=f"**Target Asset:** {target_member.mention}\n**Action Executed:** {action.capitalize()}\n**Associated User:** {sender_info}", 
-                color=discord.Color.dark_gray(),
-                timestamp=datetime.now(timezone.utc)
-            )
-            await default_log_channel.send(embed=log_embed)
-        except Exception as e:
-            print(f"Could not send log to default log channel: {e}")
+            await lobby_channel.send(embed=lobby_embed, view=LobbyView())
+        except Exception as lobby_send_err:
+            print(f"Failed to refresh lobby panel: {lobby_send_err}")
 
 
 class ReplyModal(discord.ui.Modal):
@@ -417,7 +397,7 @@ class ReplyModal(discord.ui.Modal):
 
                 try:
                     sender = await interaction.client.fetch_user(original_sender_id)
-                except:
+                except Exception:
                     sender = None
                 
                 if sender:
@@ -446,7 +426,7 @@ class ReplyModal(discord.ui.Modal):
                     if not guild:
                         try: 
                             guild = await interaction.client.fetch_guild(guild_id)
-                        except: 
+                        except Exception: 
                             pass
                     if guild:
                         await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to", sender=sender, content=self.reply_content.value)
@@ -533,7 +513,11 @@ class UserSelectView(discord.ui.View):
             return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration.", ephemeral=True)
         target = select.values[0]
         if not isinstance(target, discord.Member):
-            target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
+            try:
+                target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
+            except Exception as member_err:
+                print(f"Failed to fetch member {target.id}: {member_err}")
+                return await interaction.response.send_message("❌ Unable to resolve target user in this server.", ephemeral=True)
         await interaction.response.send_modal(WhisperMessageModal(target))
 
 class LobbyView(discord.ui.View):
@@ -616,11 +600,11 @@ class WhisperCog(commands.Cog):
 
             try:
                 conn.execute("ALTER TABLE whisper_sessions ADD COLUMN last_content TEXT")
-            except:
+            except Exception:
                 pass
             try:
                 conn.execute("ALTER TABLE whisper_message_sessions ADD COLUMN last_content TEXT")
-            except:
+            except Exception:
                 pass
 
             if backup and backup.get("monitored_servers"):
@@ -639,7 +623,6 @@ class WhisperCog(commands.Cog):
                     conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (int(g_id_str), ch_id))
 
             # --- HARDENED ENVIRONMENT VARIABLE RECOVERY ENGINE ---
-            # Set WHISPER_LOBBY_CHANNEL_ID and WHISPER_MONITORED_SERVER_IDS in Railway Env Vars as secondary auto-restore
             env_lobby = os.getenv("WHISPER_LOBBY_CHANNEL_ID")
             if env_lobby and env_lobby.isdigit():
                 parsed_lobby_id = int(env_lobby)
