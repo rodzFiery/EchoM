@@ -332,9 +332,12 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if not default_log_channel:
         try:
             default_log_channel = await client.fetch_channel(DEFAULT_LOG_CHANNEL_ID)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+            print(f"Log Error: Fetch failed for default log channel {DEFAULT_LOG_CHANNEL_ID} - {e}")
+            default_log_channel = None
         except Exception as e:
-            print(f"Log Error: Fetch failed - {e}")
-            pass
+            print(f"Log Error: Unexpected fetch error - {e}")
+            default_log_channel = None
             
     if default_log_channel:
         try:
@@ -345,7 +348,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
                 color=discord.Color.dark_gray(),
                 timestamp=datetime.now(timezone.utc)
             )
-            await default_log_channel.send(log_embed)
+            await default_log_channel.send(embed=log_embed)
         except Exception as e:
             print(f"Could not send log to default log channel: {e}")
 
