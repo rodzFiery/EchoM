@@ -1,4 +1,4 @@
-import discordimport discord
+import discord
 from discord.ext import commands
 from datetime import datetime, timezone
 import sqlite3
@@ -10,6 +10,7 @@ import hashlib
 # --- ADDED: DETECT AND ESTABLISH PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
 # In your Railway Dashboard -> Volume settings, mount a volume to "/data" and add an Environment Variable: PERSISTENT_STORAGE_DIR = /data
 STORAGE_DIR = os.getenv("PERSISTENT_STORAGE_DIR", ".")
+os.makedirs(STORAGE_DIR, exist_ok=True)
 DB_PATH = os.path.join(STORAGE_DIR, "database.db")
 BACKUP_PATH = os.path.join(STORAGE_DIR, "whisper_backup_config.json")
 
@@ -111,23 +112,34 @@ async def alert_and_check_dm_induction(client, user: discord.User, text: str, co
         
     return False
 
-# --- MODIFIED: PATHS REDIRECTED TO MOUNTED STORAGE FILE LAYER ---
+# --- MODIFIED: PATHS REDIRECTED TO MOUNTED STORAGE FILE LAYER & ATOMIC PERSISTENCE ---
+def load_backup_config():
+    filename = BACKUP_PATH
+    default_structure = {
+        "lobby_channel_id": None, 
+        "guild_lobbies": {}, 
+        "monitored_servers": [], 
+        "opt_outs": [], 
+        "system_active": True
+    }
+    if not os.path.exists(filename):
+        return default_structure
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return default_structure
+            for key, val in default_structure.items():
+                if key not in data:
+                    data[key] = val
+            return data
+    except Exception as e:
+        print(f"Error loading backup config: {e}")
+        return default_structure
+
 def save_backup_config(key, value, guild_id=None):
     filename = BACKUP_PATH
-    data = {"lobby_channel_id": None, "guild_lobbies": {}, "monitored_servers": [], "opt_outs": [], "system_active": True}
-    if os.path.exists(filename):
-        try:
-            with open(filename, "r") as f:
-                data = json.load(f)
-        except:
-            pass
-            
-    if "opt_outs" not in data:
-        data["opt_outs"] = []
-    if "system_active" not in data:
-        data["system_active"] = True
-    if "guild_lobbies" not in data:
-        data["guild_lobbies"] = {}
+    data = load_backup_config()
             
     if key == "lobby_channel_id":
         data["lobby_channel_id"] = value
@@ -146,23 +158,29 @@ def save_backup_config(key, value, guild_id=None):
             data["opt_outs"].remove(value)
     elif key == "system_active":
         data["system_active"] = value
-            
-    with open(filename, "w") as f:
-        json.dump(data, f)
+    elif key == "full_sync":
+        if isinstance(value, dict):
+            data.update(value)
+
+    # Safe atomic save via temporary file swap to avoid redeploy truncation corruption
+    temp_filename = f"{filename}.tmp"
+    try:
+        with open(temp_filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_filename, filename)
+    except Exception as e:
+        print(f"Failed to write backup configuration safely: {e}")
+        if os.path.exists(temp_filename):
+            try:
+                os.remove(temp_filename)
+            except:
+                pass
 
 # ADDED: Async wrapper for save_backup_config to prevent blocking event loop (Fix #3)
 async def async_save_backup_config(key, value, guild_id=None):
     await asyncio.to_thread(save_backup_config, key, value, guild_id)
-
-def load_backup_config():
-    filename = BACKUP_PATH
-    if not os.path.exists(filename):
-        return None
-    try:
-        with open(filename, "r") as f:
-            return json.load(f)
-    except:
-        return None
 
 async def log_whisper_activity(client, guild, target_member, action="received", sender=None, content=None):
     # 1. Database logic for audit log (fully isolated)
@@ -595,18 +613,17 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
             # ADDED: Handle bot-wide switch tracking layout inside the DB schema safely
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
-            
-            # Repopulate server logs table if wiped out
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+
+            # MERGE BACKUP FILE DATA INTO SQLITE DATABASE ON STARTUP
             if backup and backup.get("monitored_servers"):
                 for s_id in backup["monitored_servers"]:
                     conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (s_id,))
             
-            # Repopulate opt-out list table if wiped out
             if backup and backup.get("opt_outs"):
                 for u_id in backup["opt_outs"]:
                     conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (u_id,))
             
-            # Repopulate lobby configurations if wiped out
             if backup and backup.get("lobby_channel_id"):
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (backup["lobby_channel_id"],))
             
@@ -616,24 +633,35 @@ class WhisperCog(commands.Cog):
 
             conn.commit()
             
-            # Load all guild-specific lobbies into memory
+            # REVERSE SYNCHRONIZATION: POPULATE IN-MEMORY DICTIONARIES AND BACKUP JSON STATE FROM SQLITE
             cursor = conn.execute("SELECT guild_id, channel_id FROM whisper_guild_lobbies")
+            db_guild_lobbies = {}
             for g_row in cursor.fetchall():
                 guild_lobby_channels[g_row[0]] = g_row[1]
+                db_guild_lobbies[str(g_row[0])] = g_row[1]
+
+            cursor = conn.execute("SELECT user_id FROM whisper_opt_outs")
+            db_opt_outs = [row[0] for row in cursor.fetchall()]
+
+            cursor = conn.execute("SELECT guild_id FROM whisper_server_logs")
+            db_monitored_servers = [row[0] for row in cursor.fetchall()]
+
+            cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                lobby_channel_id = int(row[0])
 
             # ADDED: Restore system status visibility metrics
-            if backup and "system_active" in backup:
+            cursor = conn.execute("SELECT status FROM whisper_global_state WHERE key = 'bot_active'")
+            state_row = cursor.fetchone()
+            if state_row:
+                whisper_system_active = True if state_row[0] == 1 else False
+            elif backup and "system_active" in backup:
                 whisper_system_active = backup["system_active"]
                 conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
                 conn.commit()
-            else:
-                cursor = conn.execute("SELECT status FROM whisper_global_state WHERE key = 'bot_active'")
-                state_row = cursor.fetchone()
-                if state_row:
-                    whisper_system_active = True if state_row[0] == 1 else False
 
-            # ADDED: Table creation and memory load for sessions on startup
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+            # ADDED: Memory load for sessions on startup
             cursor = conn.execute("SELECT receiver_id, sender_id, guild_id FROM whisper_sessions")
             for session_row in cursor.fetchall():
                 whisper_sessions[session_row[0]] = {"sender_id": session_row[1], "guild_id": session_row[2]}
@@ -642,15 +670,17 @@ class WhisperCog(commands.Cog):
             cursor = conn.execute("SELECT message_id, sender_id, guild_id FROM whisper_message_sessions")
             for msg_row in cursor.fetchall():
                 whisper_sessions[msg_row[0]] = {"sender_id": msg_row[1], "guild_id": msg_row[2]}
-            
-            # --- MODIFIED: SYSTEMatically FORCE MEMORY VARIABLE POPULATION ON STARTUP ---
-            cursor = conn.execute("SELECT value FROM whisper_config WHERE key = 'lobby_channel_id'")
-            row = cursor.fetchone()
-            if row and row[0] is not None:
-                lobby_channel_id = int(row[0])
-            elif backup and backup.get("lobby_channel_id"):
-                lobby_channel_id = int(backup["lobby_channel_id"])
-                
+
+            # SAVE CONSOLIDATED STATE BACK TO BACKUP FILE
+            full_sync_data = {
+                "lobby_channel_id": lobby_channel_id,
+                "guild_lobbies": db_guild_lobbies,
+                "monitored_servers": db_monitored_servers,
+                "opt_outs": db_opt_outs,
+                "system_active": whisper_system_active
+            }
+            await async_save_backup_config("full_sync", full_sync_data)
+
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
 
