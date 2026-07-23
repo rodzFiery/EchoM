@@ -5,7 +5,6 @@ except ImportError:
     try:
         import audioop_lts as audioop
         import sys
-        import sys
         sys.modules['audioop'] = audioop
     except ImportError:
         pass 
@@ -269,8 +268,6 @@ class GameConfigView(discord.ui.View):
                 elif item.custom_id == "rules_factions":
                     faction_theme = item.values[0] if item.values else "ffa"
 
-        # FIXED: Core validation gate block. If team faction simulation models are chosen,
-        # standard environment rules are automatically suppressed to clear obligations.
         if faction_theme in ["men_vs_girls", "usa_vs_world"]:
             rules_payload = {
                 "first_blood": False,
@@ -403,7 +400,6 @@ class EngineControl(commands.Cog):
         )
         
         view = LobbyView(ctx.author, main.game_edition, ctx.guild.id)
-        # FORCE STANDARD RULE PAYLOAD SO IT RUNS ITS OWN COHESIVE RECAP LOGIC
         view.custom_rules = {
             "first_blood": True,
             "legendary": True,
@@ -1055,27 +1051,69 @@ class IgnisEngine(commands.Cog):
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
                 recap_file = None
                 
-                # BRANCH A: FACTION MATCHES ONLY (STRICT SEPARATION)
+                # BRANCH A: FACTION MATCHES ONLY (EXPANDED FACTION ROLE DETECTION)
                 if rules.get("is_custom_setup") and rules.get('faction_theme') in ["men_vs_girls", "usa_vs_world"]:
                     faction_flashers = []
+
+                    # Dynamic Keyword Definitions
+                    male_keywords = ["male", "he/him", "man", "men", "boy", "boys", "guy", "guys"]
+                    female_keywords = ["female", "she/her", "woman", "women", "girl", "girls", "gal", "gals"]
+                    na_keywords = ["north america", "usa", "na", "us", "america"]
+
+                    def matches_keywords(member_obj, keyword_list):
+                        if not member_obj or not hasattr(member_obj, 'roles'):
+                            return False
+                        for role in member_obj.roles:
+                            role_lower = role.name.lower()
+                            if any(kw in role_lower for kw in keyword_list):
+                                return True
+                        return False
+
+                    # Ensure winner member object is bound
+                    if not winner_member:
+                        winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
+
                     if rules['faction_theme'] == "men_vs_girls":
-                        winner_is_male = any(r.name.lower() in ["he/him", "male"] for r in winner_member.roles)
-                        winner_is_female = any(r.name.lower() in ["she/her", "female"] for r in winner_member.roles)
+                        winner_is_male = matches_keywords(winner_member, male_keywords)
+                        winner_is_female = matches_keywords(winner_member, female_keywords)
+
                         for p_id in participants:
+                            if p_id == winner_member.id:
+                                continue
                             m = channel.guild.get_member(p_id)
-                            if m and m.id != winner_member.id:
-                                m_is_female = any(r.name.lower() in ["she/her", "female"] for r in m.roles)
-                                m_is_male = any(r.name.lower() in ["he/him", "male"] for r in m.roles)
+                            if not m:
+                                try:
+                                    m = await channel.guild.fetch_member(p_id)
+                                except Exception:
+                                    continue
+                            
+                            if m:
+                                m_is_male = matches_keywords(m, male_keywords)
+                                m_is_female = matches_keywords(m, female_keywords)
+
                                 if winner_is_male and m_is_female:
                                     faction_flashers.append(m)
                                 elif winner_is_female and m_is_male:
                                     faction_flashers.append(m)
+                                elif not winner_is_male and not winner_is_female and m_is_female:
+                                    # Fallback: Default to flashing females if winner has no gender role
+                                    faction_flashers.append(m)
+
                     elif rules['faction_theme'] == "usa_vs_world":
-                        winner_is_na = any(r.name.lower() == "north america" for r in winner_member.roles)
+                        winner_is_na = matches_keywords(winner_member, na_keywords)
+
                         for p_id in participants:
+                            if p_id == winner_member.id:
+                                continue
                             m = channel.guild.get_member(p_id)
-                            if m and m.id != winner_member.id:
-                                m_is_na = any(r.name.lower() == "north america" for r in m.roles)
+                            if not m:
+                                try:
+                                    m = await channel.guild.fetch_member(p_id)
+                                except Exception:
+                                    continue
+                            
+                            if m:
+                                m_is_na = matches_keywords(m, na_keywords)
                                 if winner_is_na and not m_is_na:
                                     faction_flashers.append(m)
                                 elif not winner_is_na and m_is_na:
