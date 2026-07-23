@@ -14,7 +14,7 @@ os.makedirs(STORAGE_DIR, exist_ok=True)
 DB_PATH = os.path.join(STORAGE_DIR, "database.db")
 BACKUP_PATH = os.path.join(STORAGE_DIR, "whisper_backup_config.json")
 
-# Maps {receiver_id: {"sender_id": id, "guild_id": id}} or {message_id: {"sender_id": id, "guild_id": id}}
+# Maps {receiver_id: {"sender_id": id, "guild_id": id, "last_content": text}} or {message_id: {"sender_id": id, "guild_id": id, "last_content": text}}
 whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {}
@@ -395,10 +395,10 @@ class ReplyModal(discord.ui.Modal):
                 if not session_data:
                     with sqlite3.connect(DB_PATH) as conn:
                         conn.row_factory = None
-                        cursor = conn.execute("SELECT sender_id, guild_id FROM whisper_message_sessions WHERE message_id = ?", (self.message_id,))
+                        cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_message_sessions WHERE message_id = ?", (self.message_id,))
                         row = cursor.fetchone()
                         if row:
-                            session_data = {"sender_id": row[0], "guild_id": row[1]}
+                            session_data = {"sender_id": row[0], "guild_id": row[1], "last_content": row[2]}
                             whisper_sessions[self.message_id] = session_data
 
             # Fallback to the original legacy user ID session mapping if message ID matching yields nothing
@@ -407,10 +407,10 @@ class ReplyModal(discord.ui.Modal):
                 if not session_data:
                     with sqlite3.connect(DB_PATH) as conn:
                         conn.row_factory = None
-                        cursor = conn.execute("SELECT sender_id, guild_id FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
+                        cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
                         row = cursor.fetchone()
                         if row:
-                            session_data = {"sender_id": row[0], "guild_id": row[1]}
+                            session_data = {"sender_id": row[0], "guild_id": row[1], "last_content": row[2]}
                             whisper_sessions[interaction.user.id] = session_data
 
             if session_data:
@@ -420,6 +420,8 @@ class ReplyModal(discord.ui.Modal):
                 
                 raw_guild = session_data["guild_id"]
                 guild_id = raw_guild[0] if type(raw_guild).__name__ == 'Row' else int(raw_guild)
+                
+                last_content = session_data.get("last_content", None)
                 
                 # ADDED: Deduplication safeguard against duplicate replies
                 if is_duplicate_payload(interaction.user.id, original_sender_id, self.reply_content.value):
@@ -432,17 +434,28 @@ class ReplyModal(discord.ui.Modal):
                     sender = None
                 
                 if sender:
-                    embed = discord.Embed(title="Anonymous Reply Received", description=self.reply_content.value, color=discord.Color.green())
+                    embed = discord.Embed(title="Anonymous Reply Received", color=discord.Color.green())
+                    
+                    # ADDED: Render previous message context if available so back-and-forth threads are clear
+                    if last_content:
+                        embed.add_field(name="💬 Previous Message Context", value=f"> {last_content}", inline=False)
+                    
+                    embed.add_field(name="✉️ Reply Content", value=self.reply_content.value, inline=False)
                     
                     # MODIFIED: Dispatched directly to target box without setting legacy user id maps to prevent cross-chatter bugs
                     outbound_msg = await sender.send(embed=embed, view=ReplyView())
                     
                     # ADDED: Track outbound message session specifically to keep threads separated on subsequent replies
                     if outbound_msg:
-                        whisper_sessions[outbound_msg.id] = {"sender_id": interaction.user.id, "guild_id": guild_id}
+                        whisper_sessions[outbound_msg.id] = {"sender_id": interaction.user.id, "guild_id": guild_id, "last_content": self.reply_content.value}
+                        whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id, "last_content": self.reply_content.value}
+                        
                         with sqlite3.connect(DB_PATH) as conn:
-                            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
-                            conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id) VALUES (?, ?, ?)", (outbound_msg.id, interaction.user.id, guild_id))
+                            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+                            conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (outbound_msg.id, interaction.user.id, guild_id, self.reply_content.value))
+                            
+                            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+                            conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (sender.id, interaction.user.id, guild_id, self.reply_content.value))
                             conn.commit()
 
                     guild = interaction.client.get_guild(guild_id)
@@ -569,23 +582,23 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
         
-        # ADDED: Save session to database
-        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
-        conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id) VALUES (?, ?, ?)", (target_member.id, sender.id, guild.id))
+        # ADDED: Save session to database with last_content text tracking
+        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+        conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (target_member.id, sender.id, guild.id, content))
         conn.commit()
         
     # Map the target (receiver) to the sender so they can reply back
-    whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id}
+    whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
     embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
     # ADDED: view=ReplyView() so the receiver actually gets the button in their DM!
     dm_msg = await target_member.send(embed=embed, view=ReplyView())
     
     # FIXED: Tied directly via unique message ID dictionary maps and database logging mapping
     if dm_msg:
-        whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id}
+        whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
         with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
-            conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id) VALUES (?, ?, ?)", (dm_msg.id, sender.id, guild.id))
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+            conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (dm_msg.id, sender.id, guild.id, content))
             conn.commit()
             
     await log_whisper_activity(client, guild, target_member, action="received", sender=sender, content=content)
@@ -609,11 +622,21 @@ class WhisperCog(commands.Cog):
             # ADDED: Ensure whisper_counts exists on ready
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
-            # ADDED: Ensure message tracking table exists on ready boot
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+            # ADDED: Ensure message tracking table exists on ready boot with content tracking column
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
             # ADDED: Handle bot-wide switch tracking layout inside the DB schema safely
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+
+            # MIGRATION SAFEGUARD: Check and add last_content columns to existing tables dynamically
+            try:
+                conn.execute("ALTER TABLE whisper_sessions ADD COLUMN last_content TEXT")
+            except:
+                pass
+            try:
+                conn.execute("ALTER TABLE whisper_message_sessions ADD COLUMN last_content TEXT")
+            except:
+                pass
 
             # MERGE BACKUP FILE DATA INTO SQLITE DATABASE ON STARTUP
             if backup and backup.get("monitored_servers"):
@@ -661,15 +684,15 @@ class WhisperCog(commands.Cog):
                 conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
                 conn.commit()
 
-            # ADDED: Memory load for sessions on startup
-            cursor = conn.execute("SELECT receiver_id, sender_id, guild_id FROM whisper_sessions")
+            # ADDED: Memory load for sessions on startup including content history
+            cursor = conn.execute("SELECT receiver_id, sender_id, guild_id, last_content FROM whisper_sessions")
             for session_row in cursor.fetchall():
-                whisper_sessions[session_row[0]] = {"sender_id": session_row[1], "guild_id": session_row[2]}
+                whisper_sessions[session_row[0]] = {"sender_id": session_row[1], "guild_id": session_row[2], "last_content": session_row[3]}
             
             # ADDED: Pull message-level tracking records back into memory cache on ready load
-            cursor = conn.execute("SELECT message_id, sender_id, guild_id FROM whisper_message_sessions")
+            cursor = conn.execute("SELECT message_id, sender_id, guild_id, last_content FROM whisper_message_sessions")
             for msg_row in cursor.fetchall():
-                whisper_sessions[msg_row[0]] = {"sender_id": msg_row[1], "guild_id": msg_row[2]}
+                whisper_sessions[msg_row[0]] = {"sender_id": msg_row[1], "guild_id": msg_row[2], "last_content": msg_row[3]}
 
             # SAVE CONSOLIDATED STATE BACK TO BACKUP FILE
             full_sync_data = {
