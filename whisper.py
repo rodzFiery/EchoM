@@ -1,4 +1,4 @@
-import discord
+import discordimport discord
 from discord.ext import commands
 from datetime import datetime, timezone
 import sqlite3
@@ -18,6 +18,9 @@ whisper_sessions = {}
 # Maps {guild_id: True}
 whisper_log_destinations = {}
 lobby_channel_id = None
+# MULTI-SERVER ADDITION: Maps {guild_id: channel_id} for per-server lobby isolation
+guild_lobby_channels = {}
+
 BOT_OWNER_ID = 1482648173016252439
 # ADDED: Default log channel ID
 DEFAULT_LOG_CHANNEL_ID = 1498246295255646420
@@ -109,9 +112,9 @@ async def alert_and_check_dm_induction(client, user: discord.User, text: str, co
     return False
 
 # --- MODIFIED: PATHS REDIRECTED TO MOUNTED STORAGE FILE LAYER ---
-def save_backup_config(key, value):
+def save_backup_config(key, value, guild_id=None):
     filename = BACKUP_PATH
-    data = {"lobby_channel_id": None, "monitored_servers": [], "opt_outs": [], "system_active": True}
+    data = {"lobby_channel_id": None, "guild_lobbies": {}, "monitored_servers": [], "opt_outs": [], "system_active": True}
     if os.path.exists(filename):
         try:
             with open(filename, "r") as f:
@@ -123,9 +126,13 @@ def save_backup_config(key, value):
         data["opt_outs"] = []
     if "system_active" not in data:
         data["system_active"] = True
+    if "guild_lobbies" not in data:
+        data["guild_lobbies"] = {}
             
     if key == "lobby_channel_id":
         data["lobby_channel_id"] = value
+    elif key == "set_guild_lobby" and guild_id:
+        data["guild_lobbies"][str(guild_id)] = value
     elif key == "add_server":
         if value not in data.get("monitored_servers", []):
             if "monitored_servers" not in data:
@@ -144,8 +151,8 @@ def save_backup_config(key, value):
         json.dump(data, f)
 
 # ADDED: Async wrapper for save_backup_config to prevent blocking event loop (Fix #3)
-async def async_save_backup_config(key, value):
-    await asyncio.to_thread(save_backup_config, key, value)
+async def async_save_backup_config(key, value, guild_id=None):
+    await asyncio.to_thread(save_backup_config, key, value, guild_id)
 
 def load_backup_config():
     filename = BACKUP_PATH
@@ -221,19 +228,42 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         return
 
     # 2. Logic for Lobby channel announcement
-    global lobby_channel_id
+    global lobby_channel_id, guild_lobby_channels
     
+    # MULTI-SERVER RESOLUTION: Check per-guild lobby channel first, then fallback to global/backup
+    target_lobby_id = guild_lobby_channels.get(guild.id)
+    
+    if target_lobby_id is None:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = None
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
+            cursor = conn.execute("SELECT channel_id FROM whisper_guild_lobbies WHERE guild_id = ?", (guild.id,))
+            row = cursor.fetchone()
+            if row:
+                target_lobby_id = row[0]
+                guild_lobby_channels[guild.id] = target_lobby_id
+
     # BACKUP RECOVERY CHECK FOR LOBBY CHANNEL
-    if lobby_channel_id is None:
+    if target_lobby_id is None:
         backup = load_backup_config()
-        if backup and backup.get("lobby_channel_id"):
+        if backup and backup.get("guild_lobbies") and str(guild.id) in backup["guild_lobbies"]:
+            target_lobby_id = int(backup["guild_lobbies"][str(guild.id)])
+            guild_lobby_channels[guild.id] = target_lobby_id
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
+                conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (guild.id, target_lobby_id))
+                conn.commit()
+        elif backup and backup.get("lobby_channel_id") and lobby_channel_id is None:
             lobby_channel_id = int(backup["lobby_channel_id"])
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (lobby_channel_id,))
-                conn.commit() # ADDED: Missing commit fixed (Fix #2)
+                conn.commit()
 
-    lobby_channel = guild.get_channel(lobby_channel_id) if lobby_channel_id else None
+    if target_lobby_id is None:
+        target_lobby_id = lobby_channel_id
+
+    lobby_channel = guild.get_channel(target_lobby_id) if target_lobby_id else None
     
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
@@ -548,7 +578,7 @@ class WhisperCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        global lobby_channel_id, whisper_system_active
+        global lobby_channel_id, whisper_system_active, guild_lobby_channels
         
         # BACKUP RECOVERY CHECK ON SYSTEM BOOTUP
         backup = load_backup_config()
@@ -556,6 +586,7 @@ class WhisperCog(commands.Cog):
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             # ADDED: Ensure whisper_counts exists on ready
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
@@ -578,8 +609,18 @@ class WhisperCog(commands.Cog):
             # Repopulate lobby configurations if wiped out
             if backup and backup.get("lobby_channel_id"):
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (backup["lobby_channel_id"],))
+            
+            if backup and backup.get("guild_lobbies"):
+                for g_id_str, ch_id in backup["guild_lobbies"].items():
+                    conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (int(g_id_str), ch_id))
+
             conn.commit()
             
+            # Load all guild-specific lobbies into memory
+            cursor = conn.execute("SELECT guild_id, channel_id FROM whisper_guild_lobbies")
+            for g_row in cursor.fetchall():
+                guild_lobby_channels[g_row[0]] = g_row[1]
+
             # ADDED: Restore system status visibility metrics
             if backup and "system_active" in backup:
                 whisper_system_active = backup["system_active"]
@@ -680,7 +721,15 @@ class WhisperCog(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
     async def setwhisper(self, ctx, channel: discord.TextChannel):
-        global lobby_channel_id
+        global lobby_channel_id, guild_lobby_channels
+        if ctx.guild:
+            guild_lobby_channels[ctx.guild.id] = channel.id
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
+                conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (ctx.guild.id, channel.id))
+                conn.commit()
+            await async_save_backup_config("set_guild_lobby", channel.id, ctx.guild.id)
+        
         lobby_channel_id = channel.id
         with sqlite3.connect(DB_PATH) as conn:
             # ADDED: Ensure table exists just in case
