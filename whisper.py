@@ -275,6 +275,13 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
 
     lobby_channel = guild.get_channel(target_lobby_id) if target_lobby_id else None
     
+    if not lobby_channel and target_lobby_id:
+        try:
+            lobby_channel = await guild.fetch_channel(target_lobby_id)
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as fetch_err:
+            print(f"Lobby Channel Fetch Warning: Could not resolve channel {target_lobby_id} - {fetch_err}")
+            lobby_channel = None
+
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
         with sqlite3.connect(DB_PATH) as conn:
@@ -333,7 +340,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         try:
             default_log_channel = await client.fetch_channel(DEFAULT_LOG_CHANNEL_ID)
         except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
-            print(f"Log Error: Fetch failed for default log channel {DEFAULT_LOG_CHANNEL_ID} - {e}")
+            print(f"Log Error: Fetch failed - {e}")
             default_log_channel = None
         except Exception as e:
             print(f"Log Error: Unexpected fetch error - {e}")
