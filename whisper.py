@@ -178,7 +178,7 @@ def save_backup_config(key, value, guild_id=None):
             except:
                 pass
 
-# ADDED: Async wrapper for save_backup_config to prevent blocking event loop (Fix #3)
+# ADDED: Async wrapper for save_backup_config to prevent blocking event loop
 async def async_save_backup_config(key, value, guild_id=None):
     await asyncio.to_thread(save_backup_config, key, value, guild_id)
 
@@ -199,7 +199,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         if backup and guild.id in backup.get("monitored_servers", []):
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (guild.id,))
-                conn.commit() # ADDED: Missing commit fixed (Fix #2)
+                conn.commit()
             is_logging_enabled = True
     
     if is_logging_enabled:
@@ -307,7 +307,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         embed.add_field(name="🔥 Heat Level", value="Maximum", inline=True)
         embed.add_field(name="📊 Total Whispers Received", value=str(total_count), inline=False)
         
-        # FIXED: Safe fetch for guild icon URL and target member avatar URL to avoid Null attribute exceptions (Fix #5)
+        # FIXED: Safe fetch for guild icon URL and target member avatar URL to avoid Null attribute exceptions
         guild_icon_url = guild.icon.url if guild and guild.icon else None
         target_avatar_url = target_member.display_avatar.url if target_member and hasattr(target_member, "display_avatar") else None
         
@@ -438,7 +438,7 @@ class ReplyModal(discord.ui.Modal):
                     
                     # ADDED: Render previous message context if available so back-and-forth threads are clear
                     if last_content:
-                        embed.add_field(name="💬 Previous Message Context", value=f"> {last_content}", inline=False)
+                        embed.add_field(name="📜 Last Whisper Transmitted", value=f"> {last_content}", inline=False)
                     
                     embed.add_field(name="✉️ Reply Content", value=self.reply_content.value, inline=False)
                     
@@ -576,21 +576,46 @@ class LobbyView(discord.ui.View):
         await interaction.response.send_message("Search for the receiver:", view=UserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild):
+    previous_whisper_content = None
+
+    # ADDED: Query prior session data between sender and target before updating DB
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = None
+        conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+        cursor = conn.execute("SELECT last_content, sender_id FROM whisper_sessions WHERE receiver_id = ?", (target_member.id,))
+        existing_session = cursor.fetchone()
+        
+        # Check if an existing session between these exact two users exists
+        if existing_session and existing_session[1] == sender.id:
+            previous_whisper_content = existing_session[0]
+
+    if not previous_whisper_content and target_member.id in whisper_sessions:
+        cached_data = whisper_sessions.get(target_member.id)
+        if cached_data and cached_data.get("sender_id") == sender.id:
+            previous_whisper_content = cached_data.get("last_content")
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
         conn.execute("UPDATE whisper_counts SET count = count + 1 WHERE user_id = ?", (target_member.id,))
         
-        # ADDED: Save session to database with last_content text tracking
+        # Save session to database with last_content text tracking
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
         conn.execute("INSERT OR REPLACE INTO whisper_sessions (receiver_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (target_member.id, sender.id, guild.id, content))
         conn.commit()
         
     # Map the target (receiver) to the sender so they can reply back
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
-    embed = discord.Embed(title="You received an Anonymous Whisper", description=content, color=discord.Color.purple())
-    # ADDED: view=ReplyView() so the receiver actually gets the button in their DM!
+    
+    embed = discord.Embed(title="You received an Anonymous Whisper", color=discord.Color.purple())
+    
+    # ADDED: Include previous whisper context if it exists for this user pair
+    if previous_whisper_content:
+        embed.add_field(name="📜 Last Whisper Transmitted", value=f"> {previous_whisper_content}", inline=False)
+        
+    embed.add_field(name="✉️ Whisper Content", value=content, inline=False)
+
     dm_msg = await target_member.send(embed=embed, view=ReplyView())
     
     # FIXED: Tied directly via unique message ID dictionary maps and database logging mapping
@@ -719,7 +744,7 @@ class WhisperCog(commands.Cog):
             conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
             conn.commit()
             
-        await async_save_backup_config("system_active", whisper_system_active) # FIXED: Non-blocking backup save (Fix #3)
+        await async_save_backup_config("system_active", whisper_system_active)
         
         if whisper_system_active:
             await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed. All configurations, channels, and logs remain perfectly active.")
@@ -740,13 +765,13 @@ class WhisperCog(commands.Cog):
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
                 conn.commit()
-            await async_save_backup_config("remove_opt_out", ctx.author.id) # FIXED: Non-blocking backup save (Fix #3)
+            await async_save_backup_config("remove_opt_out", ctx.author.id)
             await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
         else:
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
                 conn.commit()
-            await async_save_backup_config("add_opt_out", ctx.author.id) # FIXED: Non-blocking backup save (Fix #3)
+            await async_save_backup_config("add_opt_out", ctx.author.id)
             await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
 
     # ADDED: Explicit opt-out command for members
@@ -772,7 +797,7 @@ class WhisperCog(commands.Cog):
         await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
 
     @commands.command()
-    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
+    @commands.has_permissions(administrator=True)
     async def setwhisper(self, ctx, channel: discord.TextChannel):
         global lobby_channel_id, guild_lobby_channels
         if ctx.guild:
@@ -789,22 +814,22 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (channel.id,))
             conn.commit()
-        await async_save_backup_config("lobby_channel_id", channel.id) # FIXED: Non-blocking backup save (Fix #3)
+        await async_save_backup_config("lobby_channel_id", channel.id)
         await ctx.send(f"Whisper lobby set to {channel.mention}")
 
     @commands.command()
-    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
+    @commands.has_permissions(administrator=True)
     async def whisperserverset(self, ctx, server_id: int):
         with sqlite3.connect(DB_PATH) as conn:
             # ADDED: Ensure table exists just in case
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             conn.execute("INSERT OR REPLACE INTO whisper_server_logs (guild_id) VALUES (?)", (server_id,))
             conn.commit()
-        await async_save_backup_config("add_server", server_id) # FIXED: Non-blocking backup save (Fix #3)
+        await async_save_backup_config("add_server", server_id)
         await ctx.send(f"Logs for server ID {server_id} are now forwarded to your DMs.")
 
     @commands.command()
-    @commands.has_permissions(administrator=True) # FIXED: Added Admin permissions check (Fix #1)
+    @commands.has_permissions(administrator=True)
     async def openwhisper(self, ctx):
         # ADDED: Updated lobby text to inform members about opt-out commands
         embed = discord.Embed(
