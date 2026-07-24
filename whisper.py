@@ -970,7 +970,7 @@ class LobbyView(discord.ui.View):
     @discord.ui.button(label="Truth or Dare", style=discord.ButtonStyle.primary, emoji="🎲", custom_id="persistent_lobby_game_btn")
     async def game_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not whisper_system_active:
-            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration.", ephemeral=True)
+            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
         await interaction.response.send_message("Select a member to challenge:", view=GameUserSelectView(), ephemeral=True)
 
 async def handle_whisper_logic(client, sender, target_member, content, guild, persona_key="standard", poll_id=None, opt_a=None, opt_b=None):
@@ -1205,6 +1205,20 @@ class WhisperCog(commands.Cog):
             await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed.")
         else:
             await ctx.send("⏸️ **System Paused:** The Whisper System has been temporarily locked down.")
+
+    @commands.command(name="togglewhisperon")
+    @commands.is_owner()
+    async def toggle_whisper_on(self, ctx):
+        global whisper_system_active
+        whisper_system_active = True
+        
+        with get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
+            conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1,))
+            conn.commit()
+            
+        await async_save_backup_config("system_active", whisper_system_active)
+        await ctx.send("✅ **System Operational:** The Whisper System has been turned on.")
 
     @commands.command(name="nowhisper")
     async def toggle_whisper_opt_out(self, ctx):
