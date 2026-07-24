@@ -10,21 +10,36 @@ import random
 import re
 
 # --- STRICT PERSISTENCE STORAGE ENFORCEMENT FOR RAILWAY VOLUMES ---
-PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", "/data")
+# Always prioritize Railway's /data volume mount
+RAILWAY_VOLUME = "/data"
+PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", RAILWAY_VOLUME)
 
-if os.path.exists("/data"):
-    STORAGE_DIR = "/data"
-elif os.path.exists(PERSISTENT_ENV):
+STORAGE_DIR = None
+for candidate_dir in [RAILWAY_VOLUME, PERSISTENT_ENV]:
     try:
-        os.makedirs(PERSISTENT_ENV, exist_ok=True)
-        STORAGE_DIR = PERSISTENT_ENV
+        os.makedirs(candidate_dir, exist_ok=True)
+        # Test write permission to ensure it's a persistent, writable volume
+        test_file = os.path.join(candidate_dir, ".write_test")
+        with open(test_file, "w") as f:
+            f.write("ok")
+        os.remove(test_file)
+        STORAGE_DIR = candidate_dir
+        break
     except Exception:
-        STORAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-else:
+        continue
+
+if not STORAGE_DIR:
     STORAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DB_PATH = os.path.join(STORAGE_DIR, "database.db")
 BACKUP_PATH = os.path.join(STORAGE_DIR, "whisper_backup_config.json")
+
+def get_db_connection():
+    """Returns a SQLite connection configured with WAL mode for crash-resilient persistence."""
+    conn = sqlite3.connect(DB_PATH, timeout=20.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    return conn
 
 # In-Memory Cache maps
 whisper_sessions = {}
@@ -122,7 +137,7 @@ def get_pair_key(user1_id: int, user2_id: int) -> str:
 def is_pair_blocked(sender_id: int, receiver_id: int) -> bool:
     """Checks whether the recipient has blocked whispers specifically from this anonymous pair key."""
     pair_key = get_pair_key(sender_id, receiver_id)
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_db_connection() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_blocked_pairs (pair_key TEXT PRIMARY KEY, blocked_by INTEGER)")
         cursor = conn.execute("SELECT 1 FROM whisper_blocked_pairs WHERE pair_key = ?", (pair_key,))
         return cursor.fetchone() is not None
@@ -132,7 +147,7 @@ def record_transcript_entry(sender_id: int, receiver_id: int, content: str):
     pair_key = get_pair_key(sender_id, receiver_id)
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_db_connection() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS whisper_pair_transcripts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -295,7 +310,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         is_logging_enabled = True
 
     if not is_logging_enabled and guild:
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT 1 FROM whisper_server_logs WHERE guild_id = ?", (guild.id,))
@@ -306,7 +321,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if not is_logging_enabled and guild:
         backup = load_backup_config()
         if backup and guild.id in backup.get("monitored_servers", []):
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (guild.id,))
                 conn.commit()
             is_logging_enabled = True
@@ -353,7 +368,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     target_lobby_id = guild_lobby_channels.get(guild.id) if guild else None
     
     if target_lobby_id is None and guild:
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
             cursor = conn.execute("SELECT channel_id FROM whisper_guild_lobbies WHERE guild_id = ?", (guild.id,))
@@ -367,7 +382,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         if backup and backup.get("guild_lobbies") and str(guild.id) in backup["guild_lobbies"]:
             target_lobby_id = int(backup["guild_lobbies"][str(guild.id)])
             guild_lobby_channels[guild.id] = target_lobby_id
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
                 conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (guild.id, target_lobby_id))
                 conn.commit()
@@ -382,7 +397,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     
     if lobby_channel and isinstance(lobby_channel, discord.TextChannel):
         total_count = 0
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
             cursor = conn.execute("SELECT count FROM whisper_counts WHERE user_id = ?", (target_member.id,))
@@ -475,7 +490,13 @@ class PollVoteView(discord.ui.View):
 
     async def process_vote(self, interaction: discord.Interaction, choice: str):
         await interaction.response.defer(ephemeral=True)
-        with sqlite3.connect(DB_PATH) as conn:
+        
+        # Parse dynamic poll ID from custom_id if instantiated dynamically
+        poll_id = self.poll_id
+        if not poll_id and interaction.data and "custom_id" in interaction.data:
+            poll_id = interaction.data["custom_id"].split(":")[-1]
+
+        with get_db_connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS whisper_polls (
                     poll_id TEXT PRIMARY KEY,
@@ -493,19 +514,19 @@ class PollVoteView(discord.ui.View):
                 )
             """)
             
-            cursor = conn.execute("SELECT 1 FROM whisper_poll_voters WHERE poll_id = ? AND voter_id = ?", (self.poll_id, interaction.user.id))
+            cursor = conn.execute("SELECT 1 FROM whisper_poll_voters WHERE poll_id = ? AND voter_id = ?", (poll_id, interaction.user.id))
             if cursor.fetchone():
                 return await interaction.followup.send("⚠️ You have already voted on this anonymous poll card.", ephemeral=True)
 
             if choice == "A":
-                conn.execute("UPDATE whisper_polls SET votes_a = votes_a + 1 WHERE poll_id = ?", (self.poll_id,))
+                conn.execute("UPDATE whisper_polls SET votes_a = votes_a + 1 WHERE poll_id = ?", (poll_id,))
             else:
-                conn.execute("UPDATE whisper_polls SET votes_b = votes_b + 1 WHERE poll_id = ?", (self.poll_id,))
+                conn.execute("UPDATE whisper_polls SET votes_b = votes_b + 1 WHERE poll_id = ?", (poll_id,))
                 
-            conn.execute("INSERT INTO whisper_poll_voters (poll_id, voter_id) VALUES (?, ?)", (self.poll_id, interaction.user.id))
+            conn.execute("INSERT INTO whisper_poll_voters (poll_id, voter_id) VALUES (?, ?)", (poll_id, interaction.user.id))
             conn.commit()
 
-            cursor = conn.execute("SELECT option_a, option_b, votes_a, votes_b FROM whisper_polls WHERE poll_id = ?", (self.poll_id,))
+            cursor = conn.execute("SELECT option_a, option_b, votes_a, votes_b FROM whisper_polls WHERE poll_id = ?", (poll_id,))
             row = cursor.fetchone()
 
         if row:
@@ -547,7 +568,7 @@ class ReplyModal(discord.ui.Modal):
             if self.message_id:
                 session_data = whisper_sessions.get(self.message_id)
                 if not session_data:
-                    with sqlite3.connect(DB_PATH) as conn:
+                    with get_db_connection() as conn:
                         conn.row_factory = None
                         cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_message_sessions WHERE message_id = ?", (self.message_id,))
                         row = cursor.fetchone()
@@ -558,7 +579,7 @@ class ReplyModal(discord.ui.Modal):
             if not session_data:
                 session_data = whisper_sessions.get(interaction.user.id)
                 if not session_data:
-                    with sqlite3.connect(DB_PATH) as conn:
+                    with get_db_connection() as conn:
                         conn.row_factory = None
                         cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
                         row = cursor.fetchone()
@@ -603,7 +624,7 @@ class ReplyModal(discord.ui.Modal):
                         whisper_sessions[outbound_msg.id] = {"sender_id": interaction.user.id, "guild_id": guild_id, "last_content": self.reply_content.value}
                         whisper_sessions[sender.id] = {"sender_id": interaction.user.id, "guild_id": guild_id, "last_content": self.reply_content.value}
                         
-                        with sqlite3.connect(DB_PATH) as conn:
+                        with get_db_connection() as conn:
                             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
                             conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (outbound_msg.id, interaction.user.id, guild_id, self.reply_content.value))
                             
@@ -653,7 +674,7 @@ class ReplyView(discord.ui.View):
             session_data = whisper_sessions.get(interaction.user.id)
 
         if not session_data:
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.row_factory = None
                 if msg_id:
                     cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_message_sessions WHERE message_id = ?", (msg_id,))
@@ -678,7 +699,7 @@ class ReplyView(discord.ui.View):
         pair_key = get_pair_key(interaction.user.id, other_user_id)
 
         rows = []
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
             cursor = conn.execute("""
                 SELECT sender_id, content, timestamp 
@@ -727,7 +748,7 @@ class ReplyView(discord.ui.View):
             session_data = whisper_sessions.get(interaction.user.id)
 
         if not session_data:
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.row_factory = None
                 if msg_id:
                     cursor = conn.execute("SELECT sender_id FROM whisper_message_sessions WHERE message_id = ?", (msg_id,))
@@ -750,7 +771,7 @@ class ReplyView(discord.ui.View):
 
         pair_key = get_pair_key(interaction.user.id, other_user_id)
 
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_blocked_pairs (pair_key TEXT PRIMARY KEY, blocked_by INTEGER)")
             conn.execute("INSERT OR REPLACE INTO whisper_blocked_pairs (pair_key, blocked_by) VALUES (?, ?)", (pair_key, interaction.user.id))
             conn.commit()
@@ -789,7 +810,7 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
                 return await interaction.followup.send("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
 
             is_opted_out = False
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
                 cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (self.target_member.id,))
                 if cursor.fetchone():
@@ -798,7 +819,7 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             if not is_opted_out:
                 backup = load_backup_config()
                 if backup and self.target_member.id in backup.get("opt_outs", []):
-                    with sqlite3.connect(DB_PATH) as conn:
+                    with get_db_connection() as conn:
                         conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (self.target_member.id,))
                         conn.commit()
                     is_opted_out = True
@@ -815,7 +836,7 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             opt_b = self.poll_option_b.value.strip()
             if opt_a and opt_b:
                 poll_id = hashlib.sha256(f"{interaction.user.id}:{datetime.now()}".encode()).hexdigest()[:12]
-                with sqlite3.connect(DB_PATH) as conn:
+                with get_db_connection() as conn:
                     conn.execute("""
                         CREATE TABLE IF NOT EXISTS whisper_polls (
                             poll_id TEXT PRIMARY KEY,
@@ -955,7 +976,7 @@ class LobbyView(discord.ui.View):
 async def handle_whisper_logic(client, sender, target_member, content, guild, persona_key="standard", poll_id=None, opt_a=None, opt_b=None):
     previous_whisper_content = None
 
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_db_connection() as conn:
         conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
         cursor = conn.execute("SELECT last_content, sender_id FROM whisper_sessions WHERE receiver_id = ?", (target_member.id,))
@@ -969,7 +990,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild, pe
         if cached_data and cached_data.get("sender_id") == sender.id:
             previous_whisper_content = cached_data.get("last_content")
 
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_db_connection() as conn:
         conn.row_factory = None
         conn.execute("CREATE TABLE IF NOT EXISTS whisper_counts (user_id INTEGER PRIMARY KEY, count INTEGER DEFAULT 0)")
         conn.execute("INSERT OR IGNORE INTO whisper_counts (user_id, count) VALUES (?, 0)", (target_member.id,))
@@ -1002,7 +1023,7 @@ async def handle_whisper_logic(client, sender, target_member, content, guild, pe
     
     if dm_msg:
         whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
             conn.execute("INSERT OR REPLACE INTO whisper_message_sessions (message_id, sender_id, guild_id, last_content) VALUES (?, ?, ?, ?)", (dm_msg.id, sender.id, guild.id, content))
             conn.commit()
@@ -1021,7 +1042,7 @@ class WhisperCog(commands.Cog):
         global lobby_channel_id, whisper_system_active, guild_lobby_channels, monitored_server_logs
         
         # Ensure database tables exist first
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
@@ -1077,7 +1098,7 @@ class WhisperCog(commands.Cog):
         env_lobby = os.getenv("WHISPER_DEFAULT_LOBBY_ID")
         if env_lobby and env_lobby.isdigit():
             lobby_channel_id = int(env_lobby)
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (lobby_channel_id,))
                 conn.commit()
 
@@ -1087,12 +1108,12 @@ class WhisperCog(commands.Cog):
                 s_id = s_id.strip()
                 if s_id.isdigit():
                     monitored_server_logs.add(int(s_id))
-                    with sqlite3.connect(DB_PATH) as conn:
+                    with get_db_connection() as conn:
                         conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (int(s_id),))
                         conn.commit()
 
         # Sync database and JSON backup configuration
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.row_factory = None
 
             if backup and backup.get("monitored_servers"):
@@ -1161,8 +1182,11 @@ class WhisperCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.sync_persistence_state()
+        # Register persistent views so buttons work across restarts
         self.bot.add_view(LobbyView())
         self.bot.add_view(ReplyView())
+        # Wildcard registration for dynamic poll vote views
+        self.bot.add_view(PollVoteView(None, "Option A", "Option B"))
 
     @commands.command(name="togglewhisperbot")
     @commands.is_owner()
@@ -1170,7 +1194,7 @@ class WhisperCog(commands.Cog):
         global whisper_system_active
         whisper_system_active = not whisper_system_active
         
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
             conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
             conn.commit()
@@ -1185,20 +1209,20 @@ class WhisperCog(commands.Cog):
     @commands.command(name="nowhisper")
     async def toggle_whisper_opt_out(self, ctx):
         is_opted_out = False
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
             cursor = conn.execute("SELECT 1 FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
             if cursor.fetchone():
                 is_opted_out = True
                 
         if is_opted_out:
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
                 conn.commit()
             await async_save_backup_config("remove_opt_out", ctx.author.id)
             await ctx.send("✅ **Whisper System Activated:** You are now open to receive anonymous whispers again.")
         else:
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
                 conn.commit()
             await async_save_backup_config("add_opt_out", ctx.author.id)
@@ -1206,7 +1230,7 @@ class WhisperCog(commands.Cog):
 
     @commands.command(name="nomorewhispers")
     async def opt_out_whispers_explicit(self, ctx):
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
             conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
             conn.commit()
@@ -1215,7 +1239,7 @@ class WhisperCog(commands.Cog):
 
     @commands.command(name="backtowhisper")
     async def opt_in_whispers_explicit(self, ctx):
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_opt_outs (user_id INTEGER PRIMARY KEY)")
             conn.execute("DELETE FROM whisper_opt_outs WHERE user_id = ?", (ctx.author.id,))
             conn.commit()
@@ -1230,7 +1254,7 @@ class WhisperCog(commands.Cog):
         
         if ctx.guild:
             guild_lobby_channels[ctx.guild.id] = target_channel.id
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db_connection() as conn:
                 conn.execute("CREATE TABLE IF NOT EXISTS whisper_guild_lobbies (guild_id INTEGER PRIMARY KEY, channel_id INTEGER)")
                 conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (ctx.guild.id, target_channel.id))
                 conn.commit()
@@ -1249,7 +1273,7 @@ class WhisperCog(commands.Cog):
             return await ctx.send("❌ Please provide a valid Server/Guild ID.")
             
         monitored_server_logs.add(target_server_id)
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_server_logs (guild_id INTEGER PRIMARY KEY)")
             conn.execute("INSERT OR REPLACE INTO whisper_server_logs (guild_id) VALUES (?)", (target_server_id,))
             conn.commit()
