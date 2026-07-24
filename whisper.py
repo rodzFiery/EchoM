@@ -55,6 +55,34 @@ def is_duplicate_payload(sender_id: int, target_id: int, content: str) -> bool:
     asyncio.get_event_loop().call_later(10, processed_payload_hashes.discard, payload_hash)
     return False
 
+def get_pair_key(user1_id: int, user2_id: int) -> str:
+    """Generates a deterministic hash identifier for a pair of two interacting users."""
+    sorted_ids = sorted([int(user1_id), int(user2_id)])
+    raw_key = f"{sorted_ids[0]}:{sorted_ids[1]}"
+    return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+def record_transcript_entry(sender_id: int, receiver_id: int, content: str):
+    """Appends a timestamped transmission message into the paired encrypted database ledger."""
+    pair_key = get_pair_key(sender_id, receiver_id)
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS whisper_pair_transcripts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pair_key TEXT,
+                sender_id INTEGER,
+                receiver_id INTEGER,
+                content TEXT,
+                timestamp TEXT
+            )
+        """)
+        conn.execute(
+            "INSERT INTO whisper_pair_transcripts (pair_key, sender_id, receiver_id, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (pair_key, sender_id, receiver_id, content, now_str)
+        )
+        conn.commit()
+
 # --- INTELLIGENT DM INDUCTION SENSOR + OWNER ALERT ENGINE ---
 async def alert_and_check_dm_induction(client, user: discord.User, text: str, context_type: str) -> bool:
     """
@@ -364,7 +392,6 @@ class ReplyModal(discord.ui.Modal):
         self.message_id = message_id
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Immediate deferral prevents Discord interaction timeout errors
         await interaction.response.defer(ephemeral=True)
 
         lock_key = f"reply:{interaction.user.id}:{self.message_id or 'fallback'}"
@@ -420,6 +447,9 @@ class ReplyModal(discord.ui.Modal):
                     sender = None
                 
                 if sender:
+                    # APPEND TRANSMISSION TO SECURE TRANSCRIPT LEDGER
+                    record_transcript_entry(interaction.user.id, original_sender_id, self.reply_content.value)
+
                     embed = discord.Embed(title="Anonymous Reply Received", color=discord.Color.green())
                     
                     if last_content:
@@ -472,6 +502,82 @@ class ReplyView(discord.ui.View):
         msg_id = interaction.message.id if interaction.message else None
         await interaction.response.send_modal(ReplyModal(message_id=msg_id))
 
+    @discord.ui.button(label="📜 View Transcript History", style=discord.ButtonStyle.secondary, custom_id="persistent_transcript_btn")
+    async def transcript_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Fetches and displays the complete, encrypted, and completely anonymous transcript of messages between the two users."""
+        await interaction.response.defer(ephemeral=True)
+
+        msg_id = interaction.message.id if interaction.message else None
+        session_data = whisper_sessions.get(msg_id) if msg_id else None
+
+        if not session_data:
+            session_data = whisper_sessions.get(interaction.user.id)
+
+        if not session_data:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = None
+                if msg_id:
+                    cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_message_sessions WHERE message_id = ?", (msg_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        session_data = {"sender_id": row[0], "guild_id": row[1], "last_content": row[2]}
+
+                if not session_data:
+                    cursor = conn.execute("SELECT sender_id, guild_id, last_content FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
+                    row = cursor.fetchone()
+                    if row:
+                        session_data = {"sender_id": row[0], "guild_id": row[1], "last_content": row[2]}
+
+        if not session_data:
+            return await interaction.followup.send("❌ No active transcript history found for this session portal.", ephemeral=True)
+
+        other_user_id = session_data["sender_id"]
+        if isinstance(other_user_id, tuple) or type(other_user_id).__name__ == 'Row':
+            other_user_id = other_user_id[0]
+        other_user_id = int(other_user_id)
+
+        pair_key = get_pair_key(interaction.user.id, other_user_id)
+
+        rows = []
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.row_factory = None
+            cursor = conn.execute("""
+                SELECT sender_id, content, timestamp 
+                FROM whisper_pair_transcripts 
+                WHERE pair_key = ? 
+                ORDER BY id ASC
+            """, (pair_key,))
+            rows = cursor.fetchall()
+
+        if not rows:
+            return await interaction.followup.send("📜 No past logs found in the encrypted archive for this thread yet.", ephemeral=True)
+
+        formatted_lines = []
+        for index, (s_id, content, ts) in enumerate(rows, start=1):
+            if s_id == interaction.user.id:
+                speaker_tag = "👤 **You**"
+            else:
+                speaker_tag = "🎭 **Anonymous Party**"
+            
+            formatted_lines.append(f"`#{index:02d}` `[{ts}]` {speaker_tag}:\n> {content}\n")
+
+        full_transcript_text = "\n".join(formatted_lines)
+
+        # Discord Embed Field Limit Handling (Truncates cleanly if extremely long)
+        if len(full_transcript_text) > 3800:
+            full_transcript_text = full_transcript_text[-3800:]
+            full_transcript_text = "*(Older transcript entries truncated for length)*\n\n" + full_transcript_text
+
+        transcript_embed = discord.Embed(
+            title="📜 ENCRYPTED TRANSCRIPT HISTORY",
+            description=f"### 🔐 **Session Portal Audit Trail**\nAll messages exchanged in this anonymous thread:\n\n{full_transcript_text}",
+            color=0x2B2D31,
+            timestamp=datetime.now(timezone.utc)
+        )
+        transcript_embed.set_footer(text="Neural Network Encryption • Identities Secured")
+
+        await interaction.followup.send(embed=transcript_embed, ephemeral=True)
+
 class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
     message_content = discord.ui.TextInput(label='Your Whisper', style=discord.TextStyle.paragraph, required=True)
 
@@ -480,7 +586,6 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Immediate deferral prevents Discord interaction timeout errors
         await interaction.response.defer(ephemeral=True)
 
         lock_key = f"outbound:{interaction.user.id}:{self.target_member.id}"
@@ -515,6 +620,9 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             if is_opted_out:
                 await log_whisper_activity(interaction.client, interaction.guild, self.target_member, action="blocked / opt-out", sender=interaction.user, content=self.message_content.value)
                 return await interaction.followup.send("❌ This member does not accept whispers.", ephemeral=True)
+
+            # RECORD INITIAL TRANSMISSION TO SECURE TRANSCRIPT LEDGER
+            record_transcript_entry(interaction.user.id, self.target_member.id, self.message_content.value)
 
             await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
             await interaction.followup.send("✅ Whisper sent anonymously!", ephemeral=True)
@@ -618,6 +726,16 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS whisper_pair_transcripts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pair_key TEXT,
+                    sender_id INTEGER,
+                    receiver_id INTEGER,
+                    content TEXT,
+                    timestamp TEXT
+                )
+            """)
 
             try:
                 conn.execute("ALTER TABLE whisper_sessions ADD COLUMN last_content TEXT")
