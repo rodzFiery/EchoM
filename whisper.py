@@ -364,16 +364,19 @@ class ReplyModal(discord.ui.Modal):
         self.message_id = message_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Immediate deferral prevents Discord interaction timeout errors
+        await interaction.response.defer(ephemeral=True)
+
         lock_key = f"reply:{interaction.user.id}:{self.message_id or 'fallback'}"
         if not acquire_whisper_lock(lock_key):
-            return await interaction.response.send_message("⚠️ A reply submission is already processing. Please wait.", ephemeral=True)
+            return await interaction.followup.send("⚠️ A reply submission is already processing. Please wait.", ephemeral=True)
 
         try:
             if not whisper_system_active:
-                return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Please try again later.", ephemeral=True)
+                return await interaction.followup.send("⚠️ The Whisper System is currently paused by administration. Please try again later.", ephemeral=True)
 
             if await alert_and_check_dm_induction(interaction.client, interaction.user, self.reply_content.value, "Session Reply Box"):
-                return await interaction.response.send_message("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
+                return await interaction.followup.send("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
 
             session_data = None
             
@@ -409,7 +412,7 @@ class ReplyModal(discord.ui.Modal):
                 last_content = session_data.get("last_content", None)
                 
                 if is_duplicate_payload(interaction.user.id, original_sender_id, self.reply_content.value):
-                    return await interaction.response.send_message("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
+                    return await interaction.followup.send("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
 
                 try:
                     sender = await interaction.client.fetch_user(original_sender_id)
@@ -446,15 +449,15 @@ class ReplyModal(discord.ui.Modal):
                             guild = None
                     if guild:
                         await log_whisper_activity(interaction.client, guild, interaction.user, action="replied to", sender=sender, content=self.reply_content.value)
-                    await interaction.response.send_message("Reply sent anonymously!", ephemeral=True)
+                    await interaction.followup.send("Reply sent anonymously!", ephemeral=True)
                 else:
-                    await interaction.response.send_message("❌ Could not find the sender.", ephemeral=True)
+                    await interaction.followup.send("❌ Could not find the sender.", ephemeral=True)
             else:
-                await interaction.response.send_message("❌ Session not found. You must be a whisper recipient to use this button.", ephemeral=True)
+                await interaction.followup.send("❌ Session not found. You must be a whisper recipient to use this button.", ephemeral=True)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ Could not send the reply. The user has DMs closed or has blocked the bot.", ephemeral=True)
+            await interaction.followup.send("❌ Could not send the reply. The user has DMs closed or has blocked the bot.", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ An error occurred: {str(e)}", ephemeral=True)
         finally:
             release_whisper_lock(lock_key)
 
@@ -477,19 +480,22 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         self.target_member = target_member
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Immediate deferral prevents Discord interaction timeout errors
+        await interaction.response.defer(ephemeral=True)
+
         lock_key = f"outbound:{interaction.user.id}:{self.target_member.id}"
         if not acquire_whisper_lock(lock_key):
-            return await interaction.response.send_message("⚠️ A whisper to this user is currently processing. Please wait.", ephemeral=True)
+            return await interaction.followup.send("⚠️ A whisper to this user is currently processing. Please wait.", ephemeral=True)
 
         try:
             if not whisper_system_active:
-                return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
+                return await interaction.followup.send("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
 
             if await alert_and_check_dm_induction(interaction.client, interaction.user, self.message_content.value, "Initial Outbound Whisper"):
-                return await interaction.response.send_message("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
+                return await interaction.followup.send("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
 
             if is_duplicate_payload(interaction.user.id, self.target_member.id, self.message_content.value):
-                return await interaction.response.send_message("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
+                return await interaction.followup.send("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
 
             is_opted_out = False
             with sqlite3.connect(DB_PATH) as conn:
@@ -508,14 +514,14 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
 
             if is_opted_out:
                 await log_whisper_activity(interaction.client, interaction.guild, self.target_member, action="blocked / opt-out", sender=interaction.user, content=self.message_content.value)
-                return await interaction.response.send_message("❌ This member does not accept whispers.", ephemeral=True)
+                return await interaction.followup.send("❌ This member does not accept whispers.", ephemeral=True)
 
             await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
-            await interaction.response.send_message("✅ Whisper sent anonymously!", ephemeral=True)
+            await interaction.followup.send("✅ Whisper sent anonymously!", ephemeral=True)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ Could not send the whisper. The user has DMs closed or has blocked the bot.", ephemeral=True)
+            await interaction.followup.send("❌ Could not send the whisper. The user has DMs closed or has blocked the bot.", ephemeral=True)
         except Exception as e:
-            await interaction.response.send_message(f"❌ An error occurred: {str(e)}", ephemeral=True)
+            await interaction.followup.send(f"❌ An error occurred: {str(e)}", ephemeral=True)
         finally:
             release_whisper_lock(lock_key)
 
