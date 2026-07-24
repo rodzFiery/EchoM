@@ -255,18 +255,36 @@ class GameConfigView(discord.ui.View):
 
         await interaction.response.defer()
 
-        core_triggers = []
-        winner_choice = "pick_2"
-        faction_theme = "ffa"
+        core_triggers = None
+        winner_choice = None
+        faction_theme = None
 
         for item in self.children:
             if isinstance(item, RulesSelect):
                 if item.custom_id == "rules_core_triggers":
-                    core_triggers = item.values
+                    if item.values:
+                        core_triggers = item.values
+                    else:
+                        core_triggers = [opt.value for opt in item.options if opt.default]
                 elif item.custom_id == "rules_winner_picks":
-                    winner_choice = item.values[0] if item.values else "pick_2"
+                    if item.values:
+                        winner_choice = item.values[0]
+                    else:
+                        defaults = [opt.value for opt in item.options if opt.default]
+                        winner_choice = defaults[0] if defaults else "pick_2"
                 elif item.custom_id == "rules_factions":
-                    faction_theme = item.values[0] if item.values else "ffa"
+                    if item.values:
+                        faction_theme = item.values[0]
+                    else:
+                        defaults = [opt.value for opt in item.options if opt.default]
+                        faction_theme = defaults[0] if defaults else "ffa"
+
+        if core_triggers is None:
+            core_triggers = ["first_blood", "legendary", "suicide", "bot_random"]
+        if winner_choice is None:
+            winner_choice = "pick_2"
+        if faction_theme is None:
+            faction_theme = "ffa"
 
         if faction_theme in ["men_vs_girls", "usa_vs_world"]:
             rules_payload = {
@@ -819,7 +837,9 @@ class IgnisEngine(commands.Cog):
                             await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                     if rules.get("suicide"):
-                        suicide_victims.append(channel.guild.get_member(victim['id']))
+                        vic_mem = channel.guild.get_member(victim['id'])
+                        if vic_mem:
+                            suicide_victims.append(vic_mem)
                     
                     if channel.id in self.current_survivors:
                         if victim['id'] in self.current_survivors[channel.id]:
@@ -876,16 +896,18 @@ class IgnisEngine(commands.Cog):
                         event_losers.append(loser)
 
                         if not first_blood_recorded and not first_loser_member:
-                             first_blood_recorded = True
-                             first_loser_member = channel.guild.get_member(loser['id'])
-                             import sys as _sys_mod
-                             main = _sys_mod.modules['__main__']
-                             if (main.nsfw_mode_active or main.basic_nsfw_active) and rules.get("first_blood"):
-                                 flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
-                                 await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
+                            first_blood_recorded = True
+                            first_loser_member = channel.guild.get_member(loser['id'])
+                            import sys as _sys_mod
+                            main = _sys_mod.modules['__main__']
+                            if (main.nsfw_mode_active or main.basic_nsfw_active) and rules.get("first_blood"):
+                                flash_msg = f"🔞 **FIRST BLOOD ECHOGAMES:** {first_loser_member.mention} has been taken down first! As per NSFW protocol, they are immediately stripped and exposed for the dungeon to see."
+                                await channel.send(embed=self.fiery_embed("Public Exposure", flash_msg, color=0xFF00FF))
 
                         if rules.get("legendary"):
-                            legendary_victims.append(channel.guild.get_member(loser['id']))
+                            leg_mem = channel.guild.get_member(loser['id'])
+                            if leg_mem:
+                                legendary_victims.append(leg_mem)
 
                         if channel.id in self.current_survivors:
                             if loser['id'] in self.current_survivors[channel.id]:
@@ -1051,6 +1073,10 @@ class IgnisEngine(commands.Cog):
             if main_end.nsfw_mode_active or main_end.basic_nsfw_active:
                 recap_file = None
                 
+                # GUARANTEE WINNER MEMBER OBJECT IS LOADED
+                if not winner_member:
+                    winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
+
                 # BRANCH A: FACTION MATCHES ONLY (EXPANDED FACTION ROLE DETECTION)
                 if rules.get("is_custom_setup") and rules.get('faction_theme') in ["men_vs_girls", "usa_vs_world"]:
                     faction_flashers = []
@@ -1068,10 +1094,6 @@ class IgnisEngine(commands.Cog):
                             if any(kw in role_lower for kw in keyword_list):
                                 return True
                         return False
-
-                    # Ensure winner member object is bound
-                    if not winner_member:
-                        winner_member = channel.guild.get_member(winner_final['id']) or await channel.guild.fetch_member(winner_final['id'])
 
                     if rules['faction_theme'] == "men_vs_girls":
                         winner_is_male = matches_keywords(winner_member, male_keywords)
@@ -1172,7 +1194,13 @@ class IgnisEngine(commands.Cog):
                     l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
                     
                     all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    excluded_ids = []
+                    if first_loser_member and rules.get("first_blood"): excluded_ids.append(first_loser_member.id)
+                    if rules.get("suicide"): excluded_ids.extend([v.id for v in suicide_victims if v])
+                    if rules.get("legendary"): excluded_ids.extend([v.id for v in legendary_victims if v])
+                    if winner_member: excluded_ids.append(winner_member.id)
+
+                    possible_flashers = [m for m in all_participants if m and m.id not in excluded_ids]
                     
                     random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
                     random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
@@ -1182,8 +1210,8 @@ class IgnisEngine(commands.Cog):
                     
                     ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
                     if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
-                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
-                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
+                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims if v])} "
+                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims if v])} "
                     if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
                     ping_content += f"{winner_member.mention}"
 
@@ -1206,7 +1234,13 @@ class IgnisEngine(commands.Cog):
                     l_victims = " ".join([m.mention + " (FLASH)" for m in legendary_victims if m]) if (legendary_victims and rules.get("legendary")) else "None"
                     
                     all_participants = [channel.guild.get_member(p_id) for p_id in participants]
-                    possible_flashers = [m for m in all_participants if m and m.id not in [first_loser_member.id if (first_loser_member and rules.get("first_blood")) else None] + ([v.id for v in suicide_victims] if rules.get("suicide") else []) + ([v.id for v in legendary_victims] if rules.get("legendary") else []) + [winner_member.id]]
+                    excluded_ids = []
+                    if first_loser_member and rules.get("first_blood"): excluded_ids.append(first_loser_member.id)
+                    if rules.get("suicide"): excluded_ids.extend([v.id for v in suicide_victims if v])
+                    if rules.get("legendary"): excluded_ids.extend([v.id for v in legendary_victims if v])
+                    if winner_member: excluded_ids.append(winner_member.id)
+
+                    possible_flashers = [m for m in all_participants if m and m.id not in excluded_ids]
                     
                     random_flasher_member = random.choice(possible_flashers) if (possible_flashers and rules.get("bot_random")) else None
                     random_flasher = f"{random_flasher_member.mention} (FLASH)" if random_flasher_member else "Disabled or no other survivors"
@@ -1216,8 +1250,8 @@ class IgnisEngine(commands.Cog):
                     
                     ping_content = f"🔞 **NSFW PROTOCOL PINGS:** "
                     if first_loser_member and rules.get("first_blood"): ping_content += f"{first_loser_member.mention} "
-                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims])} "
-                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims])} "
+                    if suicide_victims and rules.get("suicide"): ping_content += f"{' '.join([v.mention for v in suicide_victims if v])} "
+                    if legendary_victims and rules.get("legendary"): ping_content += f"{' '.join([v.mention for v in legendary_victims if v])} "
                     if random_flasher_member: ping_content += f"{random_flasher_member.mention} "
                     ping_content += f"{winner_member.mention}"
 
