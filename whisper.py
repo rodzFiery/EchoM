@@ -6,9 +6,9 @@ import os
 import json
 import asyncio
 import hashlib
+import random
 
 # --- PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
-# Railway persistence directory setup
 PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", "/data")
 
 if os.path.exists(PERSISTENT_ENV) or PERSISTENT_ENV == "/data":
@@ -37,6 +37,61 @@ whisper_system_active = True
 active_whisper_locks = set()
 processed_payload_hashes = set()
 
+# --- PERSONA MASK DEFINITIONS ---
+PERSONA_MASKS = {
+    "standard": {
+        "name": "Standard Neural Whisper",
+        "title": "💋 You received an Anonymous Whisper",
+        "color": 0x9B59B6,
+        "icon": "https://cdn.discordapp.com/embed/avatars/0.png"
+    },
+    "admirer": {
+        "name": "The Secret Admirer",
+        "title": "💌 A Secret Admirer left a message for you...",
+        "color": 0xFF69B4,
+        "icon": "https://cdn.discordapp.com/embed/avatars/1.png"
+    },
+    "shadow": {
+        "name": "The Shadow Observer",
+        "title": "👁️ Watching from the Shadows...",
+        "color": 0x34495E,
+        "icon": "https://cdn.discordapp.com/embed/avatars/2.png"
+    },
+    "rival": {
+        "name": "The Arch-Rival",
+        "title": "⚡ A challenge from your Arch-Rival!",
+        "color": 0xE74C3C,
+        "icon": "https://cdn.discordapp.com/embed/avatars/3.png"
+    },
+    "phantom": {
+        "name": "The Phantom",
+        "title": "👻 A ghost in the machine whispered to you...",
+        "color": 0x1ABC9C,
+        "icon": "https://cdn.discordapp.com/embed/avatars/4.png"
+    }
+}
+
+# --- TRUTH OR DARE POOLS ---
+TRUTH_PROMPTS = [
+    "What is something you've never confessed to anyone in this server?",
+    "Who was your very first impression/crush in this server?",
+    "What is the biggest secret you are holding right now?",
+    "If you had to delete one channel in this server forever, which one would it be?"
+]
+
+DARE_PROMPTS = [
+    "Change your server nickname to whatever the person who sent this demands for 24h.",
+    "Post your most used emoji in general chat right now with zero context.",
+    "Send a voice message in general singing 5 seconds of any song.",
+    "Send a completely random meme to the last person who messaged you."
+]
+
+WYR_PROMPTS = [
+    "Would you rather know who sent every whisper OR have everyone know when you send one?",
+    "Would you rather lose access to all text channels OR all voice channels in this server?",
+    "Would you rather reveal your browser history to the server OR your camera roll?"
+]
+
 def acquire_whisper_lock(key: str) -> bool:
     if key in active_whisper_locks:
         return False
@@ -60,6 +115,14 @@ def get_pair_key(user1_id: int, user2_id: int) -> str:
     sorted_ids = sorted([int(user1_id), int(user2_id)])
     raw_key = f"{sorted_ids[0]}:{sorted_ids[1]}"
     return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+def is_pair_blocked(sender_id: int, receiver_id: int) -> bool:
+    """Checks whether the recipient has blocked whispers specifically from this anonymous pair key."""
+    pair_key = get_pair_key(sender_id, receiver_id)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS whisper_blocked_pairs (pair_key TEXT PRIMARY KEY, blocked_by INTEGER)")
+        cursor = conn.execute("SELECT 1 FROM whisper_blocked_pairs WHERE pair_key = ?", (pair_key,))
+        return cursor.fetchone() is not None
 
 def record_transcript_entry(sender_id: int, receiver_id: int, content: str):
     """Appends a timestamped transmission message into the paired encrypted database ledger."""
@@ -346,7 +409,8 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
             description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
                         "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
                         "• **Complete Anonymity:** The server records won't save your footprint.\n"
-                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n"
+                        "• **Masks & Games:** Custom Persona Masks, Anonymous Games, and Quick Polls available!\n\n"
                         "🔒 **Opt-Out Control:** Don't want whispers? Type `!nomorewhispers` to lock your portal. Use `!backtowhisper` anytime to reactivate.\n\n"
                         "*Go ahead... hit the switch below and leave them wondering all night.*", 
             color=0xE0115F
@@ -375,6 +439,71 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
         except Exception as e:
             print(f"Could not send log to default log channel: {e}")
 
+# --- FEATURE 4: ANONYMOUS POLLS UI COMPONENTS ---
+class PollVoteView(discord.ui.View):
+    def __init__(self, poll_id, option_a_label, option_b_label):
+        super().__init__(timeout=None)
+        self.poll_id = poll_id
+        self.option_a_btn.label = option_a_label[:80]
+        self.option_b_btn.label = option_b_label[:80]
+        self.option_a_btn.custom_id = f"poll_vote_a:{poll_id}"
+        self.option_b_btn.custom_id = f"poll_vote_b:{poll_id}"
+
+    @discord.ui.button(style=discord.ButtonStyle.success, custom_id="poll_vote_a_default")
+    async def option_a_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_vote(interaction, "A")
+
+    @discord.ui.button(style=discord.ButtonStyle.secondary, custom_id="poll_vote_b_default")
+    async def option_b_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_vote(interaction, "B")
+
+    async def process_vote(self, interaction: discord.Interaction, choice: str):
+        await interaction.response.defer(ephemeral=True)
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS whisper_polls (
+                    poll_id TEXT PRIMARY KEY,
+                    option_a TEXT,
+                    option_b TEXT,
+                    votes_a INTEGER DEFAULT 0,
+                    votes_b INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS whisper_poll_voters (
+                    poll_id TEXT,
+                    voter_id INTEGER,
+                    PRIMARY KEY (poll_id, voter_id)
+                )
+            """)
+            
+            cursor = conn.execute("SELECT 1 FROM whisper_poll_voters WHERE poll_id = ? AND voter_id = ?", (self.poll_id, interaction.user.id))
+            if cursor.fetchone():
+                return await interaction.followup.send("⚠️ You have already voted on this anonymous poll card.", ephemeral=True)
+
+            if choice == "A":
+                conn.execute("UPDATE whisper_polls SET votes_a = votes_a + 1 WHERE poll_id = ?", (self.poll_id,))
+            else:
+                conn.execute("UPDATE whisper_polls SET votes_b = votes_b + 1 WHERE poll_id = ?", (self.poll_id,))
+                
+            conn.execute("INSERT INTO whisper_poll_voters (poll_id, voter_id) VALUES (?, ?)", (self.poll_id, interaction.user.id))
+            conn.commit()
+
+            cursor = conn.execute("SELECT option_a, option_b, votes_a, votes_b FROM whisper_polls WHERE poll_id = ?", (self.poll_id,))
+            row = cursor.fetchone()
+
+        if row:
+            opt_a, opt_b, v_a, v_b = row
+            total = v_a + v_b
+            p_a = round((v_a / total) * 100) if total > 0 else 0
+            p_b = round((v_b / total) * 100) if total > 0 else 0
+            
+            results_embed = discord.Embed(
+                title="📊 Poll Results Recorded!",
+                description=f"**{opt_a}:** `{v_a}` votes ({p_a}%)\n**{opt_b}:** `{v_b}` votes ({p_b}%)\n\n*Total Votes Cast: {total}*",
+                color=discord.Color.gold()
+            )
+            await interaction.followup.send(embed=results_embed, ephemeral=True)
 
 class ReplyModal(discord.ui.Modal):
     reply_content = discord.ui.TextInput(label='Your Reply', style=discord.TextStyle.paragraph, required=True)
@@ -430,6 +559,10 @@ class ReplyModal(discord.ui.Modal):
                 
                 last_content = session_data.get("last_content", None)
                 
+                # Check if pair is blocked
+                if is_pair_blocked(interaction.user.id, original_sender_id):
+                    return await interaction.followup.send("❌ Transmission blocked: This portal connection has been terminated.", ephemeral=True)
+
                 if is_duplicate_payload(interaction.user.id, original_sender_id, self.reply_content.value):
                     return await interaction.followup.send("⚠️ Duplicate transmission detected and discarded.", ephemeral=True)
 
@@ -567,12 +700,57 @@ class ReplyView(discord.ui.View):
 
         await interaction.followup.send(embed=transcript_embed, ephemeral=True)
 
+    # --- FEATURE 2: SAFE-WORD EMERGENCY KILL-SWITCH & BLOCK ---
+    @discord.ui.button(label="🛑 Block Sender", style=discord.ButtonStyle.danger, custom_id="persistent_block_sender_btn")
+    async def block_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        msg_id = interaction.message.id if interaction.message else None
+        session_data = whisper_sessions.get(msg_id) if msg_id else None
+
+        if not session_data:
+            session_data = whisper_sessions.get(interaction.user.id)
+
+        if not session_data:
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.row_factory = None
+                if msg_id:
+                    cursor = conn.execute("SELECT sender_id FROM whisper_message_sessions WHERE message_id = ?", (msg_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        session_data = {"sender_id": row[0]}
+                if not session_data:
+                    cursor = conn.execute("SELECT sender_id FROM whisper_sessions WHERE receiver_id = ?", (interaction.user.id,))
+                    row = cursor.fetchone()
+                    if row:
+                        session_data = {"sender_id": row[0]}
+
+        if not session_data:
+            return await interaction.followup.send("❌ Unable to trace connection to execute block protocol.", ephemeral=True)
+
+        other_user_id = session_data["sender_id"]
+        if isinstance(other_user_id, tuple) or type(other_user_id).__name__ == 'Row':
+            other_user_id = other_user_id[0]
+        other_user_id = int(other_user_id)
+
+        pair_key = get_pair_key(interaction.user.id, other_user_id)
+
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_blocked_pairs (pair_key TEXT PRIMARY KEY, blocked_by INTEGER)")
+            conn.execute("INSERT OR REPLACE INTO whisper_blocked_pairs (pair_key, blocked_by) VALUES (?, ?)", (pair_key, interaction.user.id))
+            conn.commit()
+
+        await interaction.followup.send("🛑 **Portal Locked:** Future anonymous whispers from this specific sender are permanently blocked. Their identity remains hidden.", ephemeral=True)
+
+# --- OUTBOUND MODALS WITH MASK & POLL FEATURES ---
 class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
     message_content = discord.ui.TextInput(label='Your Whisper', style=discord.TextStyle.paragraph, required=True)
+    poll_option_a = discord.ui.TextInput(label='Optional Poll Choice A', style=discord.TextStyle.short, required=False, placeholder="e.g. Yes / Guess who?")
+    poll_option_b = discord.ui.TextInput(label='Optional Poll Choice B', style=discord.TextStyle.short, required=False, placeholder="e.g. No / Someone else")
 
-    def __init__(self, target_member):
+    def __init__(self, target_member, persona_key="standard"):
         super().__init__()
         self.target_member = target_member
+        self.persona_key = persona_key
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -584,6 +762,9 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
         try:
             if not whisper_system_active:
                 return await interaction.followup.send("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
+
+            if is_pair_blocked(interaction.user.id, self.target_member.id):
+                return await interaction.followup.send("❌ **Transmission Failed:** The recipient has blocked portal transmissions from this connection.", ephemeral=True)
 
             if await alert_and_check_dm_induction(interaction.client, interaction.user, self.message_content.value, "Initial Outbound Whisper"):
                 return await interaction.followup.send("❌ **Transmission Blocked:** Requesting or offering to move conversations to private DMs is forbidden in whispers. Please use the public channels to ask for a DM connection.", ephemeral=True)
@@ -612,7 +793,36 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
 
             record_transcript_entry(interaction.user.id, self.target_member.id, self.message_content.value)
 
-            await handle_whisper_logic(interaction.client, interaction.user, self.target_member, self.message_content.value, interaction.guild)
+            # Build poll payload if present
+            poll_id = None
+            opt_a = self.poll_option_a.value.strip()
+            opt_b = self.poll_option_b.value.strip()
+            if opt_a and opt_b:
+                poll_id = hashlib.sha256(f"{interaction.user.id}:{datetime.now()}".encode()).hexdigest()[:12]
+                with sqlite3.connect(DB_PATH) as conn:
+                    conn.execute("""
+                        CREATE TABLE IF NOT EXISTS whisper_polls (
+                            poll_id TEXT PRIMARY KEY,
+                            option_a TEXT,
+                            option_b TEXT,
+                            votes_a INTEGER DEFAULT 0,
+                            votes_b INTEGER DEFAULT 0
+                        )
+                    """)
+                    conn.execute("INSERT INTO whisper_polls (poll_id, option_a, option_b) VALUES (?, ?, ?)", (poll_id, opt_a, opt_b))
+                    conn.commit()
+
+            await handle_whisper_logic(
+                interaction.client, 
+                interaction.user, 
+                self.target_member, 
+                self.message_content.value, 
+                interaction.guild,
+                persona_key=self.persona_key,
+                poll_id=poll_id,
+                opt_a=opt_a,
+                opt_b=opt_b
+            )
             await interaction.followup.send("✅ Whisper sent anonymously!", ephemeral=True)
         except discord.Forbidden:
             await interaction.followup.send("❌ Could not send the whisper. The user has DMs closed or has blocked the bot.", ephemeral=True)
@@ -620,6 +830,26 @@ class WhisperMessageModal(discord.ui.Modal, title='Send Anonymous Whisper'):
             await interaction.followup.send(f"❌ An error occurred: {str(e)}", ephemeral=True)
         finally:
             release_whisper_lock(lock_key)
+
+# --- FEATURE 1: CUSTOM PERSONA SELECT VIEW ---
+class PersonaSelectView(discord.ui.View):
+    def __init__(self, target_member):
+        super().__init__(timeout=300)
+        self.target_member = target_member
+
+    @discord.ui.select(
+        placeholder="🎭 Select your Anonymous Mask/Persona...",
+        options=[
+            discord.SelectOption(label="Standard Neural", value="standard", description="Default anonymous whisper styling", emoji="💋"),
+            discord.SelectOption(label="The Secret Admirer", value="admirer", description="Pink theme, romantic header", emoji="💌"),
+            discord.SelectOption(label="The Shadow Observer", value="shadow", description="Dark theme, mysterious header", emoji="👁️"),
+            discord.SelectOption(label="The Arch-Rival", value="rival", description="Red theme, competitive header", emoji="⚡"),
+            discord.SelectOption(label="The Phantom", value="phantom", description="Cyan theme, spectral header", emoji="👻")
+        ]
+    )
+    async def select_persona(self, interaction: discord.Interaction, select: discord.ui.Select):
+        persona_key = select.values[0]
+        await interaction.response.send_modal(WhisperMessageModal(self.target_member, persona_key=persona_key))
 
 class UserSelectView(discord.ui.View):
     def __init__(self):
@@ -632,7 +862,63 @@ class UserSelectView(discord.ui.View):
         target = select.values[0]
         if not isinstance(target, discord.Member):
             target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
-        await interaction.response.send_modal(WhisperMessageModal(target))
+        
+        await interaction.response.send_message("🎭 **Pick an Identity Mask for your transmission:**", view=PersonaSelectView(target), ephemeral=True)
+
+# --- FEATURE 3: GAME PROMPT TRUTH/DARE COMPONENTS ---
+class GamePromptModal(discord.ui.Modal):
+    custom_prompt = discord.ui.TextInput(label='Custom Game Prompt (Optional)', style=discord.TextStyle.paragraph, required=False, placeholder="Leave blank to use a randomized prompt!")
+
+    def __init__(self, target_member, mode):
+        super().__init__(title=f'Send Anonymous {mode}')
+        self.target_member = target_member
+        self.mode = mode
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        prompt_text = self.custom_prompt.value.strip()
+        
+        if not prompt_text:
+            if self.mode == "Truth":
+                prompt_text = random.choice(TRUTH_PROMPTS)
+            elif self.mode == "Dare":
+                prompt_text = random.choice(DARE_PROMPTS)
+            else:
+                prompt_text = random.choice(WYR_PROMPTS)
+
+        full_content = f"🎲 **ANONYMOUS {self.mode.upper()} CHALLENGE:**\n> {prompt_text}"
+
+        record_transcript_entry(interaction.user.id, self.target_member.id, full_content)
+        await handle_whisper_logic(interaction.client, interaction.user, self.target_member, full_content, interaction.guild, persona_key="rival")
+        await interaction.followup.send(f"✅ Anonymous **{self.mode}** challenge delivered successfully!", ephemeral=True)
+
+class GameModeSelectView(discord.ui.View):
+    def __init__(self, target_member):
+        super().__init__(timeout=300)
+        self.target_member = target_member
+
+    @discord.ui.button(label="Truth", style=discord.ButtonStyle.primary, emoji="🔍")
+    async def truth_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GamePromptModal(self.target_member, "Truth"))
+
+    @discord.ui.button(label="Dare", style=discord.ButtonStyle.danger, emoji="🔥")
+    async def dare_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GamePromptModal(self.target_member, "Dare"))
+
+    @discord.ui.button(label="Would You Rather", style=discord.ButtonStyle.secondary, emoji="⚖️")
+    async def wyr_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(GamePromptModal(self.target_member, "Would You Rather"))
+
+class GameUserSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Select a target player for the Game Prompt...")
+    async def select_user(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        target = select.values[0]
+        if not isinstance(target, discord.Member):
+            target = interaction.guild.get_member(target.id) or await interaction.guild.fetch_member(target.id)
+        await interaction.response.send_message("🎲 **Choose a game prompt mode:**", view=GameModeSelectView(target), ephemeral=True)
 
 class LobbyView(discord.ui.View):
     def __init__(self):
@@ -644,7 +930,13 @@ class LobbyView(discord.ui.View):
             return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration. Transmissions are locked.", ephemeral=True)
         await interaction.response.send_message("Search for the receiver:", view=UserSelectView(), ephemeral=True)
 
-async def handle_whisper_logic(client, sender, target_member, content, guild):
+    @discord.ui.button(label="Truth or Dare", style=discord.ButtonStyle.primary, emoji="🎲", custom_id="persistent_lobby_game_btn")
+    async def game_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not whisper_system_active:
+            return await interaction.response.send_message("⚠️ The Whisper System is currently paused by administration.", ephemeral=True)
+        await interaction.response.send_message("Select a member to challenge:", view=GameUserSelectView(), ephemeral=True)
+
+async def handle_whisper_logic(client, sender, target_member, content, guild, persona_key="standard", poll_id=None, opt_a=None, opt_b=None):
     previous_whisper_content = None
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -673,14 +965,24 @@ async def handle_whisper_logic(client, sender, target_member, content, guild):
         
     whisper_sessions[target_member.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
     
-    embed = discord.Embed(title="You received an Anonymous Whisper", color=discord.Color.purple())
+    persona = PERSONA_MASKS.get(persona_key, PERSONA_MASKS["standard"])
+    embed = discord.Embed(title=persona["title"], color=persona["color"])
+    embed.set_thumbnail(url=persona["icon"])
     
     if previous_whisper_content:
         embed.add_field(name="📜 Last Whisper Transmitted", value=f"> {previous_whisper_content}", inline=False)
         
     embed.add_field(name="✉️ Whisper Content", value=content, inline=False)
 
-    dm_msg = await target_member.send(embed=embed, view=ReplyView())
+    if poll_id and opt_a and opt_b:
+        embed.add_field(name="📊 Attached Anonymous Poll", value=f"**A:** {opt_a}\n**B:** {opt_b}\n*(Cast vote via buttons below)*", inline=False)
+
+    view = ReplyView()
+    dm_msg = await target_member.send(embed=embed, view=view)
+
+    if poll_id and opt_a and opt_b:
+        poll_view = PollVoteView(poll_id, opt_a, opt_b)
+        await target_member.send("📊 **Cast your vote on the attached poll:**", view=poll_view)
     
     if dm_msg:
         whisper_sessions[dm_msg.id] = {"sender_id": sender.id, "guild_id": guild.id, "last_content": content}
@@ -702,7 +1004,6 @@ class WhisperCog(commands.Cog):
     async def sync_persistence_state(self):
         global lobby_channel_id, whisper_system_active, guild_lobby_channels, monitored_server_logs
         
-        # Ensure database tables exist immediately upon startup
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
@@ -713,6 +1014,23 @@ class WhisperCog(commands.Cog):
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_message_sessions (message_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_global_state (key TEXT PRIMARY KEY, status INTEGER DEFAULT 1)")
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_sessions (receiver_id INTEGER PRIMARY KEY, sender_id INTEGER, guild_id INTEGER, last_content TEXT)")
+            conn.execute("CREATE TABLE IF NOT EXISTS whisper_blocked_pairs (pair_key TEXT PRIMARY KEY, blocked_by INTEGER)")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS whisper_polls (
+                    poll_id TEXT PRIMARY KEY,
+                    option_a TEXT,
+                    option_b TEXT,
+                    votes_a INTEGER DEFAULT 0,
+                    votes_b INTEGER DEFAULT 0
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS whisper_poll_voters (
+                    poll_id TEXT,
+                    voter_id INTEGER,
+                    PRIMARY KEY (poll_id, voter_id)
+                )
+            """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS whisper_pair_transcripts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -737,7 +1055,6 @@ class WhisperCog(commands.Cog):
 
         backup = load_backup_config()
 
-        # ENVIRONMENT VARIABLE FALLBACK INGESTION
         env_lobby = os.getenv("WHISPER_DEFAULT_LOBBY_ID")
         if env_lobby and env_lobby.isdigit():
             lobby_channel_id = int(env_lobby)
@@ -758,7 +1075,6 @@ class WhisperCog(commands.Cog):
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
 
-            # SYNC BACKUP FILE VALUES TO SQLITE DB
             if backup and backup.get("monitored_servers"):
                 for s_id in backup["monitored_servers"]:
                     conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (s_id,))
@@ -776,7 +1092,6 @@ class WhisperCog(commands.Cog):
 
             conn.commit()
             
-            # RE-POPULATE RUNTIME CACHES FROM SQLITE DB
             cursor = conn.execute("SELECT guild_id, channel_id FROM whisper_guild_lobbies")
             db_guild_lobbies = {}
             for g_row in cursor.fetchall():
@@ -841,9 +1156,9 @@ class WhisperCog(commands.Cog):
         await async_save_backup_config("system_active", whisper_system_active)
         
         if whisper_system_active:
-            await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed. All configurations, channels, and logs remain perfectly active.")
+            await ctx.send("✅ **System Operational:** The Whisper System has been completely resumed.")
         else:
-            await ctx.send("⏸️ **System Paused:** The Whisper System has been temporarily locked down. All settings are preserved, but transmissions are locked.")
+            await ctx.send("⏸️ **System Paused:** The Whisper System has been temporarily locked down.")
 
     @commands.command(name="nowhisper")
     async def toggle_whisper_opt_out(self, ctx):
@@ -865,7 +1180,7 @@ class WhisperCog(commands.Cog):
                 conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
                 conn.commit()
             await async_save_backup_config("add_opt_out", ctx.author.id)
-            await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
+            await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal.")
 
     @commands.command(name="nomorewhispers")
     async def opt_out_whispers_explicit(self, ctx):
@@ -874,7 +1189,7 @@ class WhisperCog(commands.Cog):
             conn.execute("INSERT OR IGNORE INTO whisper_opt_outs (user_id) VALUES (?)", (ctx.author.id,))
             conn.commit()
         await async_save_backup_config("add_opt_out", ctx.author.id)
-        await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal. No new anonymous whispers can be sent to you.")
+        await ctx.send("❌ **Whisper System Deactivated:** You have successfully locked your portal.")
 
     @commands.command(name="backtowhisper")
     async def opt_in_whispers_explicit(self, ctx):
@@ -933,7 +1248,8 @@ class WhisperCog(commands.Cog):
             description="### ⛓️ PRIVATE HANDSHAKE TERMINAL\n"
                         "Welcome to the shadows, darling. Want to confess a secret, leave a bite mark, or drive someone crazy entirely undetected?\n\n"
                         "• **Complete Anonymity:** The server records won't save your footprint.\n"
-                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n\n"
+                        "• **Direct Sync:** Your target receives a secure panel directly in their private box.\n"
+                        "• **Masks & Games:** Custom Persona Masks, Anonymous Games, and Quick Polls available!\n\n"
                         "🔒 **Opt-Out Control:** Don't want whispers? Type `!nomorewhispers` to lock your portal. Use `!backtowhisper` anytime to reactivate.\n\n"
                         "*Go ahead... hit the switch below and leave them wondering all night.*", 
             color=0xE0115F
