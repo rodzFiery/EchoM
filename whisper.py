@@ -11,7 +11,9 @@ import random
 # --- PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
 PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", "/data")
 
-if os.path.exists(PERSISTENT_ENV) or PERSISTENT_ENV == "/data":
+if os.path.exists("/data"):
+    STORAGE_DIR = "/data"
+elif os.path.exists(PERSISTENT_ENV):
     try:
         os.makedirs(PERSISTENT_ENV, exist_ok=True)
         STORAGE_DIR = PERSISTENT_ENV
