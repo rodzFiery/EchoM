@@ -9,7 +9,7 @@ import hashlib
 import random
 import re
 
-# --- PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
+# --- STRICT PERSISTENCE STORAGE ENFORCEMENT FOR RAILWAY VOLUMES ---
 PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", "/data")
 
 if os.path.exists("/data"):
@@ -1020,6 +1020,7 @@ class WhisperCog(commands.Cog):
     async def sync_persistence_state(self):
         global lobby_channel_id, whisper_system_active, guild_lobby_channels, monitored_server_logs
         
+        # Ensure database tables exist first
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
             conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
@@ -1069,8 +1070,10 @@ class WhisperCog(commands.Cog):
 
             conn.commit()
 
+        # Load Backup Config Fallback
         backup = load_backup_config()
 
+        # Load Environment Variable Defaults if specified
         env_lobby = os.getenv("WHISPER_DEFAULT_LOBBY_ID")
         if env_lobby and env_lobby.isdigit():
             lobby_channel_id = int(env_lobby)
@@ -1088,6 +1091,7 @@ class WhisperCog(commands.Cog):
                         conn.execute("INSERT OR IGNORE INTO whisper_server_logs (guild_id) VALUES (?)", (int(s_id),))
                         conn.commit()
 
+        # Sync database and JSON backup configuration
         with sqlite3.connect(DB_PATH) as conn:
             conn.row_factory = None
 
@@ -1108,6 +1112,7 @@ class WhisperCog(commands.Cog):
 
             conn.commit()
             
+            # --- RE-HYDRATE ALL IN-MEMORY CACHES FROM DISK DATABASE ---
             cursor = conn.execute("SELECT guild_id, channel_id FROM whisper_guild_lobbies")
             db_guild_lobbies = {}
             for g_row in cursor.fetchall():
@@ -1135,6 +1140,7 @@ class WhisperCog(commands.Cog):
                 conn.execute("INSERT OR REPLACE INTO whisper_global_state (key, status) VALUES ('bot_active', ?)", (1 if whisper_system_active else 0,))
                 conn.commit()
 
+            # RE-HYDRATE ACTIVE WHISPER SESSIONS & MESSAGE PERMUTATIONS
             cursor = conn.execute("SELECT receiver_id, sender_id, guild_id, last_content FROM whisper_sessions")
             for session_row in cursor.fetchall():
                 whisper_sessions[session_row[0]] = {"sender_id": session_row[1], "guild_id": session_row[2], "last_content": session_row[3]}
