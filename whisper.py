@@ -7,6 +7,7 @@ import json
 import asyncio
 import hashlib
 import random
+import re
 
 # --- PERSISTENCE STORAGE PATH FOR RAILWAY VOLUMES ---
 PERSISTENT_ENV = os.getenv("PERSISTENT_STORAGE_DIR", "/data")
@@ -148,38 +149,52 @@ def record_transcript_entry(sender_id: int, receiver_id: int, content: str):
         )
         conn.commit()
 
-# --- INTELLIGENT DM INDUCTION SENSOR + OWNER ALERT ENGINE ---
+# --- INTELLIGENT AIRTIGHT DM INDUCTION SENSOR + OWNER ALERT ENGINE ---
 async def alert_and_check_dm_induction(client, user: discord.User, text: str, context_type: str) -> bool:
     if not text:
         return False
     
     normalized_text = text.lower()
+    cleaned_text = re.sub(r'[^a-z0-9\s]', '', normalized_text)
     
-    forbidden_phrases = [
-        "talking in private",
-        "slide",
-        "can i",
-        "send you a message",
-        "send u a message",
-        "private"
+    dm_regex_patterns = [
+        r'\bdm\b',
+        r'\bdms\b',
+        r'\bd\s*m\b',
+        r'\bd\s*m\s*s\b',
+        r'\bdirect\s*message\b',
+        r'\bdirect\s*messages\b',
+        r'\bprivate\s*message\b',
+        r'\bprivate\s*messages\b',
+        r'\bpm\b',
+        r'\bpms\b',
+        r'\bp\s*m\b',
+        r'\bslide\s*in\b',
+        r'\bslide\s*into\b',
+        r'\btalking\s*in\s*private\b',
+        r'\btalk\s*in\s*private\b',
+        r'\bin\s*private\b',
+        r'\bin\s*dms?\b',
+        r'\bin\s*pms?\b',
+        r'\bcheck\s*dms?\b',
+        r'\bcheck\s*pms?\b',
+        r'\bsend\s*(u|you)?\s*a?\s*msg\b',
+        r'\bsend\s*(u|you)?\s*a?\s*message\b',
+        r'\bmsg\s*(u|you)\b',
+        r'\bmessage\s*(u|you)\b',
+        r'\bcan\s*i\s*(msg|message|dm|pm)\b',
+        r'\breach\s*me\s*privately\b',
+        r'\bcontact\s*me\s*privately\b'
     ]
     
     detected = False
     triggered_phrase = None
     
-    for phrase in forbidden_phrases:
-        if phrase in normalized_text:
+    for pattern in dm_regex_patterns:
+        if re.search(pattern, normalized_text) or re.search(pattern, cleaned_text):
             detected = True
-            triggered_phrase = phrase
+            triggered_phrase = pattern
             break
-            
-    if not detected:
-        cleaned_for_words = normalized_text.replace(".", "").replace("-", "").replace("'", "")
-        words_list = cleaned_for_words.split()
-        
-        if "dm" in words_list or "dms" in words_list:
-            detected = True
-            triggered_phrase = "dm / dms (standalone word identifier)"
 
     if detected:
         try:
@@ -193,7 +208,7 @@ async def alert_and_check_dm_induction(client, user: discord.User, text: str, co
                 )
                 alert_embed.add_field(name="👤 Triggered By", value=f"{user.mention} (`{user.id}`)", inline=True)
                 alert_embed.add_field(name="📁 Transmission Type", value=context_type, inline=True)
-                alert_embed.add_field(name="🚫 Detected Trigger", value=f"`{triggered_phrase}`", inline=False)
+                alert_embed.add_field(name="🚫 Detected Trigger Pattern", value=f"`{triggered_phrase}`", inline=False)
                 alert_embed.add_field(name="📝 Flagged Content", value=text, inline=False)
                 await owner.send(embed=alert_embed)
         except Exception as alert_error:
@@ -332,8 +347,9 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
     if action == "replied to" or action == "blocked / opt-out":
         return
 
-    global lobby_channel_id, guild_lobby_channels
+    global guild_lobby_channels
     
+    # Strictly query the server-specific lobby ID for this guild
     target_lobby_id = guild_lobby_channels.get(guild.id) if guild else None
     
     if target_lobby_id is None and guild:
@@ -356,9 +372,7 @@ async def log_whisper_activity(client, guild, target_member, action="received", 
                 conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (guild.id, target_lobby_id))
                 conn.commit()
 
-    if target_lobby_id is None:
-        target_lobby_id = lobby_channel_id
-
+    # CRITICAL SECURITY RULE: If this specific guild has no lobby configured, do NOT leak to any other server or global fallback.
     lobby_channel = guild.get_channel(target_lobby_id) if (guild and target_lobby_id) else None
     if not lobby_channel and target_lobby_id:
         try:
@@ -1205,7 +1219,7 @@ class WhisperCog(commands.Cog):
     @commands.command()
     @commands.has_permissions(administrator=True)
     async def setwhisper(self, ctx, channel: discord.TextChannel = None):
-        global lobby_channel_id, guild_lobby_channels
+        global guild_lobby_channels
         target_channel = channel or ctx.channel
         
         if ctx.guild:
@@ -1215,14 +1229,9 @@ class WhisperCog(commands.Cog):
                 conn.execute("INSERT OR REPLACE INTO whisper_guild_lobbies (guild_id, channel_id) VALUES (?, ?)", (ctx.guild.id, target_channel.id))
                 conn.commit()
             await async_save_backup_config("set_guild_lobby", target_channel.id, ctx.guild.id)
-        
-        lobby_channel_id = target_channel.id
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute("CREATE TABLE IF NOT EXISTS whisper_config (key TEXT PRIMARY KEY, value INTEGER)")
-            conn.execute("INSERT OR REPLACE INTO whisper_config (key, value) VALUES ('lobby_channel_id', ?)", (target_channel.id,))
-            conn.commit()
-        await async_save_backup_config("lobby_channel_id", target_channel.id)
-        await ctx.send(f"✅ Whisper lobby for **{ctx.guild.name if ctx.guild else 'this server'}** set to {target_channel.mention}")
+            await ctx.send(f"✅ Whisper lobby for **{ctx.guild.name}** set to {target_channel.mention}")
+        else:
+            await ctx.send("❌ This command must be used within a server.")
 
     @commands.command()
     @commands.has_permissions(administrator=True)
