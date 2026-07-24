@@ -85,6 +85,7 @@ class LobbyView(discord.ui.View):
         engine = interaction.client.get_cog("IgnisEngine")
         if not engine: return
 
+        # FIX: Unified database connection block to eliminate unclosed connection leaks and redundant I/O operations
         with engine.get_db_connection() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS lobby_participants (guild_id INTEGER, user_id INTEGER)")
             check = conn.execute("SELECT 1 FROM lobby_participants WHERE guild_id = ? AND user_id = ?", (interaction.guild.id, interaction.user.id)).fetchone()
@@ -94,8 +95,7 @@ class LobbyView(discord.ui.View):
             conn.execute("INSERT INTO lobby_participants (guild_id, user_id) VALUES (?, ?)", (interaction.guild.id, interaction.user.id))
             conn.commit()
 
-        with engine.get_db_connection() as conn:
-            rows = engine.get_db_connection().execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
+            rows = conn.execute("SELECT user_id FROM lobby_participants WHERE guild_id = ?", (interaction.guild.id,)).fetchall()
             self.participants = [r[0] for r in rows]
         
         try:
@@ -200,8 +200,11 @@ class RulesSelect(discord.ui.Select):
     def __init__(self, placeholder, custom_id, options):
         # Setting min_values to 0 to allow skipping selections completely safely
         super().__init__(placeholder=placeholder, min_values=0, max_values=len(options), options=options, custom_id=custom_id)
+        # FIX: Added interaction tracking attribute to differentiate explicit user choices from untouched defaults
+        self.touched = False
 
     async def callback(self, interaction: discord.Interaction):
+        self.touched = True
         await interaction.response.defer()
 
 class GameConfigView(discord.ui.View):
@@ -259,21 +262,28 @@ class GameConfigView(discord.ui.View):
         winner_choice = None
         faction_theme = None
 
+        # FIX: Check `touched` flag to maintain explicit user choices when deselecting options
         for item in self.children:
             if isinstance(item, RulesSelect):
                 if item.custom_id == "rules_core_triggers":
-                    if item.values:
+                    if item.touched:
+                        core_triggers = item.values
+                    elif item.values:
                         core_triggers = item.values
                     else:
                         core_triggers = [opt.value for opt in item.options if opt.default]
                 elif item.custom_id == "rules_winner_picks":
-                    if item.values:
+                    if item.touched and item.values:
+                        winner_choice = item.values[0]
+                    elif item.values:
                         winner_choice = item.values[0]
                     else:
                         defaults = [opt.value for opt in item.options if opt.default]
                         winner_choice = defaults[0] if defaults else "pick_2"
                 elif item.custom_id == "rules_factions":
-                    if item.values:
+                    if item.touched and item.values:
+                        faction_theme = item.values[0]
+                    elif item.values:
                         faction_theme = item.values[0]
                     else:
                         defaults = [opt.value for opt in item.options if opt.default]
@@ -455,7 +465,8 @@ class EngineControl(commands.Cog):
         ignis_admin_role_id = None
         if engine:
             with engine.get_db_connection() as conn:
-                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id PRIMARY KEY, role_id INTEGER)")
+                # FIX: Added missing INTEGER data type specification for primary key column
+                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id INTEGER PRIMARY KEY, role_id INTEGER)")
                 row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
                 if row: ignis_admin_role_id = row[0]
 
@@ -538,7 +549,8 @@ class IgnisEngine(commands.Cog):
             "The winner owns your image for the next 90 minutes. Strip.",
             "You're nothing but a plaything. Give us a peek.",
             "Your silence was lovely, but your exposure is better.",
-            "Kneel and show the gallery what submission looks looks like.",
+            # FIX: Removed duplicate word "looks"
+            "Kneel and show the gallery what submission looks like.",
             "Every eye in the Red Room is on you. Don't disappoint.",
             "Freedom is a luxury, clothes are a privilege. You have neither.",
             "The exhibition is starting, and you are the star. Flash!",
@@ -1320,7 +1332,8 @@ class IgnisEngine(commands.Cog):
                         )
 
                         audit_emb.description = breakdown
-                        audit_emb.add_field(name="¼ UPDATED member TOTALS", value=new_totals, inline=False)
+                        # FIX: Cleaned up copy/paste typo in field title name string
+                        audit_emb.add_field(name="UPDATED MEMBER TOTALS", value=new_totals, inline=False)
                         audit_emb.set_footer(text=f"Edition #{edition} | The Voyeurs watched your every move.")
                         
                         if os.path.exists("LobbyTopRight.jpg"): await audit_channel.send(file=audit_file, embed=audit_emb)
@@ -1339,7 +1352,8 @@ class IgnisEngine(commands.Cog):
             u_class_win = winner_user_db_fin.get('class', 'None')
             b_xp_win = 1.0
             if u_class_win == "Submissive": b_xp_win = 1.25
-            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class == "Switch" else 0.80
+            # FIX: Changed `u_class` to `u_class_win` to prevent UnboundLocalError / scope leaking
+            elif u_class_win in ["Switch", "Exhibitionist"]: b_xp_win = 1.14 if u_class_win == "Switch" else 0.80
             total_fxp_win = processed_data.get(winner_final['id'], 0)
             
             details_card = discord.Embed(title="📜 Detailed Performance", color=0xFFD700)
