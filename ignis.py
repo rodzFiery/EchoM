@@ -18,6 +18,7 @@ import asyncio
 import json
 import traceback
 import sys
+import re
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 import io
 import aiohttp
@@ -1098,13 +1099,15 @@ class IgnisEngine(commands.Cog):
                     female_keywords = ["female", "she/her", "woman", "women", "girl", "girls", "gal", "gals"]
                     na_keywords = ["north america", "usa", "na", "us", "america"]
 
+                    # FIX: Use word boundaries to prevent substring collisions (e.g. "male" inside "female", "us" inside "status")
                     def matches_keywords(member_obj, keyword_list):
                         if not member_obj or not hasattr(member_obj, 'roles'):
                             return False
                         for role in member_obj.roles:
                             role_lower = role.name.lower()
-                            if any(kw in role_lower for kw in keyword_list):
-                                return True
+                            for kw in keyword_list:
+                                if re.search(r'\b' + re.escape(kw) + r'\b', role_lower):
+                                    return True
                         return False
 
                     if rules['faction_theme'] == "men_vs_girls":
