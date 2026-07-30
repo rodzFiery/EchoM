@@ -494,10 +494,22 @@ class TicketCustomButton(discord.ui.Button):
         self.staff_role_id = str(staff_role_id) if staff_role_id else None
         # Store raw label for dynamic temporary category generation titles
         self.raw_label = label
-        super().__init__(style=discord.ButtonStyle.secondary, label=label, emoji=emoji, custom_id=f"tkt_customized:{index}:{self.category_slug}")
+        # FIXED: Static deterministic custom_id prevents button expiration across reboots
+        super().__init__(style=discord.ButtonStyle.secondary, label=label, emoji=emoji, custom_id=f"tkt_customized:{self.category_slug}")
 
     async def callback(self, interaction: discord.Interaction):
-        await self.view.create_ticket(interaction, self.category_slug, self.staff_role_id, self.raw_label)
+        # Retrieve staff_role_id dynamically if missing from default fallback view
+        staff_id = self.staff_role_id
+        if not staff_id:
+            try:
+                with sqlite3.connect("database.db") as conn:
+                    conn.row_factory = sqlite3.Row
+                    res = conn.execute("SELECT staff_role_id FROM ticket_buttons WHERE guild_id = ? AND label = ?", (interaction.guild.id, self.raw_label)).fetchone()
+                    if res:
+                        staff_id = res["staff_role_id"]
+            except Exception:
+                pass
+        await self.view.create_ticket(interaction, self.category_slug, staff_id, self.raw_label)
 
 class TicketLobbyView(discord.ui.View):
     def __init__(self, button_configs=None):
@@ -558,7 +570,7 @@ class TicketLobbyView(discord.ui.View):
             config = conn.execute("SELECT * FROM ticket_config WHERE guild_id = ?", (interaction.guild.id,)).fetchone()
         # --- SAFE ADVANCED AUTO-HEALING MATRIX PROTOCOL END ---
 
-        chosen_staff_string = staff_role_id if staff_role_id else str(config['admin_role_id']) if config['admin_role_id'] else ""
+        chosen_staff_string = staff_role_id if staff_role_id else str(config['admin_role_id']) if config and config['admin_role_id'] else ""
         parsed_role_ids = [int(r.strip()) for r in chosen_staff_string.split(",") if r.strip().isdigit()]
 
         # --- DYNAMIC CATEGORY ROUTING MATCHING THE TEXT LABEL OF CLICKED BUTTON ---
@@ -611,14 +623,15 @@ class TicketLobbyView(discord.ui.View):
         
         await ticket_channel.send(content=ping_content, embed=tkt_embed, view=TicketControls(staff_role_id=chosen_staff_string))
 
-        admin_chan = interaction.guild.get_channel(config['admin_channel'])
-        if admin_chan:
-            log = discord.Embed(title=f"🚨 NEW SESSION OPENED: #{current_num}", color=0xFFD700)
-            log.add_field(name="Asset", value=interaction.user.mention, inline=True)
-            log.add_field(name="Category", value=category.upper().replace('_', ' '), inline=True)
-            log.add_field(name="Assigned Department", value=", ".join(ping_mentions) if ping_mentions else "Default Staff", inline=True)
-            log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
-            await admin_chan.send(embed=log)
+        if config and config['admin_channel']:
+            admin_chan = interaction.guild.get_channel(config['admin_channel'])
+            if admin_chan:
+                log = discord.Embed(title=f"🚨 NEW SESSION OPENED: #{current_num}", color=0xFFD700)
+                log.add_field(name="Asset", value=interaction.user.mention, inline=True)
+                log.add_field(name="Category", value=category.upper().replace('_', ' '), inline=True)
+                log.add_field(name="Assigned Department", value=", ".join(ping_mentions) if ping_mentions else "Default Staff", inline=True)
+                log.add_field(name="Channel", value=ticket_channel.mention, inline=False)
+                await admin_chan.send(embed=log)
 
         # --- UPDATED: DELIVER RESPONSE VIA FOLLOWUP DUETO THE INITIAL DEFERRAL SYSTEM ---
         await interaction.followup.send(f"✅ Session opened: {ticket_channel.mention}", ephemeral=True)
