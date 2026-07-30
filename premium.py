@@ -16,10 +16,10 @@ CURRENCY = "USD"
 
 # --- RECONFIGURED ELITE PLANS (MULTI-PACK MARKETING TIERS) ---
 PREMIUM_PLANS = {
-    "Server Premium": {"cost": 15.0, "perks": "Full Server-Wide Unlock (30 Days)", "color": 0xFFD700, "duration": 30},
-    "Server Premium (3 Months)": {"cost": 40.0, "perks": "Full Server-Wide Unlock (90 Days) - 💥 SAVE $5", "color": 0xFFD700, "duration": 90},
-    "Server Premium (6 Months)": {"cost": 70.0, "perks": "Full Server-Wide Unlock (180 Days) - 🔥 SAVE $20", "color": 0xFFD700, "duration": 180},
-    "Server Premium (1 Year)": {"cost": 128.0, "perks": "Full Server-Wide Unlock (365 Days) - 🌟 BEST VALUE (SAVE $52)", "color": 0xFFD700, "duration": 365}
+    "Server Premium": {"cost": 5.0, "perks": "Full Server-Wide Unlock (30 Days)", "color": 0xFFD700, "duration": 30},
+    "Server Premium (3 Months)": {"cost": 12.50, "perks": "Full Server-Wide Unlock (90 Days) - 💥 SAVE $2.50", "color": 0xFFD700, "duration": 90},
+    "Server Premium (6 Months)": {"cost": 22.50, "perks": "Full Server-Wide Unlock (180 Days) - 🔥 SAVE $7.50", "color": 0xFFD700, "duration": 180},
+    "Server Premium (1 Year)": {"cost": 36.0, "perks": "Full Server-Wide Unlock (365 Days) - 🌟 BEST VALUE (SAVE $24)", "color": 0xFFD700, "duration": 365}
 }
 
 class PremiumShopView(discord.ui.View):
