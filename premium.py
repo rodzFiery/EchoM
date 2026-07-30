@@ -285,17 +285,21 @@ class PremiumSystem(commands.Cog):
     async def handle_paypal_webhook(self, request):
         data = await request.post()
         
-        # --- START ADDITION: PAYPAL IPN SECURITY VERIFICATION ---
-        verify_payload = dict(data)
-        verify_payload['cmd'] = '_notify-validate'
-        paypal_url = "https://ipnpb.paypal.com/cgi-bin/webscr"
-        async with aiohttp.ClientSession() as session:
-            async with session.post(paypal_url, data=verify_payload) as resp:
-                verification_text = await resp.text()
-                if verification_text != "VERIFIED":
-                    print(f"[SECURITY] Blocked fake premium webhook attempt: {verification_text}")
-                    return web.Response(status=403, text="Forbidden")
-        # --- END ADDITION ---
+        # --- ADDED: TESTPAY LOCALHOST SECURITY BYPASS ---
+        is_test_mode = data.get('test_mode') == '1'
+        
+        if not is_test_mode:
+            # --- START ADDITION: PAYPAL IPN SECURITY VERIFICATION ---
+            verify_payload = dict(data)
+            verify_payload['cmd'] = '_notify-validate'
+            paypal_url = "https://ipnpb.paypal.com/cgi-bin/webscr"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(paypal_url, data=verify_payload) as resp:
+                    verification_text = await resp.text()
+                    if verification_text != "VERIFIED":
+                        print(f"[SECURITY] Blocked fake premium webhook attempt: {verification_text}")
+                        return web.Response(status=403, text="Forbidden")
+            # --- END ADDITION ---
 
         if data.get('payment_status') == 'Completed':
             custom = data.get('custom', '')
@@ -414,7 +418,8 @@ class PremiumSystem(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def test_payment(self, ctx):
         plan_name = "Server Premium"
-        payload = {'payment_status': 'Completed', 'custom': f"G{ctx.guild.id}|{plan_name}|30"}
+        # --- UPDATED: Pass test_mode flag for testpay verification bypass ---
+        payload = {'payment_status': 'Completed', 'custom': f"G{ctx.guild.id}|{plan_name}|30", 'test_mode': '1'}
         
         port = os.environ.get("PORT", "8080")
         urls = [f"http://127.0.0.1:{port}/webhook", WEBHOOK_URL]
