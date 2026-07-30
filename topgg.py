@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import aiohttp
 import os
 import sys
@@ -36,6 +36,9 @@ class TopGG(commands.Cog):
         
         # --- ADDED: INJECT WEBHOOK INTO MAIN.PY FLASK SERVER ---
         self.setup_webhook()
+        
+        # Start background task to post server count to Top.gg
+        self.post_server_count.start()
 
     def setup_webhook(self):
         """Silently attaches a Top.gg webhook route to your existing Flask app."""
@@ -83,6 +86,32 @@ class TopGG(commands.Cog):
 
     def cog_unload(self):
         self.bot.remove_check(self.global_vote_interceptor)
+        self.post_server_count.cancel()
+
+    @tasks.loop(minutes=30)
+    async def post_server_count(self):
+        """Periodically posts server count to Top.gg so the profile page stays active."""
+        await self.bot.wait_until_ready()
+        if not self.token:
+            return
+
+        target_id = self.bot_id or (self.bot.user.id if self.bot.user else None)
+        if not target_id:
+            return
+
+        url = f"https://top.gg/api/bots/{target_id}/stats"
+        headers = {"Authorization": self.token, "Content-Type": "application/json"}
+        payload = {"server_count": len(self.bot.guilds)}
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers) as resp:
+                    if resp.status == 200:
+                        print(f"📊 [TOP.GG] Posted server count: {len(self.bot.guilds)}")
+                    else:
+                        print(f"⚠️ [TOP.GG] Failed to post stats. HTTP {resp.status}")
+        except Exception as e:
+            print(f"❌ [TOP.GG] Error posting server count: {e}")
 
     async def global_vote_interceptor(self, ctx):
         if not ctx.command:
