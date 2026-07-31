@@ -457,12 +457,14 @@ async def echo(ctx):
     """ULTIMATE OMNI-PROTOCOL GUIDE: TRANSFORMED V8.0"""
     # Page 1: Gameplay & Combat Extensions
     emb1 = fiery_embed("⚔️ COMBAT & ARENA PROTOCOLS", 
-        "**Battle Extensions (ignis.py & fight.py & partnersincrime.py)**\n"
+        "**Battle Extensions (ignis.py & fight.py & partnersincrime.py & cogs/house_cup.py)**\n"
         "• `!echostart`: Force immediate Arena execution.\n"
         "• `!lobby`: Open the Red Room combat lobby.\n"
+        "• `/housecup lobby`: Open a new Harry Potter House Cup lobby.\n"
+        "• `/housecup start`: Launch the active House Cup battle arena.\n"
         "• `!crimepartners`: Start a Partners in Crime heist lobby.\n"
         "• `!strip`: Select targets to expose after winning PIC.\n"
-        "• `!dungeonpets`: View your equipped dungeon pets.\n" # ADDED: Guideline update for new Pets feature
+        "• `!dungeonpets`: View your equipped dungeon pets.\n"
         "• `!join` / `!leave`: Enter or exit the active simulation.\n"
         "• `!fight <@user>`: Trigger a health-bar based 1v1 duel.\n"
         "• `!@user`: Champion's decree (Available only to winners).\n"
@@ -809,14 +811,13 @@ async def on_message(message):
 # --- CORE EXTENSION LOADING LOOP ---
 async def load_all_extensions():
     # FIXED: Ensure all .py modules are physically loaded and view templates registered
-    # SYNC POINT ADDED: "generatecolor" appended to loop structures sequentially alongside "color" 
-    # SYNC POINT ADDED: "partnersincrime" extension appended sequentially
+    # SYNC POINT ADDED: "cogs.house_cup" appended to loop structures sequentially
     exts = [
         "admin", "classes", "extensions", "ship", "shop", "collect", 
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor", "partnersincrime"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor", "partnersincrime", "cogs.house_cup"
     ]
     for e in exts:
         try:
@@ -850,10 +851,8 @@ async def setup_hook():
     await load_all_extensions()
     
     # Register persistent whisper views from the whisper Cog
-    # Since whisper is loaded as an extension, we retrieve the cog to add views
     whisper_cog = bot.get_cog("WhisperCog")
     if whisper_cog:
-        # Note: views are usually added in cog's on_ready, but we ensure consistency here
         pass
         
     # ADDED: Explicitly register the persistent views so the Reply button works after a deploy/restart!
@@ -864,6 +863,15 @@ async def setup_hook():
         print("✅ Persistent Whisper Views Loaded.")
     except Exception as e:
         print(f"❌ Could not load whisper views: {e}")
+
+    # ADDED: Register persistent views for House Cup Cog across reboots
+    try:
+        import cogs.house_cup as hc
+        bot.add_view(hc.LobbyView(None, 0))
+        bot.add_view(hc.ArenaControlView(None, 0))
+        print("✅ Persistent House Cup Views Loaded.")
+    except Exception as e:
+        print(f"❌ Could not load House Cup views: {e}")
     
     if not any(t.name == "FieryWebhook" for t in threading.enumerate()):
         threading.Thread(target=run_web_server, name="FieryWebhook", daemon=True).start()
