@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 import random
 import time
 from typing import Dict, List, Optional
@@ -8,6 +10,8 @@ from discord.ext import commands
 # ==========================================
 # CONSTANTS & CONFIGURATION
 # ==========================================
+DATA_FILE_PATH = "house_cup_data.json"
+
 HOUSES = {
     "Gryffindor": {"emoji": "🦁", "color": 0x7F0909, "buff": "10% chance to survive fatal hits"},
     "Slytherin": {"emoji": "🐍", "color": 0x1A472A, "buff": "10% chance to deal critical damage"},
@@ -26,7 +30,6 @@ FLASH_PENALTIES = [
     "Show your favorite tattoo/secret spot to the server!"
 ]
 
-# Lexicon Narratives for Instant 1v1 Clash Events
 LEXICON_CLASHES = [
     "{attacker} overpowered {defender} with a sudden Expelliarmus, forcing them off the duel podium!",
     "{attacker} caught {defender} off-guard with a swift Stupefy spell!",
@@ -71,6 +74,8 @@ class ServerGameState:
         self.house_points: Dict[str, int] = {h: 0 for h in HOUSES}
         self.round_number = 0
         self.eliminated_recap: List[dict] = []  # Stores data for final recap board
+        self.winning_house: Optional[str] = None
+        self.triwizard_champ: Optional[WizardPlayer] = None
         self.game_task: Optional[asyncio.Task] = None
         self.lobby_message: Optional[discord.Message] = None
 
@@ -210,6 +215,7 @@ class HouseCupCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.games: Dict[int, ServerGameState] = {}
+        self.recent_finished_games: Dict[int, ServerGameState] = {}  # Retained for !leviosa targeting
         self.server_game_counts: Dict[int, int] = {}
         self.global_game_count: int = 0
         
@@ -219,12 +225,56 @@ class HouseCupCog(commands.Cog):
         self.wizard_stats: Dict[int, Dict[str, int]] = {}  # {user_id: {"kills": X, "points": Y, "wins": Z}}
 
     def cog_unload(self):
+        self.save_persistent_data()
         for game in self.games.values():
             if game.game_task and not game.game_task.done():
                 game.game_task.cancel()
 
     async def cog_load(self):
+        self.load_persistent_data()
         self.bot.add_view(LobbyView(self, 0))
+
+    # ==========================================
+    # JSON PERSISTENCE ENGINE (LOAD & SAVE)
+    # ==========================================
+    def save_persistent_data(self):
+        """Saves game counters, house points, and player stats to JSON."""
+        data = {
+            "global_game_count": self.global_game_count,
+            "server_game_counts": {str(k): v for k, v in self.server_game_counts.items()},
+            "global_house_points": self.global_house_points,
+            "server_house_points": {str(k): v for k, v in self.server_house_points.items()},
+            "wizard_stats": {str(k): v for k, v in self.wizard_stats.items()}
+        }
+        try:
+            with open(DATA_FILE_PATH, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"[HouseCup Engine] Error saving data: {e}")
+
+    def load_persistent_data(self):
+        """Loads game counters, house points, and player stats from JSON on startup."""
+        if not os.path.exists(DATA_FILE_PATH):
+            return
+
+        try:
+            with open(DATA_FILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            self.global_game_count = data.get("global_game_count", 0)
+            
+            srv_counts = data.get("server_game_counts", {})
+            self.server_game_counts = {int(k): v for k, v in srv_counts.items()}
+
+            self.global_house_points = data.get("global_house_points", {h: 0 for h in HOUSES})
+
+            srv_houses = data.get("server_house_points", {})
+            self.server_house_points = {int(k): v for k, v in srv_houses.items()}
+
+            w_stats = data.get("wizard_stats", {})
+            self.wizard_stats = {int(k): v for k, v in w_stats.items()}
+        except Exception as e:
+            print(f"[HouseCup Engine] Error loading data: {e}")
 
     def get_game(self, guild_id: int) -> Optional[ServerGameState]:
         return self.games.get(guild_id)
@@ -253,7 +303,6 @@ class HouseCupCog(commands.Cog):
         
         embed.add_field(name="Current House Roster", value=house_summary, inline=False)
         
-        # Display Bot's Avatar in the Lobby
         if self.bot.user:
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
 
@@ -261,7 +310,7 @@ class HouseCupCog(commands.Cog):
         return embed
 
     # ==========================================
-    # COMMANDS (!housecup & !housecup rankings)
+    # COMMANDS (!housecup, !housecup rankings, !leviosa)
     # ==========================================
     @commands.group(name="housecup", invoke_without_command=True)
     @commands.guild_only()
@@ -274,6 +323,7 @@ class HouseCupCog(commands.Cog):
 
         self.server_game_counts[guild_id] = self.server_game_counts.get(guild_id, 0) + 1
         self.global_game_count += 1
+        self.save_persistent_data()
 
         server_num = self.server_game_counts[guild_id]
         global_num = self.global_game_count
@@ -298,17 +348,14 @@ class HouseCupCog(commands.Cog):
             color=0xECB939
         )
 
-        # 1. Server House Rankings
         sorted_server_houses = sorted(server_houses.items(), key=lambda x: x[1], reverse=True)
         server_house_txt = "\n".join([f"{HOUSES[h]['emoji']} **{h}**: {pts} pts" for h, pts in sorted_server_houses])
         embed.add_field(name="🏰 Server House Standings", value=server_house_txt or "No games completed yet.", inline=False)
 
-        # 2. Global House Rankings
         sorted_global_houses = sorted(self.global_house_points.items(), key=lambda x: x[1], reverse=True)
         global_house_txt = "\n".join([f"{HOUSES[h]['emoji']} **{h}**: {pts} pts" for h, pts in sorted_global_houses])
         embed.add_field(name="🌍 Global House Standings", value=global_house_txt, inline=False)
 
-        # 3. Top Server Wizards
         guild_members = [m.id for m in ctx.guild.members]
         server_wizards = {uid: stats for uid, stats in self.wizard_stats.items() if uid in guild_members}
         sorted_wizards = sorted(server_wizards.items(), key=lambda x: (x[1]["points"], x[1]["kills"]), reverse=True)[:5]
@@ -321,6 +368,50 @@ class HouseCupCog(commands.Cog):
 
         embed.add_field(name="🧙 Top Server Wizards", value=wizard_txt or "No wizard data available yet.", inline=False)
 
+        await ctx.send(embed=embed)
+
+    @commands.command(name="leviosa")
+    @commands.guild_only()
+    async def leviosa(self, ctx: commands.Context, target: discord.Member):
+        """Allows winning wizards to cast Wingardium Leviosa and force a target to flash."""
+        guild_id = ctx.guild.id
+        finished_game = self.recent_finished_games.get(guild_id)
+
+        if not finished_game:
+            await ctx.send("❌ No recent match finished where you can assign flash forfeits!")
+            return
+
+        winner_player = finished_game.players.get(ctx.author.id)
+        if not winner_player:
+            await ctx.send("❌ You did not participate in the most recent match!")
+            return
+
+        is_champ = finished_game.triwizard_champ and finished_game.triwizard_champ.user.id == ctx.author.id
+        is_winning_house = winner_player.house == finished_game.winning_house
+
+        if not (is_champ or is_winning_house):
+            await ctx.send("❌ Only members of the winning House or the Triwizard Champion can cast !leviosa!")
+            return
+
+        if target.id == ctx.author.id:
+            await ctx.send("❌ You cannot target yourself!")
+            return
+
+        target_player = finished_game.players.get(target.id)
+        if target_player and target_player.house == finished_game.winning_house:
+            await ctx.send("❌ You cannot force your own winning House teammate to flash!")
+            return
+
+        penalty = random.choice(FLASH_PENALTIES)
+        embed = discord.Embed(
+            title="✨ WINGARDIUM LEVIOSA FORFEIT CAST!",
+            description=(
+                f"🪄 **{ctx.author.display_name}** levitated **{target.mention}**!\n\n"
+                f"⚡ **ASSIGNED FORFEIT:** {penalty}"
+            ),
+            color=0xFF0055
+        )
+        embed.set_thumbnail(url=target.display_avatar.url)
         await ctx.send(embed=embed)
 
     # ==========================================
@@ -344,11 +435,9 @@ class HouseCupCog(commands.Cog):
                 await self.conclude_game(game, channel)
                 break
 
-            # Pick 2 Random Wizards from Different Houses for 1v1 Encounter
             attacker = random.choice(alive_players)
             potential_defenders = [p for p in alive_players if p.house != attacker.house]
             
-            # Fallback if remaining alive wizards are only same house
             if not potential_defenders:
                 potential_defenders = [p for p in alive_players if p.user.id != attacker.user.id]
             
@@ -357,19 +446,16 @@ class HouseCupCog(commands.Cog):
                 
             defender = random.choice(potential_defenders)
 
-            # Gryffindor Trait Check: Chance to Survive Knockout Encounter
             is_eliminated = True
             if defender.house == "Gryffindor" and random.random() < 0.10:
                 is_eliminated = False
 
-            # Select Lexicon Encounter Sentence
             sentence_template = random.choice(LEXICON_CLASHES)
             narrative = sentence_template.format(
                 attacker=f"**{attacker.user.display_name}**",
                 defender=f"**{defender.user.display_name}**"
             )
 
-            # Build HangryGames-Style 1v1 Duel Embed
             att_icon = HOUSES[attacker.house]["emoji"]
             def_icon = HOUSES[defender.house]["emoji"]
 
@@ -383,7 +469,6 @@ class HouseCupCog(commands.Cog):
                 color=HOUSES[attacker.house]["color"]
             )
 
-            # Dual Profile Picture Display (Attacker Main Thumbnail, Defender In-Embed Image)
             embed.set_thumbnail(url=attacker.user.display_avatar.url)
             embed.set_image(url=defender.user.display_avatar.url)
 
@@ -396,26 +481,18 @@ class HouseCupCog(commands.Cog):
 
                 defender.death_cause = f"Defeated in a 1v1 duel by {attacker.user.display_name}"
 
-                game.eliminated_recap.append({
-                    "player": defender,
-                    "killer": attacker.user.display_name,
-                    "penalty": random.choice(FLASH_PENALTIES)
-                })
-
                 embed.add_field(
                     name="💀 KNOCKOUT!",
                     value=f"**{defender.user.display_name}** was eliminated! **+{kill_pts} Pts** awarded to **{attacker.house}**!",
                     inline=False
                 )
 
-                # Trigger Spectator Rescue Window
                 res_view = ResurrectionView(game, defender, self)
                 asyncio.create_task(channel.send(
                     f"✨ **{defender.user.display_name}** has fallen! 15s Rescue window open:",
                     view=res_view
                 ))
             else:
-                # Survived Encounter (e.g. Gryffindor Trait triggered)
                 pts = 15
                 game.house_points[attacker.house] += pts
                 attacker.points_earned += pts
@@ -430,8 +507,8 @@ class HouseCupCog(commands.Cog):
 
             await channel.send(embed=embed)
 
-        # Cleanup Guild State
         if guild_id in self.games:
+            self.recent_finished_games[guild_id] = game
             del self.games[guild_id]
 
     async def conclude_game(self, game: ServerGameState, channel: discord.TextChannel):
@@ -439,6 +516,9 @@ class HouseCupCog(commands.Cog):
         winning_house = max(game.house_points, key=game.house_points.get)
         survivors = [p for p in game.players.values() if p.is_alive]
         triwizard_champ = survivors[0] if survivors else None
+
+        game.winning_house = winning_house
+        game.triwizard_champ = triwizard_champ
 
         # Update Server & Global Persistent Rankings
         if guild_id not in self.server_house_points:
@@ -452,10 +532,16 @@ class HouseCupCog(commands.Cog):
             is_win = (triwizard_champ and p.user.id == triwizard_champ.user.id)
             self.record_wizard_stats(p.user.id, p.kills, p.points_earned, win=is_win)
 
+        # Write all accumulated scores to permanent local storage
+        self.save_persistent_data()
+
         # 1. Main Winner Embed
         embed = discord.Embed(
             title="🏆 THE HOUSE CUP HAS CONCLUDED! 🏆",
-            description=f"Congratulations to **{winning_house}** {HOUSES[winning_house]['emoji']} for winning the House Cup!",
+            description=(
+                f"Congratulations to **{winning_house}** {HOUSES[winning_house]['emoji']} for winning the House Cup!\n\n"
+                f"🪄 **Winners command:** Type `!leviosa @user` to pick someone to perform a Flash Forfeit!"
+            ),
             color=HOUSES[winning_house]["color"]
         )
         embed.add_field(
@@ -470,23 +556,31 @@ class HouseCupCog(commands.Cog):
 
         await channel.send(embed=embed)
 
-        # 2. Final Recap & Explicit Flash Forfeit Board
+        # 2. Random House Flash Forfeit Selection
+        non_winning_houses = [h for h in HOUSES if h != winning_house]
+        punished_house = random.choice(non_winning_houses)
+        punished_members = [p for p in game.players.values() if p.house == punished_house]
+
         recap_embed = discord.Embed(
-            title="⚡ END OF GAME RECAP & FLASH FORFEITS",
-            description="All eliminated wizards must complete their assigned forfeit tasks!",
+            title="⚡ END OF GAME RECAP & RANDOM HOUSE FLASH FORFEIT",
+            description=f"The Sorting Hat selected **{punished_house}** {HOUSES[punished_house]['emoji']} for a group Flash Penalty!",
             color=0xFF0055
         )
 
-        if game.eliminated_recap:
-            for item in game.eliminated_recap:
-                p = item["player"]
+        if punished_members:
+            for p in punished_members:
+                penalty = random.choice(FLASH_PENALTIES)
                 recap_embed.add_field(
-                    name=f"💀 {p.user.display_name} ({p.house})",
-                    value=f"• **Cause:** {p.death_cause}\n• **Flash Forfeit:** {item['penalty']}",
+                    name=f"⚡ {p.user.display_name} ({p.house})",
+                    value=f"• **Assigned Forfeit:** {penalty}",
                     inline=False
                 )
         else:
-            recap_embed.add_field(name="Flawless Victory", value="No wizards were eliminated during this battle!", inline=False)
+            recap_embed.add_field(
+                name=f"{HOUSES[punished_house]['emoji']} {punished_house}",
+                value="No wizards were sorted into this house during the match!",
+                inline=False
+            )
 
         await channel.send(embed=recap_embed)
 
