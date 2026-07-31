@@ -241,7 +241,7 @@ class HouseCupCog(commands.Cog):
 
     def build_lobby_embed(self, game: ServerGameState) -> discord.Embed:
         embed = discord.Embed(
-            title="🏆 Battle for the House Cup - Sorting Lobby",
+            title="🧙🏼‍♂️ House Cup",
             description=(
                 f"**Server Game #{game.server_game_num}** | **Global Game #{game.global_game_num}**\n\n"
                 "Click **Enter the Great Hall** below to receive your House assignment!"
@@ -296,7 +296,7 @@ class HouseCupCog(commands.Cog):
         server_houses = self.server_house_points.get(guild_id, {h: 0 for h in HOUSES})
 
         embed = discord.Embed(
-            title="🏆 HOUSE CUP LEADERBOARDS & RANKINGS",
+            title="🧙🏼‍♂️ HOUSE CUP LEADERBOARDS & RANKINGS",
             color=0xECB939
         )
 
@@ -456,7 +456,7 @@ class HouseCupCog(commands.Cog):
 
         # 1. Main Winner Embed
         embed = discord.Embed(
-            title="🏆 THE HOUSE CUP HAS CONCLUDED! 🏆",
+            title="🧙🏼‍♂️ THE HOUSE CUP HAS CONCLUDED! 🧙🏼‍♂️",
             description=f"Congratulations to **{winning_house}** {HOUSES[winning_house]['emoji']} for winning the House Cup!",
             color=HOUSES[winning_house]["color"]
         )
