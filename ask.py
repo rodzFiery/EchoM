@@ -287,14 +287,14 @@ class RecipientView(discord.ui.View):
                 pass
         return current_target_id, current_requester_id
 
-    # --- ADDED: THE INTERROGATION TRIGGER ---
+    # --- ADDED: THE INTERROGATION TRIGGER (NEVER EXPIRES) ---
     @discord.ui.button(label="👁️ Make a question first", style=discord.ButtonStyle.primary, custom_id="ask_dm_interrogate_v3")
     async def interrogate(self, inter: discord.Interaction, btn: discord.ui.Button):
         target_id, requester_id = self.check_permissions(inter)
         if inter.user.id != target_id: 
             return await inter.response.send_message("❌ Access denied. Only the target recipient can interact with these controls.", ephemeral=True)
         
-        await inter.open_modal(InterrogateModal(requester_id, target_id, inter.message.id))
+        await inter.response.send_modal(InterrogateModal(requester_id, target_id, inter.message.id))
 
     @discord.ui.button(label="Accept DM", style=discord.ButtonStyle.success, emoji="🫦", custom_id="ask_dm_accept_v3")
     async def accept(self, inter: discord.Interaction, btn: discord.ui.Button):
