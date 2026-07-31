@@ -27,6 +27,14 @@ FLASH_PENALTIES = [
     "Show your favorite tattoo/secret spot to the server!"
 ]
 
+DUEL_SPELLS = [
+    {"name": "Expelliarmus", "min_dmg": 15, "max_dmg": 25, "text": "disarmed and knocked back"},
+    {"name": "Stupefy", "min_dmg": 20, "max_dmg": 30, "text": "hit with a powerful stunning spell"},
+    {"name": "Sectumsempra", "min_dmg": 25, "max_dmg": 40, "text": "slashed with dark magic"},
+    {"name": "Incendio", "min_dmg": 18, "max_dmg": 32, "text": "blasted with a wave of magical fire"},
+    {"name": "Avada Kedavra", "min_dmg": 999, "max_dmg": 999, "text": "struck down with the Unforgivable Curse"}
+]
+
 # Database/Economy Hook Integration
 def modify_user_balance(bot: commands.Bot, user_id: int, amount: int) -> bool:
     try:
@@ -48,9 +56,8 @@ class WizardPlayer:
         self.hp = INITIAL_HEALTH + (10 if house == "Hufflepuff" else 0)
         self.max_hp = self.hp
         self.is_alive = True
-        self.has_shield = False
-        self.is_frozen = False
         self.kills = 0
+        self.points_earned = 0
         self.death_cause = ""
 
 class ServerGameState:
@@ -64,7 +71,7 @@ class ServerGameState:
         self.players: Dict[int, WizardPlayer] = {}
         self.house_points: Dict[str, int] = {h: 0 for h in HOUSES}
         self.round_number = 0
-        self.eliminated_recap: List[dict] = []  # Stores data for the final recap board
+        self.eliminated_recap: List[dict] = []  # Stores data for final recap board
         self.game_task: Optional[asyncio.Task] = None
         self.lobby_message: Optional[discord.Message] = None
 
@@ -165,7 +172,6 @@ class LobbyView(discord.ui.View):
             await interaction.followup.send("❌ No open lobby found in this server!", ephemeral=True)
             return
 
-        # Delete old lobby message if cached
         if game.lobby_message:
             try:
                 await game.lobby_message.delete()
@@ -206,8 +212,13 @@ class HouseCupCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.games: Dict[int, ServerGameState] = {}
-        self.server_game_counts: Dict[int, int] = {}  # Tracks total games per guild
-        self.global_game_count: int = 0               # Tracks total games across all guilds
+        self.server_game_counts: Dict[int, int] = {}
+        self.global_game_count: int = 0
+        
+        # Rankings Persistence Data Structures
+        self.global_house_points: Dict[str, int] = {h: 0 for h in HOUSES}
+        self.server_house_points: Dict[int, Dict[str, int]] = {}
+        self.wizard_stats: Dict[int, Dict[str, int]] = {}  # {user_id: {"kills": X, "points": Y, "wins": Z}}
 
     def cog_unload(self):
         for game in self.games.values():
@@ -219,6 +230,14 @@ class HouseCupCog(commands.Cog):
 
     def get_game(self, guild_id: int) -> Optional[ServerGameState]:
         return self.games.get(guild_id)
+
+    def record_wizard_stats(self, user_id: int, kills: int, points: int, win: bool = False):
+        if user_id not in self.wizard_stats:
+            self.wizard_stats[user_id] = {"kills": 0, "points": 0, "wins": 0}
+        self.wizard_stats[user_id]["kills"] += kills
+        self.wizard_stats[user_id]["points"] += points
+        if win:
+            self.wizard_stats[user_id]["wins"] += 1
 
     def build_lobby_embed(self, game: ServerGameState) -> discord.Embed:
         embed = discord.Embed(
@@ -236,7 +255,6 @@ class HouseCupCog(commands.Cog):
         
         embed.add_field(name="Current House Roster", value=house_summary, inline=False)
         
-        # Profile Picture Integration
         leader = game.get_leader_player()
         if leader:
             embed.set_thumbnail(url=leader.user.display_avatar.url)
@@ -245,9 +263,9 @@ class HouseCupCog(commands.Cog):
         return embed
 
     # ==========================================
-    # DIRECT PREFIX COMMAND (!housecup)
+    # COMMANDS (!housecup & !housecup rankings)
     # ==========================================
-    @commands.command(name="housecup")
+    @commands.group(name="housecup", invoke_without_command=True)
     @commands.guild_only()
     async def housecup(self, ctx: commands.Context):
         """Creates or manages the active House Cup game lobby."""
@@ -256,7 +274,6 @@ class HouseCupCog(commands.Cog):
             await ctx.send("⚠️ A House Cup lobby or active game is already running in this server!")
             return
 
-        # Increment game tracking counters
         self.server_game_counts[guild_id] = self.server_game_counts.get(guild_id, 0) + 1
         self.global_game_count += 1
 
@@ -271,8 +288,45 @@ class HouseCupCog(commands.Cog):
         msg = await ctx.send(embed=embed, view=view)
         game.lobby_message = msg
 
+    @housecup.command(name="rankings")
+    @commands.guild_only()
+    async def show_rankings(self, ctx: commands.Context):
+        """Displays Server and Global House Cup Rankings."""
+        guild_id = ctx.guild.id
+        server_houses = self.server_house_points.get(guild_id, {h: 0 for h in HOUSES})
+
+        embed = discord.Embed(
+            title="🏆 HOUSE CUP LEADERBOARDS & RANKINGS",
+            color=0xECB939
+        )
+
+        # 1. Server House Rankings
+        sorted_server_houses = sorted(server_houses.items(), key=lambda x: x[1], reverse=True)
+        server_house_txt = "\n".join([f"{HOUSES[h]['emoji']} **{h}**: {pts} pts" for h, pts in sorted_server_houses])
+        embed.add_field(name="🏰 Server House Standings", value=server_house_txt or "No games completed yet.", inline=False)
+
+        # 2. Global House Rankings
+        sorted_global_houses = sorted(self.global_house_points.items(), key=lambda x: x[1], reverse=True)
+        global_house_txt = "\n".join([f"{HOUSES[h]['emoji']} **{h}**: {pts} pts" for h, pts in sorted_global_houses])
+        embed.add_field(name="🌍 Global House Standings", value=global_house_txt, inline=False)
+
+        # 3. Top Server Wizards
+        guild_members = [m.id for m in ctx.guild.members]
+        server_wizards = {uid: stats for uid, stats in self.wizard_stats.items() if uid in guild_members}
+        sorted_wizards = sorted(server_wizards.items(), key=lambda x: (x[1]["points"], x[1]["kills"]), reverse=True)[:5]
+        
+        wizard_txt = ""
+        for rank, (uid, stats) in enumerate(sorted_wizards, start=1):
+            user = self.bot.get_user(uid)
+            name = user.display_name if user else f"Wizard {uid}"
+            wizard_txt += f"`#{rank}` **{name}** — {stats['points']} pts | {stats['kills']} kills | {stats['wins']} wins\n"
+
+        embed.add_field(name="🧙 Top Server Wizards", value=wizard_txt or "No wizard data available yet.", inline=False)
+
+        await ctx.send(embed=embed)
+
     # ==========================================
-    # AUTOMATED BATTLE ENGINE LOOP
+    # HANGRY GAMES-STYLE 1V1 DUEL BATTLE ENGINE
     # ==========================================
     async def run_battle_loop(self, guild_id: int, channel: discord.TextChannel):
         game = self.games.get(guild_id)
@@ -284,130 +338,94 @@ class HouseCupCog(commands.Cog):
             await asyncio.sleep(ACTION_TICK_SECONDS)
 
             alive_players = [p for p in game.players.values() if p.is_alive]
-            
-            # Check End Conditions
             surviving_houses = {p.house for p in alive_players}
+
+            # Check End Conditions
             if len(alive_players) <= 1 or len(surviving_houses) <= 1:
                 game.is_running = False
                 await self.conclude_game(game, channel)
                 break
 
-            round_logs: List[str] = []
+            # Pick 2 Random Wizards for a HangryGames 1v1 Clash
+            attacker = random.choice(alive_players)
+            potential_defenders = [p for p in alive_players if p.user.id != attacker.user.id]
+            if not potential_defenders:
+                continue
+            defender = random.choice(potential_defenders)
 
-            # 1. Random Automated Environmental Hazards
-            if random.random() < 0.15 and alive_players:
-                dragon_target = max(alive_players, key=lambda p: p.hp)
-                damage = random.randint(30, 45)
-                if dragon_target.has_shield:
-                    dragon_target.has_shield = False
-                    round_logs.append(f"🐉 A Hungarian Horntail swept through the arena, but **{dragon_target.user.display_name}**'s Protego absorbed the flames!")
-                else:
-                    dragon_target.hp -= damage
-                    if dragon_target.hp <= 0:
-                        dragon_target.death_cause = "Burned to ashes by a roaming Hungarian Horntail"
-                    round_logs.append(f"🐉 A Hungarian Horntail swooped down and blasted **{dragon_target.user.display_name}** for **{damage} HP**!")
+            # Pick Random Spell / Encounter
+            spell = random.choice(DUEL_SPELLS)
+            is_unforgivable = spell["name"] == "Avada Kedavra"
+            
+            if is_unforgivable and random.random() > 0.15:
+                # 85% chance Unforgivable Curse misses
+                spell = DUEL_SPELLS[1]  # Fallback to Stupefy
 
-            # 2. Fully Automated Combat & Random Magic Events
-            for player in alive_players:
-                if not player.is_alive:
-                    continue
+            damage = random.randint(spell["min_dmg"], spell["max_dmg"])
 
-                if player.is_frozen:
-                    player.is_frozen = False
-                    round_logs.append(f"❄️ **{player.user.display_name}** was frozen in ice and skipped their turn!")
-                    continue
+            # Trait Checks
+            if attacker.house == "Slytherin" and random.random() < 0.10:
+                damage = int(damage * 1.5)
 
-                # Random Utility Action Chance (Pepperup / Protego)
-                rand_action = random.random()
-                if rand_action < 0.12 and player.hp < player.max_hp:
-                    heal_amt = random.randint(20, 35)
-                    player.hp = min(player.max_hp, player.hp + heal_amt)
-                    round_logs.append(f"🧪 **{player.user.display_name}** found and drank a Pepperup Potion (+{heal_amt} HP)!")
-                    continue
-                elif rand_action < 0.22 and not player.has_shield:
-                    player.has_shield = True
-                    round_logs.append(f"🛡️ **{player.user.display_name}** raised a protective *Protego* shield!")
-                    continue
+            # Resolve Combat Hit
+            defender.hp -= damage
+            pts_earned = 15
+            game.house_points[attacker.house] += pts_earned
+            attacker.points_earned += pts_earned
 
-                # Pick random rival target
-                potential_rivals = [p for p in alive_players if p.house != player.house and p.is_alive]
-                if not potential_rivals:
-                    continue
-                
-                target = random.choice(potential_rivals)
+            is_fatal = defender.hp <= 0
 
-                # Random Hex / Curse Action
-                if random.random() < 0.15:
-                    if target.house == "Ravenclaw" and random.random() < 0.10:
-                        round_logs.append(f"🦅 **{target.user.display_name}** dodged **{player.user.display_name}**'s Hex with Ravenclaw Wit!")
-                    else:
-                        target.is_frozen = True
-                        round_logs.append(f"⚡ **{player.user.display_name}** hit **{target.user.display_name}** with *Petrificus Totalus*!")
-                    continue
+            # Gryffindor Bravery Fatal Survival
+            if is_fatal and defender.house == "Gryffindor" and random.random() < 0.10:
+                defender.hp = 1
+                is_fatal = False
 
-                # Standard Spell Attack
-                damage = random.randint(15, 30)
+            # Build HangryGames Style Dual Avatar Duel Embed
+            att_icon = HOUSES[attacker.house]["emoji"]
+            def_icon = HOUSES[defender.house]["emoji"]
 
-                # Slytherin Trait
-                if player.house == "Slytherin" and random.random() < 0.10:
-                    damage = int(damage * 1.5)
-                    round_logs.append(f"🐍 Slytherin Ambition triggered a critical hit for **{player.user.display_name}**!")
-
-                if target.has_shield:
-                    target.has_shield = False
-                    round_logs.append(f"🛡️ **{player.user.display_name}** attacked **{target.user.display_name}**, but *Protego* absorbed the hit!")
-                else:
-                    target.hp -= damage
-                    game.house_points[player.house] += 10
-                    round_logs.append(f"🪄 **{player.user.display_name}** cast *Stupefy* on **{target.user.display_name}** (-{damage} HP)!")
-
-                # Handle Knockouts & Fatal Traits
-                if target.hp <= 0:
-                    if target.house == "Gryffindor" and random.random() < 0.10:
-                        target.hp = 1
-                        round_logs.append(f"🦁 Gryffindor Bravery saved **{target.user.display_name}** from fatal collapse!")
-                    else:
-                        target.is_alive = False
-                        player.kills += 1
-                        game.house_points[player.house] += 50
-                        if not target.death_cause:
-                            target.death_cause = f"Knocked off broomstick by {player.user.display_name}"
-                        
-                        # Store for final recap board
-                        game.eliminated_recap.append({
-                            "player": target,
-                            "killer": player.user.display_name,
-                            "penalty": random.choice(FLASH_PENALTIES)
-                        })
-
-                        round_logs.append(f"💀 **{target.user.display_name}** was eliminated from the battle!")
-
-                        # Trigger Spectator Rescue Window
-                        res_view = ResurrectionView(game, target, self)
-                        asyncio.create_task(channel.send(
-                            f"✨ **{target.user.display_name}** has fallen! 15s Rescue window open:",
-                            view=res_view
-                        ))
-
-            # 3. Publish Round Outcome Embed
-            leader = game.get_leader_player()
             embed = discord.Embed(
-                title=f"⚔️ House Cup Battle - Round {game.round_number}",
-                color=HOUSES[leader.house]["color"] if leader else 0x7F0909
+                title=f"⚔️ DUEL CLASH — Round {game.round_number}",
+                description=(
+                    f"{att_icon} **{attacker.user.display_name}** ({attacker.house}) **VS** "
+                    f"{def_icon} **{defender.user.display_name}** ({defender.house})\n\n"
+                    f"✨ **{attacker.user.display_name}** cast **{spell['name']}**!\n"
+                    f"💥 **{defender.user.display_name}** was {spell['text']} for **{damage} HP**!"
+                ),
+                color=HOUSES[attacker.house]["color"]
             )
-            embed.add_field(name="Round Events", value="\n".join(round_logs) if round_logs else "Quiet turn in the arena.", inline=False)
 
-            status_text = ""
-            for p in game.players.values():
-                icon = HOUSES[p.house]["emoji"]
-                st = f"HP: {p.hp}/{p.max_hp}" if p.is_alive else "☠️ ELIMINATED"
-                status_text += f"{icon} **{p.user.display_name}** | {st}\n"
-            
-            embed.add_field(name="Wizard Status", value=status_text, inline=False)
-            
-            # Set top wizard profile picture as thumbnail
-            if leader:
-                embed.set_thumbnail(url=leader.user.display_avatar.url)
+            # Dual Profile Picture Display (Attacker Main Thumbnail, Defender In-Embed Image)
+            embed.set_thumbnail(url=attacker.user.display_avatar.url)
+            embed.set_image(url=defender.user.display_avatar.url)
+
+            if is_fatal:
+                defender.is_alive = False
+                attacker.kills += 1
+                kill_pts = 50
+                game.house_points[attacker.house] += kill_pts
+                attacker.points_earned += kill_pts
+
+                defender.death_cause = f"Defeated in a 1v1 duel by {attacker.user.display_name} ({spell['name']})"
+
+                game.eliminated_recap.append({
+                    "player": defender,
+                    "killer": attacker.user.display_name,
+                    "penalty": random.choice(FLASH_PENALTIES)
+                })
+
+                embed.add_field(
+                    name="💀 KNOCKOUT!",
+                    value=f"**{defender.user.display_name}** was eliminated! **+{kill_pts} Pts** awarded to **{attacker.house}**!",
+                    inline=False
+                )
+
+                # Trigger Spectator Rescue Window
+                res_view = ResurrectionView(game, defender, self)
+                asyncio.create_task(channel.send(
+                    f"✨ **{defender.user.display_name}** has fallen! 15s Rescue window open:",
+                    view=res_view
+                ))
 
             leaderboard = " | ".join([f"{HOUSES[h]['emoji']} {h}: {pts}pt" for h, pts in game.house_points.items()])
             embed.set_footer(text=f"Leaderboard: {leaderboard}")
@@ -419,9 +437,22 @@ class HouseCupCog(commands.Cog):
             del self.games[guild_id]
 
     async def conclude_game(self, game: ServerGameState, channel: discord.TextChannel):
+        guild_id = channel.guild.id
         winning_house = max(game.house_points, key=game.house_points.get)
         survivors = [p for p in game.players.values() if p.is_alive]
         triwizard_champ = survivors[0] if survivors else None
+
+        # Update Server & Global Persistent Rankings
+        if guild_id not in self.server_house_points:
+            self.server_house_points[guild_id] = {h: 0 for h in HOUSES}
+
+        for h_name, h_pts in game.house_points.items():
+            self.server_house_points[guild_id][h_name] += h_pts
+            self.global_house_points[h_name] += h_pts
+
+        for p in game.players.values():
+            is_win = (triwizard_champ and p.user.id == triwizard_champ.user.id)
+            self.record_wizard_stats(p.user.id, p.kills, p.points_earned, win=is_win)
 
         # 1. Main Winner Embed
         embed = discord.Embed(
