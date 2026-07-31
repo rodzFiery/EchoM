@@ -17,10 +17,6 @@ HOUSES = {
 
 ACTION_TICK_SECONDS = 15
 INITIAL_HEALTH = 100
-PEPPERUP_COST = 50
-PROTEGO_COST = 100
-HEX_COST = 75
-DRAGON_COST = 250
 RESURRECTION_COST = 150
 
 FLASH_PENALTIES = [
@@ -32,19 +28,9 @@ FLASH_PENALTIES = [
 ]
 
 # Database/Economy Hook Integration
-def get_user_balance(bot: commands.Bot, user_id: int) -> int:
-    try:
-        user_data = bot.get_user(user_id)
-        if isinstance(user_data, dict) and 'balance' in user_data:
-            return user_data['balance']
-    except Exception:
-        pass
-    return 1000
-
 def modify_user_balance(bot: commands.Bot, user_id: int, amount: int) -> bool:
     try:
         if hasattr(bot, 'update_user_stats_async'):
-            # Trigger economy update via main bot handler
             asyncio.create_task(bot.update_user_stats_async(user_id, amount=amount, source="HouseCup Spectator"))
             return True
     except Exception:
@@ -78,7 +64,6 @@ class ServerGameState:
         self.players: Dict[int, WizardPlayer] = {}
         self.house_points: Dict[str, int] = {h: 0 for h in HOUSES}
         self.round_number = 0
-        self.spectator_queue: List[dict] = []
         self.eliminated_recap: List[dict] = []  # Stores data for the final recap board
         self.game_task: Optional[asyncio.Task] = None
         self.lobby_message: Optional[discord.Message] = None
@@ -194,121 +179,6 @@ class LobbyView(discord.ui.View):
         await interaction.followup.send("✅ Lobby reposted at the bottom of the channel!", ephemeral=True)
 
 
-class SpectatorSelectView(discord.ui.View):
-    def __init__(self, game: ServerGameState, action_type: str, cost: int, cog: "HouseCupCog"):
-        super().__init__(timeout=None)  # Infinite lifetime
-        self.game = game
-        self.action_type = action_type
-        self.cost = cost
-        self.cog = cog
-
-        options = [
-            discord.SelectOption(
-                label=p.user.display_name[:100],
-                description=f"House: {p.house} | HP: {p.hp}",
-                value=str(p.user.id)
-            ) for p in game.players.values() if p.is_alive
-        ]
-
-        if not options:
-            options.append(discord.SelectOption(label="No valid targets", value="none"))
-
-        select = discord.ui.Select(
-            placeholder="Select a Wizard target...",
-            options=options[:25],
-            custom_id=f"housecup:select:{action_type}"
-        )
-        select.callback = self.target_selected
-        self.add_item(select)
-
-    async def target_selected(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        target_id = int(interaction.data['values'][0])
-        
-        if target_id not in self.game.players:
-            await interaction.followup.send("❌ Target no longer available.", ephemeral=True)
-            return
-
-        if not modify_user_balance(self.cog.bot, interaction.user.id, -self.cost):
-            await interaction.followup.send("❌ Insufficient server currency balance!", ephemeral=True)
-            return
-
-        self.game.spectator_queue.append({
-            "action": self.action_type,
-            "caster": interaction.user,
-            "target_id": target_id
-        })
-
-        target_player = self.game.players[target_id]
-        await interaction.followup.send(
-            f"✅ Sent **{self.action_type}** targeting **{target_player.user.display_name}** for {self.cost} coins!",
-            ephemeral=True
-        )
-        self.stop()
-
-
-class ArenaControlView(discord.ui.View):
-    def __init__(self, cog: "HouseCupCog", guild_id: int):
-        super().__init__(timeout=None)  # Infinite lifetime
-        self.cog = cog
-        self.guild_id = guild_id
-
-    @discord.ui.button(label="Pepperup Potion (50c)", style=discord.ButtonStyle.success, emoji="🧪", custom_id="housecup:arena:pepperup")
-    async def pepperup(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self.cog.get_game(interaction.guild_id)
-        if not game or not game.is_running:
-            await interaction.response.send_message("❌ No active battle running.", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            "Select target to heal (+30 HP):",
-            view=SpectatorSelectView(game, "pepperup", PEPPERUP_COST, self.cog),
-            ephemeral=True
-        )
-
-    @discord.ui.button(label="Protego Shield (100c)", style=discord.ButtonStyle.primary, emoji="🛡️", custom_id="housecup:arena:protego")
-    async def protego(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self.cog.get_game(interaction.guild_id)
-        if not game or not game.is_running:
-            await interaction.response.send_message("❌ No active battle running.", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            "Select target to shield against next hit:",
-            view=SpectatorSelectView(game, "protego", PROTEGO_COST, self.cog),
-            ephemeral=True
-        )
-
-    @discord.ui.button(label="Cast Hex (75c)", style=discord.ButtonStyle.secondary, emoji="⚡", custom_id="housecup:arena:hex")
-    async def cast_hex(self, interaction: discord.Interaction, button: discord.ui.Button):
-        game = self.cog.get_game(interaction.guild_id)
-        if not game or not game.is_running:
-            await interaction.response.send_message("❌ No active battle running.", ephemeral=True)
-            return
-        await interaction.response.send_message(
-            "Select rival target to freeze for 1 round:",
-            view=SpectatorSelectView(game, "hex", HEX_COST, self.cog),
-            ephemeral=True
-        )
-
-    @discord.ui.button(label="Release Dragon (250c)", style=discord.ButtonStyle.danger, emoji="🐉", custom_id="housecup:arena:dragon")
-    async def unleash_dragon(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        game = self.cog.get_game(interaction.guild_id)
-        if not game or not game.is_running:
-            await interaction.followup.send("❌ No active battle running.", ephemeral=True)
-            return
-
-        if not modify_user_balance(self.cog.bot, interaction.user.id, -DRAGON_COST):
-            await interaction.followup.send("❌ Insufficient funds (250 Coins required)!", ephemeral=True)
-            return
-
-        game.spectator_queue.append({
-            "action": "dragon",
-            "caster": interaction.user,
-            "target_id": None
-        })
-        await interaction.followup.send("🐉 **Hungarian Horntail** released into the arena queue!", ephemeral=True)
-
-
 class ResurrectionView(discord.ui.View):
     def __init__(self, game: ServerGameState, dead_player: WizardPlayer, cog: "HouseCupCog"):
         super().__init__(timeout=15)
@@ -346,7 +216,6 @@ class HouseCupCog(commands.Cog):
 
     async def cog_load(self):
         self.bot.add_view(LobbyView(self, 0))
-        self.bot.add_view(ArenaControlView(self, 0))
 
     def get_game(self, guild_id: int) -> Optional[ServerGameState]:
         return self.games.get(guild_id)
@@ -410,8 +279,6 @@ class HouseCupCog(commands.Cog):
         if not game:
             return
 
-        control_view = ArenaControlView(self, guild_id)
-
         while game.is_running:
             game.round_number += 1
             await asyncio.sleep(ACTION_TICK_SECONDS)
@@ -427,48 +294,39 @@ class HouseCupCog(commands.Cog):
 
             round_logs: List[str] = []
 
-            # 1. Resolve Spectator Actions Queue
-            while game.spectator_queue:
-                action = game.spectator_queue.pop(0)
-                act_type = action["action"]
-                caster = action["caster"]
-                target = game.players.get(action["target_id"]) if action["target_id"] else None
+            # 1. Random Automated Environmental Hazards
+            if random.random() < 0.15 and alive_players:
+                dragon_target = max(alive_players, key=lambda p: p.hp)
+                damage = random.randint(30, 45)
+                if dragon_target.has_shield:
+                    dragon_target.has_shield = False
+                    round_logs.append(f"🐉 A Hungarian Horntail swept through the arena, but **{dragon_target.user.display_name}**'s Protego absorbed the flames!")
+                else:
+                    dragon_target.hp -= damage
+                    if dragon_target.hp <= 0:
+                        dragon_target.death_cause = "Burned to ashes by a roaming Hungarian Horntail"
+                    round_logs.append(f"🐉 A Hungarian Horntail swooped down and blasted **{dragon_target.user.display_name}** for **{damage} HP**!")
 
-                if act_type == "pepperup" and target and target.is_alive:
-                    target.hp = min(target.max_hp, target.hp + 30)
-                    round_logs.append(f"🧪 **{caster.display_name}** fed a Pepperup Potion to **{target.user.display_name}** (+30 HP)!")
-
-                elif act_type == "protego" and target and target.is_alive:
-                    target.has_shield = True
-                    round_logs.append(f"🛡️ **{caster.display_name}** cast Protego over **{target.user.display_name}**!")
-
-                elif act_type == "hex" and target and target.is_alive:
-                    if target.house == "Ravenclaw" and random.random() < 0.10:
-                        round_logs.append(f"🦅 **{target.user.display_name}** dodged **{caster.display_name}**'s Hex with Ravenclaw Wit!")
-                    else:
-                        target.is_frozen = True
-                        round_logs.append(f"⚡ **{caster.display_name}** hit **{target.user.display_name}** with *Petrificus Totalus*!")
-
-                elif act_type == "dragon":
-                    target_dragon = max(alive_players, key=lambda p: p.hp)
-                    damage = random.randint(35, 50)
-                    if target_dragon.has_shield:
-                        target_dragon.has_shield = False
-                        round_logs.append(f"🐉 Hungarian Horntail scorched **{target_dragon.user.display_name}**, but Protego absorbed it!")
-                    else:
-                        target_dragon.hp -= damage
-                        if target_dragon.hp <= 0:
-                            target_dragon.death_cause = "Burned to ashes by a spectator's Hungarian Horntail"
-                        round_logs.append(f"🐉 Hungarian Horntail blasted **{target_dragon.user.display_name}** for **{damage} HP**!")
-
-            # 2. Fully Automated Combat & Trap Encounters
+            # 2. Fully Automated Combat & Random Magic Events
             for player in alive_players:
                 if not player.is_alive:
                     continue
 
                 if player.is_frozen:
                     player.is_frozen = False
-                    round_logs.append(f"❄️ **{player.user.display_name}** was frozen and skipped their turn!")
+                    round_logs.append(f"❄️ **{player.user.display_name}** was frozen in ice and skipped their turn!")
+                    continue
+
+                # Random Utility Action Chance (Pepperup / Protego)
+                rand_action = random.random()
+                if rand_action < 0.12 and player.hp < player.max_hp:
+                    heal_amt = random.randint(20, 35)
+                    player.hp = min(player.max_hp, player.hp + heal_amt)
+                    round_logs.append(f"🧪 **{player.user.display_name}** found and drank a Pepperup Potion (+{heal_amt} HP)!")
+                    continue
+                elif rand_action < 0.22 and not player.has_shield:
+                    player.has_shield = True
+                    round_logs.append(f"🛡️ **{player.user.display_name}** raised a protective *Protego* shield!")
                     continue
 
                 # Pick random rival target
@@ -477,16 +335,27 @@ class HouseCupCog(commands.Cog):
                     continue
                 
                 target = random.choice(potential_rivals)
+
+                # Random Hex / Curse Action
+                if random.random() < 0.15:
+                    if target.house == "Ravenclaw" and random.random() < 0.10:
+                        round_logs.append(f"🦅 **{target.user.display_name}** dodged **{player.user.display_name}**'s Hex with Ravenclaw Wit!")
+                    else:
+                        target.is_frozen = True
+                        round_logs.append(f"⚡ **{player.user.display_name}** hit **{target.user.display_name}** with *Petrificus Totalus*!")
+                    continue
+
+                # Standard Spell Attack
                 damage = random.randint(15, 30)
 
                 # Slytherin Trait
                 if player.house == "Slytherin" and random.random() < 0.10:
                     damage = int(damage * 1.5)
-                    round_logs.append(f"🐍 Slytherin Ambition triggered critical hit for **{player.user.display_name}**!")
+                    round_logs.append(f"🐍 Slytherin Ambition triggered a critical hit for **{player.user.display_name}**!")
 
                 if target.has_shield:
                     target.has_shield = False
-                    round_logs.append(f"🛡️ **{player.user.display_name}** attacked **{target.user.display_name}**, but Protego shielded them!")
+                    round_logs.append(f"🛡️ **{player.user.display_name}** attacked **{target.user.display_name}**, but *Protego* absorbed the hit!")
                 else:
                     target.hp -= damage
                     game.house_points[player.house] += 10
@@ -516,7 +385,7 @@ class HouseCupCog(commands.Cog):
                         # Trigger Spectator Rescue Window
                         res_view = ResurrectionView(game, target, self)
                         asyncio.create_task(channel.send(
-                            f"✨ **{target.user.display_name}** has fallen! 15s Spectator Rescue window open:",
+                            f"✨ **{target.user.display_name}** has fallen! 15s Rescue window open:",
                             view=res_view
                         ))
 
@@ -543,7 +412,7 @@ class HouseCupCog(commands.Cog):
             leaderboard = " | ".join([f"{HOUSES[h]['emoji']} {h}: {pts}pt" for h, pts in game.house_points.items()])
             embed.set_footer(text=f"Leaderboard: {leaderboard}")
 
-            await channel.send(embed=embed, view=control_view)
+            await channel.send(embed=embed)
 
         # Cleanup Guild State
         if guild_id in self.games:
