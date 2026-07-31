@@ -68,9 +68,11 @@ class WizardPlayer:
         self.death_cause = ""
 
 class ServerGameState:
-    def __init__(self, guild_id: int, channel_id: int):
+    def __init__(self, guild_id: int, channel_id: int, server_game_num: int, global_game_num: int):
         self.guild_id = guild_id
         self.channel_id = channel_id
+        self.server_game_num = server_game_num
+        self.global_game_num = global_game_num
         self.is_lobby_open = True
         self.is_running = False
         self.players: Dict[int, WizardPlayer] = {}
@@ -162,7 +164,7 @@ class LobbyView(discord.ui.View):
         game.is_lobby_open = False
         game.is_running = True
         game.game_task = asyncio.create_task(self.cog.run_battle_loop(interaction.guild_id, interaction.channel))
-        await interaction.channel.send("⚔️ **The Great Hall doors are locked! The Battle for the House Cup has begun!**")
+        await interaction.channel.send(f"⚔️ **The Great Hall doors are locked! Match #{game.server_game_num} Has Begun!**")
 
     @discord.ui.button(
         label="Repost Lobby", 
@@ -334,6 +336,8 @@ class HouseCupCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.games: Dict[int, ServerGameState] = {}
+        self.server_game_counts: Dict[int, int] = {}  # Tracks total games per guild
+        self.global_game_count: int = 0               # Tracks total games across all guilds
 
     def cog_unload(self):
         for game in self.games.values():
@@ -350,7 +354,10 @@ class HouseCupCog(commands.Cog):
     def build_lobby_embed(self, game: ServerGameState) -> discord.Embed:
         embed = discord.Embed(
             title="🏆 Battle for the House Cup - Sorting Lobby",
-            description="Click **Enter the Great Hall** below to receive your House assignment!",
+            description=(
+                f"**Server Game #{game.server_game_num}** | **Global Game #{game.global_game_num}**\n\n"
+                "Click **Enter the Great Hall** below to receive your House assignment!"
+            ),
             color=0xECB939
         )
         house_summary = ""
@@ -365,7 +372,7 @@ class HouseCupCog(commands.Cog):
         if leader:
             embed.set_thumbnail(url=leader.user.display_avatar.url)
 
-        embed.set_footer(text="Requires at least 2 players to start.")
+        embed.set_footer(text=f"Server Match #{game.server_game_num} • Global Match #{game.global_game_num} • Min 2 players required")
         return embed
 
     # ==========================================
@@ -380,7 +387,14 @@ class HouseCupCog(commands.Cog):
             await ctx.send("⚠️ A House Cup lobby or active game is already running in this server!")
             return
 
-        game = ServerGameState(guild_id, ctx.channel.id)
+        # Increment game tracking counters
+        self.server_game_counts[guild_id] = self.server_game_counts.get(guild_id, 0) + 1
+        self.global_game_count += 1
+
+        server_num = self.server_game_counts[guild_id]
+        global_num = self.global_game_count
+
+        game = ServerGameState(guild_id, ctx.channel.id, server_num, global_num)
         self.games[guild_id] = game
 
         embed = self.build_lobby_embed(game)
