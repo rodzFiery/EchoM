@@ -255,9 +255,9 @@ class HouseCupCog(commands.Cog):
         
         embed.add_field(name="Current House Roster", value=house_summary, inline=False)
         
-        leader = game.get_leader_player()
-        if leader:
-            embed.set_thumbnail(url=leader.user.display_avatar.url)
+        # Display Bot's Avatar in the Lobby
+        if self.bot.user:
+            embed.set_thumbnail(url=self.bot.user.display_avatar.url)
 
         embed.set_footer(text=f"Server Match #{game.server_game_num} • Global Match #{game.global_game_num} • Min 2 players required")
         return embed
