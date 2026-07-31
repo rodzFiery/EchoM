@@ -16,7 +16,6 @@ HOUSES = {
 }
 
 ACTION_TICK_SECONDS = 15
-INITIAL_HEALTH = 100
 RESURRECTION_COST = 150
 
 FLASH_PENALTIES = [
@@ -27,12 +26,14 @@ FLASH_PENALTIES = [
     "Show your favorite tattoo/secret spot to the server!"
 ]
 
-DUEL_SPELLS = [
-    {"name": "Expelliarmus", "min_dmg": 15, "max_dmg": 25, "text": "disarmed and knocked back"},
-    {"name": "Stupefy", "min_dmg": 20, "max_dmg": 30, "text": "hit with a powerful stunning spell"},
-    {"name": "Sectumsempra", "min_dmg": 25, "max_dmg": 40, "text": "slashed with dark magic"},
-    {"name": "Incendio", "min_dmg": 18, "max_dmg": 32, "text": "blasted with a wave of magical fire"},
-    {"name": "Avada Kedavra", "min_dmg": 999, "max_dmg": 999, "text": "struck down with the Unforgivable Curse"}
+# Lexicon Narratives for Instant 1v1 Clash Events
+LEXICON_CLASHES = [
+    "{attacker} overpowered {defender} with a sudden Expelliarmus, forcing them off the duel podium!",
+    "{attacker} caught {defender} off-guard with a swift Stupefy spell!",
+    "{attacker} cast an icy Petrificus Totalus, locking {defender} in place!",
+    "{attacker} disarmed {defender} in a brilliant flash of magical dueling!",
+    "{attacker} unleashed a scorching Incendio wave that sent {defender} tumbling back!",
+    "{attacker} read {defender}'s spell trajectory perfectly and countered with a crushing blow!"
 ]
 
 # Database/Economy Hook Integration
@@ -53,8 +54,6 @@ class WizardPlayer:
     def __init__(self, user: discord.User | discord.Member, house: str):
         self.user = user
         self.house = house
-        self.hp = INITIAL_HEALTH + (10 if house == "Hufflepuff" else 0)
-        self.max_hp = self.hp
         self.is_alive = True
         self.kills = 0
         self.points_earned = 0
@@ -87,7 +86,7 @@ class ServerGameState:
         alive = [p for p in self.players.values() if p.is_alive]
         if not alive:
             return None
-        return max(alive, key=lambda p: (p.hp, p.kills))
+        return max(alive, key=lambda p: (p.kills, p.points_earned))
 
 
 # ==========================================
@@ -200,7 +199,6 @@ class ResurrectionView(discord.ui.View):
             return
 
         self.dead_player.is_alive = True
-        self.dead_player.hp = int(self.dead_player.max_hp * 0.3)
         await interaction.followup.send(f"✨ You revived {self.dead_player.user.mention}!", ephemeral=True)
         self.stop()
 
@@ -241,7 +239,7 @@ class HouseCupCog(commands.Cog):
 
     def build_lobby_embed(self, game: ServerGameState) -> discord.Embed:
         embed = discord.Embed(
-            title="🧙🏼‍♂️ House Cup",
+            title="🏆 Battle for the House Cup - Sorting Lobby",
             description=(
                 f"**Server Game #{game.server_game_num}** | **Global Game #{game.global_game_num}**\n\n"
                 "Click **Enter the Great Hall** below to receive your House assignment!"
@@ -296,7 +294,7 @@ class HouseCupCog(commands.Cog):
         server_houses = self.server_house_points.get(guild_id, {h: 0 for h in HOUSES})
 
         embed = discord.Embed(
-            title="🧙🏼‍♂️ HOUSE CUP LEADERBOARDS & RANKINGS",
+            title="🏆 HOUSE CUP LEADERBOARDS & RANKINGS",
             color=0xECB939
         )
 
@@ -326,7 +324,7 @@ class HouseCupCog(commands.Cog):
         await ctx.send(embed=embed)
 
     # ==========================================
-    # HANGRY GAMES-STYLE 1V1 DUEL BATTLE ENGINE
+    # HANGRY GAMES-STYLE DIRECT 1V1 DUEL ENGINE
     # ==========================================
     async def run_battle_loop(self, guild_id: int, channel: discord.TextChannel):
         game = self.games.get(guild_id)
@@ -346,51 +344,41 @@ class HouseCupCog(commands.Cog):
                 await self.conclude_game(game, channel)
                 break
 
-            # Pick 2 Random Wizards for a HangryGames 1v1 Clash
+            # Pick 2 Random Wizards from Different Houses for 1v1 Encounter
             attacker = random.choice(alive_players)
-            potential_defenders = [p for p in alive_players if p.user.id != attacker.user.id]
+            potential_defenders = [p for p in alive_players if p.house != attacker.house]
+            
+            # Fallback if remaining alive wizards are only same house
+            if not potential_defenders:
+                potential_defenders = [p for p in alive_players if p.user.id != attacker.user.id]
+            
             if not potential_defenders:
                 continue
+                
             defender = random.choice(potential_defenders)
 
-            # Pick Random Spell / Encounter
-            spell = random.choice(DUEL_SPELLS)
-            is_unforgivable = spell["name"] == "Avada Kedavra"
-            
-            if is_unforgivable and random.random() > 0.15:
-                # 85% chance Unforgivable Curse misses
-                spell = DUEL_SPELLS[1]  # Fallback to Stupefy
+            # Gryffindor Trait Check: Chance to Survive Knockout Encounter
+            is_eliminated = True
+            if defender.house == "Gryffindor" and random.random() < 0.10:
+                is_eliminated = False
 
-            damage = random.randint(spell["min_dmg"], spell["max_dmg"])
+            # Select Lexicon Encounter Sentence
+            sentence_template = random.choice(LEXICON_CLASHES)
+            narrative = sentence_template.format(
+                attacker=f"**{attacker.user.display_name}**",
+                defender=f"**{defender.user.display_name}**"
+            )
 
-            # Trait Checks
-            if attacker.house == "Slytherin" and random.random() < 0.10:
-                damage = int(damage * 1.5)
-
-            # Resolve Combat Hit
-            defender.hp -= damage
-            pts_earned = 15
-            game.house_points[attacker.house] += pts_earned
-            attacker.points_earned += pts_earned
-
-            is_fatal = defender.hp <= 0
-
-            # Gryffindor Bravery Fatal Survival
-            if is_fatal and defender.house == "Gryffindor" and random.random() < 0.10:
-                defender.hp = 1
-                is_fatal = False
-
-            # Build HangryGames Style Dual Avatar Duel Embed
+            # Build HangryGames-Style 1v1 Duel Embed
             att_icon = HOUSES[attacker.house]["emoji"]
             def_icon = HOUSES[defender.house]["emoji"]
 
             embed = discord.Embed(
-                title=f"⚔️ DUEL CLASH — Round {game.round_number}",
+                title=f"⚔️ 1V1 DUEL — Round {game.round_number}",
                 description=(
                     f"{att_icon} **{attacker.user.display_name}** ({attacker.house}) **VS** "
                     f"{def_icon} **{defender.user.display_name}** ({defender.house})\n\n"
-                    f"✨ **{attacker.user.display_name}** cast **{spell['name']}**!\n"
-                    f"💥 **{defender.user.display_name}** was {spell['text']} for **{damage} HP**!"
+                    f"{narrative}"
                 ),
                 color=HOUSES[attacker.house]["color"]
             )
@@ -399,14 +387,14 @@ class HouseCupCog(commands.Cog):
             embed.set_thumbnail(url=attacker.user.display_avatar.url)
             embed.set_image(url=defender.user.display_avatar.url)
 
-            if is_fatal:
+            if is_eliminated:
                 defender.is_alive = False
                 attacker.kills += 1
                 kill_pts = 50
                 game.house_points[attacker.house] += kill_pts
                 attacker.points_earned += kill_pts
 
-                defender.death_cause = f"Defeated in a 1v1 duel by {attacker.user.display_name} ({spell['name']})"
+                defender.death_cause = f"Defeated in a 1v1 duel by {attacker.user.display_name}"
 
                 game.eliminated_recap.append({
                     "player": defender,
@@ -426,6 +414,16 @@ class HouseCupCog(commands.Cog):
                     f"✨ **{defender.user.display_name}** has fallen! 15s Rescue window open:",
                     view=res_view
                 ))
+            else:
+                # Survived Encounter (e.g. Gryffindor Trait triggered)
+                pts = 15
+                game.house_points[attacker.house] += pts
+                attacker.points_earned += pts
+                embed.add_field(
+                    name="🦁 SURVIVED!",
+                    value=f"**{defender.user.display_name}** narrowly survived the clash! **+{pts} Pts** awarded to **{attacker.house}**!",
+                    inline=False
+                )
 
             leaderboard = " | ".join([f"{HOUSES[h]['emoji']} {h}: {pts}pt" for h, pts in game.house_points.items()])
             embed.set_footer(text=f"Leaderboard: {leaderboard}")
@@ -456,7 +454,7 @@ class HouseCupCog(commands.Cog):
 
         # 1. Main Winner Embed
         embed = discord.Embed(
-            title="🧙🏼‍♂️ THE HOUSE CUP HAS CONCLUDED! 🧙🏼‍♂️",
+            title="🏆 THE HOUSE CUP HAS CONCLUDED! 🏆",
             description=f"Congratulations to **{winning_house}** {HOUSES[winning_house]['emoji']} for winning the House Cup!",
             color=HOUSES[winning_house]["color"]
         )
