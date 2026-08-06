@@ -257,12 +257,11 @@ class DungeonCounter(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
-    # --- ADDED: GLOBAL SYSTEM DIRECTORY COMMAND ---
+    # --- ADDED: GLOBAL SYSTEM DIRECTORY COMMAND WITH SAFE SPLITTING ---
     @commands.command(name="allfeatures")
     async def list_all_features(self, ctx):
         """SYSTEM MATRIX: Lists all registered commands across every active bot module."""
         desc = "Below is the complete protocol directory of all registered commands available across the host matrix."
-        embed = fiery_embed(self.bot, False, "📜 MASTER COMMAND DIRECTORY", desc)
 
         cog_commands = {}
 
@@ -280,17 +279,37 @@ class DungeonCounter(commands.Cog):
                 cog_commands[cog_name] = []
             cog_commands[cog_name].append(cmd_line)
 
+        embeds = []
+        current_embed = fiery_embed(self.bot, False, "📜 MASTER COMMAND DIRECTORY", desc)
+        
+        # Track total embed characters to ensure we stay safely below the 6000 character limit
+        current_char_count = len(current_embed.title or "") + len(current_embed.description or "") + len(current_embed.footer.text or "")
+
         for cog_name, cmd_list in cog_commands.items():
             formatted_list = "\n".join(cmd_list)
             if len(formatted_list) > 1024:
                 formatted_list = formatted_list[:1020] + "..."
-            embed.add_field(name=f"⚙️ {cog_name}", value=formatted_list, inline=False)
+            
+            field_name = f"⚙️ {cog_name}"
+            field_length = len(field_name) + len(formatted_list)
 
-        if os.path.exists("LobbyTopRight.jpg"):
-            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
-            await ctx.send(file=file, embed=embed)
-        else:
-            await ctx.send(embed=embed)
+            # Split into a new embed if adding this field exceeds 5000 characters or 25 fields max
+            if (current_char_count + field_length > 5000) or (len(current_embed.fields) >= 25):
+                embeds.append(current_embed)
+                current_embed = fiery_embed(self.bot, False, "📜 MASTER COMMAND DIRECTORY (CONT.)", desc)
+                current_char_count = len(current_embed.title or "") + len(current_embed.description or "") + len(current_embed.footer.text or "")
+
+            current_embed.add_field(name=field_name, value=formatted_list, inline=False)
+            current_char_count += field_length
+
+        embeds.append(current_embed)
+
+        for idx, emb in enumerate(embeds):
+            if os.path.exists("LobbyTopRight.jpg") and idx == 0:
+                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+                await ctx.send(file=file, embed=emb)
+            else:
+                await ctx.send(embed=emb)
 
     @commands.Cog.listener()
     async def on_message(self, message):
