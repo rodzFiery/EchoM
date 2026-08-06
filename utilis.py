@@ -1,6 +1,7 @@
 import discord
 import os
-from discord.ext import commands
+import re
+from discord.ext import commands, tasks
 from datetime import datetime, timezone, timedelta
 import database as db_module # Ensure this is imported for independent lookup
 import json
@@ -95,6 +96,13 @@ class DungeonCounter(commands.Cog):
         self.tribute_trackers = {} # {guild_id: next_tribute_number}
         # --- ADDED: SASSY REPORT CHANNELS TRACKER ---
         self.report_channels = {} # {guild_id: channel_id}
+        
+        # --- ADDED: START 24H AUTOMATED REPORT TASK LOOP ---
+        self.auto_sassy_report_loop.start()
+
+    def cog_unload(self):
+        """Cleanly cancel the background task loop on cog unload."""
+        self.auto_sassy_report_loop.cancel()
 
     def load_channel(self):
         """Loads designated math channel and current count from config table."""
@@ -321,58 +329,68 @@ class DungeonCounter(commands.Cog):
             else:
                 await ctx.send(embed=emb)
 
-    # --- ADDED: SASSY REPORT SYSTEM CONFIGURATION & MANUAL TRIGGER ---
-    @commands.command(name="reports")
-    @commands.has_permissions(manage_channels=True)
-    async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
-        """CONFIGURE SASSY REPORT PIT: Sets the target channel for automated member intelligence reports."""
-        target = channel or ctx.channel
-        guild_id = ctx.guild.id
-        
-        self.report_channels[guild_id] = target.id
-        
-        with db_module.get_db_connection() as conn:
-            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f'report_channel_{guild_id}', str(target.id)))
-            conn.commit()
+    # --- ADDED: FILTER HELPER TO EXCLUDE PHOTO COMMENTS & EMOJI-ONLY MESSAGES ---
+    def is_valid_text_message(self, msg):
+        """Verifies message is valid pure text (excludes attachments, embeds, image links, and emoji-only messages)."""
+        if msg.author.bot:
+            return False
             
-        desc = f"💋 **INTELLIGENCE DISPATCH CONFIGURED!**\nAll automated sassy, funny, and naughty member reports will now be delivered into {target.mention}."
-        await ctx.send(embed=fiery_embed(self.bot, True, "🔥 SASSY REPORT MATRIX SET", desc))
-
-    @commands.command(name="runreport")
-    @commands.has_permissions(manage_channels=True)
-    async def trigger_sassy_report(self, ctx):
-        """TRIGGER INTELLIGENCE SCAN: Scans server channels and generates a sassy, funny, and naughty highlight report."""
-        guild_id = ctx.guild.id
-        target_channel_id = self.report_channels.get(guild_id, 0)
+        # Exclude messages with file attachments
+        if msg.attachments:
+            return False
+            
+        # Exclude embeds containing images, videos, or gifs
+        if any(e.type in ['image', 'video', 'gifv'] or e.image or e.video or e.thumbnail for e in msg.embeds):
+            return False
+            
+        content = msg.content.strip()
+        if not content or len(content) < 4:
+            return False
+            
+        # Exclude bot commands
+        if content.startswith(("!", ".", "/", "$", "?", "-")):
+            return False
+            
+        # Exclude photo links / image extension URLs
+        image_url_pattern = re.compile(r'https?://\S+\.(?:png|jpg|jpeg|gif|webp|gifv|bmp|svg)', re.IGNORECASE)
+        if image_url_pattern.search(content) or "tenor.com" in content.lower() or "giphy.com" in content.lower():
+            return False
+            
+        # Strip custom Discord emojis (<:name:id> or <a:name:id>)
+        cleaned_text = re.sub(r'<a?:[a-zA-Z0-9_]+:[0-9]+>', '', content).strip()
         
-        target_channel = self.bot.get_channel(target_channel_id) if target_channel_id else ctx.channel
+        # Strip standard Unicode emojis & symbols
+        emoji_pattern = re.compile(r'[\U00010000-\U0010ffff\u2600-\u27ff\u2300-\u23ff\u2b50\u2b06\u2934\u2935]', flags=re.UNICODE)
+        cleaned_text = emoji_pattern.sub('', cleaned_text).strip()
+        
+        # Exclude if remaining cleaned text has fewer than 3 actual letters/digits (i.e. was emoji-only or photo comment)
+        if len(re.sub(r'\s+', '', cleaned_text)) < 3:
+            return False
+            
+        return True
 
-        status_msg = await ctx.send("🕵️ **THE MASTER IS WATCHING...** Scanning channel activity for naughty secrets and sassy member quotes...")
-
+    # --- ADDED: CORE INTELLIGENCE REPORT GENERATOR FUNCTION ---
+    async def generate_and_send_report(self, guild, target_channel, hours_lookback=24):
+        """Scans channels for pure text messages within the last X hours and delivers a sassy report embed."""
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_lookback)
         gathered_messages = []
         
-        # Scan recent chat logs across text channels
-        for ch in ctx.guild.text_channels:
-            perms = ch.permissions_for(ctx.guild.me)
+        for ch in guild.text_channels:
+            perms = ch.permissions_for(guild.me)
             if not perms.read_message_history or not perms.read_messages:
                 continue
             
             try:
-                async for msg in ch.history(limit=100):
-                    # Filter out bot messages, commands, and super short texts
-                    if msg.author.bot: continue
-                    if not msg.content or len(msg.content.strip()) < 4: continue
-                    if msg.content.startswith(("!", ".", "/", "$", "?", "-")): continue
-                    
-                    gathered_messages.append(msg)
+                async for msg in ch.history(limit=200, after=cutoff_time):
+                    if self.is_valid_text_message(msg):
+                        gathered_messages.append(msg)
             except Exception:
                 pass
 
         if not gathered_messages:
-            await status_msg.delete()
-            return await ctx.send("❌ **NO DATA FOUND:** The channels are far too quiet for a sassy report right now!")
+            return False
 
-        # Sample up to 20 random interesting member messages
+        # Sample up to 20 random interesting member text quotes
         selected_count = min(len(gathered_messages), 20)
         sampled_messages = random.sample(gathered_messages, selected_count)
 
@@ -393,7 +411,7 @@ class DungeonCounter(commands.Cog):
         ]
 
         report_embeds = []
-        header_desc = f"🕵️ **THE MASTER'S INTELLIGENCE DISPATCH**\nHere are {selected_count} scandalous, funny, and naughty quotes intercepted straight from the pit!"
+        header_desc = f"🕵️ **THE MASTER'S 24H INTELLIGENCE DISPATCH**\nHere are {selected_count} scandalous, funny, and naughty text quotes intercepted from the last 24 hours!"
         current_embed = fiery_embed(self.bot, True, "🔞 SASSY MEMBER HIGHLIGHT DISPATCH 🔞", header_desc)
         
         char_counter = len(current_embed.title or "") + len(current_embed.description or "") + len(current_embed.footer.text or "")
@@ -418,8 +436,6 @@ class DungeonCounter(commands.Cog):
 
         report_embeds.append(current_embed)
 
-        await status_msg.delete()
-
         # Ship report to the designated report channel
         for i, emb in enumerate(report_embeds):
             if os.path.exists("LobbyTopRight.jpg") and i == 0:
@@ -428,8 +444,76 @@ class DungeonCounter(commands.Cog):
             else:
                 await target_channel.send(embed=emb)
 
+        return True
+
+    # --- ADDED: 24-HOUR AUTOMATED BACKGROUND TASK LOOP ---
+    @tasks.loop(hours=24)
+    async def auto_sassy_report_loop(self):
+        """AUTOMATED 24H DISPATCH LOOP: Scans past 24h of messages across all servers and posts the report."""
+        for guild in self.bot.guilds:
+            guild_id = guild.id
+            target_channel_id = self.report_channels.get(guild_id, 0)
+            if not target_channel_id:
+                # Reload from DB if missing from memory
+                try:
+                    with db_module.get_db_connection() as conn:
+                        res = conn.execute("SELECT value FROM config WHERE key = ?", (f'report_channel_{guild_id}',)).fetchone()
+                        if res:
+                            target_channel_id = int(res[0])
+                            self.report_channels[guild_id] = target_channel_id
+                except Exception:
+                    pass
+
+            if target_channel_id:
+                target_channel = self.bot.get_channel(target_channel_id)
+                if target_channel:
+                    try:
+                        await self.generate_and_send_report(guild, target_channel, hours_lookback=24)
+                    except Exception as e:
+                        print(f"Auto Report Loop Error in Guild {guild_id}: {e}")
+
+    @auto_sassy_report_loop.before_loop
+    async def before_auto_sassy_report_loop(self):
+        """Ensures the bot is fully ready before initiating the 24-hour loop."""
+        await self.bot.wait_until_ready()
+
+    # --- ADDED: SASSY REPORT SYSTEM CONFIGURATION & MANUAL TRIGGER ---
+    @commands.command(name="reports")
+    @commands.has_permissions(manage_channels=True)
+    async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
+        """CONFIGURE SASSY REPORT PIT: Sets the target channel for automated member intelligence reports."""
+        target = channel or ctx.channel
+        guild_id = ctx.guild.id
+        
+        self.report_channels[guild_id] = target.id
+        
+        with db_module.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f'report_channel_{guild_id}', str(target.id)))
+            conn.commit()
+            
+        desc = f"💋 **INTELLIGENCE DISPATCH CONFIGURED!**\nAll automated 24-hour sassy, funny, and naughty member reports will now be delivered into {target.mention} every 24 hours."
+        await ctx.send(embed=fiery_embed(self.bot, True, "🔥 SASSY REPORT MATRIX SET", desc))
+
+    @commands.command(name="runreport")
+    @commands.has_permissions(manage_channels=True)
+    async def trigger_sassy_report(self, ctx):
+        """TRIGGER INTELLIGENCE SCAN: Scans server channels for the past 24 hours and generates a sassy, funny highlight report."""
+        guild_id = ctx.guild.id
+        target_channel_id = self.report_channels.get(guild_id, 0)
+        
+        target_channel = self.bot.get_channel(target_channel_id) if target_channel_id else ctx.channel
+
+        status_msg = await ctx.send("🕵️ **THE MASTER IS WATCHING...** Scanning channel activity over the last 24 hours for naughty secrets and sassy member quotes...")
+
+        success = await self.generate_and_send_report(ctx.guild, target_channel, hours_lookback=24)
+
+        await status_msg.delete()
+
+        if not success:
+            return await ctx.send("❌ **NO DATA FOUND:** The channels were far too quiet over the last 24 hours for a sassy report!")
+
         if target_channel.id != ctx.channel.id:
-            await ctx.send(f"✅ **SASSY REPORT GENERATED:** Dispatch shipped to {target_channel.mention}!")
+            await ctx.send(f"✅ **SASSY REPORT GENERATED:** 24H Dispatch shipped to {target_channel.mention}!")
 
     @commands.Cog.listener()
     async def on_message(self, message):
