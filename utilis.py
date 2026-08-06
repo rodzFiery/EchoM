@@ -93,6 +93,8 @@ class DungeonCounter(commands.Cog):
         # --- ADDED: Multi-Server Mappings ---
         self.active_channels = {} # {guild_id: channel_id}
         self.tribute_trackers = {} # {guild_id: next_tribute_number}
+        # --- ADDED: SASSY REPORT CHANNELS TRACKER ---
+        self.report_channels = {} # {guild_id: channel_id}
 
     def load_channel(self):
         """Loads designated math channel and current count from config table."""
@@ -119,6 +121,14 @@ class DungeonCounter(commands.Cog):
                         channel_id = self.active_channels.get(guild_id)
                         if channel_id:
                             self.counts[channel_id] = int(row['value'])
+
+                # --- ADDED: Load Sassy Report channels across all servers ---
+                report_rows = conn.execute("SELECT key, value FROM config WHERE key LIKE 'report_channel_%'").fetchall()
+                for row in report_rows:
+                    key_parts = row['key'].split('_')
+                    if len(key_parts) >= 3:
+                        guild_id = int(key_parts[-1])
+                        self.report_channels[guild_id] = int(row['value'])
 
                 # Ensure columns exist in users table globally during load
                 cursor = conn.execute("PRAGMA table_info(users)")
@@ -310,6 +320,116 @@ class DungeonCounter(commands.Cog):
                 await ctx.send(file=file, embed=emb)
             else:
                 await ctx.send(embed=emb)
+
+    # --- ADDED: SASSY REPORT SYSTEM CONFIGURATION & MANUAL TRIGGER ---
+    @commands.command(name="reports")
+    @commands.has_permissions(manage_channels=True)
+    async def set_report_channel(self, ctx, channel: discord.TextChannel = None):
+        """CONFIGURE SASSY REPORT PIT: Sets the target channel for automated member intelligence reports."""
+        target = channel or ctx.channel
+        guild_id = ctx.guild.id
+        
+        self.report_channels[guild_id] = target.id
+        
+        with db_module.get_db_connection() as conn:
+            conn.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", (f'report_channel_{guild_id}', str(target.id)))
+            conn.commit()
+            
+        desc = f"💋 **INTELLIGENCE DISPATCH CONFIGURED!**\nAll automated sassy, funny, and naughty member reports will now be delivered into {target.mention}."
+        await ctx.send(embed=fiery_embed(self.bot, True, "🔥 SASSY REPORT MATRIX SET", desc))
+
+    @commands.command(name="runreport")
+    @commands.has_permissions(manage_channels=True)
+    async def trigger_sassy_report(self, ctx):
+        """TRIGGER INTELLIGENCE SCAN: Scans server channels and generates a sassy, funny, and naughty highlight report."""
+        guild_id = ctx.guild.id
+        target_channel_id = self.report_channels.get(guild_id, 0)
+        
+        target_channel = self.bot.get_channel(target_channel_id) if target_channel_id else ctx.channel
+
+        status_msg = await ctx.send("🕵️ **THE MASTER IS WATCHING...** Scanning channel activity for naughty secrets and sassy member quotes...")
+
+        gathered_messages = []
+        
+        # Scan recent chat logs across text channels
+        for ch in ctx.guild.text_channels:
+            perms = ch.permissions_for(ctx.guild.me)
+            if not perms.read_message_history or not perms.read_messages:
+                continue
+            
+            try:
+                async for msg in ch.history(limit=100):
+                    # Filter out bot messages, commands, and super short texts
+                    if msg.author.bot: continue
+                    if not msg.content or len(msg.content.strip()) < 4: continue
+                    if msg.content.startswith(("!", ".", "/", "$", "?", "-")): continue
+                    
+                    gathered_messages.append(msg)
+            except Exception:
+                pass
+
+        if not gathered_messages:
+            await status_msg.delete()
+            return await ctx.send("❌ **NO DATA FOUND:** The channels are far too quiet for a sassy report right now!")
+
+        # Sample up to 20 random interesting member messages
+        selected_count = min(len(gathered_messages), 20)
+        sampled_messages = random.sample(gathered_messages, selected_count)
+
+        # Sassy & Playful Erotic Commentaries
+        sassy_captions = [
+            "Caught whispering naughty thoughts in public 🔞",
+            "Fanning the flames with absolute chaos 🔥",
+            "Exhibiting pure unhinged asset behavior 🫦",
+            "Busted red-handed in the pit ⛓️",
+            "Dirty secret exposed for all to see 💋",
+            "Spilling tea under the Master's watch ☕",
+            "Demanding immediate discipline for this statement 💥",
+            "Whispering secrets in the dark corner 🤫",
+            "Maximum sass metrics detected 💅",
+            "Trying to act innocent after saying this 😇",
+            "Adding more fire to the Red Room ledger 📜",
+            "A tease picture should be demanded for this input 📸"
+        ]
+
+        report_embeds = []
+        header_desc = f"🕵️ **THE MASTER'S INTELLIGENCE DISPATCH**\nHere are {selected_count} scandalous, funny, and naughty quotes intercepted straight from the pit!"
+        current_embed = fiery_embed(self.bot, True, "🔞 SASSY MEMBER HIGHLIGHT DISPATCH 🔞", header_desc)
+        
+        char_counter = len(current_embed.title or "") + len(current_embed.description or "") + len(current_embed.footer.text or "")
+
+        for idx, m in enumerate(sampled_messages, 1):
+            commentary = random.choice(sassy_captions)
+            quote_text = m.content[:200] + "..." if len(m.content) > 200 else m.content
+            
+            field_name = f"#{idx} | Asset {m.author.display_name} 🫦"
+            field_val = f"👤 Member: {m.author.mention}\n📍 In {m.channel.mention}\n💬 *\"{quote_text}\"*\n✨ **{commentary}**"
+            
+            field_len = len(field_name) + len(field_val)
+
+            # Keep embed size safe to prevent HTTP 400 Bad Request
+            if (char_counter + field_len > 4500) or (len(current_embed.fields) >= 12):
+                report_embeds.append(current_embed)
+                current_embed = fiery_embed(self.bot, True, "🔞 SASSY MEMBER DISPATCH (CONT.) 🔞", "Continued intercepted chat logs from the pit:")
+                char_counter = len(current_embed.title or "") + len(current_embed.description or "") + len(current_embed.footer.text or "")
+
+            current_embed.add_field(name=field_name, value=field_val, inline=False)
+            char_counter += field_len
+
+        report_embeds.append(current_embed)
+
+        await status_msg.delete()
+
+        # Ship report to the designated report channel
+        for i, emb in enumerate(report_embeds):
+            if os.path.exists("LobbyTopRight.jpg") and i == 0:
+                file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+                await target_channel.send(file=file, embed=emb)
+            else:
+                await target_channel.send(embed=emb)
+
+        if target_channel.id != ctx.channel.id:
+            await ctx.send(f"✅ **SASSY REPORT GENERATED:** Dispatch shipped to {target_channel.mention}!")
 
     @commands.Cog.listener()
     async def on_message(self, message):
