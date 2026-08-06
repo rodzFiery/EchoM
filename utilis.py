@@ -257,6 +257,41 @@ class DungeonCounter(commands.Cog):
         else:
             await ctx.send(embed=embed)
 
+    # --- ADDED: GLOBAL SYSTEM DIRECTORY COMMAND ---
+    @commands.command(name="allfeatures")
+    async def list_all_features(self, ctx):
+        """SYSTEM MATRIX: Lists all registered commands across every active bot module."""
+        desc = "Below is the complete protocol directory of all registered commands available across the host matrix."
+        embed = fiery_embed(self.bot, False, "📜 MASTER COMMAND DIRECTORY", desc)
+
+        cog_commands = {}
+
+        for cmd in self.bot.commands:
+            if cmd.hidden:
+                continue
+            
+            cog_name = cmd.cog_name if cmd.cog_name else "Uncategorized Core"
+            
+            # Extract first line of command docstring/help or fallback text
+            doc_text = cmd.help.split("\n")[0] if cmd.help else "No description provided."
+            cmd_line = f"`!{cmd.name}` — {doc_text}"
+
+            if cog_name not in cog_commands:
+                cog_commands[cog_name] = []
+            cog_commands[cog_name].append(cmd_line)
+
+        for cog_name, cmd_list in cog_commands.items():
+            formatted_list = "\n".join(cmd_list)
+            if len(formatted_list) > 1024:
+                formatted_list = formatted_list[:1020] + "..."
+            embed.add_field(name=f"⚙️ {cog_name}", value=formatted_list, inline=False)
+
+        if os.path.exists("LobbyTopRight.jpg"):
+            file = discord.File("LobbyTopRight.jpg", filename="LobbyTopRight.jpg")
+            await ctx.send(file=file, embed=embed)
+        else:
+            await ctx.send(embed=embed)
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot: return
