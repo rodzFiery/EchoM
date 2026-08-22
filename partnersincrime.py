@@ -1442,6 +1442,47 @@ class CrimeEngineControl(commands.Cog):
         
         self.save_game_config()
 
+    @commands.command(name="resetcrime")
+    async def reset_crime_command(self, ctx):
+        """Resets and purges current active lobbies and battle states for the server."""
+        ignis_admin_role_id = None
+        engine = self.bot.get_cog("PartnersInCrimeEngine")
+
+        if engine:
+            with engine.get_db_connection() as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS ignis_settings (guild_id PRIMARY KEY, role_id INTEGER)")
+                row = conn.execute("SELECT role_id FROM ignis_settings WHERE guild_id = ?", (ctx.guild.id,)).fetchone()
+                if row:
+                    ignis_admin_role_id = row[0]
+
+        user_perms = getattr(ctx.channel.permissions_for(ctx.author), 'manage_messages', False)
+        is_admin = getattr(ctx.channel.permissions_for(ctx.author), 'administrator', False)
+        is_staff = any(role.name in ["Staff", "Admin", "Moderator"] or role.id == ignis_admin_role_id for role in getattr(ctx.author, 'roles', []))
+        if not (is_staff or user_perms or is_admin):
+            return await ctx.send("🔒 **Clearance Denied: Only Staff or Admins can force a dungeon reset.**")
+
+        if engine:
+            if ctx.guild.id in engine.current_lobbies:
+                del engine.current_lobbies[ctx.guild.id]
+            if ctx.channel.id in engine.active_battles:
+                engine.active_battles.remove(ctx.channel.id)
+            if ctx.channel.id in engine.current_survivors:
+                del engine.current_survivors[ctx.channel.id]
+            if ctx.channel.id in engine.reign_of_terror:
+                del engine.reign_of_terror[ctx.channel.id]
+            if ctx.channel.id in engine.historical_match_squads:
+                del engine.historical_match_squads[ctx.channel.id]
+
+        with self.get_db_connection() as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_active_lobbies (guild_id INTEGER PRIMARY KEY, owner_id INTEGER, edition INTEGER)")
+            conn.execute("CREATE TABLE IF NOT EXISTS crime_lobby_participants (guild_id INTEGER, user_id INTEGER, team_num INTEGER, slot_num INTEGER)")
+            conn.execute("DELETE FROM crime_active_lobbies WHERE guild_id = ?", (ctx.guild.id,))
+            conn.execute("DELETE FROM crime_lobby_participants WHERE guild_id = ?", (ctx.guild.id,))
+            conn.commit()
+
+        self.save_game_config()
+        await ctx.send("🧹 **Dungeon session reset successfully!** All playroom gates, lobbies, and active states have been cleared. You may now run `!crimepartners`.")
+
     @commands.command(name="strip")
     async def crime_strip_command(self, ctx, squad_num: int):
         """Allows winning duo to target an entire team layout using its Squad ID index."""
