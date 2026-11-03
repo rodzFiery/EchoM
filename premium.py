@@ -137,13 +137,7 @@ class PremiumSystem(commands.Cog):
 
         # --- ADDED: GLOBAL PREMIUM COMMAND LIST ---
         self.premium_commands = [
-            "setadminrole", "audit", "collectadmin", "setcards", "setconfessreview", 
-            "setconfesspost", "setconfesspost2", "confesspanel", "setcounting", 
-            "set_ignis_admin", "setlevelchannel", "react", "achievements", "balance", 
-            "ranking", "hall", "streaks", "quests", "ask", "dice", "blackjack", 
-            "roulette", "slots", "stealemoji", "echopurge", "limit", "echostart", 
-            "autorole", "setroles", "ticket", "match3some", "flirtyship", "matchme", 
-            "matchmaking", "threadall", "math"
+            "limit"
         ]
         self.bot.add_check(self.global_premium_interceptor)
         
