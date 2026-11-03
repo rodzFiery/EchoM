@@ -16,20 +16,7 @@ class TopGG(commands.Cog):
         self.locked_cogs = [] 
         
         self.locked_commands = [
-            "daily", "weekly", "monthly", "work", "experiment", "mystery", 
-            "cumcleaner", "beg", "flirt", "pimp", "slut", "cuckold", 
-            "deepthroat", "spit", "tease", "spank", "slap", "makemedirty", 
-            "3some", "dp", "anal", "me", "achievements", "balance", 
-            "ranking", "hall", "streaks", "quests", "catch", "pokedex", 
-            "collections", "velvetdex", "dice", "blackjack", "roulette", 
-            "slots", "bendover", "setclass", "dominant", "submissive", 
-            "switch", "exhibitionist", "countstats", "serverstats", 
-            "countinglb", "countingtop", "globalgoal", "goalhistory", 
-            "contract", "accept", "ship", "match3some", "flirtyship", 
-            "matchme", "shiphistory", "marry", "divorce", "bestfriend", 
-            "submit", "lustprofile", "lovescore", "matchmaking", "bondtrial", 
-            "torture", "fuck", "duel", "fightecho", "shop", "sell", 
-            "inv", "checkbuffs", "limit", "react"
+            "limit"
         ]
         
         self.bot.add_check(self.global_vote_interceptor)
