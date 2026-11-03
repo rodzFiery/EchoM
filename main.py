@@ -21,7 +21,6 @@ import asyncio
 import json
 import shutil
 import sys
-import aiohttp # ADDED: Required for topgg_poster to function
 import whisper # ADDED: Whisper system integration
 # REMOVED: import quests (Fixed ModuleNotFoundError)
 import worknranks  # ADDED: Integrated separation
@@ -45,7 +44,6 @@ sys.dont_write_bytecode = True
 load_dotenv()
 # Railway will pull the DISCORD_TOKEN from the Variables tab automatically
 TOKEN = os.getenv("DISCORD_TOKEN")
-TOPGG_TOKEN = os.getenv("TOPGG_TOKEN") # ADDED: For Top.gg API Authorization
 AUDIT_CHANNEL_ID = 1438810509322223677 # Your audit channel
 STREAK_ALERTS_CHANNEL_ID = 1438810509322223677 # Red Room Channel for Pings
 
@@ -242,36 +240,6 @@ def run_web_server():
     except Exception as e:
         print(f"⚠️ Web Server bypass: {e}")
 
-# --- TOP.GG STATS POSTER PROTOCOL ---
-@tasks.loop(minutes=30)
-async def topgg_poster():
-    """Automatically posts server count to Top.gg every 30 minutes."""
-    if not TOPGG_TOKEN:
-        return
-
-    url = f"https://top.gg/api/bots/{bot.user.id}/stats"
-    headers = {"Authorization": TOPGG_TOKEN}
-    payload = {"server_count": len(bot.guilds)}
-
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(url, json=payload, headers=headers) as resp:
-                if resp.status == 200:
-                    print(f"📊 [TOP.GG] Stats synchronized: {len(bot.guilds)} servers.")
-                else:
-                    print(f"⚠️ [TOP.GG] Update failed: {resp.status}")
-        except Exception as e:
-            print(f"❌ [TOP.GG] Connection error: {e}")
-
-@bot.event
-async def on_guild_join(guild):
-    """Trigger update when bot joins a new server."""
-    await topgg_poster()
-
-@bot.event
-async def on_guild_remove(guild):
-    """Trigger update when bot leaves a server."""
-    await topgg_poster()
 
 # ===== 5. REBUILT ECONOMY COMMANDS SYSTEM =====
 # FIXED: Native direct triggers to ensure no ghost character conflicts
@@ -817,7 +785,7 @@ async def load_all_extensions():
         "fight", "casino", "ask", "premium", "audit", "thread", 
         "levels", "react", "counting", "guessnumber", "confession", 
         "reactionrole", "autoignis", "helper", "cards", "packs", 
-        "emoji", "win", "utilis", "ignis", "ignissfw", "topgg", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor", "partnersincrime", "cogs.house_cup"
+        "emoji", "win", "utilis", "ignis", "ignissfw", "guide", "whisper", "invite", "mods", "badpeople", "dice", "color", "generatecolor", "partnersincrime", "cogs.house_cup"
     ]
     for e in exts:
         try:
@@ -878,8 +846,6 @@ async def setup_hook():
     # FIXED: Relocated background tasks to setup_hook to guarantee execution exactly once per build container
     if not streak_guardian.is_running():
         streak_guardian.start()
-    if not topgg_poster.is_running():
-        topgg_poster.start()
 
 async def main():
     async with bot:
