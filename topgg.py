@@ -16,7 +16,7 @@ class TopGG(commands.Cog):
         self.locked_cogs = [] 
         
         self.locked_commands = [
-            "limit"
+            "limit",
         ]
         
         self.bot.add_check(self.global_vote_interceptor)
