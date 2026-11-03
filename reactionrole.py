@@ -18,7 +18,6 @@ DB_PATH = os.path.join(DATA_DIR, "economy.db")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Migrate an existing database from the application folder.
 OLD_DB_PATH = "database.db"
 
 if not os.path.exists(DB_PATH) and os.path.exists(OLD_DB_PATH):
@@ -32,7 +31,6 @@ ticket_counter_lock = asyncio.Lock()
 
 
 def get_db():
-    """Create a configured SQLite connection."""
     conn = sqlite3.connect(
         DB_PATH,
         timeout=30,
@@ -131,13 +129,11 @@ async def interaction_error(interaction, error):
 
 
 async def acknowledge_interaction(interaction, ephemeral=True):
-    """Acknowledge an interaction only if it has not already been answered."""
     if not interaction.response.is_done():
         await interaction.response.defer(ephemeral=ephemeral)
 
 
 def get_bot_member(guild, bot):
-    """Resolve the bot's member object safely."""
     if guild.me:
         return guild.me
 
@@ -159,7 +155,7 @@ def initialise_database():
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
 
-        # UPDATED: Reaction roles now store a button label.
+        # REACTION ROLES
         conn.execute("""
             CREATE TABLE IF NOT EXISTS reaction_roles (
                 message_id INTEGER,
@@ -169,8 +165,6 @@ def initialise_database():
             )
         """)
 
-        # DATABASE MIGRATION:
-        # Adds the label column to existing databases.
         reaction_columns = [
             column[1]
             for column in conn.execute(
@@ -184,6 +178,7 @@ def initialise_database():
                 ADD COLUMN label TEXT DEFAULT ''
             """)
 
+        # TICKET CONFIG
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ticket_config (
                 guild_id INTEGER PRIMARY KEY,
@@ -208,6 +203,7 @@ def initialise_database():
                 ADD COLUMN admin_role_id INTEGER
             """)
 
+        # TICKET ARCHIVES
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ticket_archives (
                 ticket_id TEXT PRIMARY KEY,
@@ -219,6 +215,7 @@ def initialise_database():
             )
         """)
 
+        # AUTOROLE
         conn.execute("""
             CREATE TABLE IF NOT EXISTS autorole_config (
                 guild_id INTEGER PRIMARY KEY,
@@ -226,6 +223,7 @@ def initialise_database():
             )
         """)
 
+        # TICKET BUTTONS
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ticket_buttons (
                 guild_id INTEGER,
@@ -249,6 +247,7 @@ def initialise_database():
                 ADD COLUMN staff_role_id TEXT
             """)
 
+        # TICKET PANELS
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ticket_panels (
                 guild_id INTEGER,
@@ -297,22 +296,25 @@ class ReactionRoleButton(discord.ui.Button):
     def __init__(self, emoji, role_id, label, count=0):
 
         self.role_id = int(role_id)
-        self.base_label = label or "Select Role"
 
-        # Display the button name and member count.
+        # Keep the actual name separately.
+        self.base_label = str(label or "Select Role")
+
+        # Always display the custom name.
+        display_label = self.base_label
+
         if count > 0:
             display_label = f"{self.base_label} ({count})"
-        else:
-            display_label = self.base_label
 
         super().__init__(
             style=discord.ButtonStyle.secondary,
             label=display_label[:80],
             emoji=emoji,
-            custom_id=f"rr:{role_id}"
+            custom_id=f"rr:{self.role_id}"
         )
 
     async def callback(self, interaction: discord.Interaction):
+
         try:
             if (
                 not interaction.guild
@@ -352,19 +354,24 @@ class ReactionRoleButton(discord.ui.Button):
                 )
 
             if role in interaction.user.roles:
+
                 await interaction.user.remove_roles(
                     role,
                     reason="Reaction role button"
                 )
+
                 response = (
                     f"🔓 **ACCESS REVOKED:** "
                     f"{role.name} removed."
                 )
+
             else:
+
                 await interaction.user.add_roles(
                     role,
                     reason="Reaction role button"
                 )
+
                 response = (
                     f"🔒 **ACCESS GRANTED:** "
                     f"{role.name} assigned."
@@ -375,7 +382,7 @@ class ReactionRoleButton(discord.ui.Button):
                 ephemeral=True
             )
 
-            # Refresh the member count while preserving the button name.
+            # Refresh count without losing the button name.
             try:
                 updated_count = len(role.members)
 
@@ -407,13 +414,19 @@ class ReactionRoleView(discord.ui.View):
 
         for emoji, config in mappings.items():
 
-            # Support both the new mapping format and older mappings.
             if isinstance(config, dict):
                 role_id = config["role_id"]
-                button_label = config.get("label", "Select Role")
+                button_label = config.get(
+                    "label",
+                    "Select Role"
+                )
             else:
                 role_id = config[0]
-                button_label = config[1] if len(config) > 1 else "Select Role"
+                button_label = (
+                    config[1]
+                    if len(config) > 1
+                    else "Select Role"
+                )
 
             initial_count = 0
 
@@ -425,9 +438,9 @@ class ReactionRoleView(discord.ui.View):
 
             self.add_item(
                 ReactionRoleButton(
-                    emoji,
-                    role_id,
-                    button_label,
+                    emoji=emoji,
+                    role_id=role_id,
+                    label=button_label,
                     count=initial_count
                 )
             )
@@ -455,6 +468,7 @@ class ReactionRoleSystem(commands.Cog):
         self.active_setups[ctx.author.id] = ctx.message.id
 
         def check(m):
+
             if self.active_setups.get(ctx.author.id) != ctx.message.id:
                 raise asyncio.TimeoutError()
 
@@ -471,6 +485,7 @@ class ReactionRoleSystem(commands.Cog):
             )
 
         try:
+
             await ctx.send(
                 "🎯 **STEP 1:** Mention the channel where "
                 "the rules should be sent."
@@ -524,10 +539,11 @@ class ReactionRoleSystem(commands.Cog):
 
             mappings = {}
             db_mappings = []
+            used_emojis = set()
 
             for i in range(rr_count):
 
-                # STEP 3: Select role.
+                # STEP 3: ROLE
                 await ctx.send(
                     f"👤 **STEP 3.{i+1}:** Mention the role "
                     f"for button #{i+1}."
@@ -550,11 +566,14 @@ class ReactionRoleSystem(commands.Cog):
                         "❌ Invalid role. Restart the command."
                     )
 
-                # NEW STEP 4: Set button name.
+                # STEP 4: BUTTON NAME
                 await ctx.send(
-                    f"🏷️ **STEP 4.{i+1}:** What name should "
-                    f"appear on the button for {target_role.name}?\n"
-                    "Example: `Europe`, `Gaming`, `Announcements`.\n"
+                    f"🏷️ **STEP 4.{i+1}: BUTTON NAME**\n"
+                    f"What name should appear on the button "
+                    f"for **{target_role.name}**?\n\n"
+                    "Examples: `North America`, `Europe`, "
+                    "`Asia`, `South America`.\n\n"
+                    "This is the actual text displayed on the button. "
                     "Maximum 80 characters."
                 )
 
@@ -576,10 +595,11 @@ class ReactionRoleSystem(commands.Cog):
                         "❌ Button name cannot exceed 80 characters."
                     )
 
-                # STEP 5: Select emoji.
+                # STEP 5: EMOJI
                 await ctx.send(
-                    f"⭐ **STEP 5.{i+1}:** Send the emoji "
-                    f"for the **{button_label}** button."
+                    f"⭐ **STEP 5.{i+1}: BUTTON EMOJI**\n"
+                    f"Now send the emoji for **{button_label}**.\n\n"
+                    "Example: `🌎`"
                 )
 
                 msg = await self.bot.wait_for(
@@ -589,6 +609,11 @@ class ReactionRoleSystem(commands.Cog):
                 )
 
                 raw_content = msg.content.strip()
+
+                if not raw_content:
+                    return await ctx.send(
+                        "❌ Emoji cannot be empty."
+                    )
 
                 if (
                     raw_content.startswith("<:")
@@ -605,20 +630,29 @@ class ReactionRoleSystem(commands.Cog):
                 else:
                     target_emoji = raw_content
 
-                mappings[str(target_emoji)] = {
+                emoji_string = str(target_emoji)
+
+                if emoji_string in used_emojis:
+                    return await ctx.send(
+                        "❌ You cannot use the same emoji twice "
+                        "in the same panel."
+                    )
+
+                used_emojis.add(emoji_string)
+
+                # SAVE BOTH ROLE ID AND BUTTON NAME.
+                mappings[emoji_string] = {
                     "role_id": target_role.id,
                     "label": button_label
                 }
 
-                db_mappings.append(
-                    (
-                        str(target_emoji),
-                        target_role.id,
-                        button_label
-                    )
-                )
+                db_mappings.append({
+                    "emoji": emoji_string,
+                    "role_id": target_role.id,
+                    "label": button_label
+                })
 
-            # STEP 6: Rules message.
+            # STEP 6: RULES MESSAGE
             await ctx.send(
                 "📝 **STEP 6:** Type the rules message."
             )
@@ -634,7 +668,7 @@ class ReactionRoleSystem(commands.Cog):
             if len(rules_content) > 4096:
                 rules_content = rules_content[:4090] + "..."
 
-            # STEP 7: Image.
+            # STEP 7: IMAGE
             await ctx.send(
                 "🖼️ **STEP 7:** Upload an image or paste "
                 "an image URL. Type `none` to skip."
@@ -669,6 +703,7 @@ class ReactionRoleSystem(commands.Cog):
             if embed_image_url:
                 embed.set_image(url=embed_image_url)
 
+            # CREATE VIEW WITH THE ACTUAL LABELS.
             view = ReactionRoleView(
                 mappings,
                 guild=ctx.guild
@@ -685,7 +720,7 @@ class ReactionRoleSystem(commands.Cog):
                     f"❌ **DEPLOYMENT FAILED:** {e}"
                 )
 
-            # Save reaction roles, including their button names.
+            # SAVE PANEL CONFIGURATION.
             with get_db() as conn:
 
                 conn.execute(
@@ -693,16 +728,17 @@ class ReactionRoleSystem(commands.Cog):
                     (final_msg.id,)
                 )
 
-                for emoji_string, role_id, button_label in db_mappings:
+                for item in db_mappings:
+
                     conn.execute("""
                         INSERT INTO reaction_roles
                             (message_id, emoji, role_id, label)
                         VALUES (?, ?, ?, ?)
                     """, (
                         final_msg.id,
-                        emoji_string,
-                        role_id,
-                        button_label
+                        item["emoji"],
+                        item["role_id"],
+                        item["label"]
                     ))
 
                 conn.commit()
@@ -970,7 +1006,7 @@ class ReactionRoleSystem(commands.Cog):
                     "staff_role_id": staff_roles_string
                 })
 
-            # Save configuration.
+            # SAVE CONFIGURATION
             with get_db() as conn:
 
                 conn.execute("""
@@ -995,6 +1031,7 @@ class ReactionRoleSystem(commands.Cog):
 
                     conn.execute("""
                         INSERT INTO ticket_buttons
+                            (guild_id, btn_index, label, emoji, staff_role_id)
                         VALUES (?, ?, ?, ?, ?)
                     """, (
                         ctx.guild.id,
@@ -1026,7 +1063,6 @@ class ReactionRoleSystem(commands.Cog):
                 view=view
             )
 
-            # Save exact panel message ID.
             with get_db() as conn:
 
                 conn.execute("""
@@ -1140,10 +1176,10 @@ class ReactionRoleSystem(commands.Cog):
             conn.execute("""
                 INSERT INTO ticket_config
                     (guild_id, ticket_count)
-                VALUES (?, ?,)
+                VALUES (?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     ticket_count=excluded.ticket_count
-            """.replace("(?, ?,)", "(?, ?)"), (
+            """, (
                 ctx.guild.id,
                 count
             ))
@@ -1436,10 +1472,7 @@ class TicketLobbyView(discord.ui.View):
 
             guild = interaction.guild
 
-            # -------------------------------------------------
             # DETERMINE TICKET NUMBER
-            # -------------------------------------------------
-
             async with ticket_counter_lock:
 
                 highest_found_count = 0
@@ -1529,10 +1562,7 @@ class TicketLobbyView(discord.ui.View):
                         guild.id,
                     )).fetchone()
 
-                # -------------------------------------------------
                 # RESOLVE STAFF ROLES
-                # -------------------------------------------------
-
                 chosen_staff_string = (
                     staff_role_id
                     if staff_role_id
@@ -1549,10 +1579,7 @@ class TicketLobbyView(discord.ui.View):
                     if role_id.strip().isdigit()
                 ]
 
-                # -------------------------------------------------
                 # CATEGORY ROUTING
-                # -------------------------------------------------
-
                 category_name = raw_label[:100]
 
                 target_category = discord.utils.get(
@@ -1604,10 +1631,7 @@ class TicketLobbyView(discord.ui.View):
                         overwrites=category_overwrites
                     )
 
-                # -------------------------------------------------
                 # TICKET CHANNEL PERMISSIONS
-                # -------------------------------------------------
-
                 overwrites = {
                     guild.default_role:
                         discord.PermissionOverwrite(
@@ -1667,10 +1691,7 @@ class TicketLobbyView(discord.ui.View):
                     )
                 )
 
-            # -------------------------------------------------
             # SEND TICKET MESSAGE
-            # -------------------------------------------------
-
             ping_content = interaction.user.mention
 
             if ping_mentions:
@@ -1703,10 +1724,7 @@ class TicketLobbyView(discord.ui.View):
                 view=TicketControls()
             )
 
-            # -------------------------------------------------
             # ADMIN LOGGING
-            # -------------------------------------------------
-
             if config and config["admin_channel"]:
 
                 admin_channel = guild.get_channel(
@@ -1881,10 +1899,7 @@ class TicketControls(discord.ui.View):
             else None
         )
 
-    # -----------------------------------------------------
     # CLAIM TICKET
-    # -----------------------------------------------------
-
     @discord.ui.button(
         label="CLAIM TICKET",
         style=discord.ButtonStyle.success,
@@ -1916,7 +1931,6 @@ class TicketControls(discord.ui.View):
                 "Asset ID"
             )
 
-            # Preserve all existing channel permissions.
             overwrites = dict(channel.overwrites)
 
             overwrites[interaction.user] = (
@@ -1977,10 +1991,7 @@ class TicketControls(discord.ui.View):
         except Exception as e:
             await interaction_error(interaction, e)
 
-    # -----------------------------------------------------
     # PING ADMINS
-    # -----------------------------------------------------
-
     @discord.ui.button(
         label="PING ADMINS",
         style=discord.ButtonStyle.primary,
@@ -2057,10 +2068,7 @@ class TicketControls(discord.ui.View):
         except Exception as e:
             await interaction_error(interaction, e)
 
-    # -----------------------------------------------------
     # CLOSE TICKET
-    # -----------------------------------------------------
-
     @discord.ui.button(
         label="CLOSE SESSION",
         style=discord.ButtonStyle.danger,
@@ -2141,7 +2149,7 @@ class TicketControls(discord.ui.View):
 
             ticket_id = channel.name
 
-            # Save transcript BEFORE deleting the channel.
+            # SAVE TRANSCRIPT BEFORE DELETING CHANNEL.
             with get_db() as conn:
 
                 conn.execute("""
@@ -2168,7 +2176,6 @@ class TicketControls(discord.ui.View):
                     interaction.guild.id,
                 )).fetchone()
 
-            # Logging failure does not delete the saved transcript.
             if config and config["admin_channel"]:
 
                 admin_channel = interaction.guild.get_channel(
@@ -2218,25 +2225,17 @@ class TicketControls(discord.ui.View):
 
 async def setup(bot):
 
-    # Initialise database before restoring views.
     initialise_database()
 
     await bot.add_cog(
         ReactionRoleSystem(bot)
     )
 
-    # -----------------------------------------------------
-    # RESTORE SAVED VIEWS
-    # -----------------------------------------------------
-
     try:
 
         with get_db() as conn:
 
-            # ---------------------------------------------
-            # REACTION ROLE PANELS
-            # ---------------------------------------------
-
+            # RESTORE REACTION ROLE PANELS
             rr_rows = conn.execute("""
                 SELECT message_id, emoji, role_id, label
                 FROM reaction_roles
@@ -2270,10 +2269,7 @@ async def setup(bot):
                         f"{message_id}: {e}"
                     )
 
-            # ---------------------------------------------
-            # TICKET LOBBY PANELS
-            # ---------------------------------------------
-
+            # RESTORE TICKET LOBBY PANELS
             panel_rows = conn.execute("""
                 SELECT guild_id, message_id, channel_id
                 FROM ticket_panels
@@ -2322,10 +2318,7 @@ async def setup(bot):
         print("Persistent view restoration failed:")
         traceback.print_exc()
 
-    # -----------------------------------------------------
     # GLOBAL PERSISTENT VIEWS
-    # -----------------------------------------------------
-
     bot.add_view(TicketControls())
     bot.add_view(DesignerLobby())
     bot.add_view(ArchiveViewer())
