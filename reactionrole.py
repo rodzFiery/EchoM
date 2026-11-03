@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 import sqlite3
@@ -160,13 +159,30 @@ def initialise_database():
         conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA synchronous = NORMAL")
 
+        # UPDATED: Reaction roles now store a button label.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS reaction_roles (
                 message_id INTEGER,
                 emoji TEXT,
-                role_id INTEGER
+                role_id INTEGER,
+                label TEXT DEFAULT ''
             )
         """)
+
+        # DATABASE MIGRATION:
+        # Adds the label column to existing databases.
+        reaction_columns = [
+            column[1]
+            for column in conn.execute(
+                "PRAGMA table_info(reaction_roles)"
+            ).fetchall()
+        ]
+
+        if "label" not in reaction_columns:
+            conn.execute("""
+                ALTER TABLE reaction_roles
+                ADD COLUMN label TEXT DEFAULT ''
+            """)
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ticket_config (
@@ -278,17 +294,23 @@ class DesignerLobby(discord.ui.View):
 
 class ReactionRoleButton(discord.ui.Button):
 
-    def __init__(self, emoji, role_id, count=0):
-        label_text = f"({count})" if count > 0 else None
+    def __init__(self, emoji, role_id, label, count=0):
+
+        self.role_id = int(role_id)
+        self.base_label = label or "Select Role"
+
+        # Display the button name and member count.
+        if count > 0:
+            display_label = f"{self.base_label} ({count})"
+        else:
+            display_label = self.base_label
 
         super().__init__(
             style=discord.ButtonStyle.secondary,
-            label=label_text,
+            label=display_label[:80],
             emoji=emoji,
             custom_id=f"rr:{role_id}"
         )
-
-        self.role_id = int(role_id)
 
     async def callback(self, interaction: discord.Interaction):
         try:
@@ -353,13 +375,16 @@ class ReactionRoleButton(discord.ui.Button):
                 ephemeral=True
             )
 
+            # Refresh the member count while preserving the button name.
             try:
                 updated_count = len(role.members)
-                self.label = (
-                    f"({updated_count})"
-                    if updated_count > 0
-                    else None
-                )
+
+                if updated_count > 0:
+                    self.label = (
+                        f"{self.base_label} ({updated_count})"
+                    )[:80]
+                else:
+                    self.label = self.base_label[:80]
 
                 await interaction.message.edit(
                     view=self.view
@@ -380,7 +405,16 @@ class ReactionRoleView(discord.ui.View):
     def __init__(self, mappings, guild=None):
         super().__init__(timeout=None)
 
-        for emoji, role_id in mappings.items():
+        for emoji, config in mappings.items():
+
+            # Support both the new mapping format and older mappings.
+            if isinstance(config, dict):
+                role_id = config["role_id"]
+                button_label = config.get("label", "Select Role")
+            else:
+                role_id = config[0]
+                button_label = config[1] if len(config) > 1 else "Select Role"
+
             initial_count = 0
 
             if guild:
@@ -393,6 +427,7 @@ class ReactionRoleView(discord.ui.View):
                 ReactionRoleButton(
                     emoji,
                     role_id,
+                    button_label,
                     count=initial_count
                 )
             )
@@ -492,6 +527,7 @@ class ReactionRoleSystem(commands.Cog):
 
             for i in range(rr_count):
 
+                # STEP 3: Select role.
                 await ctx.send(
                     f"👤 **STEP 3.{i+1}:** Mention the role "
                     f"for button #{i+1}."
@@ -514,9 +550,36 @@ class ReactionRoleSystem(commands.Cog):
                         "❌ Invalid role. Restart the command."
                     )
 
+                # NEW STEP 4: Set button name.
                 await ctx.send(
-                    f"⭐ **STEP 4.{i+1}:** Send the emoji "
-                    f"for {target_role.name}."
+                    f"🏷️ **STEP 4.{i+1}:** What name should "
+                    f"appear on the button for {target_role.name}?\n"
+                    "Example: `Europe`, `Gaming`, `Announcements`.\n"
+                    "Maximum 80 characters."
+                )
+
+                msg = await self.bot.wait_for(
+                    "message",
+                    check=check,
+                    timeout=None
+                )
+
+                button_label = msg.content.strip()
+
+                if not button_label:
+                    return await ctx.send(
+                        "❌ Button name cannot be empty."
+                    )
+
+                if len(button_label) > 80:
+                    return await ctx.send(
+                        "❌ Button name cannot exceed 80 characters."
+                    )
+
+                # STEP 5: Select emoji.
+                await ctx.send(
+                    f"⭐ **STEP 5.{i+1}:** Send the emoji "
+                    f"for the **{button_label}** button."
                 )
 
                 msg = await self.bot.wait_for(
@@ -542,14 +605,22 @@ class ReactionRoleSystem(commands.Cog):
                 else:
                     target_emoji = raw_content
 
-                mappings[str(target_emoji)] = target_role.id
+                mappings[str(target_emoji)] = {
+                    "role_id": target_role.id,
+                    "label": button_label
+                }
 
                 db_mappings.append(
-                    (str(target_emoji), target_role.id)
+                    (
+                        str(target_emoji),
+                        target_role.id,
+                        button_label
+                    )
                 )
 
+            # STEP 6: Rules message.
             await ctx.send(
-                "📝 **STEP 5:** Type the rules message."
+                "📝 **STEP 6:** Type the rules message."
             )
 
             msg = await self.bot.wait_for(
@@ -563,8 +634,9 @@ class ReactionRoleSystem(commands.Cog):
             if len(rules_content) > 4096:
                 rules_content = rules_content[:4090] + "..."
 
+            # STEP 7: Image.
             await ctx.send(
-                "🖼️ **STEP 6:** Upload an image or paste "
+                "🖼️ **STEP 7:** Upload an image or paste "
                 "an image URL. Type `none` to skip."
             )
 
@@ -613,6 +685,7 @@ class ReactionRoleSystem(commands.Cog):
                     f"❌ **DEPLOYMENT FAILED:** {e}"
                 )
 
+            # Save reaction roles, including their button names.
             with get_db() as conn:
 
                 conn.execute(
@@ -620,14 +693,16 @@ class ReactionRoleSystem(commands.Cog):
                     (final_msg.id,)
                 )
 
-                for emoji_string, role_id in db_mappings:
+                for emoji_string, role_id, button_label in db_mappings:
                     conn.execute("""
                         INSERT INTO reaction_roles
-                        VALUES (?, ?, ?)
+                            (message_id, emoji, role_id, label)
+                        VALUES (?, ?, ?, ?)
                     """, (
                         final_msg.id,
                         emoji_string,
-                        role_id
+                        role_id,
+                        button_label
                     ))
 
                 conn.commit()
@@ -1065,10 +1140,10 @@ class ReactionRoleSystem(commands.Cog):
             conn.execute("""
                 INSERT INTO ticket_config
                     (guild_id, ticket_count)
-                VALUES (?, ?)
+                VALUES (?, ?,)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     ticket_count=excluded.ticket_count
-            """, (
+            """.replace("(?, ?,)", "(?, ?)"), (
                 ctx.guild.id,
                 count
             ))
@@ -1281,7 +1356,6 @@ class TicketCustomButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
 
         try:
-            # IMPORTANT: Acknowledge Discord before accessing SQLite.
             await acknowledge_interaction(
                 interaction,
                 ephemeral=True
@@ -1349,7 +1423,6 @@ class TicketLobbyView(discord.ui.View):
     ):
 
         try:
-            # Do not defer twice if the button callback already did it.
             await acknowledge_interaction(
                 interaction,
                 ephemeral=True
@@ -1720,7 +1793,6 @@ class ArchiveViewer(discord.ui.View):
     ):
 
         try:
-            # Acknowledge before reading the database.
             await acknowledge_interaction(
                 interaction,
                 ephemeral=True
@@ -1891,7 +1963,6 @@ class TicketControls(discord.ui.View):
                 f"Handler ID: {interaction.user.id}"
             )
 
-            # Update permissions and topic together.
             await channel.edit(
                 overwrites=overwrites,
                 topic=" | ".join(topic_parts)
@@ -2023,7 +2094,6 @@ class TicketControls(discord.ui.View):
                     ephemeral=True
                 )
 
-            # Acknowledge before downloading the channel history.
             await acknowledge_interaction(
                 interaction,
                 ephemeral=False
@@ -2139,7 +2209,6 @@ class TicketControls(discord.ui.View):
             )
 
         except Exception as e:
-            # Do not delete the channel if transcript storage failed.
             await interaction_error(interaction, e)
 
 
@@ -2169,7 +2238,7 @@ async def setup(bot):
             # ---------------------------------------------
 
             rr_rows = conn.execute("""
-                SELECT message_id, emoji, role_id
+                SELECT message_id, emoji, role_id, label
                 FROM reaction_roles
             """).fetchall()
 
@@ -2182,7 +2251,10 @@ async def setup(bot):
                 if message_id not in rr_dict:
                     rr_dict[message_id] = {}
 
-                rr_dict[message_id][row["emoji"]] = row["role_id"]
+                rr_dict[message_id][row["emoji"]] = {
+                    "role_id": row["role_id"],
+                    "label": row["label"] or "Select Role"
+                }
 
             for message_id, mappings in rr_dict.items():
 
