@@ -15,7 +15,7 @@ from datetime import datetime
 # ---------------------------------------------------------
 
 DATA_DIR = "/data"
-DB_PATH = os.path.join(DATA_DIR, "database.db")
+DB_PATH = os.path.join(DATA_DIR, "economy.db")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
