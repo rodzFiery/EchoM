@@ -6,10 +6,43 @@ import asyncio
 import os
 import io
 import json
+import shutil
+import traceback
 from datetime import datetime
 
-DB_PATH = "database.db"
+# ---------------------------------------------------------
+# DATABASE CONFIGURATION - RAILWAY PERSISTENT VOLUME
+# ---------------------------------------------------------
+
+DATA_DIR = "/data"
+DB_PATH = os.path.join(DATA_DIR, "database.db")
+
+os.makedirs(DATA_DIR, exist_ok=True)
+
+# Migrate an existing database from the application folder.
+OLD_DB_PATH = "database.db"
+
+if not os.path.exists(DB_PATH) and os.path.exists(OLD_DB_PATH):
+    try:
+        shutil.copy2(OLD_DB_PATH, DB_PATH)
+        print("Echo database migrated to Railway Volume.")
+    except Exception as e:
+        print(f"Database migration failed: {e}")
+
 ticket_counter_lock = asyncio.Lock()
+
+
+def get_db():
+    """Create a configured SQLite connection."""
+    conn = sqlite3.connect(
+        DB_PATH,
+        timeout=30,
+        check_same_thread=False
+    )
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000")
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 
 # ---------------------------------------------------------
@@ -17,14 +50,16 @@ ticket_counter_lock = asyncio.Lock()
 # ---------------------------------------------------------
 
 def get_staff_role_ids(channel, fallback=None):
-    """Read staff role IDs stored in the ticket channel topic."""
     role_string = fallback or ""
 
     if channel and channel.topic:
         for part in channel.topic.split("|"):
             part = part.strip()
+
             if part.startswith("Staff Roles:"):
-                role_string = part.replace("Staff Roles:", "", 1).strip()
+                role_string = part.replace(
+                    "Staff Roles:", "", 1
+                ).strip()
                 break
 
     return [
@@ -35,12 +70,12 @@ def get_staff_role_ids(channel, fallback=None):
 
 
 def get_topic_value(channel, key):
-    """Read a value from a ticket channel topic."""
     if not channel or not channel.topic:
         return None
 
     for part in channel.topic.split("|"):
         part = part.strip()
+
         if part.startswith(key + ":"):
             return part.split(":", 1)[1].strip()
 
@@ -48,8 +83,10 @@ def get_topic_value(channel, key):
 
 
 def is_ticket_staff(interaction):
-    """Check whether the interacting member is an administrator or assigned staff."""
-    if not interaction.guild or not isinstance(interaction.user, discord.Member):
+    if not interaction.guild:
+        return False
+
+    if not isinstance(interaction.user, discord.Member):
         return False
 
     if interaction.user.guild_permissions.administrator:
@@ -57,22 +94,156 @@ def is_ticket_staff(interaction):
 
     staff_ids = get_staff_role_ids(interaction.channel)
 
-    return any(role.id in staff_ids for role in interaction.user.roles)
+    return any(
+        role.id in staff_ids
+        for role in interaction.user.roles
+    )
 
 
 async def interaction_error(interaction, error):
-    """Safely report an interaction error without double-responding."""
-    print(f"Interaction error: {error}")
+    print("Echo interaction error:")
+    traceback.print_exception(
+        type(error),
+        error,
+        error.__traceback__
+    )
 
-    message = "❌ Something went wrong while processing that action. Please try again."
+    message = (
+        "❌ Something went wrong while processing that action. "
+        "Please try again or contact staff."
+    )
 
     try:
         if interaction.response.is_done():
-            await interaction.followup.send(message, ephemeral=True)
+            await interaction.followup.send(
+                message,
+                ephemeral=True
+            )
         else:
-            await interaction.response.send_message(message, ephemeral=True)
+            await interaction.response.send_message(
+                message,
+                ephemeral=True
+            )
     except Exception as response_error:
-        print(f"Could not send interaction error response: {response_error}")
+        print(
+            f"Could not send interaction error response: "
+            f"{response_error}"
+        )
+
+
+async def acknowledge_interaction(interaction, ephemeral=True):
+    """Acknowledge an interaction only if it has not already been answered."""
+    if not interaction.response.is_done():
+        await interaction.response.defer(ephemeral=ephemeral)
+
+
+def get_bot_member(guild, bot):
+    """Resolve the bot's member object safely."""
+    if guild.me:
+        return guild.me
+
+    if bot.user:
+        return guild.get_member(bot.user.id)
+
+    return None
+
+
+# ---------------------------------------------------------
+# DATABASE INITIALISATION
+# ---------------------------------------------------------
+
+def initialise_database():
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    with get_db() as conn:
+
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS reaction_roles (
+                message_id INTEGER,
+                emoji TEXT,
+                role_id INTEGER
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_config (
+                guild_id INTEGER PRIMARY KEY,
+                lobby_channel INTEGER,
+                admin_channel INTEGER,
+                category_id INTEGER,
+                admin_role_id INTEGER,
+                ticket_count INTEGER DEFAULT 0
+            )
+        """)
+
+        columns = [
+            column[1]
+            for column in conn.execute(
+                "PRAGMA table_info(ticket_config)"
+            ).fetchall()
+        ]
+
+        if "admin_role_id" not in columns:
+            conn.execute("""
+                ALTER TABLE ticket_config
+                ADD COLUMN admin_role_id INTEGER
+            """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_archives (
+                ticket_id TEXT PRIMARY KEY,
+                guild_id INTEGER,
+                asset_name TEXT,
+                category TEXT,
+                content TEXT,
+                timestamp TEXT
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS autorole_config (
+                guild_id INTEGER PRIMARY KEY,
+                role_id INTEGER
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_buttons (
+                guild_id INTEGER,
+                btn_index INTEGER,
+                label TEXT,
+                emoji TEXT,
+                staff_role_id TEXT
+            )
+        """)
+
+        button_columns = [
+            column[1]
+            for column in conn.execute(
+                "PRAGMA table_info(ticket_buttons)"
+            ).fetchall()
+        ]
+
+        if "staff_role_id" not in button_columns:
+            conn.execute("""
+                ALTER TABLE ticket_buttons
+                ADD COLUMN staff_role_id TEXT
+            """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ticket_panels (
+                guild_id INTEGER,
+                message_id INTEGER PRIMARY KEY,
+                channel_id INTEGER
+            )
+        """)
+
+        conn.commit()
+
+    print(f"Echo database ready: {DB_PATH}")
 
 
 # ---------------------------------------------------------
@@ -80,6 +251,7 @@ async def interaction_error(interaction, error):
 # ---------------------------------------------------------
 
 class DesignerLobby(discord.ui.View):
+
     def __init__(self):
         super().__init__(timeout=None)
 
@@ -88,9 +260,14 @@ class DesignerLobby(discord.ui.View):
         style=discord.ButtonStyle.primary,
         custom_id="designer_suite_permanent"
     )
-    async def open_suite(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def open_suite(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await interaction.response.send_message(
-            "🛠️ Designer Suite access initiated. Please use `!setroles` to configure new links.",
+            "🛠️ Designer Suite access initiated. "
+            "Please use `!setroles` to configure new links.",
             ephemeral=True
         )
 
@@ -100,6 +277,7 @@ class DesignerLobby(discord.ui.View):
 # ---------------------------------------------------------
 
 class ReactionRoleButton(discord.ui.Button):
+
     def __init__(self, emoji, role_id, count=0):
         label_text = f"({count})" if count > 0 else None
 
@@ -110,19 +288,22 @@ class ReactionRoleButton(discord.ui.Button):
             custom_id=f"rr:{role_id}"
         )
 
-        self.role_id = role_id
+        self.role_id = int(role_id)
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            if (
+                not interaction.guild
+                or not isinstance(interaction.user, discord.Member)
+            ):
                 return await interaction.response.send_message(
                     "❌ This button can only be used inside a server.",
                     ephemeral=True
                 )
 
-            await interaction.response.defer(ephemeral=True)
+            await acknowledge_interaction(interaction)
 
-            role = interaction.guild.get_role(int(self.role_id))
+            role = interaction.guild.get_role(self.role_id)
 
             if not role:
                 return await interaction.followup.send(
@@ -130,34 +311,72 @@ class ReactionRoleButton(discord.ui.Button):
                     ephemeral=True
                 )
 
-            if role >= interaction.guild.me.top_role:
+            bot_member = get_bot_member(
+                interaction.guild,
+                interaction.client
+            )
+
+            if not bot_member:
                 return await interaction.followup.send(
-                    "❌ The bot cannot manage this role because of its role hierarchy.",
+                    "❌ Bot member could not be resolved.",
+                    ephemeral=True
+                )
+
+            if role >= bot_member.top_role:
+                return await interaction.followup.send(
+                    "❌ The bot cannot manage this role because "
+                    "of its role hierarchy.",
                     ephemeral=True
                 )
 
             if role in interaction.user.roles:
-                await interaction.user.remove_roles(role)
-                response = f"🔓 **ACCESS REVOKED:** {role.name} removed."
+                await interaction.user.remove_roles(
+                    role,
+                    reason="Reaction role button"
+                )
+                response = (
+                    f"🔓 **ACCESS REVOKED:** "
+                    f"{role.name} removed."
+                )
             else:
-                await interaction.user.add_roles(role)
-                response = f"🔒 **ACCESS GRANTED:** {role.name} assigned."
+                await interaction.user.add_roles(
+                    role,
+                    reason="Reaction role button"
+                )
+                response = (
+                    f"🔒 **ACCESS GRANTED:** "
+                    f"{role.name} assigned."
+                )
 
-            await interaction.followup.send(response, ephemeral=True)
+            await interaction.followup.send(
+                response,
+                ephemeral=True
+            )
 
-            # Refresh the displayed counter.
             try:
                 updated_count = len(role.members)
-                self.label = f"({updated_count})" if updated_count > 0 else None
-                await interaction.message.edit(view=self.view)
+                self.label = (
+                    f"({updated_count})"
+                    if updated_count > 0
+                    else None
+                )
+
+                await interaction.message.edit(
+                    view=self.view
+                )
+
             except Exception as edit_error:
-                print(f"Reaction role counter refresh failed: {edit_error}")
+                print(
+                    f"Reaction role counter refresh failed: "
+                    f"{edit_error}"
+                )
 
         except Exception as e:
             await interaction_error(interaction, e)
 
 
 class ReactionRoleView(discord.ui.View):
+
     def __init__(self, mappings, guild=None):
         super().__init__(timeout=None)
 
@@ -166,11 +385,16 @@ class ReactionRoleView(discord.ui.View):
 
             if guild:
                 role_obj = guild.get_role(int(role_id))
+
                 if role_obj:
                     initial_count = len(role_obj.members)
 
             self.add_item(
-                ReactionRoleButton(emoji, role_id, count=initial_count)
+                ReactionRoleButton(
+                    emoji,
+                    role_id,
+                    count=initial_count
+                )
             )
 
 
@@ -179,87 +403,11 @@ class ReactionRoleView(discord.ui.View):
 # ---------------------------------------------------------
 
 class ReactionRoleSystem(commands.Cog):
+
     def __init__(self, bot):
         self.bot = bot
         self.active_setups = {}
-        self._init_db()
-
-    def _init_db(self):
-        with sqlite3.connect(DB_PATH) as conn:
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS reaction_roles (
-                    message_id INTEGER,
-                    emoji TEXT,
-                    role_id INTEGER
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ticket_config (
-                    guild_id INTEGER PRIMARY KEY,
-                    lobby_channel INTEGER,
-                    admin_channel INTEGER,
-                    category_id INTEGER,
-                    admin_role_id INTEGER,
-                    ticket_count INTEGER DEFAULT 0
-                )
-            """)
-
-            cursor = conn.execute("PRAGMA table_info(ticket_config)")
-            columns = [column[1] for column in cursor.fetchall()]
-
-            if "admin_role_id" not in columns:
-                conn.execute(
-                    "ALTER TABLE ticket_config ADD COLUMN admin_role_id INTEGER"
-                )
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ticket_archives (
-                    ticket_id TEXT PRIMARY KEY,
-                    guild_id INTEGER,
-                    asset_name TEXT,
-                    category TEXT,
-                    content TEXT,
-                    timestamp TEXT
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS autorole_config (
-                    guild_id INTEGER PRIMARY KEY,
-                    role_id INTEGER
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ticket_buttons (
-                    guild_id INTEGER,
-                    btn_index INTEGER,
-                    label TEXT,
-                    emoji TEXT,
-                    staff_role_id TEXT
-                )
-            """)
-
-            cursor_btn = conn.execute("PRAGMA table_info(ticket_buttons)")
-            btn_columns = [col[1] for col in cursor_btn.fetchall()]
-
-            if "staff_role_id" not in btn_columns:
-                conn.execute(
-                    "ALTER TABLE ticket_buttons ADD COLUMN staff_role_id TEXT"
-                )
-
-            # NEW: Persist the actual ticket lobby message IDs.
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ticket_panels (
-                    guild_id INTEGER,
-                    message_id INTEGER PRIMARY KEY,
-                    channel_id INTEGER
-                )
-            """)
-
-            conn.commit()
+        initialise_database()
 
     # -----------------------------------------------------
     # REACTION ROLE SETUP
@@ -268,7 +416,6 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="setroles")
     @commands.has_permissions(administrator=True)
     async def setroles(self, ctx):
-        """Guided step-by-step setup for reaction roles."""
 
         self.active_setups[ctx.author.id] = ctx.message.id
 
@@ -283,31 +430,47 @@ class ReactionRoleSystem(commands.Cog):
             ):
                 raise asyncio.TimeoutError()
 
-            return m.author == ctx.author and m.channel == ctx.channel
+            return (
+                m.author == ctx.author
+                and m.channel == ctx.channel
+            )
 
         try:
             await ctx.send(
-                "🎯 **STEP 1:** Mention the channel where the rules should be sent (e.g., #rules)."
+                "🎯 **STEP 1:** Mention the channel where "
+                "the rules should be sent."
             )
+
             await ctx.send(
-                "*(Type `cancel` at any point during this process to safely abort and restart)*"
+                "*(Type `cancel` at any point to abort.)*"
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
 
-            target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
+            target_channel = (
+                msg.channel_mentions[0]
+                if msg.channel_mentions
+                else None
+            )
 
             if not target_channel:
-                return await ctx.send("❌ Invalid channel. Restart the command.")
+                return await ctx.send(
+                    "❌ Invalid channel. Restart the command."
+                )
 
             await ctx.send(
-                "🔢 **STEP 2:** How many reaction roles would you like to add? (Maximum of 25)."
+                "🔢 **STEP 2:** How many reaction roles? "
+                "(Maximum 25)."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
 
             try:
@@ -315,81 +478,109 @@ class ReactionRoleSystem(commands.Cog):
 
                 if not 1 <= rr_count <= 25:
                     return await ctx.send(
-                        "❌ Total reaction roles must be between 1 and 25."
+                        "❌ Total reaction roles must be "
+                        "between 1 and 25."
                     )
 
             except ValueError:
-                return await ctx.send("❌ Please enter a valid number.")
+                return await ctx.send(
+                    "❌ Please enter a valid number."
+                )
 
             mappings = {}
             db_mappings = []
 
             for i in range(rr_count):
+
                 await ctx.send(
-                    f"👤 **STEP 3.{i+1}:** Mention the role to be granted for button #{i+1}."
+                    f"👤 **STEP 3.{i+1}:** Mention the role "
+                    f"for button #{i+1}."
                 )
 
                 msg = await self.bot.wait_for(
-                    "message", check=check, timeout=None
+                    "message",
+                    check=check,
+                    timeout=None
                 )
 
-                target_role = msg.role_mentions[0] if msg.role_mentions else None
+                target_role = (
+                    msg.role_mentions[0]
+                    if msg.role_mentions
+                    else None
+                )
 
                 if not target_role:
-                    return await ctx.send("❌ Invalid role. Restart the command.")
+                    return await ctx.send(
+                        "❌ Invalid role. Restart the command."
+                    )
 
                 await ctx.send(
-                    f"⭐ **STEP 4.{i+1}:** Send the emoji for {target_role.name}."
+                    f"⭐ **STEP 4.{i+1}:** Send the emoji "
+                    f"for {target_role.name}."
                 )
 
                 msg = await self.bot.wait_for(
-                    "message", check=check, timeout=None
+                    "message",
+                    check=check,
+                    timeout=None
                 )
 
                 raw_content = msg.content.strip()
 
-                if raw_content.startswith("<:") or raw_content.startswith("<a:"):
+                if (
+                    raw_content.startswith("<:")
+                    or raw_content.startswith("<a:")
+                ):
                     try:
-                        target_emoji = discord.PartialEmoji.from_str(raw_content)
+                        target_emoji = discord.PartialEmoji.from_str(
+                            raw_content
+                        )
                     except Exception:
                         return await ctx.send(
-                            "❌ Failed to process the custom emoji."
+                            "❌ Failed to process custom emoji."
                         )
                 else:
                     target_emoji = raw_content
 
-                mappings[target_emoji] = target_role.id
-                db_mappings.append((str(target_emoji), target_role.id))
+                mappings[str(target_emoji)] = target_role.id
+
+                db_mappings.append(
+                    (str(target_emoji), target_role.id)
+                )
 
             await ctx.send(
-                "📝 **STEP 5:** Type the message/rules that will appear in the embed."
+                "📝 **STEP 5:** Type the rules message."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
 
             rules_content = msg.content
 
             if len(rules_content) > 4096:
-                await ctx.send(
-                    f"⚠️ Text too large ({len(rules_content)} chars). Cutting to fit."
-                )
                 rules_content = rules_content[:4090] + "..."
 
             await ctx.send(
-                "🖼️ **STEP 6:** Upload a .jpg image or paste an image URL. Type `none` to skip."
+                "🖼️ **STEP 6:** Upload an image or paste "
+                "an image URL. Type `none` to skip."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
 
             embed_image_url = None
 
             if msg.content.strip().lower() != "none":
+
                 if msg.attachments:
                     embed_image_url = msg.attachments[0].url
+
                 elif msg.content.startswith("http"):
                     embed_image_url = msg.content.strip()
 
@@ -399,36 +590,65 @@ class ReactionRoleSystem(commands.Cog):
                 color=0xFF0000
             )
 
-            embed.set_footer(text="Echo Protocol | Role Management")
+            embed.set_footer(
+                text="Echo Protocol | Role Management"
+            )
 
             if embed_image_url:
                 embed.set_image(url=embed_image_url)
 
-            view = ReactionRoleView(mappings, guild=ctx.guild)
+            view = ReactionRoleView(
+                mappings,
+                guild=ctx.guild
+            )
 
             try:
-                final_msg = await target_channel.send(embed=embed, view=view)
+                final_msg = await target_channel.send(
+                    embed=embed,
+                    view=view
+                )
+
             except discord.HTTPException as e:
                 return await ctx.send(
                     f"❌ **DEPLOYMENT FAILED:** {e}"
                 )
 
-            with sqlite3.connect(DB_PATH) as conn:
-                for db_emoji_str, db_role_id in db_mappings:
-                    conn.execute(
-                        "INSERT INTO reaction_roles VALUES (?, ?, ?)",
-                        (final_msg.id, db_emoji_str, db_role_id)
-                    )
+            with get_db() as conn:
+
+                conn.execute(
+                    "DELETE FROM reaction_roles WHERE message_id = ?",
+                    (final_msg.id,)
+                )
+
+                for emoji_string, role_id in db_mappings:
+                    conn.execute("""
+                        INSERT INTO reaction_roles
+                        VALUES (?, ?, ?)
+                    """, (
+                        final_msg.id,
+                        emoji_string,
+                        role_id
+                    ))
 
                 conn.commit()
 
             await ctx.send(
-                f"✅ **SUCCESS:** Protocol deployed in {target_channel.mention} with {rr_count} options!"
+                f"✅ **SUCCESS:** Protocol deployed in "
+                f"{target_channel.mention} with {rr_count} options!"
             )
 
         except asyncio.TimeoutError:
             await ctx.send(
-                "⌛ **CANCELLED:** Setup timed out or was manually cancelled. Restart with `!setroles`."
+                "⌛ **CANCELLED:** Setup manually cancelled."
+            )
+
+        except Exception as e:
+            print(f"Reaction role setup error: {e}")
+            traceback.print_exc()
+
+            await ctx.send(
+                "❌ Reaction role setup failed. "
+                "Check the Railway logs."
             )
 
         finally:
@@ -442,12 +662,12 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="ticket")
     @commands.has_permissions(administrator=True)
     async def set_ticket_lobby(self, ctx):
-        """Guided setup for a custom ticket lobby."""
 
         self.active_setups[ctx.author.id] = ctx.message.id
         setup_garbage = [ctx.message]
 
         def check(m):
+
             if self.active_setups.get(ctx.author.id) != ctx.message.id:
                 raise asyncio.TimeoutError()
 
@@ -458,91 +678,124 @@ class ReactionRoleSystem(commands.Cog):
             ):
                 raise asyncio.TimeoutError()
 
-            return m.author == ctx.author and m.channel == ctx.channel
+            return (
+                m.author == ctx.author
+                and m.channel == ctx.channel
+            )
 
-        async def send_tracked_step(text):
-            m = await ctx.send(text)
-            setup_garbage.append(m)
-            return m
+        async def send_tracked_step(message):
+            sent = await ctx.send(message)
+            setup_garbage.append(sent)
+            return sent
 
         async def clean_setup():
-            for g_msg in setup_garbage:
+            for message in setup_garbage:
                 try:
-                    await g_msg.delete()
+                    await message.delete()
                 except Exception:
                     pass
 
         try:
+
             await send_tracked_step(
-                "🎯 **STEP 1:** Mention the channel where the ticket lobby panel should be sent."
+                "🎯 **STEP 1:** Mention the ticket lobby channel."
             )
+
             await send_tracked_step(
-                "*(Type `cancel` at any point to abort and clean up)*"
+                "*(Type `cancel` at any point to abort.)*"
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
+
             setup_garbage.append(msg)
 
-            target_channel = msg.channel_mentions[0] if msg.channel_mentions else None
+            target_channel = (
+                msg.channel_mentions[0]
+                if msg.channel_mentions
+                else None
+            )
 
             if not target_channel:
                 await clean_setup()
-                return await ctx.send("❌ Invalid channel. Cancelled.")
+                return await ctx.send(
+                    "❌ Invalid channel. Cancelled."
+                )
 
             await send_tracked_step(
                 "🗄️ **STEP 2:** Mention the admin logging channel."
             )
 
-            msg_log_chan = await self.bot.wait_for(
-                "message", check=check, timeout=None
+            msg = await self.bot.wait_for(
+                "message",
+                check=check,
+                timeout=None
             )
-            setup_garbage.append(msg_log_chan)
+
+            setup_garbage.append(msg)
 
             admin_logging_channel = (
-                msg_log_chan.channel_mentions[0]
-                if msg_log_chan.channel_mentions else None
+                msg.channel_mentions[0]
+                if msg.channel_mentions
+                else None
             )
 
             if not admin_logging_channel:
                 await clean_setup()
-                return await ctx.send("❌ Invalid logging channel. Cancelled.")
+                return await ctx.send(
+                    "❌ Invalid logging channel. Cancelled."
+                )
 
             await send_tracked_step(
-                "📝 **STEP 3:** Type the description for the support lobby."
+                "📝 **STEP 3:** Type the ticket lobby description."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
+
             setup_garbage.append(msg)
             lobby_desc = msg.content
 
             await send_tracked_step(
-                "🖼️ **STEP 4:** Upload an image or paste an image link. Type `none` to skip."
+                "🖼️ **STEP 4:** Upload an image or paste "
+                "an image link. Type `none` to skip."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
+
             setup_garbage.append(msg)
 
             ticket_image_url = None
 
             if msg.content.strip().lower() != "none":
+
                 if msg.attachments:
                     ticket_image_url = msg.attachments[0].url
+
                 elif msg.content.startswith("http"):
                     ticket_image_url = msg.content.strip()
 
             await send_tracked_step(
-                "🔢 **STEP 5:** How many custom buttons? (Maximum of 5)."
+                "🔢 **STEP 5:** How many custom buttons? "
+                "(Maximum 5)."
             )
 
             msg = await self.bot.wait_for(
-                "message", check=check, timeout=None
+                "message",
+                check=check,
+                timeout=None
             )
+
             setup_garbage.append(msg)
 
             try:
@@ -556,60 +809,84 @@ class ReactionRoleSystem(commands.Cog):
 
             except ValueError:
                 await clean_setup()
-                return await ctx.send("❌ Please enter a valid number.")
+                return await ctx.send(
+                    "❌ Please enter a valid number."
+                )
 
             button_configs = []
 
             for i in range(btn_count):
+
                 await send_tracked_step(
-                    f"🏷️ **BUTTON {i+1} NAME:** Enter the label for Button #{i+1}."
+                    f"🏷️ **BUTTON {i+1} NAME:** "
+                    f"Enter the label for Button #{i+1}."
                 )
 
                 msg_label = await self.bot.wait_for(
-                    "message", check=check, timeout=None
+                    "message",
+                    check=check,
+                    timeout=None
                 )
+
                 setup_garbage.append(msg_label)
                 label_text = msg_label.content.strip()
 
                 if not label_text:
                     await clean_setup()
-                    return await ctx.send("❌ Button labels cannot be empty.")
+                    return await ctx.send(
+                        "❌ Button labels cannot be empty."
+                    )
 
                 await send_tracked_step(
                     f"✨ **BUTTON {i+1} EMOJI:** Send the emoji."
                 )
 
                 msg_emoji = await self.bot.wait_for(
-                    "message", check=check, timeout=None
+                    "message",
+                    check=check,
+                    timeout=None
                 )
+
                 setup_garbage.append(msg_emoji)
                 raw_emoji = msg_emoji.content.strip()
 
-                if raw_emoji.startswith("<:") or raw_emoji.startswith("<a:"):
+                if (
+                    raw_emoji.startswith("<:")
+                    or raw_emoji.startswith("<a:")
+                ):
                     try:
-                        resolved_emoji = discord.PartialEmoji.from_str(raw_emoji)
+                        resolved_emoji = discord.PartialEmoji.from_str(
+                            raw_emoji
+                        )
                     except Exception:
                         resolved_emoji = raw_emoji
                 else:
                     resolved_emoji = raw_emoji
 
                 await send_tracked_step(
-                    f"🛡️ **BUTTON {i+1} STAFF PRIVACY:** Mention all roles allowed to access this ticket."
+                    f"🛡️ **BUTTON {i+1} STAFF PRIVACY:** "
+                    "Mention all roles allowed to access this ticket."
                 )
 
                 msg_role = await self.bot.wait_for(
-                    "message", check=check, timeout=None
+                    "message",
+                    check=check,
+                    timeout=None
                 )
+
                 setup_garbage.append(msg_role)
 
-                staff_roles_extracted = msg_role.role_mentions
+                staff_roles = msg_role.role_mentions
 
-                if not staff_roles_extracted:
+                if not staff_roles:
                     await clean_setup()
-                    return await ctx.send("❌ No staff roles selected. Setup cancelled.")
+                    return await ctx.send(
+                        "❌ No staff roles selected. Setup cancelled."
+                    )
 
                 staff_roles_string = ",".join(
-                    str(r.id) for r in staff_roles_extracted
+                    str(role.id)
+                    for role in staff_roles
                 )
 
                 button_configs.append({
@@ -618,37 +895,39 @@ class ReactionRoleSystem(commands.Cog):
                     "staff_role_id": staff_roles_string
                 })
 
-            with sqlite3.connect(DB_PATH) as conn:
+            # Save configuration.
+            with get_db() as conn:
+
                 conn.execute("""
                     INSERT INTO ticket_config
                         (guild_id, lobby_channel, admin_channel, ticket_count)
                     VALUES (?, ?, ?, 0)
                     ON CONFLICT(guild_id) DO UPDATE SET
                         lobby_channel=excluded.lobby_channel,
-                        admin_channel=excluded.admin_channel,
-                        ticket_count=ticket_config.ticket_count
+                        admin_channel=excluded.admin_channel
                 """, (
                     ctx.guild.id,
                     target_channel.id,
                     admin_logging_channel.id
                 ))
 
-                conn.execute(
-                    "DELETE FROM ticket_buttons WHERE guild_id = ?",
-                    (ctx.guild.id,)
-                )
+                conn.execute("""
+                    DELETE FROM ticket_buttons
+                    WHERE guild_id = ?
+                """, (ctx.guild.id,))
 
                 for idx, cfg in enumerate(button_configs):
-                    conn.execute(
-                        "INSERT INTO ticket_buttons VALUES (?, ?, ?, ?, ?)",
-                        (
-                            ctx.guild.id,
-                            idx,
-                            cfg["label"],
-                            cfg["emoji"],
-                            cfg["staff_role_id"]
-                        )
-                    )
+
+                    conn.execute("""
+                        INSERT INTO ticket_buttons
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        ctx.guild.id,
+                        idx,
+                        cfg["label"],
+                        cfg["emoji"],
+                        cfg["staff_role_id"]
+                    ))
 
                 conn.commit()
 
@@ -658,39 +937,58 @@ class ReactionRoleSystem(commands.Cog):
                 color=0x8B0000
             )
 
-            embed.set_footer(text="Echo Ticket System | Secure Neural Link")
+            embed.set_footer(
+                text="Echo Ticket System | Secure Neural Link"
+            )
 
             if ticket_image_url:
                 embed.set_image(url=ticket_image_url)
 
             view = TicketLobbyView(button_configs)
-            panel_message = await target_channel.send(embed=embed, view=view)
 
-            # Save the exact lobby message ID for startup restoration.
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO ticket_panels VALUES (?, ?, ?)",
-                    (ctx.guild.id, panel_message.id, target_channel.id)
-                )
+            panel_message = await target_channel.send(
+                embed=embed,
+                view=view
+            )
+
+            # Save exact panel message ID.
+            with get_db() as conn:
+
+                conn.execute("""
+                    INSERT OR REPLACE INTO ticket_panels
+                    VALUES (?, ?, ?)
+                """, (
+                    ctx.guild.id,
+                    panel_message.id,
+                    target_channel.id
+                ))
+
                 conn.commit()
 
             await clean_setup()
 
             await ctx.send(
-                f"✅ **SUCCESS:** Ticket Lobby deployed in {target_channel.mention}. "
-                f"Transcripts assigned to {admin_logging_channel.mention}."
+                f"✅ **SUCCESS:** Ticket Lobby deployed in "
+                f"{target_channel.mention}. Transcripts assigned to "
+                f"{admin_logging_channel.mention}."
             )
 
         except asyncio.TimeoutError:
             await clean_setup()
+
             await ctx.send(
-                "⌛ **CANCELLED:** Configuration timed out or was manually cancelled."
+                "⌛ **CANCELLED:** Configuration manually cancelled."
             )
 
         except Exception as e:
             await clean_setup()
+
             print(f"Ticket setup error: {e}")
-            await ctx.send("❌ Ticket setup failed. Check the bot console for details.")
+            traceback.print_exc()
+
+            await ctx.send(
+                "❌ Ticket setup failed. Check Railway logs."
+            )
 
         finally:
             if self.active_setups.get(ctx.author.id) == ctx.message.id:
@@ -703,14 +1001,20 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="ticketadmin")
     @commands.has_permissions(administrator=True)
     async def set_ticket_admin(self, ctx, role: discord.Role):
-        with sqlite3.connect(DB_PATH) as conn:
+
+        with get_db() as conn:
+
             conn.execute("""
-                INSERT INTO ticket_config (guild_id, admin_role_id)
+                INSERT INTO ticket_config
+                    (guild_id, admin_role_id)
                 VALUES (?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
-                    admin_role_id=excluded.admin_role_id,
-                    ticket_count=ticket_config.ticket_count
-            """, (ctx.guild.id, role.id))
+                    admin_role_id=excluded.admin_role_id
+            """, (
+                ctx.guild.id,
+                role.id
+            ))
+
             conn.commit()
 
         await ctx.send(
@@ -720,40 +1024,60 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="ticketcategory")
     @commands.has_permissions(administrator=True)
     async def set_ticket_category(self, ctx, category_id: int):
+
         category = ctx.guild.get_channel(category_id)
 
         if not isinstance(category, discord.CategoryChannel):
-            return await ctx.send("❌ That ID is not a valid category in this server.")
+            return await ctx.send(
+                "❌ That ID is not a valid category in this server."
+            )
 
-        with sqlite3.connect(DB_PATH) as conn:
+        with get_db() as conn:
+
             conn.execute("""
-                INSERT INTO ticket_config (guild_id, category_id)
+                INSERT INTO ticket_config
+                    (guild_id, category_id)
                 VALUES (?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
-                    category_id=excluded.category_id,
-                    ticket_count=ticket_config.ticket_count
-            """, (ctx.guild.id, category_id))
+                    category_id=excluded.category_id
+            """, (
+                ctx.guild.id,
+                category_id
+            ))
+
             conn.commit()
 
-        await ctx.send(f"✅ Ticket Category set to ID: `{category_id}`")
+        await ctx.send(
+            f"✅ Ticket Category set to ID: `{category_id}`"
+        )
 
     @commands.command(name="setticket")
     @commands.has_permissions(administrator=True)
     async def set_ticket_count(self, ctx, count: int):
-        if count < 0:
-            return await ctx.send("❌ Ticket count cannot be negative.")
 
-        with sqlite3.connect(DB_PATH) as conn:
+        if count < 0:
+            return await ctx.send(
+                "❌ Ticket count cannot be negative."
+            )
+
+        with get_db() as conn:
+
             conn.execute("""
-                INSERT INTO ticket_config (guild_id, ticket_count)
+                INSERT INTO ticket_config
+                    (guild_id, ticket_count)
                 VALUES (?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     ticket_count=excluded.ticket_count
-            """, (ctx.guild.id, count))
+            """, (
+                ctx.guild.id,
+                count
+            ))
+
             conn.commit()
 
         await ctx.send(
-            f"✅ Ticket counter adjusted. The next session will be **#{count + 1}**."
+            f"✅ Ticket counter adjusted. "
+            f"The next session will be **#{count + 1}**."
         )
 
     @commands.command(name="ticketnumber")
@@ -768,8 +1092,8 @@ class ReactionRoleSystem(commands.Cog):
     @commands.command(name="archives")
     @commands.has_permissions(administrator=True)
     async def list_archives(self, ctx):
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+
+        with get_db() as conn:
 
             rows = conn.execute("""
                 SELECT ticket_id, asset_name, category, timestamp
@@ -777,7 +1101,9 @@ class ReactionRoleSystem(commands.Cog):
                 WHERE guild_id = ?
                 ORDER BY timestamp DESC
                 LIMIT 10
-            """, (ctx.guild.id,)).fetchall()
+            """, (
+                ctx.guild.id,
+            )).fetchall()
 
         if not rows:
             return await ctx.send(
@@ -789,35 +1115,46 @@ class ReactionRoleSystem(commands.Cog):
             color=0x2F3136
         )
 
-        desc = ""
+        description = ""
 
         for row in rows:
-            desc += (
-                f"🆔 `{row['ticket_id']}` | **{row['asset_name']}** "
+            description += (
+                f"🆔 `{row['ticket_id']}` | "
+                f"**{row['asset_name']}** "
                 f"({row['category']}) - {row['timestamp']}\n"
             )
 
-        embed.description = desc
-        embed.set_footer(text="Use !view <ID> to retrieve a specific transcript.")
+        embed.description = description
+
+        embed.set_footer(
+            text="Use !view <ID> to retrieve a transcript."
+        )
 
         await ctx.send(embed=embed)
 
     @commands.command(name="view")
     @commands.has_permissions(administrator=True)
     async def view_archive(self, ctx, ticket_id: str):
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+
+        with get_db() as conn:
 
             row = conn.execute("""
                 SELECT *
                 FROM ticket_archives
                 WHERE ticket_id = ? AND guild_id = ?
-            """, (ticket_id, ctx.guild.id)).fetchone()
+            """, (
+                ticket_id,
+                ctx.guild.id
+            )).fetchone()
 
         if not row:
-            return await ctx.send("❌ Data block not found.")
+            return await ctx.send(
+                "❌ Data block not found."
+            )
 
-        buffer = io.BytesIO(row["content"].encode("utf-8"))
+        buffer = io.BytesIO(
+            row["content"].encode("utf-8")
+        )
 
         await ctx.send(
             content=f"📑 **TRANSCRIPT RECOVERY:** `{ticket_id}`",
@@ -833,13 +1170,23 @@ class ReactionRoleSystem(commands.Cog):
 
     @commands.command(name="autorole")
     @commands.has_permissions(administrator=True)
-    async def set_autorole(self, ctx, role: discord.Role = None):
-        with sqlite3.connect(DB_PATH) as conn:
+    async def set_autorole(
+        self,
+        ctx,
+        role: discord.Role = None
+    ):
+
+        with get_db() as conn:
+
             if role is None:
-                conn.execute(
-                    "DELETE FROM autorole_config WHERE guild_id = ?",
-                    (ctx.guild.id,)
-                )
+
+                conn.execute("""
+                    DELETE FROM autorole_config
+                    WHERE guild_id = ?
+                """, (
+                    ctx.guild.id,
+                ))
+
                 conn.commit()
 
                 return await ctx.send(
@@ -848,11 +1195,15 @@ class ReactionRoleSystem(commands.Cog):
                 )
 
             conn.execute("""
-                INSERT INTO autorole_config (guild_id, role_id)
+                INSERT INTO autorole_config
+                    (guild_id, role_id)
                 VALUES (?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     role_id=excluded.role_id
-            """, (ctx.guild.id, role.id))
+            """, (
+                ctx.guild.id,
+                role.id
+            ))
 
             conn.commit()
 
@@ -863,24 +1214,34 @@ class ReactionRoleSystem(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+
+        with get_db() as conn:
 
             row = conn.execute("""
                 SELECT role_id
                 FROM autorole_config
                 WHERE guild_id = ?
-            """, (member.guild.id,)).fetchone()
+            """, (
+                member.guild.id,
+            )).fetchone()
 
         if row and row["role_id"]:
-            role = member.guild.get_role(int(row["role_id"]))
+
+            role = member.guild.get_role(
+                int(row["role_id"])
+            )
 
             if role:
                 try:
-                    await member.add_roles(role)
+                    await member.add_roles(
+                        role,
+                        reason="Echo automatic member role"
+                    )
+
                 except Exception as e:
                     print(
-                        f"Failed to assign autorole in guild {member.guild.id}: {e}"
+                        f"Failed to assign autorole "
+                        f"in guild {member.guild.id}: {e}"
                     )
 
 
@@ -889,12 +1250,27 @@ class ReactionRoleSystem(commands.Cog):
 # ---------------------------------------------------------
 
 class TicketCustomButton(discord.ui.Button):
-    def __init__(self, label, emoji, index, staff_role_id=None):
-        self.category_slug = label.lower().replace(" ", "_")
-        self.staff_role_id = str(staff_role_id) if staff_role_id else None
+
+    def __init__(
+        self,
+        label,
+        emoji,
+        index,
+        staff_role_id=None
+    ):
+
+        self.category_slug = (
+            label.lower().replace(" ", "_")
+        )
+
+        self.staff_role_id = (
+            str(staff_role_id)
+            if staff_role_id
+            else None
+        )
+
         self.raw_label = label
 
-        # Keep the deterministic ID so the button survives restarts.
         super().__init__(
             style=discord.ButtonStyle.secondary,
             label=label,
@@ -903,14 +1279,27 @@ class TicketCustomButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
+
         try:
+            # IMPORTANT: Acknowledge Discord before accessing SQLite.
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=True
+            )
+
+            if not interaction.guild:
+                return await interaction.followup.send(
+                    "❌ This action must be used inside a server.",
+                    ephemeral=True
+                )
+
             staff_id = self.staff_role_id
 
             if not staff_id:
-                with sqlite3.connect(DB_PATH) as conn:
-                    conn.row_factory = sqlite3.Row
 
-                    res = conn.execute("""
+                with get_db() as conn:
+
+                    result = conn.execute("""
                         SELECT staff_role_id
                         FROM ticket_buttons
                         WHERE guild_id = ? AND label = ?
@@ -919,8 +1308,8 @@ class TicketCustomButton(discord.ui.Button):
                         self.raw_label
                     )).fetchone()
 
-                    if res:
-                        staff_id = res["staff_role_id"]
+                    if result:
+                        staff_id = result["staff_role_id"]
 
             await self.view.create_ticket(
                 interaction,
@@ -934,17 +1323,20 @@ class TicketCustomButton(discord.ui.Button):
 
 
 class TicketLobbyView(discord.ui.View):
+
     def __init__(self, button_configs=None):
         super().__init__(timeout=None)
 
         if button_configs:
-            for idx, cfg in enumerate(button_configs):
+
+            for idx, config in enumerate(button_configs):
+
                 self.add_item(
                     TicketCustomButton(
-                        label=cfg["label"],
-                        emoji=cfg["emoji"],
+                        label=config["label"],
+                        emoji=config["emoji"],
                         index=idx,
-                        staff_role_id=cfg.get("staff_role_id")
+                        staff_role_id=config.get("staff_role_id")
                     )
                 )
 
@@ -955,9 +1347,14 @@ class TicketLobbyView(discord.ui.View):
         staff_role_id: str = None,
         raw_label: str = "Support"
     ):
-        await interaction.response.defer(ephemeral=True)
 
         try:
+            # Do not defer twice if the button callback already did it.
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=True
+            )
+
             if not interaction.guild:
                 return await interaction.followup.send(
                     "❌ This action must be used inside a server.",
@@ -967,36 +1364,46 @@ class TicketLobbyView(discord.ui.View):
             guild = interaction.guild
 
             # -------------------------------------------------
-            # Determine ticket number safely.
+            # DETERMINE TICKET NUMBER
             # -------------------------------------------------
 
             async with ticket_counter_lock:
+
                 highest_found_count = 0
 
-                for cat_obj in guild.categories:
-                    for channel in cat_obj.text_channels:
+                for category_obj in guild.categories:
+
+                    for channel in category_obj.text_channels:
+
                         try:
-                            chan_num = int(channel.name.split("-")[0])
+                            channel_number = int(
+                                channel.name.split("-")[0]
+                            )
+
                             highest_found_count = max(
                                 highest_found_count,
-                                chan_num
+                                channel_number
                             )
+
                         except (ValueError, IndexError):
                             pass
 
-                with sqlite3.connect(DB_PATH, timeout=30) as conn:
-                    conn.row_factory = sqlite3.Row
+                with get_db() as conn:
+
                     conn.execute("BEGIN IMMEDIATE")
 
                     config = conn.execute("""
                         SELECT *
                         FROM ticket_config
                         WHERE guild_id = ?
-                    """, (guild.id,)).fetchone()
+                    """, (
+                        guild.id,
+                    )).fetchone()
 
                     db_count = (
                         int(config["ticket_count"])
-                        if config and config["ticket_count"] is not None
+                        if config
+                        and config["ticket_count"] is not None
                         else 0
                     )
 
@@ -1004,15 +1411,22 @@ class TicketLobbyView(discord.ui.View):
                         SELECT ticket_id
                         FROM ticket_archives
                         WHERE guild_id = ?
-                    """, (guild.id,)).fetchall()
+                    """, (
+                        guild.id,
+                    )).fetchall()
 
                     for row in archive_rows:
+
                         try:
-                            archive_num = int(row["ticket_id"].split("-")[0])
+                            archive_number = int(
+                                row["ticket_id"].split("-")[0]
+                            )
+
                             highest_found_count = max(
                                 highest_found_count,
-                                archive_num
+                                archive_number
                             )
+
                         except (ValueError, IndexError):
                             pass
 
@@ -1022,11 +1436,15 @@ class TicketLobbyView(discord.ui.View):
                     ) + 1
 
                     conn.execute("""
-                        INSERT INTO ticket_config (guild_id, ticket_count)
+                        INSERT INTO ticket_config
+                            (guild_id, ticket_count)
                         VALUES (?, ?)
                         ON CONFLICT(guild_id) DO UPDATE SET
                             ticket_count=excluded.ticket_count
-                    """, (guild.id, current_num))
+                    """, (
+                        guild.id,
+                        current_num
+                    ))
 
                     conn.commit()
 
@@ -1034,10 +1452,12 @@ class TicketLobbyView(discord.ui.View):
                         SELECT *
                         FROM ticket_config
                         WHERE guild_id = ?
-                    """, (guild.id,)).fetchone()
+                    """, (
+                        guild.id,
+                    )).fetchone()
 
                 # -------------------------------------------------
-                # Resolve staff roles.
+                # RESOLVE STAFF ROLES
                 # -------------------------------------------------
 
                 chosen_staff_string = (
@@ -1051,36 +1471,51 @@ class TicketLobbyView(discord.ui.View):
                 )
 
                 parsed_role_ids = [
-                    int(r.strip())
-                    for r in chosen_staff_string.split(",")
-                    if r.strip().isdigit()
+                    int(role_id.strip())
+                    for role_id in chosen_staff_string.split(",")
+                    if role_id.strip().isdigit()
                 ]
 
                 # -------------------------------------------------
-                # Category routing.
+                # CATEGORY ROUTING
                 # -------------------------------------------------
 
-                cat_name = raw_label[:100]
+                category_name = raw_label[:100]
 
                 target_category = discord.utils.get(
                     guild.categories,
-                    name=cat_name
+                    name=category_name
                 )
 
+                bot_member = get_bot_member(
+                    guild,
+                    interaction.client
+                )
+
+                if not bot_member:
+                    raise RuntimeError(
+                        "Could not resolve Echo's server member."
+                    )
+
                 if not target_category:
+
                     category_overwrites = {
-                        guild.default_role: discord.PermissionOverwrite(
-                            read_messages=False
-                        ),
-                        guild.me: discord.PermissionOverwrite(
-                            read_messages=True,
-                            send_messages=True,
-                            read_message_history=True
-                        )
+                        guild.default_role:
+                            discord.PermissionOverwrite(
+                                read_messages=False
+                            ),
+
+                        bot_member:
+                            discord.PermissionOverwrite(
+                                read_messages=True,
+                                send_messages=True,
+                                read_message_history=True
+                            )
                     }
 
-                    for r_id in parsed_role_ids:
-                        role_obj = guild.get_role(r_id)
+                    for role_id in parsed_role_ids:
+
+                        role_obj = guild.get_role(role_id)
 
                         if role_obj:
                             category_overwrites[role_obj] = (
@@ -1092,52 +1527,66 @@ class TicketLobbyView(discord.ui.View):
                             )
 
                     target_category = await guild.create_category(
-                        name=cat_name,
+                        name=category_name,
                         overwrites=category_overwrites
                     )
 
                 # -------------------------------------------------
-                # Ticket channel permissions.
+                # TICKET CHANNEL PERMISSIONS
                 # -------------------------------------------------
 
                 overwrites = {
-                    guild.default_role: discord.PermissionOverwrite(
-                        read_messages=False
-                    ),
-                    interaction.user: discord.PermissionOverwrite(
-                        read_messages=True,
-                        send_messages=True,
-                        attach_files=True,
-                        read_message_history=True
-                    ),
-                    guild.me: discord.PermissionOverwrite(
-                        read_messages=True,
-                        send_messages=True,
-                        manage_channels=True,
-                        read_message_history=True
-                    )
+                    guild.default_role:
+                        discord.PermissionOverwrite(
+                            read_messages=False
+                        ),
+
+                    interaction.user:
+                        discord.PermissionOverwrite(
+                            read_messages=True,
+                            send_messages=True,
+                            attach_files=True,
+                            read_message_history=True
+                        ),
+
+                    bot_member:
+                        discord.PermissionOverwrite(
+                            read_messages=True,
+                            send_messages=True,
+                            manage_channels=True,
+                            read_message_history=True
+                        )
                 }
 
                 ping_mentions = []
 
-                for r_id in parsed_role_ids:
-                    role_obj = guild.get_role(r_id)
+                for role_id in parsed_role_ids:
+
+                    role_obj = guild.get_role(role_id)
 
                     if role_obj:
-                        overwrites[role_obj] = discord.PermissionOverwrite(
-                            read_messages=True,
-                            send_messages=True,
-                            read_message_history=True
+
+                        overwrites[role_obj] = (
+                            discord.PermissionOverwrite(
+                                read_messages=True,
+                                send_messages=True,
+                                read_message_history=True
+                            )
                         )
-                        ping_mentions.append(role_obj.mention)
+
+                        ping_mentions.append(
+                            role_obj.mention
+                        )
 
                 ticket_channel = await guild.create_text_channel(
                     name=(
                         f"{current_num}-{interaction.user.name}-"
                         f"{category.replace('_', '-')}"
                     )[:100],
+
                     overwrites=overwrites,
                     category=target_category,
+
                     topic=(
                         f"Asset ID: {interaction.user.id} | "
                         f"Session #{current_num} | "
@@ -1145,67 +1594,99 @@ class TicketLobbyView(discord.ui.View):
                     )
                 )
 
+            # -------------------------------------------------
+            # SEND TICKET MESSAGE
+            # -------------------------------------------------
+
             ping_content = interaction.user.mention
 
             if ping_mentions:
-                ping_content += " | " + " ".join(ping_mentions)
+                ping_content += " | " + " ".join(
+                    ping_mentions
+                )
 
-            tkt_embed = discord.Embed(
+            ticket_embed = discord.Embed(
                 title=(
                     f"⛓️ SESSION #{current_num} INITIATED: "
                     f"{category.upper().replace('_', ' ')}"
                 ),
+
                 description=(
-                    f"Welcome {interaction.user.mention}. State your business clearly. "
+                    f"Welcome {interaction.user.mention}. "
+                    "Please describe your request clearly. "
                     "The appointed department has been notified."
                 ),
+
                 color=0x8B0000
             )
 
-            tkt_embed.set_footer(text="The Master is watching.")
+            ticket_embed.set_footer(
+                text="Echo Support System."
+            )
 
             await ticket_channel.send(
                 content=ping_content,
-                embed=tkt_embed,
+                embed=ticket_embed,
                 view=TicketControls()
             )
 
-            # Admin logging.
-            if config and config["admin_channel"]:
-                admin_chan = guild.get_channel(config["admin_channel"])
+            # -------------------------------------------------
+            # ADMIN LOGGING
+            # -------------------------------------------------
 
-                if admin_chan:
+            if config and config["admin_channel"]:
+
+                admin_channel = guild.get_channel(
+                    config["admin_channel"]
+                )
+
+                if admin_channel:
+
                     try:
                         log = discord.Embed(
-                            title=f"🚨 NEW SESSION OPENED: #{current_num}",
+                            title=(
+                                f"🚨 NEW SESSION OPENED: "
+                                f"#{current_num}"
+                            ),
                             color=0xFFD700
                         )
 
                         log.add_field(
-                            name="Asset",
+                            name="Member",
                             value=interaction.user.mention,
                             inline=True
                         )
+
                         log.add_field(
                             name="Category",
                             value=category.upper().replace("_", " "),
                             inline=True
                         )
+
                         log.add_field(
                             name="Assigned Department",
-                            value=", ".join(ping_mentions) if ping_mentions else "Default Staff",
+                            value=(
+                                ", ".join(ping_mentions)
+                                if ping_mentions
+                                else "Default Staff"
+                            ),
                             inline=True
                         )
+
                         log.add_field(
                             name="Channel",
                             value=ticket_channel.mention,
                             inline=False
                         )
 
-                        await admin_chan.send(embed=log)
+                        await admin_channel.send(
+                            embed=log
+                        )
 
                     except Exception as log_error:
-                        print(f"Ticket creation log failed: {log_error}")
+                        print(
+                            f"Ticket creation log failed: {log_error}"
+                        )
 
             await interaction.followup.send(
                 f"✅ Session opened: {ticket_channel.mention}",
@@ -1221,6 +1702,7 @@ class TicketLobbyView(discord.ui.View):
 # ---------------------------------------------------------
 
 class ArchiveViewer(discord.ui.View):
+
     def __init__(self, ticket_id=None):
         super().__init__(timeout=None)
         self.ticket_id = ticket_id
@@ -1231,27 +1713,50 @@ class ArchiveViewer(discord.ui.View):
         emoji="👁️",
         custom_id="persistent_view_archive"
     )
-    async def view_data(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def view_data(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
         try:
+            # Acknowledge before reading the database.
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=True
+            )
+
             ticket_id = self.ticket_id
 
-            if not ticket_id and interaction.message.embeds:
+            if (
+                not ticket_id
+                and interaction.message.embeds
+            ):
+
                 try:
-                    description = interaction.message.embeds[0].description or ""
+                    description = (
+                        interaction.message.embeds[0].description
+                        or ""
+                    )
+
                     ticket_id = description.split("**")[1]
+
                 except Exception:
                     ticket_id = None
 
             if not ticket_id:
-                return await interaction.response.send_message(
+                return await interaction.followup.send(
                     "❌ Ticket reference could not be resolved.",
                     ephemeral=True
                 )
 
-            await interaction.response.defer(ephemeral=True)
+            if not interaction.guild:
+                return await interaction.followup.send(
+                    "❌ This action requires a server.",
+                    ephemeral=True
+                )
 
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.row_factory = sqlite3.Row
+            with get_db() as conn:
 
                 row = conn.execute("""
                     SELECT content
@@ -1263,16 +1768,22 @@ class ArchiveViewer(discord.ui.View):
                 )).fetchone()
 
             if row:
-                buffer = io.BytesIO(row["content"].encode("utf-8"))
+
+                buffer = io.BytesIO(
+                    row["content"].encode("utf-8")
+                )
 
                 await interaction.followup.send(
                     f"📑 **NEURAL RECOVERY:** Session `{ticket_id}`",
+
                     file=discord.File(
                         buffer,
                         filename=f"{ticket_id}.txt"
                     ),
+
                     ephemeral=True
                 )
+
             else:
                 await interaction.followup.send(
                     "❌ Data block corrupted or missing.",
@@ -1288,9 +1799,19 @@ class ArchiveViewer(discord.ui.View):
 # ---------------------------------------------------------
 
 class TicketControls(discord.ui.View):
+
     def __init__(self, staff_role_id=None):
         super().__init__(timeout=None)
-        self.staff_role_id = str(staff_role_id) if staff_role_id else None
+
+        self.staff_role_id = (
+            str(staff_role_id)
+            if staff_role_id
+            else None
+        )
+
+    # -----------------------------------------------------
+    # CLAIM TICKET
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="CLAIM TICKET",
@@ -1298,7 +1819,12 @@ class TicketControls(discord.ui.View):
         emoji="🙋‍♂️",
         custom_id="tkt:claim"
     )
-    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def claim(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
         try:
             if not is_ticket_staff(interaction):
                 return await interaction.response.send_message(
@@ -1306,65 +1832,83 @@ class TicketControls(discord.ui.View):
                     ephemeral=True
                 )
 
-            await interaction.response.defer(ephemeral=True)
-
-            channel = interaction.channel
-            opener_id = get_topic_value(channel, "Asset ID")
-
-            # IMPORTANT:
-            # Copy existing overwrites instead of rebuilding them.
-            # This preserves every staff role's access.
-            overwrites = dict(channel.overwrites)
-
-            # Ensure the claimant has access.
-            overwrites[interaction.user] = discord.PermissionOverwrite(
-                read_messages=True,
-                send_messages=True,
-                attach_files=True,
-                read_message_history=True
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=True
             )
 
-            # Restore opener access if their ID is stored in the topic.
+            channel = interaction.channel
+
+            opener_id = get_topic_value(
+                channel,
+                "Asset ID"
+            )
+
+            # Preserve all existing channel permissions.
+            overwrites = dict(channel.overwrites)
+
+            overwrites[interaction.user] = (
+                discord.PermissionOverwrite(
+                    read_messages=True,
+                    send_messages=True,
+                    attach_files=True,
+                    read_message_history=True
+                )
+            )
+
             if opener_id and opener_id.isdigit():
-                opener = interaction.guild.get_member(int(opener_id))
+
+                opener = interaction.guild.get_member(
+                    int(opener_id)
+                )
 
                 if opener:
-                    overwrites[opener] = discord.PermissionOverwrite(
-                        read_messages=True,
-                        send_messages=True,
-                        attach_files=True,
-                        read_message_history=True
+                    overwrites[opener] = (
+                        discord.PermissionOverwrite(
+                            read_messages=True,
+                            send_messages=True,
+                            attach_files=True,
+                            read_message_history=True
+                        )
                     )
 
-            # Keep all existing staff overwrites untouched.
-            await channel.edit(overwrites=overwrites)
-
             old_topic = channel.topic or ""
+
             topic_parts = [
                 part.strip()
                 for part in old_topic.split("|")
-                if not part.strip().startswith("Claimed by:")
+                if (
+                    not part.strip().startswith("Claimed by:")
+                    and not part.strip().startswith("Handler ID:")
+                )
             ]
 
             topic_parts.append(
                 f"Claimed by: {interaction.user.display_name}"
             )
+
             topic_parts.append(
                 f"Handler ID: {interaction.user.id}"
             )
 
-            await channel.edit(topic=" | ".join(topic_parts))
+            # Update permissions and topic together.
+            await channel.edit(
+                overwrites=overwrites,
+                topic=" | ".join(topic_parts)
+            )
 
-            # Do not disable the button on the shared persistent view.
-            # The view instance is registered globally and may serve other tickets.
             await interaction.followup.send(
-                f"💼 **TICKET ASSIGNED:** {interaction.user.mention} "
-                "has claimed this session.",
+                f"💼 **TICKET ASSIGNED:** "
+                f"{interaction.user.mention} has claimed this session.",
                 ephemeral=False
             )
 
         except Exception as e:
             await interaction_error(interaction, e)
+
+    # -----------------------------------------------------
+    # PING ADMINS
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="PING ADMINS",
@@ -1372,7 +1916,12 @@ class TicketControls(discord.ui.View):
         emoji="🔔",
         custom_id="tkt:ping_admins"
     )
-    async def ping_admins(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def ping_admins(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
         try:
             if not is_ticket_staff(interaction):
                 return await interaction.response.send_message(
@@ -1380,46 +1929,66 @@ class TicketControls(discord.ui.View):
                     ephemeral=True
                 )
 
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=True
+            )
+
             target_role_ids = get_staff_role_ids(
                 interaction.channel,
                 self.staff_role_id
             )
 
             if not target_role_ids:
-                with sqlite3.connect(DB_PATH) as conn:
-                    conn.row_factory = sqlite3.Row
+
+                with get_db() as conn:
 
                     config = conn.execute("""
                         SELECT admin_role_id
                         FROM ticket_config
                         WHERE guild_id = ?
-                    """, (interaction.guild.id,)).fetchone()
+                    """, (
+                        interaction.guild.id,
+                    )).fetchone()
 
                 if config and config["admin_role_id"]:
-                    target_role_ids = [int(config["admin_role_id"])]
+                    target_role_ids = [
+                        int(config["admin_role_id"])
+                    ]
 
             valid_mentions = []
 
             for role_id in target_role_ids:
+
                 role = interaction.guild.get_role(role_id)
 
                 if role:
                     valid_mentions.append(role.mention)
 
             if valid_mentions:
-                return await interaction.response.send_message(
+
+                await interaction.followup.send(
                     f"⚠️ {' '.join(valid_mentions)} "
-                    "**ATTENTION REQUIRED:** Support reinforcement requested.",
-                    allowed_mentions=discord.AllowedMentions(roles=True)
+                    "**ATTENTION REQUIRED:** "
+                    "Support reinforcement requested.",
+
+                    allowed_mentions=discord.AllowedMentions(
+                        roles=True
+                    )
                 )
 
-            await interaction.response.send_message(
-                "❌ Assigned department roles could not be resolved.",
-                ephemeral=True
-            )
+            else:
+                await interaction.followup.send(
+                    "❌ Assigned department roles could not be resolved.",
+                    ephemeral=True
+                )
 
         except Exception as e:
             await interaction_error(interaction, e)
+
+    # -----------------------------------------------------
+    # CLOSE TICKET
+    # -----------------------------------------------------
 
     @discord.ui.button(
         label="CLOSE SESSION",
@@ -1427,11 +1996,20 @@ class TicketControls(discord.ui.View):
         emoji="🔒",
         custom_id="tkt:close"
     )
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def close(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
         try:
             channel = interaction.channel
 
-            opener_id = get_topic_value(channel, "Asset ID")
+            opener_id = get_topic_value(
+                channel,
+                "Asset ID"
+            )
+
             is_opener = (
                 opener_id
                 and opener_id.isdigit()
@@ -1440,18 +2018,23 @@ class TicketControls(discord.ui.View):
 
             if not is_ticket_staff(interaction) and not is_opener:
                 return await interaction.response.send_message(
-                    "❌ Only the ticket opener or assigned staff can close this ticket.",
+                    "❌ Only the ticket opener or assigned staff "
+                    "can close this ticket.",
                     ephemeral=True
                 )
 
-            await interaction.response.defer()
+            # Acknowledge before downloading the channel history.
+            await acknowledge_interaction(
+                interaction,
+                ephemeral=False
+            )
 
-            # Build transcript.
             transcript = (
                 f"--- BLACK BOX TRANSCRIPT: {channel.name} ---\n"
                 f"Asset ID: {opener_id or 'Unknown'}\n"
                 f"Closed by: {interaction.user.display_name}\n"
-                f"Sealed on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Sealed on: "
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 + "-" * 40
                 + "\n\n"
             )
@@ -1460,7 +2043,10 @@ class TicketControls(discord.ui.View):
                 limit=None,
                 oldest_first=True
             ):
-                timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
+
+                timestamp = message.created_at.strftime(
+                    "%Y-%m-%d %H:%M"
+                )
 
                 content = (
                     message.clean_content
@@ -1469,19 +2055,25 @@ class TicketControls(discord.ui.View):
                 )
 
                 if message.attachments:
-                    content += " | Attachments: " + ", ".join(
-                        attachment.url for attachment in message.attachments
+                    content += (
+                        " | Attachments: "
+                        + ", ".join(
+                            attachment.url
+                            for attachment in message.attachments
+                        )
                     )
 
                 transcript += (
-                    f"[{timestamp}] {message.author.display_name}: "
+                    f"[{timestamp}] "
+                    f"{message.author.display_name}: "
                     f"{content}\n"
                 )
 
             ticket_id = channel.name
 
-            # Save archive before deleting anything.
-            with sqlite3.connect(DB_PATH) as conn:
+            # Save transcript BEFORE deleting the channel.
+            with get_db() as conn:
+
                 conn.execute("""
                     INSERT OR REPLACE INTO ticket_archives
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -1496,23 +2088,25 @@ class TicketControls(discord.ui.View):
 
                 conn.commit()
 
-            # Retrieve logging channel.
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.row_factory = sqlite3.Row
+            with get_db() as conn:
 
                 config = conn.execute("""
                     SELECT admin_channel
                     FROM ticket_config
                     WHERE guild_id = ?
-                """, (interaction.guild.id,)).fetchone()
+                """, (
+                    interaction.guild.id,
+                )).fetchone()
 
-            # Logging failure must not destroy the saved transcript.
+            # Logging failure does not delete the saved transcript.
             if config and config["admin_channel"]:
-                admin_chan = interaction.guild.get_channel(
+
+                admin_channel = interaction.guild.get_channel(
                     config["admin_channel"]
                 )
 
-                if admin_chan:
+                if admin_channel:
+
                     try:
                         archive_embed = discord.Embed(
                             title="📸 EVIDENCE ARCHIVED",
@@ -1523,7 +2117,7 @@ class TicketControls(discord.ui.View):
                             color=0x2F3136
                         )
 
-                        await admin_chan.send(
+                        await admin_channel.send(
                             embed=archive_embed,
                             view=ArchiveViewer(ticket_id)
                         )
@@ -1534,8 +2128,8 @@ class TicketControls(discord.ui.View):
                         )
 
             await interaction.followup.send(
-                "⛓️ *Session sealed. Data stored in Black Box. "
-                "Purging in 5 seconds...*"
+                "⛓️ Session sealed. Data stored in Black Box. "
+                "Purging in 5 seconds..."
             )
 
             await asyncio.sleep(5)
@@ -1545,7 +2139,7 @@ class TicketControls(discord.ui.View):
             )
 
         except Exception as e:
-            # If transcript storage failed, the channel is deliberately retained.
+            # Do not delete the channel if transcript storage failed.
             await interaction_error(interaction, e)
 
 
@@ -1554,13 +2148,26 @@ class TicketControls(discord.ui.View):
 # ---------------------------------------------------------
 
 async def setup(bot):
-    await bot.add_cog(ReactionRoleSystem(bot))
+
+    # Initialise database before restoring views.
+    initialise_database()
+
+    await bot.add_cog(
+        ReactionRoleSystem(bot)
+    )
+
+    # -----------------------------------------------------
+    # RESTORE SAVED VIEWS
+    # -----------------------------------------------------
 
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
 
-            # Restore reaction role views using their stored message IDs.
+        with get_db() as conn:
+
+            # ---------------------------------------------
+            # REACTION ROLE PANELS
+            # ---------------------------------------------
+
             rr_rows = conn.execute("""
                 SELECT message_id, emoji, role_id
                 FROM reaction_roles
@@ -1569,6 +2176,7 @@ async def setup(bot):
             rr_dict = {}
 
             for row in rr_rows:
+
                 message_id = row["message_id"]
 
                 if message_id not in rr_dict:
@@ -1577,47 +2185,78 @@ async def setup(bot):
                 rr_dict[message_id][row["emoji"]] = row["role_id"]
 
             for message_id, mappings in rr_dict.items():
-                bot.add_view(
-                    ReactionRoleView(mappings),
-                    message_id=message_id
-                )
 
-            # Restore ticket lobby views using the exact panel message IDs.
+                try:
+                    bot.add_view(
+                        ReactionRoleView(mappings),
+                        message_id=message_id
+                    )
+
+                except Exception as e:
+                    print(
+                        f"Could not restore reaction role panel "
+                        f"{message_id}: {e}"
+                    )
+
+            # ---------------------------------------------
+            # TICKET LOBBY PANELS
+            # ---------------------------------------------
+
             panel_rows = conn.execute("""
                 SELECT guild_id, message_id, channel_id
                 FROM ticket_panels
             """).fetchall()
 
             for panel in panel_rows:
+
                 guild_id = panel["guild_id"]
 
-                btns = conn.execute("""
-                    SELECT label, emoji, btn_index, staff_role_id
-                    FROM ticket_buttons
-                    WHERE guild_id = ?
-                    ORDER BY btn_index
-                """, (guild_id,)).fetchall()
+                try:
 
-                configs = [
-                    {
-                        "label": row["label"],
-                        "emoji": row["emoji"],
-                        "staff_role_id": str(row["staff_role_id"] or "")
-                    }
-                    for row in btns
-                ]
+                    btns = conn.execute("""
+                        SELECT label, emoji, btn_index, staff_role_id
+                        FROM ticket_buttons
+                        WHERE guild_id = ?
+                        ORDER BY btn_index
+                    """, (
+                        guild_id,
+                    )).fetchall()
 
-                if configs:
-                    bot.add_view(
-                        TicketLobbyView(configs),
-                        message_id=panel["message_id"]
+                    configs = [
+                        {
+                            "label": row["label"],
+                            "emoji": row["emoji"],
+                            "staff_role_id": (
+                                str(row["staff_role_id"] or "")
+                            )
+                        }
+                        for row in btns
+                    ]
+
+                    if configs:
+
+                        bot.add_view(
+                            TicketLobbyView(configs),
+                            message_id=panel["message_id"]
+                        )
+
+                except Exception as e:
+                    print(
+                        f"Could not restore ticket panel "
+                        f"{panel['message_id']}: {e}"
                     )
 
     except Exception as e:
-        print(f"Failed to restore persistent views: {e}")
+        print("Persistent view restoration failed:")
+        traceback.print_exc()
 
-    # These views use fixed custom IDs and can serve persistent messages.
+    # -----------------------------------------------------
+    # GLOBAL PERSISTENT VIEWS
+    # -----------------------------------------------------
+
     bot.add_view(TicketControls())
     bot.add_view(DesignerLobby())
     bot.add_view(ArchiveViewer())
 
+    print("Echo persistent views registered successfully.")
+    print("Echo ticket system loaded.")
