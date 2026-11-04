@@ -888,10 +888,28 @@ class ReactionRoleSystem(commands.Cog):
 
             ticket_image_url = None
 
+            # FIX: KEEP A COPY OF THE IMAGE IN MEMORY.
+            ticket_image_file = None
+
             if msg.content.strip().lower() != "none":
 
                 if msg.attachments:
-                    ticket_image_url = msg.attachments[0].url
+
+                    attachment = msg.attachments[0]
+
+                    # DOWNLOAD THE IMAGE BEFORE CLEANING UP
+                    # THE ORIGINAL SETUP MESSAGE.
+                    image_data = await attachment.read()
+
+                    ticket_image_file = discord.File(
+                        io.BytesIO(image_data),
+                        filename=attachment.filename
+                    )
+
+                    # USE DISCORD'S ATTACHMENT URL IN THE EMBED.
+                    ticket_image_url = (
+                        f"attachment://{attachment.filename}"
+                    )
 
                 elif msg.content.startswith("http"):
                     ticket_image_url = msg.content.strip()
@@ -1058,9 +1076,13 @@ class ReactionRoleSystem(commands.Cog):
 
             view = TicketLobbyView(button_configs)
 
+            # FIX: UPLOAD THE IMAGE WITH THE EMBED ITSELF.
+            # THIS ENSURES THE IMAGE REMAINS AVAILABLE EVEN
+            # AFTER THE ORIGINAL SETUP MESSAGE IS DELETED.
             panel_message = await target_channel.send(
                 embed=embed,
-                view=view
+                view=view,
+                file=ticket_image_file
             )
 
             with get_db() as conn:
